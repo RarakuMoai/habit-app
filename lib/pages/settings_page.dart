@@ -404,6 +404,9 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             hintText: '請輸入 $_digits 位數字',
             counterText: '',
           ),
+          onChanged: (v) {
+            if (v.length == _digits) Navigator.pop(ctx, v);
+          },
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
@@ -469,6 +472,56 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
         .showSnackBar(const SnackBar(content: Text('PIN 已更新')));
   }
 
+  // 切換 PIN 位數（有 PIN 時需先驗證舊 PIN 再重設新 PIN）
+  Future<void> _changeDigits(int newDigits) async {
+    if (newDigits == _digits) return;
+
+    if (!_hasPin) {
+      // 尚未設定 PIN，直接套用新位數
+      setState(() => _digits = newDigits);
+      await widget.onDigitsChanged(newDigits);
+      return;
+    }
+
+    // 已設定 PIN：先用目前位數驗證舊 PIN
+    final old = await _promptPin('請輸入目前的 PIN（$_digits 位）');
+    if (!mounted || old == null) return;
+
+    if (old != widget.currentPin) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('舊 PIN 錯誤，請再試一次')));
+      return;
+    }
+
+    // 驗證通過，切換至新位數並要求重設 PIN（兩次確認）
+    setState(() => _digits = newDigits);
+
+    final newPin = await _promptPin('請設定新 PIN（$newDigits 位）');
+    if (!mounted || newPin == null || newPin.length != newDigits) {
+      setState(() => _digits = widget.currentDigits);
+      return;
+    }
+
+    final confirm = await _promptPin('請再次輸入新 PIN 確認');
+    if (!mounted || confirm == null) {
+      setState(() => _digits = widget.currentDigits);
+      return;
+    }
+
+    if (newPin != confirm) {
+      setState(() => _digits = widget.currentDigits);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('兩次輸入的 PIN 不一致')));
+      return;
+    }
+
+    await widget.onSaved(newPin, newDigits);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('位數已更新，PIN 已重設')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
@@ -509,20 +562,14 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
                 digits: 4,
                 selected: _digits == 4,
                 color: primary,
-                onTap: () async {
-                  setState(() => _digits = 4);
-                  await widget.onDigitsChanged(4);
-                },
+                onTap: () => _changeDigits(4),
               ),
               const SizedBox(width: 10),
               _DigitChip(
                 digits: 6,
                 selected: _digits == 6,
                 color: primary,
-                onTap: () async {
-                  setState(() => _digits = 6);
-                  await widget.onDigitsChanged(6);
-                },
+                onTap: () => _changeDigits(6),
               ),
             ],
           ),

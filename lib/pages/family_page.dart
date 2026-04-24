@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'settings_page.dart';
 
 // ── 資料模型 ──
 
@@ -66,6 +67,9 @@ Future<String?> _showPinDialog(
           hintText: '請輸入 $digits 位數字 PIN',
           counterText: '',
         ),
+        onChanged: (v) {
+          if (v.length == digits) Navigator.pop(ctx, v);
+        },
         onSubmitted: (v) => Navigator.pop(ctx, v),
       ),
       actions: [
@@ -157,7 +161,22 @@ class _FamilyPageState extends State<FamilyPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('家庭'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('家庭'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: '設定',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+              _loadChildren();
+            },
+          ),
+        ],
+      ),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : _children.isEmpty
@@ -366,6 +385,15 @@ class _ChildHomePageState extends State<_ChildHomePage> {
         appBar: AppBar(
           title: _buildTitle(),
           centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: '設定',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              ),
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: '習慣'),
