@@ -386,49 +386,93 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
 
   bool get _hasPin => widget.currentPin?.isNotEmpty ?? false;
 
-  // 通用 PIN 輸入對話框
-  Future<String?> _promptPin(String title) async {
+  // 驗證舊 PIN：滿位數自動確認，僅顯示取消，含顯示/隱藏切換
+  Future<String?> _promptOldPin(String title) async {
     final ctrl = TextEditingController();
+    bool obscure = true;
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          obscureText: true,
-          maxLength: _digits,
-          autofocus: true,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(
-            hintText: '請輸入 $_digits 位數字',
-            counterText: '',
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            obscureText: obscure,
+            maxLength: _digits,
+            autofocus: true,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              hintText: '請輸入 $_digits 位數字',
+              counterText: '',
+              suffixIcon: IconButton(
+                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setS(() => obscure = !obscure),
+              ),
+            ),
+            onChanged: (v) {
+              if (v.length == _digits) Navigator.pop(dialogCtx, v);
+            },
+            onSubmitted: (v) => Navigator.pop(dialogCtx, v),
           ),
-          onChanged: (v) {
-            if (v.length == _digits) Navigator.pop(ctx, v);
-          },
-          onSubmitted: (v) => Navigator.pop(ctx, v),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+      ),
+    );
+  }
+
+  // 設定／確認新 PIN：需按確認按鈕，不自動送出，含顯示/隱藏切換
+  Future<String?> _promptNewPin(String title) async {
+    final ctrl = TextEditingController();
+    bool obscure = true;
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            obscureText: obscure,
+            maxLength: _digits,
+            autofocus: true,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              hintText: '請輸入 $_digits 位數字',
+              counterText: '',
+              suffixIcon: IconButton(
+                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setS(() => obscure = !obscure),
+              ),
+            ),
+            onSubmitted: (v) => Navigator.pop(dialogCtx, ctrl.text),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: const Text('確認'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, ctrl.text),
+              child: const Text('確認'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   // 第一次設定 PIN（輸入兩次確認）
   Future<void> _setupPin() async {
-    final newPin = await _promptPin('請設定新 PIN（$_digits 位數字）');
+    final newPin = await _promptNewPin('請設定新 PIN（$_digits 位數字）');
     if (newPin == null || newPin.length != _digits) return;
 
-    final confirm = await _promptPin('請再次輸入 PIN 確認');
+    final confirm = await _promptNewPin('請再次輸入 PIN 確認');
     if (!mounted || confirm == null) return;
 
     if (newPin != confirm) {
@@ -445,7 +489,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
 
   // 修改 PIN（需先輸入舊 PIN）
   Future<void> _changePin() async {
-    final old = await _promptPin('請輸入目前的 PIN');
+    final old = await _promptOldPin('請輸入目前的 PIN');
     if (!mounted || old == null) return;
 
     if (old != widget.currentPin) {
@@ -454,10 +498,10 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
       return;
     }
 
-    final newPin = await _promptPin('請設定新 PIN（$_digits 位數字）');
+    final newPin = await _promptNewPin('請設定新 PIN（$_digits 位數字）');
     if (newPin == null || newPin.length != _digits) return;
 
-    final confirm = await _promptPin('請再次輸入新 PIN 確認');
+    final confirm = await _promptNewPin('請再次輸入新 PIN 確認');
     if (!mounted || confirm == null) return;
 
     if (newPin != confirm) {
@@ -484,7 +528,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     }
 
     // 已設定 PIN：先用目前位數驗證舊 PIN
-    final old = await _promptPin('請輸入目前的 PIN（$_digits 位）');
+    final old = await _promptOldPin('請輸入目前的 PIN（$_digits 位）');
     if (!mounted || old == null) return;
 
     if (old != widget.currentPin) {
@@ -496,13 +540,13 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     // 驗證通過，切換至新位數並要求重設 PIN（兩次確認）
     setState(() => _digits = newDigits);
 
-    final newPin = await _promptPin('請設定新 PIN（$newDigits 位）');
+    final newPin = await _promptNewPin('請設定新 PIN（$newDigits 位）');
     if (!mounted || newPin == null || newPin.length != newDigits) {
       setState(() => _digits = widget.currentDigits);
       return;
     }
 
-    final confirm = await _promptPin('請再次輸入新 PIN 確認');
+    final confirm = await _promptNewPin('請再次輸入新 PIN 確認');
     if (!mounted || confirm == null) {
       setState(() => _digits = widget.currentDigits);
       return;

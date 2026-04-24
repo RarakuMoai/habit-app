@@ -52,36 +52,39 @@ Future<String?> _showPinDialog(
   required String title,
 }) async {
   final controller = TextEditingController();
+  bool obscure = true;
   return showDialog<String>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(title),
-      content: TextField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        obscureText: true,
-        maxLength: digits,
-        autofocus: true,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: InputDecoration(
-          hintText: '請輸入 $digits 位數字 PIN',
-          counterText: '',
+    builder: (dialogCtx) => StatefulBuilder(
+      builder: (_, setS) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          obscureText: obscure,
+          maxLength: digits,
+          autofocus: true,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            hintText: '請輸入 $digits 位數字 PIN',
+            counterText: '',
+            suffixIcon: IconButton(
+              icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setS(() => obscure = !obscure),
+            ),
+          ),
+          onChanged: (v) {
+            if (v.length == digits) Navigator.pop(dialogCtx, v);
+          },
+          onSubmitted: (v) => Navigator.pop(dialogCtx, v),
         ),
-        onChanged: (v) {
-          if (v.length == digits) Navigator.pop(ctx, v);
-        },
-        onSubmitted: (v) => Navigator.pop(ctx, v),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, controller.text),
-          child: const Text('確認'),
-        ),
-      ],
     ),
   );
 }
