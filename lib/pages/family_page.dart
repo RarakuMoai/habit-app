@@ -569,15 +569,15 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     setState(() {});
   }
 
-  // 離開時通知上層是否有資料異動
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: true,
+      // 攔截系統返回，確保無論哪種返回方式都能帶回 _changed
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) {
-          // 透過 Navigator.pop 回傳是否有異動
-        }
+        // didPop=false 代表系統返回被攔截；直接呼叫 Navigator.pop 帶回結果
+        // didPop=true 代表已由 BackButton.onPressed 主動 pop，不重複操作
+        if (!didPop) Navigator.of(context).pop(_changed);
       },
       child: Scaffold(
         appBar: AppBar(
