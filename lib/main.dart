@@ -5,6 +5,7 @@ import 'pages/timer_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'pages/onboarding_page.dart';
+import 'pages/family_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -93,6 +94,8 @@ class _MainPageState extends State<MainPage> {
     if (_weightTrackingEnabled) {
       list.add(_TabItem(page: const WeightPage(), icon: Icons.monitor_weight, label: '體重'));
     }
+    // 家庭頁籤固定顯示，不受功能開關影響
+    list.add(_TabItem(page: const FamilyPage(), icon: Icons.family_restroom, label: '家庭'));
     return list;
   }
 
