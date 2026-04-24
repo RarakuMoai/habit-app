@@ -450,7 +450,10 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
                 onPressed: () => setS(() => obscure = !obscure),
               ),
             ),
-            onSubmitted: (v) => Navigator.pop(dialogCtx, ctrl.text),
+            onChanged: (v) => setS(() {}), // 觸發重繪，更新確認按鈕狀態
+            onSubmitted: (v) {
+              if (ctrl.text.length == _digits) Navigator.pop(dialogCtx, ctrl.text);
+            },
           ),
           actions: [
             TextButton(
@@ -458,7 +461,10 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
               child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, ctrl.text),
+              // 位數未達要求時禁用確認按鈕
+              onPressed: ctrl.text.length == _digits
+                  ? () => Navigator.pop(dialogCtx, ctrl.text)
+                  : null,
               child: const Text('確認'),
             ),
           ],
