@@ -23,10 +23,21 @@ class MyApp extends StatelessWidget {
       title: '習慣養成',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7043)),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFFFF8F0),
+        cardColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFFF7043),
+          foregroundColor: Colors.white,
+          iconTheme: IconThemeData(color: Colors.white),
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
-      // 命名路由，讓 OnboardingPage 完成後可導向 /home
       initialRoute: startAtHome ? '/home' : '/onboarding',
       routes: {
         '/onboarding': (_) => const OnboardingPage(),
@@ -104,7 +115,8 @@ class _MainPageState extends State<MainPage> {
               currentIndex: _currentIndex,
               onTap: (index) => setState(() => _currentIndex = index),
               type: BottomNavigationBarType.fixed,
-              selectedItemColor: Colors.orange,
+              // 使用當前主題的主色，確保切換主題後底部列顏色同步更新
+              selectedItemColor: Theme.of(context).colorScheme.primary,
               unselectedItemColor: Colors.grey,
               items: tabs
                   .map((t) => BottomNavigationBarItem(icon: Icon(t.icon), label: t.label))

@@ -23,7 +23,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _load();
   }
 
-  // 只讀取功能開關的 bool 值，基本資料交由 ProfileEditPage 處理
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -38,7 +37,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await _prefs?.setBool(key, value);
   }
 
-  // 清除習慣紀錄（只移除 habits key，保留其他設定）
   Future<void> _clearHabits() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -62,7 +60,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // 清除所有資料並重新進入引導流程
   Future<void> _clearAll() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -89,20 +86,21 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // 區塊標題
+  // 區塊標題（顏色跟隨當前主題主色）
   Widget _sectionTitle(String title, IconData icon) {
+    final color = Theme.of(context).colorScheme.primary;
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.orange),
+          Icon(icon, size: 18, color: color),
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Colors.orange,
+              color: color,
             ),
           ),
         ],
@@ -173,12 +171,9 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8F0),
       appBar: AppBar(
-        backgroundColor: Colors.orange,
-        title: const Text('設定', style: TextStyle(color: Colors.white)),
+        title: const Text('設定'),
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _loaded
           ? ListView(

@@ -80,8 +80,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     setState(() => _displayText = '');
     _typingTimer?.cancel();
     _typingTimer = Timer.periodic(const Duration(milliseconds: 60), (timer) {
-      if (charIndex < line.length) {
-        setState(() => _displayText += line[charIndex]);
+      if (charIndex < line.characters.length) {
+        setState(() => _displayText = line.characters.take(charIndex + 1).toString());
         charIndex++;
       } else {
         timer.cancel();
