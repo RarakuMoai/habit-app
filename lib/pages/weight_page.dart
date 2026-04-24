@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:convert';
+import 'settings_page.dart';
 
 class WeightPage extends StatefulWidget {
   const WeightPage({super.key});
@@ -654,6 +655,19 @@ class _WeightPageState extends State<WeightPage> {
         backgroundColor: Colors.orange,
         title: const Text('體重紀錄', style: TextStyle(color: Colors.white)),
         centerTitle: true,
+        actions: [
+          // 齒輪按鈕：進入設定頁，返回後重新載入體重相關設定
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            tooltip: '設定',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+              _loadData();
+            },
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openAddSheet(),

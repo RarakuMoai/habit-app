@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'settings_page.dart';
 
 class TimerPage extends StatefulWidget {
   const TimerPage({super.key});
@@ -69,6 +70,18 @@ class _TimerPageState extends State<TimerPage> {
         backgroundColor: color,
         title: const Text('番茄鐘', style: TextStyle(color: Colors.white)),
         centerTitle: true,
+        actions: [
+          // 齒輪按鈕：進入設定頁
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            tooltip: '設定',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: Center(
         child: Column(

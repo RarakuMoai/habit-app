@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'settings_page.dart';
 
 class WaterPage extends StatefulWidget {
   const WaterPage({super.key});
@@ -64,6 +65,19 @@ class _WaterPageState extends State<WaterPage> {
         backgroundColor: Colors.blue,
         title: const Text('喝水紀錄', style: TextStyle(color: Colors.white)),
         centerTitle: true,
+        actions: [
+          // 齒輪按鈕：進入設定頁，返回後重新載入今日喝水紀錄
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            tooltip: '設定',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+              _loadWater();
+            },
+          ),
+        ],
       ),
       body: Center(
         child: Column(
