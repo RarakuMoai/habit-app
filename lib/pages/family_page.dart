@@ -1098,7 +1098,9 @@ class _PointRecordTab extends StatefulWidget {
 class _PointRecordTabState extends State<_PointRecordTab> {
   List<PointRecord> _records = [];
   bool _loaded = false;
-  String _filter = 'all'; // 'all' | 'month' | 'week'
+  // 'week' | 'month' | 'custom' | 'all'；預設本週
+  String _filter = 'week';
+  DateTimeRange? _customRange;
 
   @override
   void initState() {
@@ -1116,19 +1118,58 @@ class _PointRecordTabState extends State<_PointRecordTab> {
   }
 
   List<PointRecord> get _filtered {
-    if (_filter == 'all') return _records;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+
     return _records.where((r) {
       final dateStr = r.time.split(' ').first;
       final dt = DateTime.tryParse(dateStr);
       if (dt == null) return false;
-      if (_filter == 'month') {
-        return dt.year == now.year && dt.month == now.month;
+      final day = DateTime(dt.year, dt.month, dt.day);
+
+      switch (_filter) {
+        case 'week':
+          return !day.isBefore(today.subtract(const Duration(days: 6)));
+        case 'month':
+          return dt.year == now.year && dt.month == now.month;
+        case 'custom':
+          final r = _customRange;
+          if (r == null) return false;
+          return !day.isBefore(r.start) && !day.isAfter(r.end);
+        default: // 'all'
+          return true;
       }
-      // week：往前 6 天（含今天共 7 天）
-      return !dt.isBefore(today.subtract(const Duration(days: 6)));
     }).toList();
+  }
+
+  // 打開日期範圍選擇器
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+      initialDateRange: _customRange ??
+          DateTimeRange(
+            start: now.subtract(const Duration(days: 6)),
+            end: now,
+          ),
+      locale: const Locale('zh', 'TW'),
+    );
+    if (picked != null) {
+      setState(() {
+        _customRange = picked;
+        _filter = 'custom';
+      });
+    }
+  }
+
+  String _customLabel() {
+    final r = _customRange;
+    if (r == null) return '自訂';
+    String fmt(DateTime d) =>
+        '${d.month}/${d.day}';
+    return '${fmt(r.start)}–${fmt(r.end)}';
   }
 
   Widget _filterChip(String label, String value) {
@@ -1163,14 +1204,27 @@ class _PointRecordTabState extends State<_PointRecordTab> {
         // ── 篩選列 ──
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: [
-              _filterChip('全部', 'all'),
-              const SizedBox(width: 8),
-              _filterChip('本月', 'month'),
-              const SizedBox(width: 8),
-              _filterChip('本週', 'week'),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _filterChip('本週', 'week'),
+                const SizedBox(width: 8),
+                _filterChip('本月', 'month'),
+                const SizedBox(width: 8),
+                // 自訂：點擊開啟日期選擇器
+                GestureDetector(
+                  onTap: _pickCustomRange,
+                  child: _CustomRangeChip(
+                    label: _customLabel(),
+                    selected: _filter == 'custom',
+                    primary: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _filterChip('全部', 'all'),
+              ],
+            ),
           ),
         ),
         if (filtered.isEmpty)
@@ -1228,6 +1282,50 @@ class _PointRecordTabState extends State<_PointRecordTab> {
             ),
           ),
       ],
+    );
+  }
+}
+
+// 自訂日期範圍篩選 Chip（顯示日期標籤，含日曆圖示）
+class _CustomRangeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color primary;
+
+  const _CustomRangeChip({
+    required this.label,
+    required this.selected,
+    required this.primary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: selected ? primary.withValues(alpha: 0.15) : Colors.transparent,
+        border: Border.all(
+          color: selected ? primary : Colors.grey.shade300,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.date_range,
+              size: 14,
+              color: selected ? primary : Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: selected ? primary : Colors.grey.shade600,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
