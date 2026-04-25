@@ -57,7 +57,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void initState() {
     super.initState();
     _nicknameController.addListener(() => setState(() {}));
-    _startTyping();
+    // 等第一幀渲染完成（Offstage 預熱字形後）再啟動打字動畫
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startTyping();
+    });
   }
 
   @override
@@ -73,26 +76,27 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // 逐字打字效果
   void _startTyping() {
+    if (!mounted) return;
     if (_lineIndex >= _lines.length) {
-      setState(() {
-        _page1Done = true;
-      });
+      setState(() => _page1Done = true);
       return;
     }
-    final line = _lines[_lineIndex];
+    final chars = _lines[_lineIndex].characters.toList(); // 預先拆好，避免每次重建
     int charIndex = 0;
     setState(() => _displayText = '');
     _typingTimer?.cancel();
     _typingTimer = Timer.periodic(const Duration(milliseconds: 60), (timer) {
-      if (charIndex < line.characters.length) {
-        setState(
-          () => _displayText = line.characters.take(charIndex + 1).toString(),
-        );
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (charIndex < chars.length) {
+        setState(() => _displayText = chars.take(charIndex + 1).join());
         charIndex++;
       } else {
         timer.cancel();
-        // 等1秒後換下一句
         Future.delayed(const Duration(milliseconds: 900), () {
+          if (!mounted) return;
           _lineIndex++;
           _startTyping();
         });
@@ -277,10 +281,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             child: _mascot(size: 120),
           ),
           const SizedBox(height: 32),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: _speechBubble(_displayText, fontSize: 18),
-          ),
+          _speechBubble(_displayText, fontSize: 18),
           const SizedBox(height: 40),
           // 打字完成後才出現「繼續」按鈕
           AnimatedOpacity(
@@ -834,19 +835,30 @@ class _OnboardingPageState extends State<OnboardingPage> {
           }),
         ),
       ),
-      body: PageView(
-        controller: _pageController,
-        // 禁止滑動（只能用按鈕前進）
-        physics: const NeverScrollableScrollPhysics(),
+      body: Stack(
         children: [
-          _buildPage1(),
-          _buildPage2(),
-          _buildPage3(),
-          _buildPage4(),
-          _buildPage5(),
-          _buildFamilyPage(),
-          _buildPage6(),
-          _buildPage7(),
+          // 隱形預渲染所有打字文字，讓字形提前載入 GPU 圖集，避免首次顯示亂碼
+          Offstage(
+            child: Text(
+              _lines.join(),
+              style: const TextStyle(fontSize: 18),
+            ),
+          ),
+          PageView(
+            controller: _pageController,
+            // 禁止滑動（只能用按鈕前進）
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _buildPage1(),
+              _buildPage2(),
+              _buildPage3(),
+              _buildPage4(),
+              _buildPage5(),
+              _buildFamilyPage(),
+              _buildPage6(),
+              _buildPage7(),
+            ],
+          ),
         ],
       ),
     );
