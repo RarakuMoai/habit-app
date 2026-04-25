@@ -127,7 +127,14 @@ class _MainPageState extends State<MainPage> {
           ? null
           : BottomNavigationBar(
               currentIndex: _currentIndex,
-              onTap: (index) => setState(() => _currentIndex = index),
+              onTap: (index) {
+                // 離開家庭頁籤時清除家長 Session，下次進入需重新驗證
+                final familyIdx = tabs.indexWhere((t) => t.label == '家庭');
+                if (familyIdx != -1 && _currentIndex == familyIdx && index != familyIdx) {
+                  parentSessionActive = false;
+                }
+                setState(() => _currentIndex = index);
+              },
               type: BottomNavigationBarType.fixed,
               // 使用當前主題的主色，確保切換主題後底部列顏色同步更新
               selectedItemColor: Theme.of(context).colorScheme.primary,

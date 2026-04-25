@@ -1,10 +1,15 @@
 // 育兒模式主頁面
-// 包含：小孩選擇畫面、小孩主頁（三 Tab）、家長管理頁面、PIN 驗證
+// 包含：小孩選擇畫面、小孩主頁（三 Tab）、家長管理頁面、密碼驗證
+// 修改2段：習慣系統、積分系統、扣分項目、家長 Session
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_page.dart';
+
+// ── 家長 Session（全域）──
+// 驗證密碼成功後設為 true；切換離開家庭頁籤時設為 false
+bool parentSessionActive = false;
 
 // ── 資料模型 ──
 
@@ -36,6 +41,105 @@ class ChildData {
       };
 }
 
+// 小孩習慣
+class ChildHabit {
+  final String id;
+  final String childId;
+  String name;
+  int points; // 完成可得積分
+  String completedDate; // 最後打卡日期，格式 yyyy-MM-dd；空字串表示尚未打卡
+
+  ChildHabit({
+    required this.id,
+    required this.childId,
+    required this.name,
+    required this.points,
+    this.completedDate = '',
+  });
+
+  factory ChildHabit.fromJson(Map<String, dynamic> json) => ChildHabit(
+        id: json['id'] as String,
+        childId: json['child_id'] as String,
+        name: json['name'] as String,
+        points: (json['points'] as int?) ?? 0,
+        completedDate: (json['completed_date'] as String?) ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'child_id': childId,
+        'name': name,
+        'points': points,
+        'completed_date': completedDate,
+      };
+}
+
+// 扣分項目
+class DeductionItem {
+  final String id;
+  final String childId;
+  String name;
+  int points; // 扣幾分（正整數，扣分時取負）
+
+  DeductionItem({
+    required this.id,
+    required this.childId,
+    required this.name,
+    required this.points,
+  });
+
+  factory DeductionItem.fromJson(Map<String, dynamic> json) => DeductionItem(
+        id: json['id'] as String,
+        childId: json['child_id'] as String,
+        name: json['name'] as String,
+        points: (json['points'] as int?) ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'child_id': childId,
+        'name': name,
+        'points': points,
+      };
+}
+
+// 積分紀錄
+class PointRecord {
+  final String id;
+  final String childId;
+  final String time; // 格式 yyyy-MM-dd HH:mm
+  final String reason;
+  final int delta; // 正數加分、負數扣分
+  final int total; // 變動後累積總分
+
+  PointRecord({
+    required this.id,
+    required this.childId,
+    required this.time,
+    required this.reason,
+    required this.delta,
+    required this.total,
+  });
+
+  factory PointRecord.fromJson(Map<String, dynamic> json) => PointRecord(
+        id: json['id'] as String,
+        childId: json['child_id'] as String,
+        time: json['time'] as String,
+        reason: json['reason'] as String,
+        delta: (json['delta'] as int?) ?? 0,
+        total: (json['total'] as int?) ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'child_id': childId,
+        'time': time,
+        'reason': reason,
+        'delta': delta,
+        'total': total,
+      };
+}
+
 // 積分重置模式的顯示文字
 const Map<String, String> _resetModeLabels = {
   'none': '不重置',
@@ -44,7 +148,117 @@ const Map<String, String> _resetModeLabels = {
   'manual': '手動重置',
 };
 
-// ── PIN 輸入對話框（供本檔案內部使用）──
+// 今日日期字串（yyyy-MM-dd）
+String _todayStr() {
+  final now = DateTime.now();
+  return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+}
+
+// 產生唯一 ID（毫秒時間戳 + 隨機後綴，避免同毫秒碰撞）
+String _genId() =>
+    '${DateTime.now().millisecondsSinceEpoch}_${Object().hashCode}';
+
+// 格式化現在時間為 yyyy-MM-dd HH:mm
+String _nowStr() {
+  final now = DateTime.now();
+  final date =
+      '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  final time =
+      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+  return '$date $time';
+}
+
+// ── 共用：讀寫各類資料的輔助方法 ──
+
+Future<List<ChildHabit>> _loadHabits(SharedPreferences prefs) async {
+  final raw = prefs.getString('child_habits');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => ChildHabit.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> _saveHabits(
+    SharedPreferences prefs, List<ChildHabit> habits) async {
+  await prefs.setString(
+      'child_habits', jsonEncode(habits.map((h) => h.toJson()).toList()));
+}
+
+Future<List<DeductionItem>> _loadDeductions(SharedPreferences prefs) async {
+  final raw = prefs.getString('deduction_items');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => DeductionItem.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> _saveDeductions(
+    SharedPreferences prefs, List<DeductionItem> items) async {
+  await prefs.setString(
+      'deduction_items', jsonEncode(items.map((d) => d.toJson()).toList()));
+}
+
+Future<List<PointRecord>> _loadRecords(SharedPreferences prefs) async {
+  final raw = prefs.getString('point_records');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => PointRecord.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> _saveRecords(
+    SharedPreferences prefs, List<PointRecord> records) async {
+  await prefs.setString(
+      'point_records', jsonEncode(records.map((r) => r.toJson()).toList()));
+}
+
+// 更新小孩積分並寫入積分紀錄；回傳更新後積分
+// delta 可為正（加分）或負（扣分），扣分不會低於 0
+Future<int> _applyPoints({
+  required SharedPreferences prefs,
+  required ChildData child,
+  required int delta,
+  required String reason,
+}) async {
+  // 讀取最新小孩清單
+  final raw = prefs.getString('children');
+  final children = raw == null
+      ? <ChildData>[]
+      : (jsonDecode(raw) as List)
+          .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+  // 找到對應小孩並更新積分
+  final idx = children.indexWhere((c) => c.id == child.id);
+  if (idx == -1) return child.points;
+
+  int newPoints = children[idx].points + delta;
+  if (newPoints < 0) newPoints = 0; // 積分不能為負
+  children[idx].points = newPoints;
+  child.points = newPoints; // 同步更新傳入的物件
+
+  await prefs.setString(
+      'children', jsonEncode(children.map((c) => c.toJson()).toList()));
+
+  // 寫入積分紀錄
+  final records = await _loadRecords(prefs);
+  records.insert(
+    0,
+    PointRecord(
+      id: _genId(),
+      childId: child.id,
+      time: _nowStr(),
+      reason: reason,
+      delta: delta < 0 ? -(children[idx].points - newPoints).abs() : delta,
+      total: newPoints,
+    ),
+  );
+  await _saveRecords(prefs, records);
+
+  return newPoints;
+}
+
+// ── 密碼輸入對話框（供本檔案內部使用）──
 // 回傳使用者輸入的字串；取消回傳 null
 Future<String?> _showPinDialog(
   BuildContext context, {
@@ -66,7 +280,7 @@ Future<String?> _showPinDialog(
           autofocus: true,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
-            hintText: '請輸入 $digits 位數字 PIN',
+            hintText: '請輸入 $digits 位數字密碼',
             counterText: '',
             suffixIcon: IconButton(
               icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
@@ -123,40 +337,45 @@ class _FamilyPageState extends State<FamilyPage> {
     });
   }
 
-  // 點擊「家長管理」：驗證 PIN 後進入
+  // 點擊「家長管理」：有 Session 直接進入，否則驗證密碼
   Future<void> _enterParentManagement() async {
     final prefs = await SharedPreferences.getInstance();
     final savedPin = prefs.getString('parent_pin');
     if (!mounted) return;
 
-    if (savedPin == null || savedPin.isEmpty) {
-      // 尚未設定 PIN，直接進入並提示建議設定
+    if (parentSessionActive || savedPin == null || savedPin.isEmpty) {
+      // Session 有效或尚未設定密碼，直接進入
       final changed = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (_) => const ParentManagementPage(noPinWarning: true),
+          builder: (_) => ParentManagementPage(
+            noPinWarning: savedPin == null || savedPin.isEmpty,
+          ),
         ),
       );
       if (changed == true) _loadChildren();
     } else {
-      // 需要輸入 PIN 才能進入
+      // 需要輸入密碼才能進入
       final digits = prefs.getInt('pin_digits') ?? 4;
       final entered = await _showPinDialog(
         context,
         digits: digits,
-        title: '請輸入家長 PIN',
+        title: '請輸入家長密碼',
       );
       if (!mounted) return;
       if (entered == savedPin) {
+        // 驗證成功，啟動 Session
+        parentSessionActive = true;
         final changed = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
-            builder: (_) => const ParentManagementPage(noPinWarning: false),
+            builder: (_) =>
+                const ParentManagementPage(noPinWarning: false),
           ),
         );
         if (changed == true) _loadChildren();
       } else if (entered != null) {
         // 輸入了內容但不正確
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PIN 錯誤，請再試一次')),
+          const SnackBar(content: Text('密碼錯誤，請再試一次')),
         );
       }
     }
@@ -272,7 +491,8 @@ class _ChildCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         leading: CircleAvatar(
           radius: 24,
           backgroundColor: primary.withValues(alpha: 0.12),
@@ -326,6 +546,9 @@ class _ChildHomePageState extends State<_ChildHomePage> {
 
   ChildData get _current => widget.children[_selectedIndex];
 
+  // 積分異動後重新整理頁面
+  void _onPointsChanged() => setState(() {});
+
   // 點擊名字旁的下拉箭頭，從底部彈出切換清單
   void _showChildPicker() {
     final primary = Theme.of(context).colorScheme.primary;
@@ -345,7 +568,8 @@ class _ChildHomePageState extends State<_ChildHomePage> {
               backgroundColor: primary.withValues(alpha: 0.12),
               child: Text(
                 c.name.isNotEmpty ? c.name[0] : '?',
-                style: TextStyle(color: primary, fontWeight: FontWeight.bold),
+                style:
+                    TextStyle(color: primary, fontWeight: FontWeight.bold),
               ),
             ),
             title: Text(c.name),
@@ -382,7 +606,8 @@ class _ChildHomePageState extends State<_ChildHomePage> {
             const Icon(Icons.arrow_drop_down, color: Colors.white, size: 22),
           const SizedBox(width: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
@@ -439,13 +664,367 @@ class _ChildHomePageState extends State<_ChildHomePage> {
             indicatorColor: Colors.white,
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            _ComingSoonTab(label: '習慣'),
-            _ComingSoonTab(label: '積分紀錄'),
-            _ComingSoonTab(label: '獎勵'),
+            // 習慣打卡 Tab
+            _HabitTab(child: _current, onPointsChanged: _onPointsChanged),
+            // 積分紀錄 Tab
+            _PointRecordTab(child: _current),
+            // 獎勵（尚未實作）
+            const _ComingSoonTab(label: '獎勵'),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── 習慣打卡 Tab ──
+
+class _HabitTab extends StatefulWidget {
+  final ChildData child;
+  final VoidCallback onPointsChanged; // 積分異動後通知父層更新 AppBar
+
+  const _HabitTab({required this.child, required this.onPointsChanged});
+
+  @override
+  State<_HabitTab> createState() => _HabitTabState();
+}
+
+class _HabitTabState extends State<_HabitTab> {
+  List<ChildHabit> _habits = [];
+  List<DeductionItem> _deductions = [];
+  bool _loaded = false;
+  SharedPreferences? _prefs;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  // 重新載入習慣與扣分項目
+  Future<void> _load() async {
+    _prefs = await SharedPreferences.getInstance();
+    final habits = await _loadHabits(_prefs!);
+    final deductions = await _loadDeductions(_prefs!);
+    setState(() {
+      // 只顯示此小孩的習慣與扣分項目
+      _habits = habits.where((h) => h.childId == widget.child.id).toList();
+      _deductions =
+          deductions.where((d) => d.childId == widget.child.id).toList();
+      _loaded = true;
+    });
+  }
+
+  // 判斷習慣今日是否已打卡
+  bool _isDoneToday(ChildHabit habit) => habit.completedDate == _todayStr();
+
+  // 打卡：增加積分、標記日期
+  Future<void> _checkIn(ChildHabit habit) async {
+    if (_isDoneToday(habit)) return; // 已打卡，不重複
+    final prefs = _prefs!;
+
+    // 更新積分
+    final newPoints = await _applyPoints(
+      prefs: prefs,
+      child: widget.child,
+      delta: habit.points,
+      reason: '完成習慣：${habit.name}',
+    );
+
+    // 標記今日完成
+    final allHabits = await _loadHabits(prefs);
+    final idx = allHabits.indexWhere((h) => h.id == habit.id);
+    if (idx != -1) {
+      allHabits[idx].completedDate = _todayStr();
+      await _saveHabits(prefs, allHabits);
+    }
+
+    setState(() {
+      habit.completedDate = _todayStr();
+      widget.child.points = newPoints;
+    });
+    widget.onPointsChanged();
+  }
+
+  // 扣分：減少積分，不足時扣至 0
+  Future<void> _deduct(DeductionItem item) async {
+    final prefs = _prefs!;
+    final before = widget.child.points;
+    final newPoints = await _applyPoints(
+      prefs: prefs,
+      child: widget.child,
+      delta: -item.points,
+      reason: '扣分：${item.name}',
+    );
+    setState(() => widget.child.points = newPoints);
+    widget.onPointsChanged();
+
+    // 積分不足時提示
+    if (before < item.points && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('積分不足，已扣至 0 分')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ── 習慣區塊 ──
+          _sectionHeader(Icons.check_circle_outline, '今日習慣', Colors.orange),
+          const SizedBox(height: 8),
+          if (_habits.isEmpty)
+            _emptyHint('尚無習慣，請家長至家長管理新增')
+          else
+            ..._habits.map((habit) => _HabitItem(
+                  habit: habit,
+                  doneToday: _isDoneToday(habit),
+                  onCheckIn: () => _checkIn(habit),
+                )),
+
+          const SizedBox(height: 24),
+
+          // ── 扣分區塊 ──
+          _sectionHeader(Icons.remove_circle_outline, '扣分項目', Colors.red),
+          const SizedBox(height: 8),
+          if (_deductions.isEmpty)
+            _emptyHint('尚無扣分項目')
+          else
+            ..._deductions.map((item) => _DeductionItem(
+                  item: item,
+                  onDeduct: () => _deduct(item),
+                )),
+        ],
+      ),
+    );
+  }
+
+  // 小節標題列
+  Widget _sectionHeader(IconData icon, String title, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyHint(String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(text,
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+      );
+}
+
+// 習慣列表項目
+class _HabitItem extends StatelessWidget {
+  final ChildHabit habit;
+  final bool doneToday;
+  final VoidCallback onCheckIn;
+
+  const _HabitItem({
+    required this.habit,
+    required this.doneToday,
+    required this.onCheckIn,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Icon(
+          doneToday ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: doneToday ? Colors.green : Colors.grey.shade400,
+          size: 28,
+        ),
+        title: Text(
+          habit.name,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            decoration: doneToday ? TextDecoration.lineThrough : null,
+            color: doneToday ? Colors.grey : Colors.black87,
+          ),
+        ),
+        subtitle: Text(
+          '+${habit.points} 分',
+          style: TextStyle(
+            fontSize: 12,
+            color: doneToday ? Colors.grey.shade400 : Colors.orange,
+          ),
+        ),
+        trailing: doneToday
+            ? Text('已完成',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400))
+            : ElevatedButton(
+                onPressed: onCheckIn,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: const Text('打卡', style: TextStyle(fontSize: 13)),
+              ),
+      ),
+    );
+  }
+}
+
+// 扣分列表項目
+class _DeductionItem extends StatelessWidget {
+  final DeductionItem item;
+  final VoidCallback onDeduct;
+
+  const _DeductionItem({required this.item, required this.onDeduct});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: const Icon(Icons.remove_circle_outline,
+            color: Colors.red, size: 26),
+        title: Text(item.name,
+            style:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          '-${item.points} 分',
+          style: const TextStyle(fontSize: 12, color: Colors.red),
+        ),
+        trailing: OutlinedButton(
+          onPressed: onDeduct,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            side: const BorderSide(color: Colors.red),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          child: const Text('扣分', style: TextStyle(fontSize: 13)),
+        ),
+      ),
+    );
+  }
+}
+
+// ── 積分紀錄 Tab ──
+
+class _PointRecordTab extends StatefulWidget {
+  final ChildData child;
+
+  const _PointRecordTab({required this.child});
+
+  @override
+  State<_PointRecordTab> createState() => _PointRecordTabState();
+}
+
+class _PointRecordTabState extends State<_PointRecordTab> {
+  List<PointRecord> _records = [];
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final all = await _loadRecords(prefs);
+    setState(() {
+      // 只顯示此小孩的紀錄，已按時間降序排列（新增時 insert(0,...)）
+      _records = all.where((r) => r.childId == widget.child.id).toList();
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_records.isEmpty) {
+      return Center(
+        child: Text(
+          '尚無積分紀錄',
+          style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _records.length,
+        separatorBuilder: (_, _) =>
+            const Divider(height: 1, thickness: 0.5),
+        itemBuilder: (_, i) {
+          final r = _records[i];
+          final isPlus = r.delta >= 0;
+          return ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            // 左側：時間 + 原因
+            title: Text(r.reason,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w500)),
+            subtitle: Text(r.time,
+                style: TextStyle(
+                    fontSize: 12, color: Colors.grey.shade500)),
+            // 右側：變動分數 + 累積總分
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${isPlus ? '+' : ''}${r.delta} 分',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: isPlus ? Colors.green : Colors.red,
+                  ),
+                ),
+                Text(
+                  '共 ${r.total} 分',
+                  style: TextStyle(
+                      fontSize: 11, color: Colors.grey.shade400),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -477,7 +1056,7 @@ class _ComingSoonTab extends StatelessWidget {
 // ── 家長管理頁面 ──
 
 class ParentManagementPage extends StatefulWidget {
-  // 是否要顯示「建議設定 PIN」的提示
+  // 是否要顯示「建議設定密碼」的提示
   final bool noPinWarning;
 
   const ParentManagementPage({super.key, required this.noPinWarning});
@@ -488,6 +1067,8 @@ class ParentManagementPage extends StatefulWidget {
 
 class _ParentManagementPageState extends State<ParentManagementPage> {
   List<ChildData> _children = [];
+  List<ChildHabit> _habits = [];
+  List<DeductionItem> _deductions = [];
   bool _loaded = false;
   SharedPreferences? _prefs;
 
@@ -502,15 +1083,15 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
   Future<void> _init() async {
     _prefs = await SharedPreferences.getInstance();
-    _loadChildren();
+    await _loadAll();
 
-    // 尚未設定 PIN 時顯示建議提示
+    // 尚未設定密碼時顯示建議提示
     if (widget.noPinWarning && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('建議至設定頁設定 PIN 以保護家長管理'),
+            content: Text('建議至設定頁設定密碼以保護家長管理'),
             duration: Duration(seconds: 3),
           ),
         );
@@ -518,14 +1099,21 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     }
   }
 
-  void _loadChildren() {
-    final raw = _prefs?.getString('children');
+  // 一次讀取所有資料
+  Future<void> _loadAll() async {
+    final prefs = _prefs!;
+    final raw = prefs.getString('children');
+    final children = raw == null
+        ? <ChildData>[]
+        : (jsonDecode(raw) as List)
+            .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
+            .toList();
+    final habits = await _loadHabits(prefs);
+    final deductions = await _loadDeductions(prefs);
     setState(() {
-      _children = raw == null
-          ? []
-          : (jsonDecode(raw) as List)
-              .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
-              .toList();
+      _children = children;
+      _habits = habits;
+      _deductions = deductions;
       _loaded = true;
     });
   }
@@ -563,8 +1151,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
     if (name == null || name.isEmpty) return;
 
-    // 用毫秒時間戳作為唯一 ID（不依賴 uuid 套件）
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final id = _genId();
     _children.add(
       ChildData(id: id, name: name, points: 0, resetMode: 'none'),
     );
@@ -572,14 +1159,15 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     setState(() {});
   }
 
-  // 刪除小孩（含二次確認）
+  // 刪除小孩（含二次確認，同步刪除習慣、扣分項目、積分紀錄）
   Future<void> _deleteChild(int index) async {
     final childName = _children[index].name;
+    final childId = _children[index].id;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('刪除小孩'),
-        content: Text('確定要刪除「$childName」嗎？所有積分紀錄將一起刪除。'),
+        content: Text('確定要刪除「$childName」嗎？所有習慣、扣分項目與積分紀錄將一起刪除。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -593,12 +1181,25 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       ),
     );
     if (confirm != true) return;
+
     _children.removeAt(index);
     await _saveChildren();
-    setState(() {});
+
+    // 同步刪除相關習慣、扣分項目、積分紀錄
+    final prefs = _prefs!;
+    final habits = await _loadHabits(prefs);
+    await _saveHabits(prefs, habits.where((h) => h.childId != childId).toList());
+    final deductions = await _loadDeductions(prefs);
+    await _saveDeductions(
+        prefs, deductions.where((d) => d.childId != childId).toList());
+    final records = await _loadRecords(prefs);
+    await _saveRecords(
+        prefs, records.where((r) => r.childId != childId).toList());
+
+    await _loadAll();
   }
 
-  // 設定單一小孩的積分重置模式
+  // 設定積分重置模式
   Future<void> _setResetMode(int index) async {
     final current = _children[index].resetMode;
     final selected = await showDialog<String>(
@@ -606,7 +1207,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       builder: (ctx) => SimpleDialog(
         title: Text('${_children[index].name} 的積分重置'),
         children: [
-          // Flutter 3.32+ 用 RadioGroup 管理群組狀態
           RadioGroup<String>(
             groupValue: current,
             onChanged: (v) {
@@ -631,14 +1231,320 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     setState(() {});
   }
 
+  // ── 新增習慣 ──
+  Future<void> _addHabit() async {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先新增小孩')),
+      );
+      return;
+    }
+
+    final nameCtrl = TextEditingController();
+    final pointCtrl = TextEditingController();
+    // 預設選第一個小孩
+    String selectedChildId = _children.first.id;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('新增習慣'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 選擇小孩
+              DropdownButtonFormField<String>(
+                initialValue: selectedChildId,
+                decoration: const InputDecoration(labelText: '選擇小孩'),
+                items: _children
+                    .map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.name),
+                        ))
+                    .toList(),
+                onChanged: (v) => setS(() => selectedChildId = v!),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '習慣名稱'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pointCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(labelText: '完成可得分數'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('新增'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != true) return;
+    final name = nameCtrl.text.trim();
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    if (name.isEmpty || pts <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('習慣名稱不得為空，且分數須大於 0')),
+        );
+      }
+      return;
+    }
+
+    final prefs = _prefs!;
+    final habits = await _loadHabits(prefs);
+    habits.add(ChildHabit(
+      id: _genId(),
+      childId: selectedChildId,
+      name: name,
+      points: pts,
+    ));
+    await _saveHabits(prefs, habits);
+    _changed = true;
+    await _loadAll();
+  }
+
+  // ── 刪除習慣 ──
+  Future<void> _deleteHabit(ChildHabit habit) async {
+    final prefs = _prefs!;
+    final habits = await _loadHabits(prefs);
+    habits.removeWhere((h) => h.id == habit.id);
+    await _saveHabits(prefs, habits);
+    _changed = true;
+    await _loadAll();
+  }
+
+  // ── 新增扣分項目 ──
+  Future<void> _addDeduction() async {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先新增小孩')),
+      );
+      return;
+    }
+
+    final nameCtrl = TextEditingController();
+    final pointCtrl = TextEditingController();
+    String selectedChildId = _children.first.id;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('新增扣分項目'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedChildId,
+                decoration: const InputDecoration(labelText: '選擇小孩'),
+                items: _children
+                    .map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.name),
+                        ))
+                    .toList(),
+                onChanged: (v) => setS(() => selectedChildId = v!),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '扣分項目名稱'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pointCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(labelText: '扣幾分'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('新增'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != true) return;
+    final name = nameCtrl.text.trim();
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    if (name.isEmpty || pts <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('項目名稱不得為空，且扣分須大於 0')),
+        );
+      }
+      return;
+    }
+
+    final prefs = _prefs!;
+    final deductions = await _loadDeductions(prefs);
+    deductions.add(DeductionItem(
+      id: _genId(),
+      childId: selectedChildId,
+      name: name,
+      points: pts,
+    ));
+    await _saveDeductions(prefs, deductions);
+    _changed = true;
+    await _loadAll();
+  }
+
+  // ── 刪除扣分項目 ──
+  Future<void> _deleteDeduction(DeductionItem item) async {
+    final prefs = _prefs!;
+    final deductions = await _loadDeductions(prefs);
+    deductions.removeWhere((d) => d.id == item.id);
+    await _saveDeductions(prefs, deductions);
+    _changed = true;
+    await _loadAll();
+  }
+
+  // ── 特殊積分 ──
+  Future<void> _giveSpecialPoints() async {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先新增小孩')),
+      );
+      return;
+    }
+
+    final reasonCtrl = TextEditingController();
+    final pointCtrl = TextEditingController();
+    String selectedChildId = _children.first.id;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('特殊積分'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedChildId,
+                decoration: const InputDecoration(labelText: '選擇小孩'),
+                items: _children
+                    .map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.name),
+                        ))
+                    .toList(),
+                onChanged: (v) => setS(() => selectedChildId = v!),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '原因'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pointCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(signed: true),
+                // 允許負號
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
+                ],
+                decoration: const InputDecoration(
+                  labelText: '分數（正數加分、負數扣分）',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('確認'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != true) return;
+    final reason = reasonCtrl.text.trim();
+    final delta = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    if (reason.isEmpty || delta == 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('原因不得為空，且分數不能為 0')),
+        );
+      }
+      return;
+    }
+
+    // 找到選擇的小孩物件
+    final childIdx = _children.indexWhere((c) => c.id == selectedChildId);
+    if (childIdx == -1) return;
+    final child = _children[childIdx];
+
+    final before = child.points;
+    final newPoints = await _applyPoints(
+      prefs: _prefs!,
+      child: child,
+      delta: delta,
+      reason: '特殊積分：$reason',
+    );
+
+    _changed = true;
+    await _loadAll();
+
+    if (!mounted) return;
+    // 負數且積分不足時提示
+    if (delta < 0 && before + delta < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('積分不足，已扣至 0 分')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '已給予${child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       // 攔截系統返回，確保無論哪種返回方式都能帶回 _changed
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        // didPop=false 代表系統返回被攔截；直接呼叫 Navigator.pop 帶回結果
-        // didPop=true 代表已由 BackButton.onPressed 主動 pop，不重複操作
         if (!didPop) Navigator.of(context).pop(_changed);
       },
       child: Scaffold(
@@ -660,7 +1566,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             ? const Center(child: CircularProgressIndicator())
             : _children.isEmpty
                 ? _buildEmpty()
-                : _buildList(),
+                : _buildContent(),
         floatingActionButton: FloatingActionButton(
           onPressed: _addChild,
           tooltip: '新增小孩',
@@ -686,101 +1592,289 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
   }
 
-  Widget _buildList() {
+  Widget _buildContent() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+      children: [
+        // ── 小孩管理區塊 ──
+        _sectionTitle('小孩管理', Icons.child_care, Colors.orange),
+        ..._children.asMap().entries.map((entry) {
+          final i = entry.key;
+          final child = entry.value;
+          return _buildChildCard(child, i);
+        }),
+
+        const SizedBox(height: 24),
+
+        // ── 習慣管理區塊 ──
+        _sectionTitle('習慣管理', Icons.check_circle_outline, Colors.green),
+        const SizedBox(height: 8),
+        ..._buildHabitSection(),
+        _addButton('新增習慣', Icons.add, Colors.green, _addHabit),
+
+        const SizedBox(height: 24),
+
+        // ── 扣分項目區塊 ──
+        _sectionTitle('扣分項目', Icons.remove_circle_outline, Colors.red),
+        const SizedBox(height: 8),
+        ..._buildDeductionSection(),
+        _addButton('新增扣分項目', Icons.add, Colors.red, _addDeduction),
+
+        const SizedBox(height: 24),
+
+        // ── 特殊積分區塊 ──
+        _sectionTitle('特殊積分', Icons.star_outline, Colors.purple),
+        const SizedBox(height: 8),
+        _addButton('給予特殊積分', Icons.star, Colors.purple, _giveSpecialPoints),
+      ],
+    );
+  }
+
+  // 區塊標題
+  Widget _sectionTitle(String title, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 新增按鈕
+  Widget _addButton(
+      String label, IconData icon, Color color, VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withValues(alpha: 0.5)),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // 小孩卡片（含名稱、積分、重置、刪除）
+  Widget _buildChildCard(ChildData child, int index) {
     final primary = Theme.of(context).colorScheme.primary;
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      itemCount: _children.length,
-      itemBuilder: (_, i) {
-        final child = _children[i];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                // 頂部：頭像 + 名字積分 + 刪除按鈕
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: primary.withValues(alpha: 0.12),
-                      child: Text(
-                        child.name.isNotEmpty ? child.name[0] : '?',
-                        style: TextStyle(
-                          color: primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            child.name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            '積分：${child.points}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      tooltip: '刪除',
-                      onPressed: () => _deleteChild(i),
-                    ),
-                  ],
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: primary.withValues(alpha: 0.12),
+                  child: Text(
+                    child.name.isNotEmpty ? child.name[0] : '?',
+                    style: TextStyle(
+                        color: primary, fontWeight: FontWeight.bold),
+                  ),
                 ),
-                const Divider(height: 20, thickness: 1),
-                // 底部：積分重置設定
-                Row(
-                  children: [
-                    Icon(Icons.refresh, size: 16, color: Colors.grey.shade500),
-                    const SizedBox(width: 6),
-                    Text(
-                      '積分重置：',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                    ),
-                    Text(
-                      _resetModeLabels[child.resetMode] ?? '不重置',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () => _setResetMode(i),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text('修改'),
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(child.name,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('積分：${child.points}',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon:
+                      const Icon(Icons.delete_outline, color: Colors.red),
+                  tooltip: '刪除',
+                  onPressed: () => _deleteChild(index),
                 ),
               ],
             ),
-          ),
-        );
-      },
+            const Divider(height: 20, thickness: 1),
+            Row(
+              children: [
+                Icon(Icons.refresh, size: 16, color: Colors.grey.shade500),
+                const SizedBox(width: 6),
+                Text('積分重置：',
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.grey.shade600)),
+                Text(
+                  _resetModeLabels[child.resetMode] ?? '不重置',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _setResetMode(index),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('修改'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+  // 習慣列表（依小孩分組，右滑刪除）
+  List<Widget> _buildHabitSection() {
+    if (_habits.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('尚無習慣',
+              style:
+                  TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+        ),
+      ];
+    }
+
+    // 依小孩分組
+    final grouped = <String, List<ChildHabit>>{};
+    for (final h in _habits) {
+      grouped.putIfAbsent(h.childId, () => []).add(h);
+    }
+
+    final widgets = <Widget>[];
+    for (final child in _children) {
+      final habits = grouped[child.id] ?? [];
+      if (habits.isEmpty) continue;
+
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 4, top: 4),
+        child: Text(child.name,
+            style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500)),
+      ));
+
+      for (final habit in habits) {
+        widgets.add(Dismissible(
+          key: ValueKey(habit.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.delete_outline, color: Colors.red),
+          ),
+          onDismissed: (_) => _deleteHabit(habit),
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 6),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            child: ListTile(
+              dense: true,
+              title: Text(habit.name,
+                  style: const TextStyle(fontSize: 14)),
+              subtitle: Text('+${habit.points} 分',
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.green.shade700)),
+              trailing: Icon(Icons.drag_handle,
+                  size: 18, color: Colors.grey.shade300),
+            ),
+          ),
+        ));
+      }
+    }
+    return widgets;
+  }
+
+  // 扣分列表（依小孩分組，右滑刪除）
+  List<Widget> _buildDeductionSection() {
+    if (_deductions.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('尚無扣分項目',
+              style:
+                  TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+        ),
+      ];
+    }
+
+    final grouped = <String, List<DeductionItem>>{};
+    for (final d in _deductions) {
+      grouped.putIfAbsent(d.childId, () => []).add(d);
+    }
+
+    final widgets = <Widget>[];
+    for (final child in _children) {
+      final items = grouped[child.id] ?? [];
+      if (items.isEmpty) continue;
+
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 4, top: 4),
+        child: Text(child.name,
+            style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500)),
+      ));
+
+      for (final item in items) {
+        widgets.add(Dismissible(
+          key: ValueKey(item.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.delete_outline, color: Colors.red),
+          ),
+          onDismissed: (_) => _deleteDeduction(item),
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 6),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            child: ListTile(
+              dense: true,
+              title: Text(item.name,
+                  style: const TextStyle(fontSize: 14)),
+              subtitle: Text('-${item.points} 分',
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.red)),
+              trailing: Icon(Icons.drag_handle,
+                  size: 18, color: Colors.grey.shade300),
+            ),
+          ),
+        ));
+      }
+    }
+    return widgets;
   }
 }
