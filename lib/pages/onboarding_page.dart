@@ -22,7 +22,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Timer? _typingTimer;
 
   // 畫面2：吉祥物名稱
-  final TextEditingController _mascotController = TextEditingController(text: '兔咪');
+  final TextEditingController _mascotController = TextEditingController(
+    text: '兔咪',
+  );
 
   // 畫面3：用戶暱稱
   final TextEditingController _nicknameController = TextEditingController();
@@ -38,7 +40,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
   String _timerFollowup = '';
   bool? _timerEnabled;
 
-  // 畫面6：身體資訊
+  // 畫面6（新）：家庭功能引導
+  int _familyStep = 0; // 0=初始, 1=追問(有小孩), 2=安慰語
+  bool? _familyEnabled;
+
+  // 畫面7：身體資訊
   String _gender = '';
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
@@ -81,7 +87,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _typingTimer?.cancel();
     _typingTimer = Timer.periodic(const Duration(milliseconds: 60), (timer) {
       if (charIndex < line.characters.length) {
-        setState(() => _displayText = line.characters.take(charIndex + 1).toString());
+        setState(
+          () => _displayText = line.characters.take(charIndex + 1).toString(),
+        );
         charIndex++;
       } else {
         timer.cancel();
@@ -95,7 +103,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _nextPage() {
-    if (_currentPage < 6) {
+    if (_currentPage < 7) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeInOut,
@@ -104,7 +112,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
-  // 回上一步：畫面4/5 若在追問子步驟，先退回初始選項；否則回上一畫面
+  // 回上一步：畫面4/5/6 若在追問子步驟，先退回初始選項；否則回上一畫面
   void _handleBack() {
     if (_currentPage == 3 && _waterStep == 1) {
       setState(() => _waterStep = 0);
@@ -112,6 +120,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
     if (_currentPage == 4 && _timerStep == 1) {
       setState(() => _timerStep = 0);
+      return;
+    }
+    if (_currentPage == 5 && _familyStep > 0) {
+      setState(() => _familyStep = 0);
       return;
     }
     if (_currentPage > 0) {
@@ -127,10 +139,21 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Future<void> _finish() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_done', true);
-    await prefs.setString('mascot_name', _mascotController.text.trim().isEmpty ? '兔咪' : _mascotController.text.trim());
-    await prefs.setString('user_nickname', _nicknameController.text.trim().isEmpty ? '你' : _nicknameController.text.trim());
+    await prefs.setString(
+      'mascot_name',
+      _mascotController.text.trim().isEmpty
+          ? '兔咪'
+          : _mascotController.text.trim(),
+    );
+    await prefs.setString(
+      'user_nickname',
+      _nicknameController.text.trim().isEmpty
+          ? '你'
+          : _nicknameController.text.trim(),
+    );
     await prefs.setBool('water_enabled', _waterEnabled ?? false);
     await prefs.setBool('timer_enabled', _timerEnabled ?? false);
+    await prefs.setBool('family_enabled', _familyEnabled ?? false);
 
     // 身體資訊
     if (_gender.isNotEmpty) await prefs.setString('user_gender', _gender);
@@ -145,15 +168,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
     // 目標體重（選填）
     final targetWeightVal = double.tryParse(_targetWeightController.text);
-    if (targetWeightVal != null) await prefs.setDouble('target_weight', targetWeightVal);
+    if (targetWeightVal != null) {
+      await prefs.setDouble('target_weight', targetWeightVal);
+    }
     // 生日（選填），以 yyyy-MM-dd 格式儲存
     if (_birthday != null) {
       final b = _birthday!;
       await prefs.setString(
         'user_birthday',
         '${b.year.toString().padLeft(4, '0')}-'
-        '${b.month.toString().padLeft(2, '0')}-'
-        '${b.day.toString().padLeft(2, '0')}',
+            '${b.month.toString().padLeft(2, '0')}-'
+            '${b.day.toString().padLeft(2, '0')}',
       );
     }
 
@@ -191,7 +216,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ),
         border: Border.all(color: Colors.orange.shade200),
       ),
-      child: Text(text, style: TextStyle(fontSize: fontSize, color: Colors.orange.shade900), textAlign: TextAlign.center),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: fontSize, color: Colors.orange.shade900),
+        textAlign: TextAlign.center,
+      ),
     );
   }
 
@@ -200,8 +229,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: Colors.orange.shade200, shape: BoxShape.circle),
-      child: Center(child: Text('🐰', style: TextStyle(fontSize: size * 0.55))),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade200,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text('🐰', style: TextStyle(fontSize: size * 0.55)),
+      ),
     );
   }
 
@@ -216,9 +250,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
         decoration: BoxDecoration(
           color: (color ?? Colors.orange).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: (color ?? Colors.orange).withValues(alpha: 0.4)),
+          border: Border.all(
+            color: (color ?? Colors.orange).withValues(alpha: 0.4),
+          ),
         ),
-        child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: color ?? Colors.orange.shade800, fontWeight: FontWeight.w600)),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 15,
+            color: color ?? Colors.orange.shade800,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -235,7 +279,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
             tween: Tween(begin: 0, end: 1),
             duration: const Duration(milliseconds: 600),
             curve: Curves.elasticOut,
-            builder: (context, val, child) => Transform.scale(scale: val, child: child),
+            builder: (context, val, child) =>
+                Transform.scale(scale: val, child: child),
             child: _mascot(size: 120),
           ),
           const SizedBox(height: 32),
@@ -252,10 +297,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
               onPressed: _page1Done ? _nextPage : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 48,
+                  vertical: 14,
+                ),
               ),
-              child: const Text('繼續', style: TextStyle(color: Colors.white, fontSize: 16)),
+              child: const Text(
+                '繼續',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ),
         ],
@@ -282,8 +335,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
               hintText: '幫我取個名字',
               filled: true,
               fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.orange.shade200)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.orange)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
             ),
           ),
           const SizedBox(height: 32),
@@ -291,15 +350,24 @@ class _OnboardingPageState extends State<OnboardingPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                setState(() => _mascotName = _mascotController.text.trim().isEmpty ? '兔咪' : _mascotController.text.trim());
+                setState(
+                  () => _mascotName = _mascotController.text.trim().isEmpty
+                      ? '兔咪'
+                      : _mascotController.text.trim(),
+                );
                 _nextPage();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text('下一步', style: TextStyle(color: Colors.white, fontSize: 16)),
+              child: const Text(
+                '下一步',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ),
         ],
@@ -318,7 +386,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
           const SizedBox(height: 20),
           _speechBubble('$_mascotName：那…你呢？\n我以後要怎麼叫你？'),
           const SizedBox(height: 8),
-          Text('暱稱就好，不用本名 😊', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          Text(
+            '暱稱就好，不用本名 😊',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          ),
           const SizedBox(height: 24),
           TextField(
             controller: _nicknameController,
@@ -328,8 +399,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
               hintText: '輸入你的暱稱',
               filled: true,
               fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.orange.shade200)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.orange)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
             ),
           ),
           const SizedBox(height: 32),
@@ -339,16 +416,23 @@ class _OnboardingPageState extends State<OnboardingPage> {
               onPressed: _nicknameController.text.trim().isEmpty
                   ? null
                   : () {
-                      setState(() => _nickname = _nicknameController.text.trim());
+                      setState(
+                        () => _nickname = _nicknameController.text.trim(),
+                      );
                       _nextPage();
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 disabledBackgroundColor: Colors.grey.shade300,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text('下一步', style: TextStyle(color: Colors.white, fontSize: 16)),
+              child: const Text(
+                '下一步',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ),
         ],
@@ -451,7 +535,71 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  // ── 畫面6：身體資訊（可跳過）──
+  // ── 畫面6（新）：家庭功能引導 ──
+  Widget _buildFamilyPage() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _mascot(),
+          const SizedBox(height: 20),
+          if (_familyStep == 0) ...[
+            _speechBubble('對了，家裡有小朋友嗎？🐣'),
+            const SizedBox(height: 32),
+            _optionButton('有！', () {
+              setState(() => _familyStep = 1);
+            }),
+            _optionButton('沒有', () {
+              setState(() {
+                _familyEnabled = false;
+                _familyStep = 2;
+              });
+            }),
+            _optionButton('以後再說', () {
+              setState(() {
+                _familyEnabled = false;
+                _familyStep = 2;
+              });
+            }),
+          ] else if (_familyStep == 1) ...[
+            _speechBubble('可以用獎勵積分幫小朋友養成好習慣喔！\n要開啟家庭模式嗎？🏠'),
+            const SizedBox(height: 32),
+            _optionButton('好啊，聽起來不錯！', () {
+              setState(() => _familyEnabled = true);
+              _nextPage();
+            }, color: Colors.green),
+            _optionButton('不用了', () {
+              setState(() => _familyEnabled = false);
+              _nextPage();
+            }),
+          ] else ...[
+            _speechBubble('沒關係！之後想用的話可以在設定裡開啟喔 😊'),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _nextPage,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text(
+                  '繼續',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── 畫面7：身體資訊（可跳過）──
   Widget _buildPage6() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
@@ -462,12 +610,21 @@ class _OnboardingPageState extends State<OnboardingPage> {
           const SizedBox(height: 20),
           _speechBubble('想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～'),
           const SizedBox(height: 8),
-          Text('不想說也完全沒關係！', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          Text(
+            '不想說也完全沒關係！',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          ),
           const SizedBox(height: 28),
           // 性別選擇
           Row(
             children: [
-              Text('性別', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.w600)),
+              Text(
+                '性別',
+                style: TextStyle(
+                  color: Colors.orange.shade800,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(width: 16),
               _genderChip('男'),
               const SizedBox(width: 8),
@@ -485,8 +642,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
               labelText: '身高（cm）',
               filled: true,
               fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.orange.shade200)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.orange)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -498,8 +661,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
               labelText: '體重（kg）',
               filled: true,
               fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.orange.shade200)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.orange)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -511,8 +680,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
               labelText: '目標體重（kg）',
               filled: true,
               fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.orange.shade200)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.orange)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -532,12 +707,25 @@ class _OnboardingPageState extends State<OnboardingPage> {
             child: InputDecorator(
               decoration: InputDecoration(
                 labelText: '生日',
-                suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18, color: Colors.orange),
+                suffixIcon: const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 18,
+                  color: Colors.orange,
+                ),
                 filled: true,
                 fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.orange.shade200)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.orange)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.orange.shade200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.orange),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
               // isEmpty=true 時 label 停在中間（未選狀態）
               isEmpty: _birthday == null,
@@ -545,8 +733,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 _birthday == null
                     ? ''
                     : '${_birthday!.year} 年 '
-                        '${_birthday!.month.toString().padLeft(2, '0')} 月 '
-                        '${_birthday!.day.toString().padLeft(2, '0')} 日',
+                          '${_birthday!.month.toString().padLeft(2, '0')} 月 '
+                          '${_birthday!.day.toString().padLeft(2, '0')} 日',
                 style: const TextStyle(fontSize: 16),
               ),
             ),
@@ -558,10 +746,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
               onPressed: _nextPage,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text('填寫完成', style: TextStyle(color: Colors.white, fontSize: 16)),
+              child: const Text(
+                '填寫完成',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -584,9 +777,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
         decoration: BoxDecoration(
           color: selected ? Colors.orange : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? Colors.orange : Colors.grey.shade300),
+          border: Border.all(
+            color: selected ? Colors.orange : Colors.grey.shade300,
+          ),
         ),
-        child: Text(label, style: TextStyle(color: selected ? Colors.white : Colors.grey.shade600, fontSize: 14)),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
       ),
     );
   }
@@ -603,7 +804,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
             tween: Tween(begin: 0.9, end: 1.1),
             duration: const Duration(milliseconds: 700),
             curve: Curves.easeInOut,
-            builder: (context, val, child) => Transform.scale(scale: val, child: child),
+            builder: (context, val, child) =>
+                Transform.scale(scale: val, child: child),
             onEnd: () => setState(() {}), // 觸發重建讓動畫循環
             child: _mascot(size: 120),
           ),
@@ -616,12 +818,21 @@ class _OnboardingPageState extends State<OnboardingPage> {
               onPressed: _finish,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 elevation: 4,
                 shadowColor: Colors.orange.withValues(alpha: 0.4),
               ),
-              child: const Text('出發！🚀', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              child: const Text(
+                '出發！🚀',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -631,10 +842,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 第1頁（畫面1）沒有返回按鈕；畫面4/5 在追問子步驟時也要顯示返回
-    final bool showBack = _currentPage > 0 ||
+    // 第1頁（畫面1）沒有返回按鈕；畫面4/5/6 在追問子步驟時也要顯示返回
+    final bool showBack =
+        _currentPage > 0 ||
         (_currentPage == 3 && _waterStep == 1) ||
-        (_currentPage == 4 && _timerStep == 1);
+        (_currentPage == 4 && _timerStep == 1) ||
+        (_currentPage == 5 && _familyStep > 0);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8F0),
@@ -643,7 +856,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               backgroundColor: const Color(0xFFFFF8F0),
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.orange),
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.orange,
+                ),
                 onPressed: _handleBack,
                 tooltip: '回上一步',
               ),
@@ -655,7 +871,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         color: const Color(0xFFFFF8F0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(7, (i) {
+          children: List.generate(8, (i) {
             final active = i == _currentPage;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
@@ -680,6 +896,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           _buildPage3(),
           _buildPage4(),
           _buildPage5(),
+          _buildFamilyPage(),
           _buildPage6(),
           _buildPage7(),
         ],

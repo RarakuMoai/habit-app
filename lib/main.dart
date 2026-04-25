@@ -60,6 +60,7 @@ class _MainPageState extends State<MainPage> {
   bool _waterEnabled = true;
   bool _timerEnabled = true;
   bool _weightTrackingEnabled = false;
+  bool _familyEnabled = false;
   bool _loaded = false;
 
   @override
@@ -75,6 +76,7 @@ class _MainPageState extends State<MainPage> {
       _waterEnabled = prefs.getBool('water_enabled') ?? true;
       _timerEnabled = prefs.getBool('timer_enabled') ?? true;
       _weightTrackingEnabled = prefs.getBool('weight_tracking_enabled') ?? false;
+      _familyEnabled = prefs.getBool('family_enabled') ?? false;
       _loaded = true;
     });
   }
@@ -94,8 +96,9 @@ class _MainPageState extends State<MainPage> {
     if (_weightTrackingEnabled) {
       list.add(_TabItem(page: const WeightPage(), icon: Icons.monitor_weight, label: '體重'));
     }
-    // 家庭頁籤固定顯示，不受功能開關影響
-    list.add(_TabItem(page: const FamilyPage(), icon: Icons.family_restroom, label: '家庭'));
+    if (_familyEnabled) {
+      list.add(_TabItem(page: FamilyPage(onSettingsChanged: _loadSettings), icon: Icons.family_restroom, label: '家庭'));
+    }
     return list;
   }
 

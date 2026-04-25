@@ -92,7 +92,8 @@ Future<String?> _showPinDialog(
 // ── 家庭主頁（小孩選擇畫面）──
 
 class FamilyPage extends StatefulWidget {
-  const FamilyPage({super.key});
+  final VoidCallback? onSettingsChanged;
+  const FamilyPage({super.key, this.onSettingsChanged});
 
   @override
   State<FamilyPage> createState() => _FamilyPageState();
@@ -189,6 +190,7 @@ class _FamilyPageState extends State<FamilyPage> {
                   },
                 ),
               );
+              widget.onSettingsChanged?.call();
               _loadChildren();
             },
           ),
@@ -245,6 +247,7 @@ class _FamilyPageState extends State<FamilyPage> {
                 ),
               ),
             );
+            widget.onSettingsChanged?.call();
             _loadChildren();
           },
         );

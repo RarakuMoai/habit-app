@@ -14,6 +14,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _waterEnabled = true;
   bool _timerEnabled = true;
   bool _weightTrackingEnabled = false;
+  bool _familyEnabled = false;
   bool _loaded = false;
 
   // PIN 相關狀態
@@ -34,6 +35,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _waterEnabled = _prefs!.getBool('water_enabled') ?? true;
       _timerEnabled = _prefs!.getBool('timer_enabled') ?? true;
       _weightTrackingEnabled = _prefs!.getBool('weight_tracking_enabled') ?? false;
+      _familyEnabled = _prefs!.getBool('family_enabled') ?? false;
       _parentPin = _prefs!.getString('parent_pin');
       _pinDigits = _prefs!.getInt('pin_digits') ?? 4;
       _loaded = true;
@@ -285,6 +287,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   onChanged: (v) async {
                     setState(() => _weightTrackingEnabled = v);
                     await _saveBool('weight_tracking_enabled', v);
+                  },
+                ),
+
+                // 家庭模式開關
+                _toggleTile(
+                  icon: Icons.family_restroom,
+                  iconColor: Colors.purple,
+                  title: '家庭模式',
+                  subtitle: '顯示底部家庭頁籤',
+                  value: _familyEnabled,
+                  onChanged: (v) async {
+                    setState(() => _familyEnabled = v);
+                    await _saveBool('family_enabled', v);
                   },
                 ),
 
