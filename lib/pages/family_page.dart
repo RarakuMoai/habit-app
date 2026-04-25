@@ -1444,43 +1444,51 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
-    // 預設選第一個小孩
-    String selectedChildId = _children.first.id;
+    // 預設勾選第一個小孩
+    final Set<String> selectedIds = {_children.first.id};
 
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (_, setS) => AlertDialog(
           title: const Text('新增習慣'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 選擇小孩
-              DropdownButtonFormField<String>(
-                initialValue: selectedChildId,
-                decoration: const InputDecoration(labelText: '選擇小孩'),
-                items: _children
-                    .map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text(c.name),
-                        ))
-                    .toList(),
-                onChanged: (v) => setS(() => selectedChildId = v!),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: '習慣名稱'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: pointCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: '完成可得分數'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 多選小孩
+                Text('套用小孩',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade600)),
+                ..._children.map((c) => CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(c.name),
+                      value: selectedIds.contains(c.id),
+                      onChanged: (v) => setS(() {
+                        if (v == true) {
+                          selectedIds.add(c.id);
+                        } else {
+                          selectedIds.remove(c.id);
+                        }
+                      }),
+                    )),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: '習慣名稱'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pointCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: '完成可得分數'),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1500,10 +1508,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (result != true) return;
     final name = nameCtrl.text.trim();
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (name.isEmpty || pts <= 0) {
+    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('習慣名稱不得為空，且分數須大於 0')),
+          const SnackBar(content: Text('請至少選一個小孩，且習慣名稱不得為空、分數須大於 0')),
         );
       }
       return;
@@ -1511,12 +1519,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final prefs = _prefs!;
     final habits = await _loadHabits(prefs);
-    habits.add(ChildHabit(
-      id: _genId(),
-      childId: selectedChildId,
-      name: name,
-      points: pts,
-    ));
+    for (final childId in selectedIds) {
+      habits.add(ChildHabit(
+        id: _genId(),
+        childId: childId,
+        name: name,
+        points: pts,
+      ));
+    }
     await _saveHabits(prefs, habits);
     _changed = true;
     await _loadAll();
@@ -1543,41 +1553,51 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
-    String selectedChildId = _children.first.id;
+    // 預設勾選第一個小孩
+    final Set<String> selectedIds = {_children.first.id};
 
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (_, setS) => AlertDialog(
           title: const Text('新增扣分項目'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: selectedChildId,
-                decoration: const InputDecoration(labelText: '選擇小孩'),
-                items: _children
-                    .map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text(c.name),
-                        ))
-                    .toList(),
-                onChanged: (v) => setS(() => selectedChildId = v!),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: '扣分項目名稱'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: pointCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: '扣幾分'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 多選小孩
+                Text('套用小孩',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade600)),
+                ..._children.map((c) => CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(c.name),
+                      value: selectedIds.contains(c.id),
+                      onChanged: (v) => setS(() {
+                        if (v == true) {
+                          selectedIds.add(c.id);
+                        } else {
+                          selectedIds.remove(c.id);
+                        }
+                      }),
+                    )),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: '扣分項目名稱'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pointCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: '扣幾分'),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1597,10 +1617,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (result != true) return;
     final name = nameCtrl.text.trim();
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (name.isEmpty || pts <= 0) {
+    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('項目名稱不得為空，且扣分須大於 0')),
+          const SnackBar(content: Text('請至少選一個小孩，且項目名稱不得為空、扣分須大於 0')),
         );
       }
       return;
@@ -1608,12 +1628,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final prefs = _prefs!;
     final deductions = await _loadDeductions(prefs);
-    deductions.add(DeductionItem(
-      id: _genId(),
-      childId: selectedChildId,
-      name: name,
-      points: pts,
-    ));
+    for (final childId in selectedIds) {
+      deductions.add(DeductionItem(
+        id: _genId(),
+        childId: childId,
+        name: name,
+        points: pts,
+      ));
+    }
     await _saveDeductions(prefs, deductions);
     _changed = true;
     await _loadAll();
@@ -1641,6 +1663,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final reasonCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
     String selectedChildId = _children.first.id;
+    bool isAdd = true; // true = 加分, false = 扣分
 
     final result = await showDialog<bool>(
       context: context,
@@ -1668,16 +1691,42 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 decoration: const InputDecoration(labelText: '原因'),
               ),
               const SizedBox(height: 12),
+              // 加分 / 扣分 切換
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: true,
+                    label: Text('加分'),
+                    icon: Icon(Icons.add_circle_outline),
+                  ),
+                  ButtonSegment(
+                    value: false,
+                    label: Text('扣分'),
+                    icon: Icon(Icons.remove_circle_outline),
+                  ),
+                ],
+                selected: {isAdd},
+                onSelectionChanged: (s) => setS(() => isAdd = s.first),
+                style: SegmentedButton.styleFrom(
+                  selectedBackgroundColor: isAdd
+                      ? Colors.green.shade50
+                      : Colors.red.shade50,
+                  selectedForegroundColor: isAdd ? Colors.green : Colors.red,
+                ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: pointCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(signed: true),
-                // 允許負號
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
-                ],
-                decoration: const InputDecoration(
-                  labelText: '分數（正數加分、負數扣分）',
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: '分數',
+                  prefixText: isAdd ? '+' : '-',
+                  prefixStyle: TextStyle(
+                    color: isAdd ? Colors.green : Colors.red,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -1699,17 +1748,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     if (result != true) return;
     final reason = reasonCtrl.text.trim();
-    final delta = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (reason.isEmpty || delta == 0) {
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    if (reason.isEmpty || pts <= 0) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('原因不得為空，且分數不能為 0')),
+          const SnackBar(content: Text('原因不得為空，且分數須大於 0')),
         );
       }
       return;
     }
 
-    // 找到選擇的小孩物件
+    final delta = isAdd ? pts : -pts;
+
     final childIdx = _children.indexWhere((c) => c.id == selectedChildId);
     if (childIdx == -1) return;
     final child = _children[childIdx];
@@ -1726,7 +1776,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
 
     if (!mounted) return;
-    // 負數且積分不足時提示
     if (delta < 0 && before + delta < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('積分不足，已扣至 0 分')),
