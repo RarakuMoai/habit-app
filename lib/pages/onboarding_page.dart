@@ -48,7 +48,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
   String _gender = '';
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _targetWeightController = TextEditingController();
   DateTime? _birthday; // 生日（選填）
 
   // 用戶暱稱（畫面3填完後存起來）
@@ -69,7 +68,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _nicknameController.dispose();
     _heightController.dispose();
     _weightController.dispose();
-    _targetWeightController.dispose();
     super.dispose();
   }
 
@@ -165,11 +163,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
       await prefs.setBool('weight_tracking_enabled', true);
       // 自動新增體重紀錄習慣
       await _addWeightHabit(prefs);
-    }
-    // 目標體重（選填）
-    final targetWeightVal = double.tryParse(_targetWeightController.text);
-    if (targetWeightVal != null) {
-      await prefs.setDouble('target_weight', targetWeightVal);
     }
     // 生日（選填），以 yyyy-MM-dd 格式儲存
     if (_birthday != null) {
@@ -551,18 +544,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
               setState(() => _familyStep = 1);
             }),
             _optionButton('沒有', () {
-              setState(() {
-                _familyEnabled = false;
-                _familyStep = 2;
-              });
+              setState(() => _familyEnabled = false);
+              _nextPage();
             }),
             _optionButton('以後再說', () {
-              setState(() {
-                _familyEnabled = false;
-                _familyStep = 2;
-              });
+              setState(() => _familyEnabled = false);
+              _nextPage();
             }),
-          ] else if (_familyStep == 1) ...[
+          ] else ...[
             _speechBubble('可以用獎勵積分幫小朋友養成好習慣喔！\n要開啟家庭模式嗎？🏠'),
             const SizedBox(height: 32),
             _optionButton('好啊，聽起來不錯！', () {
@@ -573,26 +562,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
               setState(() => _familyEnabled = false);
               _nextPage();
             }),
-          ] else ...[
-            _speechBubble('沒關係！之後想用的話可以在設定裡開啟喔 😊'),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _nextPage,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: const Text(
-                  '繼續',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ),
-            ),
           ],
         ],
       ),
@@ -672,25 +641,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
           ),
           const SizedBox(height: 12),
-          // 目標體重（選填）
-          TextField(
-            controller: _targetWeightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: '目標體重（kg）',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
           // 生日（選填，點擊開啟日期選擇器）
           InkWell(
             onTap: () async {
@@ -732,9 +682,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               child: Text(
                 _birthday == null
                     ? ''
-                    : '${_birthday!.year} 年 '
-                          '${_birthday!.month.toString().padLeft(2, '0')} 月 '
-                          '${_birthday!.day.toString().padLeft(2, '0')} 日',
+                    : '${_birthday!.year} 年 ${_birthday!.month} 月 ${_birthday!.day} 日',
                 style: const TextStyle(fontSize: 16),
               ),
             ),
