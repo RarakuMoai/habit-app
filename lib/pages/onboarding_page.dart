@@ -57,6 +57,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void initState() {
     super.initState();
     _nicknameController.addListener(() => setState(() {}));
+    _heightController.addListener(() => setState(() {}));
+    _weightController.addListener(() => setState(() {}));
     // 等第一幀渲染完成（Offstage 預熱字形後）再啟動打字動畫
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _startTyping();
@@ -113,6 +115,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
       setState(() => _currentPage++);
     }
   }
+
+  bool get _bodyInfoFilled =>
+      _gender.isNotEmpty &&
+      double.tryParse(_heightController.text.trim()) != null &&
+      double.tryParse(_weightController.text.trim()) != null &&
+      _birthday != null;
 
   // 回上一步：畫面4/5/6 若在追問子步驟，先退回初始選項；否則回上一畫面
   void _handleBack() {
@@ -692,9 +700,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _nextPage,
+              onPressed: _bodyInfoFilled ? _nextPage : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
+                disabledBackgroundColor: Colors.grey.shade300,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
