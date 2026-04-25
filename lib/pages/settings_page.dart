@@ -324,8 +324,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       child: const Icon(Icons.lock_outline, color: Colors.indigo, size: 20),
                     ),
-                    title: const Text('PIN 設定', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                    // 依是否設定 PIN 顯示不同狀態文字
+                    title: const Text('數字密碼設定', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    // 依是否設定數字密碼顯示不同狀態文字
                     subtitle: Text(
                       (_parentPin?.isNotEmpty ?? false)
                           ? '已設定（$_pinDigits 位）'
@@ -490,51 +490,51 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
 
   // 第一次設定 PIN（輸入兩次確認）
   Future<void> _setupPin() async {
-    final newPin = await _promptNewPin('請設定新 PIN（$_digits 位數字）');
+    final newPin = await _promptNewPin('請設定新密碼（$_digits 位數字）');
     if (newPin == null || newPin.length != _digits) return;
 
-    final confirm = await _promptNewPin('請再次輸入 PIN 確認');
+    final confirm = await _promptNewPin('請再次輸入密碼確認');
     if (!mounted || confirm == null) return;
 
     if (newPin != confirm) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('兩次輸入的 PIN 不一致')));
+          .showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
       return;
     }
     await widget.onSaved(newPin, _digits);
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('PIN 已設定')));
+        .showSnackBar(const SnackBar(content: Text('密碼已設定')));
   }
 
   // 修改 PIN（需先輸入舊 PIN）
   Future<void> _changePin() async {
-    final old = await _promptOldPin('請輸入目前的 PIN');
+    final old = await _promptOldPin('請輸入目前的密碼');
     if (!mounted || old == null) return;
 
     if (old != widget.currentPin) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('舊 PIN 錯誤，請再試一次')));
+          .showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
       return;
     }
 
-    final newPin = await _promptNewPin('請設定新 PIN（$_digits 位數字）');
+    final newPin = await _promptNewPin('請設定新密碼（$_digits 位數字）');
     if (newPin == null || newPin.length != _digits) return;
 
-    final confirm = await _promptNewPin('請再次輸入新 PIN 確認');
+    final confirm = await _promptNewPin('請再次輸入新密碼確認');
     if (!mounted || confirm == null) return;
 
     if (newPin != confirm) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('兩次輸入的 PIN 不一致')));
+          .showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
       return;
     }
     await widget.onSaved(newPin, _digits);
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('PIN 已更新')));
+        .showSnackBar(const SnackBar(content: Text('密碼已更新')));
   }
 
   // 切換 PIN 位數（有 PIN 時需先驗證舊 PIN 再重設新 PIN）
@@ -548,26 +548,26 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
       return;
     }
 
-    // 已設定 PIN：先用目前位數驗證舊 PIN
-    final old = await _promptOldPin('請輸入目前的 PIN（$_digits 位）');
+    // 已設定數字密碼：先用目前位數驗證舊密碼
+    final old = await _promptOldPin('請輸入目前的密碼（$_digits 位）');
     if (!mounted || old == null) return;
 
     if (old != widget.currentPin) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('舊 PIN 錯誤，請再試一次')));
+          .showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
       return;
     }
 
-    // 驗證通過，切換至新位數並要求重設 PIN（兩次確認）
+    // 驗證通過，切換至新位數並要求重設密碼（兩次確認）
     setState(() => _digits = newDigits);
 
-    final newPin = await _promptNewPin('請設定新 PIN（$newDigits 位）');
+    final newPin = await _promptNewPin('請設定新密碼（$newDigits 位）');
     if (!mounted || newPin == null || newPin.length != newDigits) {
       setState(() => _digits = widget.currentDigits);
       return;
     }
 
-    final confirm = await _promptNewPin('請再次輸入新 PIN 確認');
+    final confirm = await _promptNewPin('請再次輸入新密碼確認');
     if (!mounted || confirm == null) {
       setState(() => _digits = widget.currentDigits);
       return;
@@ -576,7 +576,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     if (newPin != confirm) {
       setState(() => _digits = widget.currentDigits);
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('兩次輸入的 PIN 不一致')));
+          .showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
       return;
     }
 
@@ -584,7 +584,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('位數已更新，PIN 已重設')));
+        .showSnackBar(const SnackBar(content: Text('位數已更新，密碼已重設')));
   }
 
   @override
@@ -608,16 +608,16 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
               Icon(Icons.lock_outline, color: primary),
               const SizedBox(width: 8),
               const Text(
-                'PIN 設定',
+                '數字密碼設定',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 20),
 
-          // PIN 位數選擇（4位 / 6位）
+          // 密碼位數選擇（4位 / 6位）
           const Text(
-            'PIN 位數',
+            '密碼位數',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 10),
@@ -640,13 +640,13 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
           ),
           const SizedBox(height: 24),
 
-          // 設定 / 修改 PIN 按鈕
+          // 設定 / 修改密碼按鈕
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _hasPin ? _changePin : _setupPin,
               icon: Icon(_hasPin ? Icons.lock_reset : Icons.lock_open),
-              label: Text(_hasPin ? '修改 PIN' : '設定 PIN'),
+              label: Text(_hasPin ? '修改密碼' : '設定密碼'),
             ),
           ),
 
@@ -655,7 +655,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
               padding: const EdgeInsets.only(top: 8),
               child: Center(
                 child: Text(
-                  '目前已設定 ${widget.currentDigits} 位 PIN',
+                  '目前已設定 ${widget.currentDigits} 位數字密碼',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 ),
               ),

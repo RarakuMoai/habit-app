@@ -107,6 +107,75 @@ class DeductionItem {
       };
 }
 
+// 獎勵項目
+class RewardItem {
+  final String id;
+  String name;
+  int pointsCost;
+  List<String> childIds;
+  String limitType; // 'none' | 'daily' | 'weekly'
+  int limitCount;
+
+  RewardItem({
+    required this.id,
+    required this.name,
+    required this.pointsCost,
+    required this.childIds,
+    this.limitType = 'none',
+    this.limitCount = 1,
+  });
+
+  factory RewardItem.fromJson(Map<String, dynamic> json) => RewardItem(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        pointsCost: (json['points_cost'] as int?) ?? 0,
+        childIds: (json['child_ids'] as List?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
+        limitType: (json['limit_type'] as String?) ?? 'none',
+        limitCount: (json['limit_count'] as int?) ?? 1,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'points_cost': pointsCost,
+        'child_ids': childIds,
+        'limit_type': limitType,
+        'limit_count': limitCount,
+      };
+}
+
+// 兌換紀錄
+class RedemptionLog {
+  final String id;
+  final String rewardId;
+  final String childId;
+  final String time; // yyyy-MM-dd HH:mm
+
+  RedemptionLog({
+    required this.id,
+    required this.rewardId,
+    required this.childId,
+    required this.time,
+  });
+
+  factory RedemptionLog.fromJson(Map<String, dynamic> json) => RedemptionLog(
+        id: json['id'] as String,
+        rewardId: json['reward_id'] as String,
+        childId: json['child_id'] as String,
+        time: json['time'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'reward_id': rewardId,
+        'child_id': childId,
+        'time': time,
+      };
+}
+
 // 積分紀錄
 class PointRecord {
   final String id;
@@ -200,6 +269,34 @@ Future<void> _saveDeductions(
     SharedPreferences prefs, List<DeductionItem> items) async {
   await prefs.setString(
       'deduction_items', jsonEncode(items.map((d) => d.toJson()).toList()));
+}
+
+Future<List<RewardItem>> _loadRewards(SharedPreferences prefs) async {
+  final raw = prefs.getString('reward_items');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => RewardItem.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> _saveRewards(
+    SharedPreferences prefs, List<RewardItem> rewards) async {
+  await prefs.setString(
+      'reward_items', jsonEncode(rewards.map((r) => r.toJson()).toList()));
+}
+
+Future<List<RedemptionLog>> _loadRedemptions(SharedPreferences prefs) async {
+  final raw = prefs.getString('redemption_logs');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => RedemptionLog.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> _saveRedemptions(
+    SharedPreferences prefs, List<RedemptionLog> logs) async {
+  await prefs.setString(
+      'redemption_logs', jsonEncode(logs.map((l) => l.toJson()).toList()));
 }
 
 Future<List<PointRecord>> _loadRecords(SharedPreferences prefs) async {
@@ -696,8 +793,8 @@ class _ChildHomePageState extends State<_ChildHomePage> {
             _HabitTab(child: _current, onPointsChanged: _onPointsChanged),
             // 積分紀錄 Tab
             _PointRecordTab(child: _current),
-            // 獎勵（尚未實作）
-            const _ComingSoonTab(label: '獎勵'),
+            // 獎勵 Tab
+            _RewardTab(child: _current, onPointsChanged: _onPointsChanged),
           ],
         ),
       ),
@@ -1149,6 +1246,7 @@ class _PointRecordTabState extends State<_PointRecordTab> {
       context: context,
       firstDate: DateTime(now.year - 2),
       lastDate: now,
+      initialEntryMode: DatePickerEntryMode.input,
       initialDateRange: _customRange ??
           DateTimeRange(
             start: now.subtract(const Duration(days: 6)),
@@ -1330,24 +1428,302 @@ class _CustomRangeChip extends StatelessWidget {
   }
 }
 
-// 尚未實作的 Tab 佔位畫面
-class _ComingSoonTab extends StatelessWidget {
-  final String label;
-  const _ComingSoonTab({required this.label});
+// ── 獎勵 Tab ──
+
+class _RewardTab extends StatefulWidget {
+  final ChildData child;
+  final VoidCallback onPointsChanged;
+
+  const _RewardTab({required this.child, required this.onPointsChanged});
+
+  @override
+  State<_RewardTab> createState() => _RewardTabState();
+}
+
+class _RewardTabState extends State<_RewardTab> {
+  List<RewardItem> _rewards = [];
+  List<RedemptionLog> _redemptions = [];
+  bool _loaded = false;
+  SharedPreferences? _prefs;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    _prefs = await SharedPreferences.getInstance();
+    final allRewards = await _loadRewards(_prefs!);
+    final allRedemptions = await _loadRedemptions(_prefs!);
+    setState(() {
+      _rewards = allRewards
+          .where((r) => r.childIds.contains(widget.child.id))
+          .toList();
+      _redemptions =
+          allRedemptions.where((l) => l.childId == widget.child.id).toList();
+      _loaded = true;
+    });
+  }
+
+  int _todayCount(String rewardId) {
+    final today = _todayStr();
+    return _redemptions
+        .where((l) => l.rewardId == rewardId && l.time.startsWith(today))
+        .length;
+  }
+
+  int _weekCount(String rewardId) {
+    final now = DateTime.now();
+    final weekStart = DateTime(now.year, now.month, now.day)
+        .subtract(const Duration(days: 6));
+    return _redemptions.where((l) {
+      if (l.rewardId != rewardId) return false;
+      final d = DateTime.tryParse(l.time.split(' ').first);
+      return d != null && !d.isBefore(weekStart);
+    }).length;
+  }
+
+  bool _canRedeem(RewardItem r) {
+    if (widget.child.points < r.pointsCost) return false;
+    if (r.limitType == 'daily' && _todayCount(r.id) >= r.limitCount) {
+      return false;
+    }
+    if (r.limitType == 'weekly' && _weekCount(r.id) >= r.limitCount) {
+      return false;
+    }
+    return true;
+  }
+
+  // 今日最後一次兌換，供撤銷使用
+  RedemptionLog? _lastRedemptionToday(String rewardId) {
+    final today = _todayStr();
+    final logs = _redemptions
+        .where((l) => l.rewardId == rewardId && l.time.startsWith(today))
+        .toList()
+      ..sort((a, b) => b.time.compareTo(a.time));
+    return logs.isEmpty ? null : logs.first;
+  }
+
+  Future<void> _redeem(RewardItem r) async {
+    if (!_canRedeem(r) || !mounted) return;
+    final prefs = _prefs!;
+    final newPoints = await _applyPoints(
+      prefs: prefs,
+      child: widget.child,
+      delta: -r.pointsCost,
+      reason: '兌換獎勵：${r.name}',
+    );
+    final log = RedemptionLog(
+      id: _genId(),
+      rewardId: r.id,
+      childId: widget.child.id,
+      time: _nowStr(),
+    );
+    final allLogs = await _loadRedemptions(prefs);
+    allLogs.add(log);
+    await _saveRedemptions(prefs, allLogs);
+    setState(() {
+      _redemptions.add(log);
+      widget.child.points = newPoints;
+    });
+    widget.onPointsChanged();
+  }
+
+  Future<void> _undoRedeem(RewardItem r) async {
+    final last = _lastRedemptionToday(r.id);
+    if (last == null || !mounted) return;
+    final ok = await _verifyParentPinIfNeeded(context);
+    if (!ok || !mounted) return;
+    final prefs = _prefs!;
+    final newPoints = await _applyPoints(
+      prefs: prefs,
+      child: widget.child,
+      delta: r.pointsCost,
+      reason: '撤銷兌換：${r.name}',
+    );
+    final allLogs = await _loadRedemptions(prefs);
+    allLogs.removeWhere((l) => l.id == last.id);
+    await _saveRedemptions(prefs, allLogs);
+    setState(() {
+      _redemptions.removeWhere((l) => l.id == last.id);
+      widget.child.points = newPoints;
+    });
+    widget.onPointsChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.construction, size: 52, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text(
-            '$label — 即將推出',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade400),
-          ),
-        ],
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+
+    if (_rewards.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.card_giftcard, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 12),
+            Text(
+              '尚無獎勵，請家長至家長管理新增',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _rewards.length,
+        itemBuilder: (_, i) {
+          final r = _rewards[i];
+          final canRedeem = _canRedeem(r);
+          final lastToday = _lastRedemptionToday(r.id);
+
+          String? limitHint;
+          if (r.limitType == 'daily') {
+            limitHint = '今日 ${_todayCount(r.id)}/${r.limitCount} 次';
+          } else if (r.limitType == 'weekly') {
+            limitHint = '本週 ${_weekCount(r.id)}/${r.limitCount} 次';
+          }
+
+          String btnLabel = '兌換';
+          if (!canRedeem) {
+            if (widget.child.points < r.pointsCost) {
+              btnLabel = '積分不足';
+            } else if (r.limitType == 'daily') {
+              btnLabel = '今日已達上限';
+            } else {
+              btnLabel = '本週已達上限';
+            }
+          }
+
+          return _RewardCard(
+            reward: r,
+            limitHint: limitHint,
+            btnLabel: btnLabel,
+            btnEnabled: canRedeem,
+            hasUndoToday: lastToday != null,
+            onRedeem: () => _redeem(r),
+            onUndo: () => _undoRedeem(r),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _RewardCard extends StatelessWidget {
+  final RewardItem reward;
+  final String? limitHint;
+  final String btnLabel;
+  final bool btnEnabled;
+  final bool hasUndoToday;
+  final VoidCallback onRedeem;
+  final VoidCallback onUndo;
+
+  const _RewardCard({
+    required this.reward,
+    required this.limitHint,
+    required this.btnLabel,
+    required this.btnEnabled,
+    required this.hasUndoToday,
+    required this.onRedeem,
+    required this.onUndo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.card_giftcard, color: primary, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    reward.name,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(Icons.star,
+                          size: 13, color: Colors.amber.shade600),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${reward.pointsCost} 分',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                      if (limitHint != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          limitHint!,
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade400),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                ElevatedButton(
+                  onPressed: btnEnabled ? onRedeem : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade200,
+                    disabledForegroundColor: Colors.grey.shade400,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    textStyle: const TextStyle(fontSize: 13),
+                  ),
+                  child: Text(btnLabel),
+                ),
+                if (hasUndoToday)
+                  GestureDetector(
+                    onTap: onUndo,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '點擊撤銷',
+                        style: TextStyle(
+                            fontSize: 10, color: Colors.grey.shade400),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1369,6 +1745,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   List<ChildData> _children = [];
   List<ChildHabit> _habits = [];
   List<DeductionItem> _deductions = [];
+  List<RewardItem> _rewards = [];
   bool _loaded = false;
   SharedPreferences? _prefs;
 
@@ -1410,10 +1787,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             .toList();
     final habits = await _loadHabits(prefs);
     final deductions = await _loadDeductions(prefs);
+    final rewards = await _loadRewards(prefs);
     setState(() {
       _children = children;
       _habits = habits;
       _deductions = deductions;
+      _rewards = rewards;
       _loaded = true;
     });
   }
@@ -1485,7 +1864,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     _children.removeAt(index);
     await _saveChildren();
 
-    // 同步刪除相關習慣、扣分項目、積分紀錄
+    // 同步刪除相關習慣、扣分項目、積分紀錄、兌換紀錄
     final prefs = _prefs!;
     final habits = await _loadHabits(prefs);
     await _saveHabits(prefs, habits.where((h) => h.childId != childId).toList());
@@ -1495,6 +1874,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final records = await _loadRecords(prefs);
     await _saveRecords(
         prefs, records.where((r) => r.childId != childId).toList());
+    // 獎勵：移除該小孩；若某獎勵所有小孩都被移除則刪除整個獎勵
+    final rewards = await _loadRewards(prefs);
+    for (final r in rewards) {
+      r.childIds.remove(childId);
+    }
+    await _saveRewards(prefs, rewards.where((r) => r.childIds.isNotEmpty).toList());
+    // 兌換紀錄
+    final redemptions = await _loadRedemptions(prefs);
+    await _saveRedemptions(
+        prefs, redemptions.where((l) => l.childId != childId).toList());
 
     await _loadAll();
   }
@@ -1749,6 +2138,165 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
   }
 
+  // ── 新增獎勵 ──
+  Future<void> _addReward() async {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先新增小孩')),
+      );
+      return;
+    }
+
+    final nameCtrl = TextEditingController();
+    final pointCtrl = TextEditingController();
+    final limitCtrl = TextEditingController(text: '1');
+    final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
+    String limitType = 'none';
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('新增獎勵'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('套用小孩',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade600)),
+                ..._children.map((c) => CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(c.name),
+                      value: selectedIds.contains(c.id),
+                      onChanged: (v) => setS(() {
+                        if (v == true) {
+                          selectedIds.add(c.id);
+                        } else {
+                          selectedIds.remove(c.id);
+                        }
+                      }),
+                    )),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: '獎勵名稱'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pointCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: '所需積分'),
+                ),
+                const SizedBox(height: 16),
+                Text('兌換上限',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 4),
+                RadioGroup<String>(
+                  groupValue: limitType,
+                  onChanged: (v) {
+                    if (v != null) setS(() => limitType = v);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('無上限',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'none',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('每日限制',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'daily',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('每週限制',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'weekly',
+                      ),
+                    ],
+                  ),
+                ),
+                if (limitType != 'none') ...[
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: limitCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('新增'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != true) return;
+    final name = nameCtrl.text.trim();
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    final limitCount =
+        limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text.trim()) ?? 1);
+    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('請至少選一個小孩，且名稱不得為空、積分須大於 0')),
+        );
+      }
+      return;
+    }
+
+    final prefs = _prefs!;
+    final rewards = await _loadRewards(prefs);
+    rewards.add(RewardItem(
+      id: _genId(),
+      name: name,
+      pointsCost: pts,
+      childIds: selectedIds.toList(),
+      limitType: limitType,
+      limitCount: limitCount,
+    ));
+    await _saveRewards(prefs, rewards);
+    _changed = true;
+    await _loadAll();
+  }
+
+  // ── 刪除獎勵 ──
+  Future<void> _deleteReward(RewardItem reward) async {
+    final prefs = _prefs!;
+    final rewards = await _loadRewards(prefs);
+    rewards.removeWhere((r) => r.id == reward.id);
+    await _saveRewards(prefs, rewards);
+    _changed = true;
+    await _loadAll();
+  }
+
   // ── 特殊積分 ──
   Future<void> _giveSpecialPoints() async {
     if (_children.isEmpty) {
@@ -1968,6 +2516,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         const SizedBox(height: 8),
         ..._buildDeductionSection(),
         _addButton('新增扣分項目', Icons.add, Colors.red, _addDeduction),
+
+        const SizedBox(height: 24),
+
+        // ── 獎勵管理區塊 ──
+        _sectionTitle('獎勵管理', Icons.card_giftcard_outlined,
+            Colors.amber.shade700),
+        const SizedBox(height: 8),
+        ..._buildRewardSection(),
+        _addButton(
+            '新增獎勵', Icons.add, Colors.amber.shade700, _addReward),
 
         const SizedBox(height: 24),
 
@@ -2225,5 +2783,67 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       }
     }
     return widgets;
+  }
+
+  // 獎勵列表（右滑刪除）
+  List<Widget> _buildRewardSection() {
+    if (_rewards.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('尚無獎勵',
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+        ),
+      ];
+    }
+
+    final amber = Colors.amber.shade700;
+    return _rewards.map((reward) {
+      String limitLabel = '';
+      if (reward.limitType == 'daily') {
+        limitLabel = '每日 ${reward.limitCount} 次';
+      } else if (reward.limitType == 'weekly') {
+        limitLabel = '每週 ${reward.limitCount} 次';
+      }
+
+      final childNames = _children
+          .where((c) => reward.childIds.contains(c.id))
+          .map((c) => c.name)
+          .join('、');
+
+      return Dismissible(
+        key: ValueKey(reward.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 16),
+          decoration: BoxDecoration(
+            color: Colors.red.shade100,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.delete_outline, color: Colors.red),
+        ),
+        onDismissed: (_) => _deleteReward(reward),
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 6),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            dense: true,
+            leading:
+                Icon(Icons.card_giftcard_outlined, color: amber, size: 20),
+            title: Text(reward.name, style: const TextStyle(fontSize: 14)),
+            subtitle: Text(
+              [
+                '${reward.pointsCost} 分',
+                if (limitLabel.isNotEmpty) limitLabel,
+                if (childNames.isNotEmpty) childNames,
+              ].join(' · '),
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+          ),
+        ),
+      );
+    }).toList();
   }
 }
