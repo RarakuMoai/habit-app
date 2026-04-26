@@ -1958,6 +1958,44 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     setState(() {});
   }
 
+  // ── 修改小孩名稱 ──
+  Future<void> _editChildName(int index) async {
+    final child = _children[index];
+    final nameCtrl = TextEditingController(text: child.name);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('修改名稱'),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '小孩名稱'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child:
+                Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('儲存'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+    final name = nameCtrl.text.trim();
+    if (name.isEmpty || name == child.name) return;
+
+    _children[index].name = name;
+    await _saveChildren();
+    _changed = true;
+    setState(() {});
+  }
+
   // ── 新增習慣 ──
   Future<void> _addHabit() async {
     if (_children.isEmpty) {
@@ -2344,7 +2382,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     required bool defaultAllChildren,
     required String Function(_Preset p) subtitle,
     required Color subtitleColor,
-    required Future<void> Function(Set<String> childIds, Set<int> idxs)
+    required String valueLabel,
+    required Future<void> Function(Set<String> childIds, List<_Preset> presets)
         onConfirm,
   }) async {
     if (_children.isEmpty) {
@@ -2355,6 +2394,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     }
 
     final selectedIdx = <int>{};
+    final overrides = <int, _Preset>{};
     final selectedChildIds = defaultAllChildren
         ? Set<String>.from(_children.map((c) => c.id))
         : <String>{_children.first.id};
@@ -2435,26 +2475,119 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: presets.length,
                   itemBuilder: (_, i) {
-                    final p = presets[i];
-                    return CheckboxListTile(
+                    final p = overrides[i] ?? presets[i];
+                    final isEdited = overrides.containsKey(i);
+                    final isSelected = selectedIdx.contains(i);
+                    return ListTile(
                       dense: true,
-                      title: Text(p.name),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 8),
+                      leading: Checkbox(
+                        value: isSelected,
+                        activeColor: color,
+                        onChanged: (v) => setS(() {
+                          if (v == true) {
+                            selectedIdx.add(i);
+                          } else {
+                            selectedIdx.remove(i);
+                          }
+                        }),
+                      ),
+                      title: Text(
+                        p.name,
+                        style: isEdited
+                            ? TextStyle(
+                                color: color, fontWeight: FontWeight.w500)
+                            : null,
+                      ),
                       subtitle: Text(
                         subtitle(p),
                         style:
                             TextStyle(color: subtitleColor, fontSize: 12),
                       ),
-                      value: selectedIdx.contains(i),
-                      onChanged: (v) => setS(() {
-                        if (v == true) {
-                          selectedIdx.add(i);
-                        } else {
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          size: 18,
+                          color:
+                              isEdited ? color : Colors.grey.shade400,
+                        ),
+                        tooltip: '編輯',
+                        onPressed: () async {
+                          final src = overrides[i] ?? presets[i];
+                          final nameCtrl =
+                              TextEditingController(text: src.name);
+                          final valCtrl = TextEditingController(
+                              text: '${src.value}');
+                          await showDialog<void>(
+                            context: ctx,
+                            builder: (d) => AlertDialog(
+                              title: const Text('編輯項目'),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextField(
+                                    controller: nameCtrl,
+                                    autofocus: true,
+                                    decoration: const InputDecoration(
+                                        labelText: '名稱'),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: valCtrl,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter
+                                          .digitsOnly
+                                    ],
+                                    decoration: InputDecoration(
+                                        labelText: valueLabel),
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    setS(() => overrides.remove(i));
+                                    Navigator.pop(d);
+                                  },
+                                  child: Text('還原預設',
+                                      style: TextStyle(
+                                          color: Colors.grey.shade500,
+                                          fontSize: 13)),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(d),
+                                  child: Text('取消',
+                                      style: TextStyle(
+                                          color: Colors.grey.shade600)),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    final name = nameCtrl.text.trim();
+                                    final val =
+                                        int.tryParse(valCtrl.text) ??
+                                            src.value;
+                                    if (name.isNotEmpty) {
+                                      setS(() => overrides[i] =
+                                          _Preset(name, val));
+                                    }
+                                    Navigator.pop(d);
+                                  },
+                                  child: const Text('確定'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      onTap: () => setS(() {
+                        if (isSelected) {
                           selectedIdx.remove(i);
+                        } else {
+                          selectedIdx.add(i);
                         }
                       }),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 8),
                     );
                   },
                 ),
@@ -2470,7 +2603,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             ? null
                             : () async {
                                 Navigator.pop(ctx);
-                                await onConfirm(selectedChildIds, selectedIdx);
+                                final editedPresets =
+                                    (selectedIdx.toList()..sort())
+                                        .map((i) =>
+                                            overrides[i] ?? presets[i])
+                                        .toList();
+                                await onConfirm(
+                                    selectedChildIds, editedPresets);
                               },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: color,
@@ -2502,11 +2641,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         defaultAllChildren: false,
         subtitle: (p) => '+${p.value} 分',
         subtitleColor: Colors.green.shade700,
-        onConfirm: (childIds, idxs) async {
+        valueLabel: '可得分數',
+        onConfirm: (childIds, selected) async {
           final prefs = _prefs!;
           final habits = await _loadHabits(prefs);
-          for (final i in idxs) {
-            final p = _kHabitPresets[i];
+          for (final p in selected) {
             for (final childId in childIds) {
               habits.add(ChildHabit(
                 id: _genId(),
@@ -2530,11 +2669,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         defaultAllChildren: false,
         subtitle: (p) => '-${p.value} 分',
         subtitleColor: Colors.red.shade700,
-        onConfirm: (childIds, idxs) async {
+        valueLabel: '扣幾分',
+        onConfirm: (childIds, selected) async {
           final prefs = _prefs!;
           final deductions = await _loadDeductions(prefs);
-          for (final i in idxs) {
-            final p = _kDeductionPresets[i];
+          for (final p in selected) {
             for (final childId in childIds) {
               deductions.add(DeductionItem(
                 id: _genId(),
@@ -2558,11 +2697,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         defaultAllChildren: true,
         subtitle: (p) => '${p.value} 積分',
         subtitleColor: Colors.amber.shade800,
-        onConfirm: (childIds, idxs) async {
+        valueLabel: '所需積分',
+        onConfirm: (childIds, selected) async {
           final prefs = _prefs!;
           final rewards = await _loadRewards(prefs);
-          for (final i in idxs) {
-            final p = _kRewardPresets[i];
+          for (final p in selected) {
             rewards.add(RewardItem(
               id: _genId(),
               name: p.name,
@@ -2788,7 +2927,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         _sectionTitle('習慣管理', Icons.check_circle_outline, Colors.green),
         const SizedBox(height: 8),
         ..._buildHabitSection(),
-        _addWithPresetButtons('新增習慣', Colors.green, _addHabit, _showHabitPresets),
+        _addWithPresetButtons('自訂習慣', Colors.green, _addHabit, _showHabitPresets),
 
         const SizedBox(height: 24),
 
@@ -2796,7 +2935,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         _sectionTitle('扣分項目', Icons.remove_circle_outline, Colors.red),
         const SizedBox(height: 8),
         ..._buildDeductionSection(),
-        _addWithPresetButtons('新增扣分項目', Colors.red, _addDeduction, _showDeductionPresets),
+        _addWithPresetButtons('自訂扣分項目', Colors.red, _addDeduction, _showDeductionPresets),
 
         const SizedBox(height: 24),
 
@@ -2805,7 +2944,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             Colors.amber.shade700),
         const SizedBox(height: 8),
         ..._buildRewardSection(),
-        _addWithPresetButtons('新增獎勵', Colors.amber.shade700, _addReward, _showRewardPresets),
+        _addWithPresetButtons('自訂獎勵', Colors.amber.shade700, _addReward, _showRewardPresets),
 
         const SizedBox(height: 24),
 
@@ -2918,6 +3057,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               fontSize: 12, color: Colors.grey.shade500)),
                     ],
                   ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.edit_outlined,
+                      color: Colors.grey.shade500),
+                  tooltip: '修改名稱',
+                  onPressed: () => _editChildName(index),
                 ),
                 IconButton(
                   icon:
