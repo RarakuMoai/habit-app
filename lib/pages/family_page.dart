@@ -404,8 +404,7 @@ Future<int> _applyPoints({
   final idx = children.indexWhere((c) => c.id == child.id);
   if (idx == -1) return child.points;
 
-  int newPoints = children[idx].points + delta;
-  if (newPoints < 0) newPoints = 0; // 積分不能為負
+  final newPoints = children[idx].points + delta;
   children[idx].points = newPoints;
   child.points = newPoints; // 同步更新傳入的物件
 
@@ -421,7 +420,7 @@ Future<int> _applyPoints({
       childId: child.id,
       time: _nowStr(),
       reason: reason,
-      delta: delta < 0 ? -(children[idx].points - newPoints).abs() : delta,
+      delta: delta,
       total: newPoints,
     ),
   );
