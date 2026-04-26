@@ -998,6 +998,123 @@ class _HabitTabState extends State<_HabitTab> {
     widget.onPointsChanged();
   }
 
+  // ── 特殊積分（需家長密碼）──
+  Future<void> _giveSpecialPoints() async {
+    if (!mounted) return;
+    final ok = await _verifyParentPinIfNeeded(context);
+    if (!ok || !mounted) return;
+
+    final reasonCtrl = TextEditingController();
+    final pointCtrl = TextEditingController();
+    bool isAdd = true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('特殊積分'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: reasonCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '原因'),
+              ),
+              const SizedBox(height: 12),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: true,
+                    label: Text('加分'),
+                    icon: Icon(Icons.add_circle_outline),
+                  ),
+                  ButtonSegment(
+                    value: false,
+                    label: Text('扣分'),
+                    icon: Icon(Icons.remove_circle_outline),
+                  ),
+                ],
+                selected: {isAdd},
+                onSelectionChanged: (s) => setS(() => isAdd = s.first),
+                style: SegmentedButton.styleFrom(
+                  selectedBackgroundColor:
+                      isAdd ? Colors.green.shade50 : Colors.red.shade50,
+                  selectedForegroundColor:
+                      isAdd ? Colors.green : Colors.red,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pointCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: '分數',
+                  prefixText: isAdd ? '+' : '-',
+                  prefixStyle: TextStyle(
+                    color: isAdd ? Colors.green : Colors.red,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('確認'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != true || !mounted) return;
+    final reason = reasonCtrl.text.trim();
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    if (reason.isEmpty || pts <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('原因不得為空，且分數須大於 0')),
+        );
+      }
+      return;
+    }
+
+    final delta = isAdd ? pts : -pts;
+    final before = widget.child.points;
+    final newPoints = await _applyPoints(
+      prefs: _prefs!,
+      child: widget.child,
+      delta: delta,
+      reason: '特殊積分：$reason',
+    );
+
+    setState(() => widget.child.points = newPoints);
+    widget.onPointsChanged();
+
+    if (!mounted) return;
+    if (delta < 0 && before + delta < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('積分不足，已扣至 0 分')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '已給予${widget.child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
@@ -1036,6 +1153,22 @@ class _HabitTabState extends State<_HabitTab> {
                   onDeduct: () => _deduct(item),
                   onUndo: () => _undoDeduct(item),
                 )),
+
+          const SizedBox(height: 24),
+
+          OutlinedButton.icon(
+            onPressed: _giveSpecialPoints,
+            icon: const Icon(Icons.star_outline, size: 16),
+            label: const Text('特殊積分'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.purple,
+              side: BorderSide(color: Colors.purple.withValues(alpha: 0.5)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -2717,145 +2850,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         },
       );
 
-  // ── 特殊積分 ──
-  Future<void> _giveSpecialPoints() async {
-    if (_children.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先新增小孩')),
-      );
-      return;
-    }
-
-    final reasonCtrl = TextEditingController();
-    final pointCtrl = TextEditingController();
-    String selectedChildId = _children.first.id;
-    bool isAdd = true; // true = 加分, false = 扣分
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('特殊積分'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: selectedChildId,
-                decoration: const InputDecoration(labelText: '選擇小孩'),
-                items: _children
-                    .map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text(c.name),
-                        ))
-                    .toList(),
-                onChanged: (v) => setS(() => selectedChildId = v!),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: '原因'),
-              ),
-              const SizedBox(height: 12),
-              // 加分 / 扣分 切換
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                    value: true,
-                    label: Text('加分'),
-                    icon: Icon(Icons.add_circle_outline),
-                  ),
-                  ButtonSegment(
-                    value: false,
-                    label: Text('扣分'),
-                    icon: Icon(Icons.remove_circle_outline),
-                  ),
-                ],
-                selected: {isAdd},
-                onSelectionChanged: (s) => setS(() => isAdd = s.first),
-                style: SegmentedButton.styleFrom(
-                  selectedBackgroundColor: isAdd
-                      ? Colors.green.shade50
-                      : Colors.red.shade50,
-                  selectedForegroundColor: isAdd ? Colors.green : Colors.red,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: pointCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  labelText: '分數',
-                  prefixText: isAdd ? '+' : '-',
-                  prefixStyle: TextStyle(
-                    color: isAdd ? Colors.green : Colors.red,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child:
-                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('確認'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (result != true) return;
-    final reason = reasonCtrl.text.trim();
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (reason.isEmpty || pts <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('原因不得為空，且分數須大於 0')),
-        );
-      }
-      return;
-    }
-
-    final delta = isAdd ? pts : -pts;
-
-    final childIdx = _children.indexWhere((c) => c.id == selectedChildId);
-    if (childIdx == -1) return;
-    final child = _children[childIdx];
-
-    final before = child.points;
-    final newPoints = await _applyPoints(
-      prefs: _prefs!,
-      child: child,
-      delta: delta,
-      reason: '特殊積分：$reason',
-    );
-
-    _changed = true;
-    await _loadAll();
-
-    if (!mounted) return;
-    if (delta < 0 && before + delta < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('積分不足，已扣至 0 分')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '已給予${child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -2946,12 +2940,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         ..._buildRewardSection(),
         _addWithPresetButtons('自訂獎勵', Colors.amber.shade700, _addReward, _showRewardPresets),
 
-        const SizedBox(height: 24),
-
-        // ── 特殊積分區塊 ──
-        _sectionTitle('特殊積分', Icons.star_outline, Colors.purple),
-        const SizedBox(height: 8),
-        _addButton('給予特殊積分', Icons.star, Colors.purple, _giveSpecialPoints),
       ],
     );
   }
