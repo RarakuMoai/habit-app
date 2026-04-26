@@ -221,6 +221,44 @@ const Map<String, String> _resetModeLabels = {
   'manual': '手動重置',
 };
 
+// ── 常用選項預設資料 ──
+
+class _Preset {
+  final String name;
+  final int value;
+  const _Preset(this.name, this.value);
+}
+
+const List<_Preset> _kHabitPresets = [
+  _Preset('刷牙', 5),
+  _Preset('寫作業', 10),
+  _Preset('整理房間', 10),
+  _Preset('閱讀 15 分鐘', 10),
+  _Preset('早起', 10),
+  _Preset('運動 30 分鐘', 15),
+  _Preset('喝足夠的水', 5),
+];
+
+const List<_Preset> _kDeductionPresets = [
+  _Preset('罵髒話', 10),
+  _Preset('不寫作業', 15),
+  _Preset('頂嘴不聽話', 10),
+  _Preset('睡過頭', 10),
+  _Preset('說謊', 20),
+  _Preset('亂發脾氣', 10),
+  _Preset('打架動手', 30),
+];
+
+const List<_Preset> _kRewardPresets = [
+  _Preset('看電視 30 分鐘', 30),
+  _Preset('玩遊戲 30 分鐘', 30),
+  _Preset('選今晚的晚餐', 50),
+  _Preset('買零食一樣', 50),
+  _Preset('延後睡覺 30 分鐘', 40),
+  _Preset('看一部電影', 100),
+  _Preset('買一個小玩具', 150),
+];
+
 // 今日日期字串（yyyy-MM-dd）
 String _todayStr() {
   final now = DateTime.now();
@@ -2297,6 +2335,249 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
   }
 
+  // ── 共用：常用選項 Bottom Sheet ──
+  Future<void> _showPresetSheet({
+    required String title,
+    required IconData titleIcon,
+    required Color color,
+    required List<_Preset> presets,
+    required bool defaultAllChildren,
+    required String Function(_Preset p) subtitle,
+    required Color subtitleColor,
+    required Future<void> Function(Set<String> childIds, Set<int> idxs)
+        onConfirm,
+  }) async {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先新增小孩')),
+      );
+      return;
+    }
+
+    final selectedIdx = <int>{};
+    final selectedChildIds = defaultAllChildren
+        ? Set<String>.from(_children.map((c) => c.id))
+        : <String>{_children.first.id};
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(titleIcon, size: 18, color: color),
+                    const SizedBox(width: 8),
+                    Text(title,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('套用小孩',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600)),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      children: _children.map((c) {
+                        final sel = selectedChildIds.contains(c.id);
+                        return FilterChip(
+                          label: Text(c.name,
+                              style: const TextStyle(fontSize: 13)),
+                          selected: sel,
+                          selectedColor: color.withValues(alpha: 0.15),
+                          checkmarkColor: color,
+                          onSelected: (v) => setS(() {
+                            if (v) {
+                              selectedChildIds.add(c.id);
+                            } else {
+                              selectedChildIds.remove(c.id);
+                            }
+                          }),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: presets.length,
+                  itemBuilder: (_, i) {
+                    final p = presets[i];
+                    return CheckboxListTile(
+                      dense: true,
+                      title: Text(p.name),
+                      subtitle: Text(
+                        subtitle(p),
+                        style:
+                            TextStyle(color: subtitleColor, fontSize: 12),
+                      ),
+                      value: selectedIdx.contains(i),
+                      onChanged: (v) => setS(() {
+                        if (v == true) {
+                          selectedIdx.add(i);
+                        } else {
+                          selectedIdx.remove(i);
+                        }
+                      }),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 8),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    20, 8, 20, MediaQuery.of(ctx).viewInsets.bottom + 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed:
+                        (selectedIdx.isEmpty || selectedChildIds.isEmpty)
+                            ? null
+                            : () async {
+                                Navigator.pop(ctx);
+                                await onConfirm(selectedChildIds, selectedIdx);
+                              },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: color,
+                      disabledBackgroundColor: Colors.grey.shade200,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      selectedIdx.isEmpty
+                          ? '請選擇項目'
+                          : '新增所選 (${selectedIdx.length})',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showHabitPresets() => _showPresetSheet(
+        title: '常用習慣',
+        titleIcon: Icons.check_circle_outline,
+        color: Colors.green,
+        presets: _kHabitPresets,
+        defaultAllChildren: false,
+        subtitle: (p) => '+${p.value} 分',
+        subtitleColor: Colors.green.shade700,
+        onConfirm: (childIds, idxs) async {
+          final prefs = _prefs!;
+          final habits = await _loadHabits(prefs);
+          for (final i in idxs) {
+            final p = _kHabitPresets[i];
+            for (final childId in childIds) {
+              habits.add(ChildHabit(
+                id: _genId(),
+                childId: childId,
+                name: p.name,
+                points: p.value,
+              ));
+            }
+          }
+          await _saveHabits(prefs, habits);
+          _changed = true;
+          await _loadAll();
+        },
+      );
+
+  Future<void> _showDeductionPresets() => _showPresetSheet(
+        title: '常用扣分',
+        titleIcon: Icons.remove_circle_outline,
+        color: Colors.red,
+        presets: _kDeductionPresets,
+        defaultAllChildren: false,
+        subtitle: (p) => '-${p.value} 分',
+        subtitleColor: Colors.red.shade700,
+        onConfirm: (childIds, idxs) async {
+          final prefs = _prefs!;
+          final deductions = await _loadDeductions(prefs);
+          for (final i in idxs) {
+            final p = _kDeductionPresets[i];
+            for (final childId in childIds) {
+              deductions.add(DeductionItem(
+                id: _genId(),
+                childId: childId,
+                name: p.name,
+                points: p.value,
+              ));
+            }
+          }
+          await _saveDeductions(prefs, deductions);
+          _changed = true;
+          await _loadAll();
+        },
+      );
+
+  Future<void> _showRewardPresets() => _showPresetSheet(
+        title: '常用獎勵',
+        titleIcon: Icons.card_giftcard_outlined,
+        color: Colors.amber.shade700,
+        presets: _kRewardPresets,
+        defaultAllChildren: true,
+        subtitle: (p) => '${p.value} 積分',
+        subtitleColor: Colors.amber.shade800,
+        onConfirm: (childIds, idxs) async {
+          final prefs = _prefs!;
+          final rewards = await _loadRewards(prefs);
+          for (final i in idxs) {
+            final p = _kRewardPresets[i];
+            rewards.add(RewardItem(
+              id: _genId(),
+              name: p.name,
+              pointsCost: p.value,
+              childIds: childIds.toList(),
+              limitType: 'none',
+              limitCount: 1,
+            ));
+          }
+          await _saveRewards(prefs, rewards);
+          _changed = true;
+          await _loadAll();
+        },
+      );
+
   // ── 特殊積分 ──
   Future<void> _giveSpecialPoints() async {
     if (_children.isEmpty) {
@@ -2507,7 +2788,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         _sectionTitle('習慣管理', Icons.check_circle_outline, Colors.green),
         const SizedBox(height: 8),
         ..._buildHabitSection(),
-        _addButton('新增習慣', Icons.add, Colors.green, _addHabit),
+        _addWithPresetButtons('新增習慣', Colors.green, _addHabit, _showHabitPresets),
 
         const SizedBox(height: 24),
 
@@ -2515,7 +2796,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         _sectionTitle('扣分項目', Icons.remove_circle_outline, Colors.red),
         const SizedBox(height: 8),
         ..._buildDeductionSection(),
-        _addButton('新增扣分項目', Icons.add, Colors.red, _addDeduction),
+        _addWithPresetButtons('新增扣分項目', Colors.red, _addDeduction, _showDeductionPresets),
 
         const SizedBox(height: 24),
 
@@ -2524,8 +2805,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             Colors.amber.shade700),
         const SizedBox(height: 8),
         ..._buildRewardSection(),
-        _addButton(
-            '新增獎勵', Icons.add, Colors.amber.shade700, _addReward),
+        _addWithPresetButtons('新增獎勵', Colors.amber.shade700, _addReward, _showRewardPresets),
 
         const SizedBox(height: 24),
 
@@ -2571,6 +2851,35 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+    );
+  }
+
+  // 新增 + 常用選項 並排按鈕
+  Widget _addWithPresetButtons(
+    String label,
+    Color color,
+    VoidCallback onAdd,
+    VoidCallback onPreset,
+  ) {
+    return Row(
+      children: [
+        Expanded(child: _addButton(label, Icons.add, color, onAdd)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: onPreset,
+            icon: const Icon(Icons.lightbulb_outline, size: 16),
+            label: const Text('常用選項'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: color,
+              side: BorderSide(color: color.withValues(alpha: 0.5)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

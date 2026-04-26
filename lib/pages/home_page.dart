@@ -213,6 +213,131 @@ class _HomePageState extends State<HomePage> {
     saveHabits();
   }
 
+  static const List<String> _kHabitPresets = [
+    '刷牙',
+    '整理環境',
+    '閱讀 15 分鐘',
+    '早起',
+    '運動 30 分鐘',
+    '喝足夠的水',
+    '冥想 10 分鐘',
+    '早睡',
+  ];
+
+  Future<void> _showHabitPresets() async {
+    final existing = habits.map((h) => h['name'] as String).toSet();
+    final available =
+        _kHabitPresets.where((n) => !existing.contains(n)).toList();
+
+    if (available.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('所有常用習慣都已新增囉！')),
+        );
+      }
+      return;
+    }
+
+    final selected = <String>{};
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.lightbulb_outline,
+                      size: 18, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  const Text('常用習慣',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: available.map((name) {
+                  final isSelected = selected.contains(name);
+                  return FilterChip(
+                    label: Text(name),
+                    selected: isSelected,
+                    selectedColor: Colors.orange.shade100,
+                    checkmarkColor: Colors.orange,
+                    labelStyle: TextStyle(
+                      color: isSelected
+                          ? Colors.orange.shade800
+                          : Colors.black87,
+                      fontSize: 13,
+                    ),
+                    onSelected: (v) => setS(() {
+                      if (v) {
+                        selected.add(name);
+                      } else {
+                        selected.remove(name);
+                      }
+                    }),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: selected.isEmpty
+                      ? null
+                      : () {
+                          Navigator.pop(ctx);
+                          setState(() {
+                            for (final name in selected) {
+                              habits.add({'name': name, 'done': false});
+                            }
+                          });
+                          saveHabits();
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    disabledBackgroundColor: Colors.grey.shade200,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    selected.isEmpty
+                        ? '請選擇習慣'
+                        : '新增所選 (${selected.length})',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -391,7 +516,28 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, top: 4),
+              child: TextButton.icon(
+                onPressed: _showHabitPresets,
+                icon: Icon(Icons.lightbulb_outline,
+                    size: 15, color: Colors.orange.shade400),
+                label: Text('常用選項',
+                    style: TextStyle(
+                        color: Colors.orange.shade600, fontSize: 13)),
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
 
           // 習慣清單
           Expanded(
