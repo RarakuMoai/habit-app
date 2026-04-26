@@ -953,7 +953,7 @@ class _HabitTabState extends State<_HabitTab> {
       prefs: prefs,
       child: widget.child,
       delta: -habit.points,
-      reason: '撤銷打卡：${habit.name}',
+      reason: '撤銷完成：${habit.name}',
     );
 
     final allHabits = await _loadHabits(prefs);
@@ -1300,7 +1300,7 @@ class _HabitItem extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-                child: const Text('打卡', style: TextStyle(fontSize: 13)),
+                child: const Text('做到了', style: TextStyle(fontSize: 13)),
               ),
       ),
     );
