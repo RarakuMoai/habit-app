@@ -2528,6 +2528,73 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
   }
 
+  // ── 編輯習慣 ──
+  Future<void> _editHabit(ChildHabit habit) async {
+    final nameCtrl = TextEditingController(text: habit.name);
+    final pointCtrl = TextEditingController(text: habit.points.toString());
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('編輯習慣'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: '習慣名稱'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pointCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: '完成可得分數'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('儲存'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+    final name = nameCtrl.text.trim();
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    if (name.isEmpty || pts <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('習慣名稱不得為空、分數須大於 0')),
+        );
+      }
+      return;
+    }
+
+    final prefs = _prefs!;
+    final habits = await _loadHabits(prefs);
+    final idx = habits.indexWhere((h) => h.id == habit.id);
+    if (idx != -1) {
+      habits[idx] = ChildHabit(
+        id: habit.id,
+        childId: habit.childId,
+        name: name,
+        points: pts,
+      );
+    }
+    await _saveHabits(prefs, habits);
+    _changed = true;
+    await _loadAll();
+  }
+
   // ── 新增扣分項目 ──
   Future<void> _addDeduction() async {
     if (_children.isEmpty) {
@@ -2632,6 +2699,73 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final prefs = _prefs!;
     final deductions = await _loadDeductions(prefs);
     deductions.removeWhere((d) => d.id == item.id);
+    await _saveDeductions(prefs, deductions);
+    _changed = true;
+    await _loadAll();
+  }
+
+  // ── 編輯扣分項目 ──
+  Future<void> _editDeduction(DeductionItem item) async {
+    final nameCtrl = TextEditingController(text: item.name);
+    final pointCtrl = TextEditingController(text: item.points.toString());
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('編輯扣分項目'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: '扣分項目名稱'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pointCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: '扣幾分'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('儲存'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+    final name = nameCtrl.text.trim();
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    if (name.isEmpty || pts <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('項目名稱不得為空、扣分須大於 0')),
+        );
+      }
+      return;
+    }
+
+    final prefs = _prefs!;
+    final deductions = await _loadDeductions(prefs);
+    final idx = deductions.indexWhere((d) => d.id == item.id);
+    if (idx != -1) {
+      deductions[idx] = DeductionItem(
+        id: item.id,
+        childId: item.childId,
+        name: name,
+        points: pts,
+      );
+    }
     await _saveDeductions(prefs, deductions);
     _changed = true;
     await _loadAll();
@@ -2859,6 +2993,345 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _saveRewards(prefs, rewards);
     _changed = true;
     await _loadAll();
+  }
+
+  // ── 編輯獎勵 ──
+  Future<void> _editReward(RewardItem reward) async {
+    final nameCtrl = TextEditingController(text: reward.name);
+    final pointCtrl = TextEditingController(text: reward.pointsCost.toString());
+    final limitCtrl = TextEditingController(text: reward.limitCount.toString());
+    final expiryDaysCtrl = TextEditingController(text: reward.expiryDays.toString());
+    final expiryDateCtrl = TextEditingController(text: reward.expiryDate);
+    final Set<String> selectedIds = Set.from(reward.childIds);
+    String limitType = reward.limitType;
+    String expiryType = reward.expiryType;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('編輯獎勵'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('套用小孩',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ..._children.map((c) => CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(c.name),
+                      value: selectedIds.contains(c.id),
+                      onChanged: (v) => setS(() {
+                        if (v == true) {
+                          selectedIds.add(c.id);
+                        } else {
+                          selectedIds.remove(c.id);
+                        }
+                      }),
+                    )),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: '獎勵名稱'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pointCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: '所需積分'),
+                ),
+                const SizedBox(height: 16),
+                Text('使用上限',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 4),
+                RadioGroup<String>(
+                  groupValue: limitType,
+                  onChanged: (v) {
+                    if (v != null) setS(() => limitType = v);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('無上限', style: TextStyle(fontSize: 14)),
+                        value: 'none',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('每日限制', style: TextStyle(fontSize: 14)),
+                        value: 'daily',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('每週限制', style: TextStyle(fontSize: 14)),
+                        value: 'weekly',
+                      ),
+                    ],
+                  ),
+                ),
+                if (limitType != 'none') ...[
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: limitCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text('票券有效期',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 4),
+                RadioGroup<String>(
+                  groupValue: expiryType,
+                  onChanged: (v) {
+                    if (v != null) setS(() => expiryType = v);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('永不到期', style: TextStyle(fontSize: 14)),
+                        value: 'none',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('兌換後幾天內', style: TextStyle(fontSize: 14)),
+                        value: 'days',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('指定日期', style: TextStyle(fontSize: 14)),
+                        value: 'date',
+                      ),
+                    ],
+                  ),
+                ),
+                if (expiryType == 'days') ...[
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: expiryDaysCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: '有效天數'),
+                  ),
+                ],
+                if (expiryType == 'date') ...[
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: expiryDateCtrl,
+                    keyboardType: TextInputType.datetime,
+                    decoration: const InputDecoration(
+                      labelText: '到期日（yyyy-MM-dd）',
+                      hintText: '例：2026-12-31',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('儲存'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != true) return;
+    final name = nameCtrl.text.trim();
+    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+    final limitCount =
+        limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text.trim()) ?? 1);
+    final expiryDays = int.tryParse(expiryDaysCtrl.text.trim()) ?? 7;
+    final expiryDate = expiryDateCtrl.text.trim();
+    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('請至少選一個小孩，且名稱不得為空、積分須大於 0')),
+        );
+      }
+      return;
+    }
+
+    final prefs = _prefs!;
+    final rewards = await _loadRewards(prefs);
+    final idx = rewards.indexWhere((r) => r.id == reward.id);
+    if (idx != -1) {
+      rewards[idx] = RewardItem(
+        id: reward.id,
+        name: name,
+        pointsCost: pts,
+        childIds: selectedIds.toList(),
+        limitType: limitType,
+        limitCount: limitCount,
+        expiryType: expiryType,
+        expiryDays: expiryDays,
+        expiryDate: expiryDate,
+      );
+    }
+    await _saveRewards(prefs, rewards);
+    _changed = true;
+    await _loadAll();
+  }
+
+  // ── 項目選項 Bottom Sheet（編輯 / 刪除）──
+  Future<void> _showHabitOptions(ChildHabit habit) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('編輯'),
+              onTap: () => Navigator.pop(context, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('刪除', style: TextStyle(color: Colors.red)),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'edit') {
+      await _editHabit(habit);
+    } else if (action == 'delete') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('刪除習慣'),
+          content: Text('確定要刪除「${habit.name}」嗎？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('刪除', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) await _deleteHabit(habit);
+    }
+  }
+
+  Future<void> _showDeductionOptions(DeductionItem item) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('編輯'),
+              onTap: () => Navigator.pop(context, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('刪除', style: TextStyle(color: Colors.red)),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'edit') {
+      await _editDeduction(item);
+    } else if (action == 'delete') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('刪除扣分項目'),
+          content: Text('確定要刪除「${item.name}」嗎？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('刪除', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) await _deleteDeduction(item);
+    }
+  }
+
+  Future<void> _showRewardOptions(RewardItem reward) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('編輯'),
+              onTap: () => Navigator.pop(context, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('刪除', style: TextStyle(color: Colors.red)),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'edit') {
+      await _editReward(reward);
+    } else if (action == 'delete') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('刪除獎勵'),
+          content: Text('確定要刪除「${reward.name}」嗎？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('刪除', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) await _deleteReward(reward);
+    }
   }
 
   // ── 共用：常用選項 Bottom Sheet ──
@@ -3481,32 +3954,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       ));
 
       for (final habit in habits) {
-        widgets.add(Dismissible(
+        widgets.add(Card(
           key: ValueKey(habit.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: Colors.red.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.delete_outline, color: Colors.red),
-          ),
-          onDismissed: (_) => _deleteHabit(habit),
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 6),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            child: ListTile(
-              dense: true,
-              title: Text(habit.name,
-                  style: const TextStyle(fontSize: 14)),
-              subtitle: Text('+${habit.points} 分',
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.green.shade700)),
-              trailing: Icon(Icons.drag_handle,
-                  size: 18, color: Colors.grey.shade300),
+          margin: const EdgeInsets.only(bottom: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            dense: true,
+            title: Text(habit.name, style: const TextStyle(fontSize: 14)),
+            subtitle: Text('+${habit.points} 分',
+                style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+            trailing: IconButton(
+              icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
+              onPressed: () => _showHabitOptions(habit),
             ),
           ),
         ));
@@ -3548,32 +4007,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       ));
 
       for (final item in items) {
-        widgets.add(Dismissible(
+        widgets.add(Card(
           key: ValueKey(item.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: Colors.red.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.delete_outline, color: Colors.red),
-          ),
-          onDismissed: (_) => _deleteDeduction(item),
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 6),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            child: ListTile(
-              dense: true,
-              title: Text(item.name,
-                  style: const TextStyle(fontSize: 14)),
-              subtitle: Text('-${item.points} 分',
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.red)),
-              trailing: Icon(Icons.drag_handle,
-                  size: 18, color: Colors.grey.shade300),
+          margin: const EdgeInsets.only(bottom: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            dense: true,
+            title: Text(item.name, style: const TextStyle(fontSize: 14)),
+            subtitle: Text('-${item.points} 分',
+                style: const TextStyle(fontSize: 12, color: Colors.red)),
+            trailing: IconButton(
+              icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
+              onPressed: () => _showDeductionOptions(item),
             ),
           ),
         ));
@@ -3615,37 +4060,26 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           .map((c) => c.name)
           .join('、');
 
-      return Dismissible(
+      return Card(
         key: ValueKey(reward.id),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 16),
-          decoration: BoxDecoration(
-            color: Colors.red.shade100,
-            borderRadius: BorderRadius.circular(12),
+        margin: const EdgeInsets.only(bottom: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          dense: true,
+          leading: Icon(Icons.card_giftcard_outlined, color: amber, size: 20),
+          title: Text(reward.name, style: const TextStyle(fontSize: 14)),
+          subtitle: Text(
+            [
+              '${reward.pointsCost} 分',
+              if (limitLabel.isNotEmpty) limitLabel,
+              if (expiryLabel.isNotEmpty) expiryLabel,
+              if (childNames.isNotEmpty) childNames,
+            ].join(' · '),
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
           ),
-          child: const Icon(Icons.delete_outline, color: Colors.red),
-        ),
-        onDismissed: (_) => _deleteReward(reward),
-        child: Card(
-          margin: const EdgeInsets.only(bottom: 6),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
-            dense: true,
-            leading:
-                Icon(Icons.card_giftcard_outlined, color: amber, size: 20),
-            title: Text(reward.name, style: const TextStyle(fontSize: 14)),
-            subtitle: Text(
-              [
-                '${reward.pointsCost} 分',
-                if (limitLabel.isNotEmpty) limitLabel,
-                if (expiryLabel.isNotEmpty) expiryLabel,
-                if (childNames.isNotEmpty) childNames,
-              ].join(' · '),
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-            ),
+          trailing: IconButton(
+            icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
+            onPressed: () => _showRewardOptions(reward),
           ),
         ),
       );
