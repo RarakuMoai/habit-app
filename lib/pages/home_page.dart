@@ -213,6 +213,83 @@ class _HomePageState extends State<HomePage> {
     saveHabits();
   }
 
+  Future<void> renameHabit(int index) async {
+    final ctrl = TextEditingController(text: habits[index]['name'] as String);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('改名'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '習慣名稱'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('儲存'),
+          ),
+        ],
+      ),
+    );
+    if (result != true) return;
+    final name = ctrl.text.trim();
+    if (name.isEmpty) return;
+    setState(() => habits[index]['name'] = name);
+    saveHabits();
+  }
+
+  Future<void> _showHabitOptions(int index) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('改名'),
+              onTap: () => Navigator.pop(context, 'rename'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('刪除', style: TextStyle(color: Colors.red)),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'rename') {
+      await renameHabit(index);
+    } else if (action == 'delete') {
+      final name = habits[index]['name'] as String;
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('刪除習慣'),
+          content: Text('確定要刪除「$name」嗎？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('刪除', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) deleteHabit(index);
+    }
+  }
+
   static const List<String> _kHabitPresets = [
     '刷牙',
     '整理環境',
@@ -604,21 +681,10 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () => deleteHabit(index),
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.delete_outline,
-                                  color: Colors.red.shade300,
-                                  size: 18,
-                                ),
-                              ),
+                            IconButton(
+                              icon: Icon(Icons.more_vert,
+                                  size: 20, color: Colors.grey.shade400),
+                              onPressed: () => _showHabitOptions(index),
                             ),
                           ],
                         ),

@@ -974,7 +974,6 @@ class _HabitTabState extends State<_HabitTab> {
   Future<void> _deduct(DeductionItem item) async {
     if (_isDeductedToday(item)) return; // 今日已扣，不重複
     final prefs = _prefs!;
-    final before = widget.child.points;
     final newPoints = await _applyPoints(
       prefs: prefs,
       child: widget.child,
@@ -995,11 +994,6 @@ class _HabitTabState extends State<_HabitTab> {
     });
     widget.onPointsChanged();
 
-    if (before < item.points && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('積分不足，已扣至 0 分')),
-      );
-    }
   }
 
   // 撤銷扣分：需家長密碼，還原積分並清除日期
@@ -1121,7 +1115,6 @@ class _HabitTabState extends State<_HabitTab> {
     }
 
     final delta = isAdd ? pts : -pts;
-    final before = widget.child.points;
     final newPoints = await _applyPoints(
       prefs: _prefs!,
       child: widget.child,
@@ -1133,18 +1126,12 @@ class _HabitTabState extends State<_HabitTab> {
     widget.onPointsChanged();
 
     if (!mounted) return;
-    if (delta < 0 && before + delta < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('積分不足，已扣至 0 分')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '已給予${widget.child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
-        ),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            '已給予${widget.child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
+      ),
+    );
   }
 
   @override
