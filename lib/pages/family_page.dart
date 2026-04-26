@@ -113,16 +113,22 @@ class RewardItem {
   String name;
   int pointsCost;
   List<String> childIds;
-  String limitType; // 'none' | 'daily' | 'weekly'
+  String limitType; // 'none' | 'daily' | 'weekly'（使用次數上限）
   int limitCount;
+  String expiryType; // 'none' | 'days' | 'date'
+  int expiryDays;
+  String expiryDate; // yyyy-MM-dd，僅 expiryType=='date' 時使用
 
   RewardItem({
     required this.id,
     required this.name,
     required this.pointsCost,
     required this.childIds,
-    this.limitType = 'none',
+    this.limitType = 'daily',
     this.limitCount = 1,
+    this.expiryType = 'none',
+    this.expiryDays = 7,
+    this.expiryDate = '',
   });
 
   factory RewardItem.fromJson(Map<String, dynamic> json) => RewardItem(
@@ -133,8 +139,11 @@ class RewardItem {
                 ?.map((e) => e as String)
                 .toList() ??
             [],
-        limitType: (json['limit_type'] as String?) ?? 'none',
+        limitType: (json['limit_type'] as String?) ?? 'daily',
         limitCount: (json['limit_count'] as int?) ?? 1,
+        expiryType: (json['expiry_type'] as String?) ?? 'none',
+        expiryDays: (json['expiry_days'] as int?) ?? 7,
+        expiryDate: (json['expiry_date'] as String?) ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -144,35 +153,59 @@ class RewardItem {
         'child_ids': childIds,
         'limit_type': limitType,
         'limit_count': limitCount,
+        'expiry_type': expiryType,
+        'expiry_days': expiryDays,
+        'expiry_date': expiryDate,
       };
+
+  // 計算此次兌換的到期日（空字串 = 無到期）
+  String computeVoucherExpiry() {
+    if (expiryType == 'none') return '';
+    if (expiryType == 'date') return expiryDate;
+    final expiry = DateTime.now().add(Duration(days: expiryDays));
+    return '${expiry.year}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}';
+  }
 }
 
-// 兌換紀錄
-class RedemptionLog {
+// 票券紀錄（兌換後產生，need 使用才算消耗）
+class VoucherLog {
   final String id;
   final String rewardId;
   final String childId;
-  final String time; // yyyy-MM-dd HH:mm
+  final String redeemedAt; // yyyy-MM-dd HH:mm
+  bool used;
+  String usedAt; // 空字串 = 尚未使用
+  String expiryDate; // 空字串 = 無到期，yyyy-MM-dd
 
-  RedemptionLog({
+  VoucherLog({
     required this.id,
     required this.rewardId,
     required this.childId,
-    required this.time,
+    required this.redeemedAt,
+    this.used = false,
+    this.usedAt = '',
+    this.expiryDate = '',
   });
 
-  factory RedemptionLog.fromJson(Map<String, dynamic> json) => RedemptionLog(
+  factory VoucherLog.fromJson(Map<String, dynamic> json) => VoucherLog(
         id: json['id'] as String,
         rewardId: json['reward_id'] as String,
         childId: json['child_id'] as String,
-        time: json['time'] as String,
+        redeemedAt: (json['redeemed_at'] as String?) ??
+            (json['time'] as String? ?? ''), // 向下相容舊格式
+        used: (json['used'] as bool?) ?? false,
+        usedAt: (json['used_at'] as String?) ?? '',
+        expiryDate: (json['expiry_date'] as String?) ?? '',
       );
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'reward_id': rewardId,
         'child_id': childId,
-        'time': time,
+        'redeemed_at': redeemedAt,
+        'used': used,
+        'used_at': usedAt,
+        'expiry_date': expiryDate,
       };
 }
 
@@ -323,18 +356,18 @@ Future<void> _saveRewards(
       'reward_items', jsonEncode(rewards.map((r) => r.toJson()).toList()));
 }
 
-Future<List<RedemptionLog>> _loadRedemptions(SharedPreferences prefs) async {
-  final raw = prefs.getString('redemption_logs');
+Future<List<VoucherLog>> _loadVouchers(SharedPreferences prefs) async {
+  final raw = prefs.getString('voucher_logs') ?? prefs.getString('redemption_logs');
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
-      .map((e) => RedemptionLog.fromJson(e as Map<String, dynamic>))
+      .map((e) => VoucherLog.fromJson(e as Map<String, dynamic>))
       .toList();
 }
 
-Future<void> _saveRedemptions(
-    SharedPreferences prefs, List<RedemptionLog> logs) async {
+Future<void> _saveVouchers(
+    SharedPreferences prefs, List<VoucherLog> logs) async {
   await prefs.setString(
-      'redemption_logs', jsonEncode(logs.map((l) => l.toJson()).toList()));
+      'voucher_logs', jsonEncode(logs.map((l) => l.toJson()).toList()));
 }
 
 Future<List<PointRecord>> _loadRecords(SharedPreferences prefs) async {
@@ -1613,7 +1646,7 @@ class _RewardTab extends StatefulWidget {
 
 class _RewardTabState extends State<_RewardTab> {
   List<RewardItem> _rewards = [];
-  List<RedemptionLog> _redemptions = [];
+  List<VoucherLog> _vouchers = [];
   bool _loaded = false;
   SharedPreferences? _prefs;
 
@@ -1626,161 +1659,447 @@ class _RewardTabState extends State<_RewardTab> {
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     final allRewards = await _loadRewards(_prefs!);
-    final allRedemptions = await _loadRedemptions(_prefs!);
+    final allVouchers = await _loadVouchers(_prefs!);
     setState(() {
       _rewards = allRewards
           .where((r) => r.childIds.contains(widget.child.id))
           .toList();
-      _redemptions =
-          allRedemptions.where((l) => l.childId == widget.child.id).toList();
+      _vouchers =
+          allVouchers.where((v) => v.childId == widget.child.id).toList();
       _loaded = true;
     });
   }
 
-  int _todayCount(String rewardId) {
+  String _rewardName(String rewardId) {
+    final r = _rewards.where((r) => r.id == rewardId).firstOrNull;
+    return r?.name ?? '已刪除的獎勵';
+  }
+
+  // 使用次數統計（以 usedAt 為準）
+  int _todayUsageCount(String rewardId) {
     final today = _todayStr();
-    return _redemptions
-        .where((l) => l.rewardId == rewardId && l.time.startsWith(today))
+    return _vouchers
+        .where((v) => v.rewardId == rewardId && v.used && v.usedAt.startsWith(today))
         .length;
   }
 
-  int _weekCount(String rewardId) {
+  int _weekUsageCount(String rewardId) {
     final now = DateTime.now();
-    final weekStart = DateTime(now.year, now.month, now.day)
-        .subtract(const Duration(days: 6));
-    return _redemptions.where((l) {
-      if (l.rewardId != rewardId) return false;
-      final d = DateTime.tryParse(l.time.split(' ').first);
+    final weekStart =
+        DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    return _vouchers.where((v) {
+      if (v.rewardId != rewardId || !v.used) return false;
+      final d = DateTime.tryParse(v.usedAt.split(' ').first);
       return d != null && !d.isBefore(weekStart);
     }).length;
   }
 
-  bool _canRedeem(RewardItem r) {
-    if (widget.child.points < r.pointsCost) return false;
-    if (r.limitType == 'daily' && _todayCount(r.id) >= r.limitCount) {
-      return false;
-    }
-    if (r.limitType == 'weekly' && _weekCount(r.id) >= r.limitCount) {
-      return false;
-    }
+  bool _canUse(RewardItem r) {
+    if (r.limitType == 'daily') return _todayUsageCount(r.id) < r.limitCount;
+    if (r.limitType == 'weekly') return _weekUsageCount(r.id) < r.limitCount;
     return true;
   }
 
-  // 今日最後一次兌換，供撤銷使用
-  RedemptionLog? _lastRedemptionToday(String rewardId) {
-    final today = _todayStr();
-    final logs = _redemptions
-        .where((l) => l.rewardId == rewardId && l.time.startsWith(today))
-        .toList()
-      ..sort((a, b) => b.time.compareTo(a.time));
-    return logs.isEmpty ? null : logs.first;
+  // 正數 = 剩餘天數，0 = 今天到期，負數 = 已超過幾天
+  int? _daysUntilExpiry(String expiryDate) {
+    if (expiryDate.isEmpty) return null;
+    final exp = DateTime.tryParse(expiryDate);
+    if (exp == null) return null;
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    return exp.difference(todayOnly).inDays;
   }
 
   Future<void> _redeem(RewardItem r) async {
-    if (!_canRedeem(r) || !mounted) return;
+    if (!mounted) return;
+    if (widget.child.points < r.pointsCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('積分不足，無法兌換')),
+      );
+      return;
+    }
+
+    int qty = 1;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: Text('兌換「${r.name}」'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('每張票券需 ${r.pointsCost} 分',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: qty > 1 ? () => setS(() => qty--) : null,
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text('$qty 張',
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
+                  ),
+                  IconButton(
+                    onPressed: widget.child.points >= r.pointsCost * (qty + 1)
+                        ? () => setS(() => qty++)
+                        : null,
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '共需 ${r.pointsCost * qty} 分（剩餘 ${widget.child.points - r.pointsCost * qty} 分）',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('確認兌換'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     final prefs = _prefs!;
     final newPoints = await _applyPoints(
       prefs: prefs,
       child: widget.child,
-      delta: -r.pointsCost,
-      reason: '兌換獎勵：${r.name}',
+      delta: -(r.pointsCost * qty),
+      reason: '兌換票券：${r.name} x$qty',
     );
-    final log = RedemptionLog(
-      id: _genId(),
-      rewardId: r.id,
-      childId: widget.child.id,
-      time: _nowStr(),
-    );
-    final allLogs = await _loadRedemptions(prefs);
-    allLogs.add(log);
-    await _saveRedemptions(prefs, allLogs);
-    setState(() {
-      _redemptions.add(log);
-      widget.child.points = newPoints;
-    });
+    final allVouchers = await _loadVouchers(prefs);
+    final now = _nowStr();
+    final expiry = r.computeVoucherExpiry();
+    for (var i = 0; i < qty; i++) {
+      final v = VoucherLog(
+        id: _genId(),
+        rewardId: r.id,
+        childId: widget.child.id,
+        redeemedAt: now,
+        expiryDate: expiry,
+      );
+      allVouchers.add(v);
+      _vouchers.add(v);
+    }
+    await _saveVouchers(prefs, allVouchers);
+    setState(() => widget.child.points = newPoints);
     widget.onPointsChanged();
   }
 
-  Future<void> _undoRedeem(RewardItem r) async {
-    final last = _lastRedemptionToday(r.id);
-    if (last == null || !mounted) return;
-    final ok = await _verifyParentPinIfNeeded(context);
-    if (!ok || !mounted) return;
-    final prefs = _prefs!;
-    final newPoints = await _applyPoints(
-      prefs: prefs,
-      child: widget.child,
-      delta: r.pointsCost,
-      reason: '撤銷兌換：${r.name}',
+  Future<void> _useVoucher(VoucherLog v) async {
+    if (!mounted) return;
+    final rewardName = _rewardName(v.rewardId);
+    final reward = _rewards.where((r) => r.id == v.rewardId).firstOrNull;
+
+    // 使用次數上限檢查
+    if (reward != null && !_canUse(reward)) {
+      final hint = reward.limitType == 'daily'
+          ? '今日使用已達 ${reward.limitCount} 次上限'
+          : '本週使用已達 ${reward.limitCount} 次上限';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(hint)));
+      return;
+    }
+
+    final days = _daysUntilExpiry(v.expiryDate);
+    String confirmMsg = '確定使用「$rewardName」這張票券嗎？';
+    if (days != null && days < 0) {
+      confirmMsg += '\n\n⚠️ 此票券已逾期 ${-days} 天，仍要使用嗎？';
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('使用票券'),
+        content: Text(confirmMsg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('確認使用'),
+          ),
+        ],
+      ),
     );
-    final allLogs = await _loadRedemptions(prefs);
-    allLogs.removeWhere((l) => l.id == last.id);
-    await _saveRedemptions(prefs, allLogs);
-    setState(() {
-      _redemptions.removeWhere((l) => l.id == last.id);
-      widget.child.points = newPoints;
-    });
-    widget.onPointsChanged();
+    if (confirmed != true || !mounted) return;
+
+    v.used = true;
+    v.usedAt = _nowStr();
+    final prefs = _prefs!;
+    final allVouchers = await _loadVouchers(prefs);
+    final idx = allVouchers.indexWhere((x) => x.id == v.id);
+    if (idx >= 0) {
+      allVouchers[idx].used = true;
+      allVouchers[idx].usedAt = v.usedAt;
+    }
+    await _saveVouchers(prefs, allVouchers);
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
 
-    if (_rewards.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.card_giftcard, size: 64, color: Colors.grey.shade300),
-            const SizedBox(height: 12),
-            Text(
-              '尚無獎勵，請家長至家長管理新增',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-            ),
-          ],
-        ),
-      );
-    }
+    final pendingVouchers = _vouchers.where((v) => !v.used).toList()
+      ..sort((a, b) => b.redeemedAt.compareTo(a.redeemedAt));
+    final usedVouchers = _vouchers.where((v) => v.used).toList()
+      ..sort((a, b) => b.usedAt.compareTo(a.usedAt));
 
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.builder(
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _rewards.length,
-        itemBuilder: (_, i) {
-          final r = _rewards[i];
-          final canRedeem = _canRedeem(r);
-          final lastToday = _lastRedemptionToday(r.id);
+        children: [
+          // ── 我的票券 ──
+          _SectionHeader(
+            icon: Icons.confirmation_num_outlined,
+            label: '我的票券',
+            color: Colors.purple.shade400,
+            trailing: pendingVouchers.isEmpty ? null : '${pendingVouchers.length} 張',
+          ),
+          if (pendingVouchers.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text('目前沒有票券',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+            )
+          else
+            ...pendingVouchers.map((v) {
+              final reward =
+                  _rewards.where((r) => r.id == v.rewardId).firstOrNull;
+              final canUse = reward == null || _canUse(reward);
+              String? limitHint;
+              if (reward != null && !canUse) {
+                limitHint = reward.limitType == 'daily'
+                    ? '今日已達使用上限'
+                    : '本週已達使用上限';
+              }
+              return _VoucherCard(
+                voucher: v,
+                rewardName: _rewardName(v.rewardId),
+                daysUntilExpiry: _daysUntilExpiry(v.expiryDate),
+                canUse: canUse,
+                limitHint: limitHint,
+                onUse: () => _useVoucher(v),
+              );
+            }),
 
-          String? limitHint;
-          if (r.limitType == 'daily') {
-            limitHint = '今日 ${_todayCount(r.id)}/${r.limitCount} 次';
-          } else if (r.limitType == 'weekly') {
-            limitHint = '本週 ${_weekCount(r.id)}/${r.limitCount} 次';
-          }
+          const SizedBox(height: 8),
 
-          String btnLabel = '兌換';
-          if (!canRedeem) {
-            if (widget.child.points < r.pointsCost) {
-              btnLabel = '積分不足';
-            } else if (r.limitType == 'daily') {
-              btnLabel = '今日已達上限';
-            } else {
-              btnLabel = '本週已達上限';
-            }
-          }
+          // ── 可兌換獎勵 ──
+          _SectionHeader(
+            icon: Icons.card_giftcard_outlined,
+            label: '可兌換獎勵',
+            color: Colors.amber.shade700,
+          ),
+          if (_rewards.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text('尚無獎勵，請家長至家長管理新增',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+            )
+          else
+            ..._rewards.map((r) {
+              final canAfford = widget.child.points >= r.pointsCost;
+              return _RewardCard(
+                reward: r,
+                canAfford: canAfford,
+                onRedeem: () => _redeem(r),
+              );
+            }),
 
-          return _RewardCard(
-            reward: r,
-            limitHint: limitHint,
-            btnLabel: btnLabel,
-            btnEnabled: canRedeem,
-            hasUndoToday: lastToday != null,
-            onRedeem: () => _redeem(r),
-            onUndo: () => _undoRedeem(r),
-          );
-        },
+          const SizedBox(height: 8),
+
+          // ── 兌換紀錄（已使用票券） ──
+          if (usedVouchers.isNotEmpty)
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                leading: Icon(Icons.history, color: Colors.grey.shade500, size: 20),
+                title: Text('兌換紀錄（${usedVouchers.length} 張）',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                children: usedVouchers.map((v) {
+                  return ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.check_circle_outline,
+                        size: 18, color: Colors.green.shade400),
+                    title: Text(_rewardName(v.rewardId),
+                        style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(
+                      '兌換 ${v.redeemedAt}　使用 ${v.usedAt}',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final String? trailing;
+
+  const _SectionHeader({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: color)),
+          if (trailing != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(trailing!,
+                  style: TextStyle(fontSize: 11, color: color)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _VoucherCard extends StatelessWidget {
+  final VoucherLog voucher;
+  final String rewardName;
+  final int? daysUntilExpiry;
+  final bool canUse;
+  final String? limitHint;
+  final VoidCallback onUse;
+
+  const _VoucherCard({
+    required this.voucher,
+    required this.rewardName,
+    required this.daysUntilExpiry,
+    required this.canUse,
+    required this.limitHint,
+    required this.onUse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final days = daysUntilExpiry;
+    final isExpired = days != null && days < 0;
+    final isAlmostExpired = days != null && days >= 0 && days <= 3;
+
+    Color? borderColor;
+    if (isExpired) borderColor = Colors.red.shade300;
+    if (isAlmostExpired) borderColor = Colors.orange.shade400;
+
+    String? expiryLabel;
+    if (days == null) {
+      expiryLabel = null;
+    } else if (isExpired) {
+      expiryLabel = '已逾期 ${-days} 天';
+    } else if (days == 0) {
+      expiryLabel = '今天到期';
+    } else {
+      expiryLabel = '$days 天後到期';
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: borderColor != null
+            ? BorderSide(color: borderColor, width: 1.5)
+            : BorderSide.none,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.confirmation_num,
+                size: 32,
+                color: isExpired
+                    ? Colors.red.shade300
+                    : isAlmostExpired
+                        ? Colors.orange.shade400
+                        : Colors.purple.shade300),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(rewardName,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text('兌換於 ${voucher.redeemedAt}',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  if (expiryLabel != null)
+                    Text(expiryLabel,
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: isExpired
+                                ? Colors.red.shade400
+                                : Colors.orange.shade600)),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: canUse ? onUse : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple.shade400,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade200,
+                disabledForegroundColor: Colors.grey.shade400,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+              child: Text(limitHint ?? '使用'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1788,110 +2107,82 @@ class _RewardTabState extends State<_RewardTab> {
 
 class _RewardCard extends StatelessWidget {
   final RewardItem reward;
-  final String? limitHint;
-  final String btnLabel;
-  final bool btnEnabled;
-  final bool hasUndoToday;
+  final bool canAfford;
   final VoidCallback onRedeem;
-  final VoidCallback onUndo;
 
   const _RewardCard({
     required this.reward,
-    required this.limitHint,
-    required this.btnLabel,
-    required this.btnEnabled,
-    required this.hasUndoToday,
+    required this.canAfford,
     required this.onRedeem,
-    required this.onUndo,
   });
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.card_giftcard, color: primary, size: 24),
+              child: Icon(Icons.card_giftcard, color: primary, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    reward.name,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
+                  Text(reward.name,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Icon(Icons.star,
-                          size: 13, color: Colors.amber.shade600),
+                      Icon(Icons.star, size: 12, color: Colors.amber.shade600),
                       const SizedBox(width: 2),
-                      Text(
-                        '${reward.pointsCost} 分',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                      if (limitHint != null) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          limitHint!,
+                      Text('${reward.pointsCost} 分',
                           style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade400),
-                        ),
+                              fontSize: 12, color: Colors.grey.shade600)),
+                      if (reward.limitType == 'daily') ...[
+                        const SizedBox(width: 6),
+                        Text('每日限用 ${reward.limitCount} 次',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade400)),
+                      ] else if (reward.limitType == 'weekly') ...[
+                        const SizedBox(width: 6),
+                        Text('每週限用 ${reward.limitCount} 次',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade400)),
                       ],
                     ],
                   ),
                 ],
               ),
             ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                ElevatedButton(
-                  onPressed: btnEnabled ? onRedeem : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primary,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade200,
-                    disabledForegroundColor: Colors.grey.shade400,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                    textStyle: const TextStyle(fontSize: 13),
-                  ),
-                  child: Text(btnLabel),
-                ),
-                if (hasUndoToday)
-                  GestureDetector(
-                    onTap: onUndo,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '點擊撤銷',
-                        style: TextStyle(
-                            fontSize: 10, color: Colors.grey.shade400),
-                      ),
-                    ),
-                  ),
-              ],
+            ElevatedButton(
+              onPressed: canAfford ? onRedeem : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade200,
+                disabledForegroundColor: Colors.grey.shade400,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+              child: Text(canAfford ? '兌換' : '積分不足'),
             ),
           ],
         ),
@@ -2051,10 +2342,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       r.childIds.remove(childId);
     }
     await _saveRewards(prefs, rewards.where((r) => r.childIds.isNotEmpty).toList());
-    // 兌換紀錄
-    final redemptions = await _loadRedemptions(prefs);
-    await _saveRedemptions(
-        prefs, redemptions.where((l) => l.childId != childId).toList());
+    // 票券紀錄
+    final vouchers = await _loadVouchers(prefs);
+    await _saveVouchers(
+        prefs, vouchers.where((l) => l.childId != childId).toList());
 
     await _loadAll();
   }
@@ -2359,8 +2650,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
     final limitCtrl = TextEditingController(text: '1');
+    final expiryDaysCtrl = TextEditingController(text: '7');
+    final expiryDateCtrl = TextEditingController();
     final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
-    String limitType = 'none';
+    String limitType = 'daily';
+    String expiryType = 'none';
 
     final result = await showDialog<bool>(
       context: context,
@@ -2402,7 +2696,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   decoration: const InputDecoration(labelText: '所需積分'),
                 ),
                 const SizedBox(height: 16),
-                Text('兌換上限',
+                Text('使用上限',
                     style: TextStyle(
                         fontSize: 12, color: Colors.grey.shade600)),
                 const SizedBox(height: 4),
@@ -2449,6 +2743,63 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 16),
+                Text('票券有效期',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 4),
+                RadioGroup<String>(
+                  groupValue: expiryType,
+                  onChanged: (v) {
+                    if (v != null) setS(() => expiryType = v);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('永不到期',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'none',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('兌換後幾天內',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'days',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('指定日期',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'date',
+                      ),
+                    ],
+                  ),
+                ),
+                if (expiryType == 'days') ...[
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: expiryDaysCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: '有效天數'),
+                  ),
+                ],
+                if (expiryType == 'date') ...[
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: expiryDateCtrl,
+                    keyboardType: TextInputType.datetime,
+                    decoration: const InputDecoration(
+                      labelText: '到期日（yyyy-MM-dd）',
+                      hintText: '例：2026-12-31',
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -2472,6 +2823,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
     final limitCount =
         limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text.trim()) ?? 1);
+    final expiryDays = int.tryParse(expiryDaysCtrl.text.trim()) ?? 7;
+    final expiryDate = expiryDateCtrl.text.trim();
     if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2490,6 +2843,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       childIds: selectedIds.toList(),
       limitType: limitType,
       limitCount: limitCount,
+      expiryType: expiryType,
+      expiryDays: expiryDays,
+      expiryDate: expiryDate,
     ));
     await _saveRewards(prefs, rewards);
     _changed = true;
@@ -3243,9 +3599,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     return _rewards.map((reward) {
       String limitLabel = '';
       if (reward.limitType == 'daily') {
-        limitLabel = '每日 ${reward.limitCount} 次';
+        limitLabel = '每日限用 ${reward.limitCount} 次';
       } else if (reward.limitType == 'weekly') {
-        limitLabel = '每週 ${reward.limitCount} 次';
+        limitLabel = '每週限用 ${reward.limitCount} 次';
+      }
+
+      String expiryLabel = '';
+      if (reward.expiryType == 'days') {
+        expiryLabel = '兌換後 ${reward.expiryDays} 天';
+      } else if (reward.expiryType == 'date') {
+        expiryLabel = '到期 ${reward.expiryDate}';
       }
 
       final childNames = _children
@@ -3279,6 +3642,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               [
                 '${reward.pointsCost} 分',
                 if (limitLabel.isNotEmpty) limitLabel,
+                if (expiryLabel.isNotEmpty) expiryLabel,
                 if (childNames.isNotEmpty) childNames,
               ].join(' · '),
               style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
