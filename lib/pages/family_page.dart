@@ -2440,11 +2440,29 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     return 10;
   }
 
-  // 常用習慣子選單：可捲動清單，每項可個別調整積分
+  int _deductionPresetPoints(String name) {
+    for (final p in _kDeductionPresets) {
+      if (p.name == name) return p.value;
+    }
+    return 5;
+  }
+
+  int _rewardPresetPoints(String name) {
+    for (final p in _kRewardPresets) {
+      if (p.name == name) return p.value;
+    }
+    return 30;
+  }
+
+  // 常用選項子選單：可捲動清單，每項可個別調整數值
   Future<Map<String, int>?> _showFamilyPresetSubSheet(
     List<_Preset> available,
-    Map<String, int> initial,
-  ) {
+    Map<String, int> initial, {
+    String title = '常用習慣',
+    Color accentColor = Colors.orange,
+    String badgePrefix = '+',
+    String dialogLabel = '完成可得積分',
+  }) {
     final selected = Map<String, int>.from(initial);
     return showModalBottomSheet<Map<String, int>>(
       context: context,
@@ -2475,12 +2493,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.auto_awesome,
-                        size: 18, color: Colors.orange),
+                    Icon(Icons.auto_awesome,
+                        size: 18, color: accentColor),
                     const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text('常用習慣',
-                          style: TextStyle(
+                    Expanded(
+                      child: Text(title,
+                          style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                     if (selected.isNotEmpty)
@@ -2513,7 +2531,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             horizontal: 20, vertical: 14),
                         decoration: BoxDecoration(
                           color: sel
-                              ? Colors.orange.shade50
+                              ? accentColor.withValues(alpha: 0.08)
                               : Colors.white,
                           border: Border(
                             bottom: BorderSide(color: Colors.grey.shade100),
@@ -2532,9 +2550,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   fontWeight: sel
                                       ? FontWeight.w600
                                       : FontWeight.normal,
-                                  color: sel
-                                      ? Colors.orange.shade800
-                                      : Colors.black87,
+                                  color: sel ? accentColor : Colors.black87,
                                 ),
                               ),
                             ),
@@ -2557,8 +2573,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                         FilteringTextInputFormatter
                                             .digitsOnly
                                       ],
-                                      decoration: const InputDecoration(
-                                          labelText: '完成可得積分'),
+                                      decoration: InputDecoration(
+                                          labelText: dialogLabel),
                                       autofocus: true,
                                     ),
                                     actions: [
@@ -2589,7 +2605,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                     horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: sel
-                                      ? Colors.orange
+                                      ? accentColor
                                       : Colors.grey.shade100,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -2597,7 +2613,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      '+$pts',
+                                      '$badgePrefix$pts',
                                       style: TextStyle(
                                         color: sel
                                             ? Colors.white
@@ -2623,11 +2639,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: sel
-                                    ? Colors.orange
+                                    ? accentColor
                                     : Colors.transparent,
                                 border: Border.all(
                                   color: sel
-                                      ? Colors.orange
+                                      ? accentColor
                                       : Colors.grey.shade300,
                                   width: 2,
                                 ),
@@ -2652,7 +2668,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(ctx, selected),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
+                      backgroundColor: accentColor,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -3036,6 +3052,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final pointCtrl = TextEditingController(text: '5');
     final Set<String> selectedIds = {_children.first.id};
     final selectedPresets = <String>{};
+    final selectedPresetPts = <String, int>{};
 
     final existingNames = _deductions.map((d) => d.name).toSet();
     final available =
@@ -3053,7 +3070,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           final total =
               (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
           final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-          final canAdd = total > 0 && pts > 0 && selectedIds.isNotEmpty;
+          final hasCustom = customName.isNotEmpty;
+          final canAdd = (hasCustom || selectedPresets.isNotEmpty) &&
+              (!hasCustom || pts > 0) &&
+              selectedIds.isNotEmpty;
 
           return Padding(
             padding: EdgeInsets.fromLTRB(
@@ -3106,96 +3126,85 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   ),
                   const SizedBox(height: 14),
 
-                  // 常用扣分預設
+                  // 從常用項目選取 按鈕
                   if (available.isNotEmpty) ...[
-                    Text('常用項目',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: available.map((p) {
-                        final sel = selectedPresets.contains(p.name);
-                        final baseColor = Colors.red.shade600;
-                        return GestureDetector(
-                          onTap: () => setS(() {
-                            if (sel) {
-                              selectedPresets.remove(p.name);
-                            } else {
-                              selectedPresets.add(p.name);
-                            }
-                          }),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
-                            decoration: BoxDecoration(
-                              color: sel ? baseColor : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: sel
-                                    ? baseColor
-                                    : Colors.grey.shade300,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: sel
-                                      ? baseColor.withValues(alpha: 0.25)
-                                      : Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: sel ? 6 : 3,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (p.emoji.isNotEmpty) ...[
-                                  Text(p.emoji,
-                                      style:
-                                          const TextStyle(fontSize: 15)),
-                                  const SizedBox(width: 5),
-                                ],
-                                Text(
-                                  p.name,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: sel
-                                        ? Colors.white
-                                        : Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: sel
-                                        ? Colors.white
-                                            .withValues(alpha: 0.25)
-                                        : baseColor
-                                            .withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '-${p.value}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: sel
-                                          ? Colors.white
-                                          : baseColor,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                    InkWell(
+                      onTap: () async {
+                        final result = await _showFamilyPresetSubSheet(
+                          available,
+                          Map.fromEntries(
+                            selectedPresets.map((n) => MapEntry(
+                                n,
+                                selectedPresetPts[n] ??
+                                    _deductionPresetPoints(n))),
                           ),
+                          title: '常用扣分項目',
+                          accentColor: Colors.red.shade600,
+                          badgePrefix: '-',
+                          dialogLabel: '扣幾分',
                         );
-                      }).toList(),
+                        if (result != null) {
+                          setS(() {
+                            selectedPresets.clear();
+                            selectedPresetPts.clear();
+                            selectedPresets.addAll(result.keys);
+                            selectedPresetPts.addAll(result);
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: selectedPresets.isEmpty
+                              ? Colors.grey.shade50
+                              : Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedPresets.isEmpty
+                                ? Colors.grey.shade300
+                                : Colors.red.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 18,
+                              color: selectedPresets.isEmpty
+                                  ? Colors.grey.shade500
+                                  : Colors.red.shade600,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                selectedPresets.isEmpty
+                                    ? '從常用項目選取'
+                                    : '已選 ${selectedPresets.length} 個常用項目',
+                                style: TextStyle(
+                                  color: selectedPresets.isEmpty
+                                      ? Colors.grey.shade600
+                                      : Colors.red.shade700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              selectedPresets.isEmpty
+                                  ? Icons.chevron_right
+                                  : Icons.check_circle,
+                              size: 20,
+                              color: selectedPresets.isEmpty
+                                  ? Colors.grey.shade400
+                                  : Colors.red.shade600,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                   ],
 
                   // 自訂名稱
@@ -3214,26 +3223,30 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                           const Icon(Icons.edit_outlined, size: 18),
                     ),
                   ),
-                  const SizedBox(height: 12),
 
-                  // 扣幾分
-                  TextField(
-                    controller: pointCtrl,
-                    onChanged: (_) => setS(() {}),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: '扣幾分',
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                  // 自訂扣分（有輸入名稱才顯示）
+                  if (hasCustom) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: pointCtrl,
+                      onChanged: (_) => setS(() {}),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
+                      decoration: InputDecoration(
+                        labelText: '自訂扣分數',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon:
+                            const Icon(Icons.remove_circle_outline, size: 18),
                       ),
-                      prefixIcon:
-                          const Icon(Icons.remove_circle_outline, size: 18),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 20),
 
                   // 新增按鈕
@@ -3243,23 +3256,32 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       onPressed: canAdd
                           ? () async {
                               Navigator.pop(ctx);
-                              final name = nameCtrl.text.trim();
-                              final pts =
-                                  int.tryParse(pointCtrl.text.trim()) ?? 0;
-                              final namesToAdd = <String>[
-                                ...selectedPresets,
-                                if (name.isNotEmpty) name,
-                              ];
                               final prefs = _prefs!;
                               final deductions =
                                   await _loadDeductions(prefs);
-                              for (final n in namesToAdd) {
+                              for (final presetName in selectedPresets) {
+                                final deductPts =
+                                    selectedPresetPts[presetName] ??
+                                        _deductionPresetPoints(presetName);
                                 for (final childId in selectedIds) {
                                   deductions.add(DeductionItem(
                                     id: _genId(),
                                     childId: childId,
-                                    name: n,
-                                    points: pts,
+                                    name: presetName,
+                                    points: deductPts,
+                                  ));
+                                }
+                              }
+                              if (customName.isNotEmpty) {
+                                final customPts =
+                                    int.tryParse(pointCtrl.text.trim()) ??
+                                        5;
+                                for (final childId in selectedIds) {
+                                  deductions.add(DeductionItem(
+                                    id: _genId(),
+                                    childId: childId,
+                                    name: customName,
+                                    points: customPts,
                                   ));
                                 }
                               }
@@ -3481,201 +3503,416 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
     String limitType = _rewardDefaultLimitType;
     String expiryType = 'none';
+    final selectedPresets = <String>{};
+    final selectedPresetPts = <String, int>{};
 
-    final result = await showDialog<bool>(
+    final existingNames = _rewards.map((r) => r.name).toSet();
+    final available =
+        _kRewardPresets.where((p) => !existingNames.contains(p.name)).toList();
+
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('新增獎勵'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('套用小孩',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600)),
-                ..._children.map((c) => CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(c.name),
-                      value: selectedIds.contains(c.id),
-                      onChanged: (v) => setS(() {
-                        if (v == true) {
-                          selectedIds.add(c.id);
-                        } else {
-                          selectedIds.remove(c.id);
+        builder: (_, setS) {
+          final customName = nameCtrl.text.trim();
+          final total =
+              (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
+          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final hasCustom = customName.isNotEmpty;
+          final canAdd = (hasCustom || selectedPresets.isNotEmpty) &&
+              (!hasCustom || pts > 0) &&
+              selectedIds.isNotEmpty;
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('新增獎勵',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 14),
+
+                  // 套用小孩
+                  Text('套用小孩',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _children.map((c) {
+                      final sel = selectedIds.contains(c.id);
+                      return FilterChip(
+                        label: Text(c.name),
+                        selected: sel,
+                        selectedColor: Colors.purple.shade100,
+                        checkmarkColor: Colors.purple,
+                        onSelected: (v) => setS(() {
+                          if (v) {
+                            selectedIds.add(c.id);
+                          } else {
+                            selectedIds.remove(c.id);
+                          }
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 從常用獎勵選取 按鈕
+                  if (available.isNotEmpty) ...[
+                    InkWell(
+                      onTap: () async {
+                        final result = await _showFamilyPresetSubSheet(
+                          available,
+                          Map.fromEntries(
+                            selectedPresets.map((n) => MapEntry(
+                                n,
+                                selectedPresetPts[n] ??
+                                    _rewardPresetPoints(n))),
+                          ),
+                          title: '常用獎勵',
+                          accentColor: Colors.purple.shade600,
+                          badgePrefix: '',
+                          dialogLabel: '所需積分',
+                        );
+                        if (result != null) {
+                          setS(() {
+                            selectedPresets.clear();
+                            selectedPresetPts.clear();
+                            selectedPresets.addAll(result.keys);
+                            selectedPresetPts.addAll(result);
+                          });
                         }
-                      }),
-                    )),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameCtrl,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: '獎勵名稱'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: pointCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: '所需積分'),
-                ),
-                const SizedBox(height: 16),
-                Text('使用上限',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600)),
-                const SizedBox(height: 4),
-                RadioGroup<String>(
-                  groupValue: limitType,
-                  onChanged: (v) {
-                    if (v != null) setS(() => limitType = v);
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('無上限',
-                            style: TextStyle(fontSize: 14)),
-                        value: 'none',
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: selectedPresets.isEmpty
+                              ? Colors.grey.shade50
+                              : Colors.purple.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedPresets.isEmpty
+                                ? Colors.grey.shade300
+                                : Colors.purple.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 18,
+                              color: selectedPresets.isEmpty
+                                  ? Colors.grey.shade500
+                                  : Colors.purple.shade600,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                selectedPresets.isEmpty
+                                    ? '從常用獎勵選取'
+                                    : '已選 ${selectedPresets.length} 個常用獎勵',
+                                style: TextStyle(
+                                  color: selectedPresets.isEmpty
+                                      ? Colors.grey.shade600
+                                      : Colors.purple.shade700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              selectedPresets.isEmpty
+                                  ? Icons.chevron_right
+                                  : Icons.check_circle,
+                              size: 20,
+                              color: selectedPresets.isEmpty
+                                  ? Colors.grey.shade400
+                                  : Colors.purple.shade600,
+                            ),
+                          ],
+                        ),
                       ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('每日限制',
-                            style: TextStyle(fontSize: 14)),
-                        value: 'daily',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('每週限制',
-                            style: TextStyle(fontSize: 14)),
-                        value: 'weekly',
-                      ),
-                    ],
-                  ),
-                ),
-                if (limitType != 'none') ...[
-                  const SizedBox(height: 4),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  // 自訂獎勵名稱
                   TextField(
-                    controller: limitCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    controller: nameCtrl,
+                    onChanged: (_) => setS(() {}),
                     decoration: InputDecoration(
-                      labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
+                      hintText: '自訂獎勵名稱...',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon:
+                          const Icon(Icons.card_giftcard_outlined, size: 18),
+                    ),
+                  ),
+
+                  // 自訂積分（有輸入名稱才顯示）
+                  if (hasCustom) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: pointCtrl,
+                      onChanged: (_) => setS(() {}),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
+                      decoration: InputDecoration(
+                        labelText: '所需積分',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon:
+                            const Icon(Icons.stars_outlined, size: 18),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  // 使用上限
+                  Text('使用上限',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  RadioGroup<String>(
+                    groupValue: limitType,
+                    onChanged: (v) {
+                      if (v != null) setS(() => limitType = v);
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        RadioListTile<String>(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('無上限',
+                              style: TextStyle(fontSize: 14)),
+                          value: 'none',
+                        ),
+                        RadioListTile<String>(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('每日限制',
+                              style: TextStyle(fontSize: 14)),
+                          value: 'daily',
+                        ),
+                        RadioListTile<String>(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('每週限制',
+                              style: TextStyle(fontSize: 14)),
+                          value: 'weekly',
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (limitType != 'none') ...[
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: limitCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
+                      decoration: InputDecoration(
+                        labelText:
+                            limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  // 票券有效期
+                  Text('票券有效期',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  RadioGroup<String>(
+                    groupValue: expiryType,
+                    onChanged: (v) {
+                      if (v != null) setS(() => expiryType = v);
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        RadioListTile<String>(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('永不到期',
+                              style: TextStyle(fontSize: 14)),
+                          value: 'none',
+                        ),
+                        RadioListTile<String>(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('兌換後幾天內',
+                              style: TextStyle(fontSize: 14)),
+                          value: 'days',
+                        ),
+                        RadioListTile<String>(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('指定日期',
+                              style: TextStyle(fontSize: 14)),
+                          value: 'date',
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (expiryType == 'days') ...[
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: expiryDaysCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
+                      decoration: InputDecoration(
+                        labelText: '有效天數',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (expiryType == 'date') ...[
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: expiryDateCtrl,
+                      keyboardType: TextInputType.datetime,
+                      decoration: InputDecoration(
+                        labelText: '到期日（yyyy-MM-dd）',
+                        hintText: '例：2026-12-31',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+
+                  // 新增按鈕
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canAdd
+                          ? () async {
+                              Navigator.pop(ctx);
+                              final limitCount = limitType == 'none'
+                                  ? 1
+                                  : (int.tryParse(limitCtrl.text.trim()) ??
+                                      1);
+                              final expiryDays = int.tryParse(
+                                      expiryDaysCtrl.text.trim()) ??
+                                  7;
+                              final expiryDate =
+                                  expiryDateCtrl.text.trim();
+                              final prefs = _prefs!;
+                              final rewards = await _loadRewards(prefs);
+                              for (final presetName in selectedPresets) {
+                                final costPts =
+                                    selectedPresetPts[presetName] ??
+                                        _rewardPresetPoints(presetName);
+                                rewards.add(RewardItem(
+                                  id: _genId(),
+                                  name: presetName,
+                                  pointsCost: costPts,
+                                  childIds: selectedIds.toList(),
+                                  limitType: limitType,
+                                  limitCount: limitCount,
+                                  expiryType: expiryType,
+                                  expiryDays: expiryDays,
+                                  expiryDate: expiryDate,
+                                ));
+                              }
+                              if (customName.isNotEmpty) {
+                                final customPts =
+                                    int.tryParse(pointCtrl.text.trim()) ??
+                                        0;
+                                rewards.add(RewardItem(
+                                  id: _genId(),
+                                  name: customName,
+                                  pointsCost: customPts,
+                                  childIds: selectedIds.toList(),
+                                  limitType: limitType,
+                                  limitCount: limitCount,
+                                  expiryType: expiryType,
+                                  expiryDays: expiryDays,
+                                  expiryDate: expiryDate,
+                                ));
+                              }
+                              await _saveRewards(prefs, rewards);
+                              _changed = true;
+                              await _loadAll();
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        total == 0
+                            ? '請選擇或輸入獎勵'
+                            : '新增 ($total 項)',
+                        style: const TextStyle(color: Colors.white),
+                      ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                Text('票券有效期',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600)),
-                const SizedBox(height: 4),
-                RadioGroup<String>(
-                  groupValue: expiryType,
-                  onChanged: (v) {
-                    if (v != null) setS(() => expiryType = v);
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('永不到期',
-                            style: TextStyle(fontSize: 14)),
-                        value: 'none',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('兌換後幾天內',
-                            style: TextStyle(fontSize: 14)),
-                        value: 'days',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('指定日期',
-                            style: TextStyle(fontSize: 14)),
-                        value: 'date',
-                      ),
-                    ],
-                  ),
-                ),
-                if (expiryType == 'days') ...[
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: expiryDaysCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(labelText: '有效天數'),
-                  ),
-                ],
-                if (expiryType == 'date') ...[
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: expiryDateCtrl,
-                    keyboardType: TextInputType.datetime,
-                    decoration: const InputDecoration(
-                      labelText: '到期日（yyyy-MM-dd）',
-                      hintText: '例：2026-12-31',
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child:
-                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('新增'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-
-    if (result != true) return;
-    final name = nameCtrl.text.trim();
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    final limitCount =
-        limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text.trim()) ?? 1);
-    final expiryDays = int.tryParse(expiryDaysCtrl.text.trim()) ?? 7;
-    final expiryDate = expiryDateCtrl.text.trim();
-    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('請至少選一個小孩，且名稱不得為空、積分須大於 0')),
-        );
-      }
-      return;
-    }
-
-    final prefs = _prefs!;
-    final rewards = await _loadRewards(prefs);
-    rewards.add(RewardItem(
-      id: _genId(),
-      name: name,
-      pointsCost: pts,
-      childIds: selectedIds.toList(),
-      limitType: limitType,
-      limitCount: limitCount,
-      expiryType: expiryType,
-      expiryDays: expiryDays,
-      expiryDate: expiryDate,
-    ));
-    await _saveRewards(prefs, rewards);
-    _changed = true;
-    await _loadAll();
   }
 
   // ── 刪除獎勵 ──
