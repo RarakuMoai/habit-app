@@ -15,7 +15,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final List<Map<String, dynamic>> habits = [];
-  final TextEditingController controller = TextEditingController();
   bool isLoading = true;
   int streak = 0;
 
@@ -190,15 +189,6 @@ class _HomePageState extends State<HomePage> {
     return Colors.grey.shade300;
   }
 
-  void addHabit() {
-    if (controller.text.trim().isEmpty) return;
-    setState(() {
-      habits.add({'name': controller.text.trim(), 'done': false});
-      controller.clear();
-    });
-    saveHabits();
-  }
-
   void toggleHabit(int index) {
     setState(() {
       habits[index]['done'] = !habits[index]['done'];
@@ -276,20 +266,10 @@ class _HomePageState extends State<HomePage> {
     '早睡',
   ];
 
-  Future<void> _showHabitPresets() async {
+  Future<void> _showAddHabitSheet() async {
+    final nameCtrl = TextEditingController();
     final existing = habits.map((h) => h['name'] as String).toSet();
-    final available =
-        _kHabitPresets.where((n) => !existing.contains(n)).toList();
-
-    if (available.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('所有常用習慣都已新增囉！')),
-        );
-      }
-      return;
-    }
-
+    final available = _kHabitPresets.where((n) => !existing.contains(n)).toList();
     final selected = <String>{};
 
     await showModalBottomSheet(
@@ -299,93 +279,117 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => Padding(
-          padding: EdgeInsets.fromLTRB(
-              20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Icon(Icons.lightbulb_outline,
-                      size: 18, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  const Text('常用習慣',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: available.map((name) {
-                  final isSelected = selected.contains(name);
-                  return FilterChip(
-                    label: Text(name),
-                    selected: isSelected,
-                    selectedColor: Colors.orange.shade100,
-                    checkmarkColor: Colors.orange,
-                    labelStyle: TextStyle(
-                      color: isSelected
-                          ? Colors.orange.shade800
-                          : Colors.black87,
-                      fontSize: 13,
+        builder: (_, setS) {
+          final customName = nameCtrl.text.trim();
+          final total = (customName.isNotEmpty ? 1 : 0) + selected.length;
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    onSelected: (v) => setS(() {
-                      if (v) {
-                        selected.add(name);
-                      } else {
-                        selected.remove(name);
-                      }
-                    }),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: selected.isEmpty
-                      ? null
-                      : () {
-                          Navigator.pop(ctx);
-                          setState(() {
-                            for (final name in selected) {
-                              habits.add({'name': name, 'done': false});
-                            }
-                          });
-                          saveHabits();
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    disabledBackgroundColor: Colors.grey.shade200,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(
-                    selected.isEmpty
-                        ? '請選擇習慣'
-                        : '新增所選 (${selected.length})',
-                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 16),
+                const Text('新增習慣',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  onChanged: (_) => setS(() {}),
+                  decoration: InputDecoration(
+                    hintText: '自訂習慣名稱...',
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    prefixIcon:
+                        const Icon(Icons.edit_outlined, size: 18),
+                  ),
+                ),
+                if (available.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text('常用習慣',
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey.shade600)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: available.map((name) {
+                      final isSelected = selected.contains(name);
+                      return FilterChip(
+                        label: Text(name),
+                        selected: isSelected,
+                        selectedColor: Colors.orange.shade100,
+                        checkmarkColor: Colors.orange,
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? Colors.orange.shade800
+                              : Colors.black87,
+                          fontSize: 13,
+                        ),
+                        onSelected: (v) => setS(() {
+                          if (v) {
+                            selected.add(name);
+                          } else {
+                            selected.remove(name);
+                          }
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: total == 0
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            setState(() {
+                              if (customName.isNotEmpty) {
+                                habits.add(
+                                    {'name': customName, 'done': false});
+                              }
+                              for (final name in selected) {
+                                habits.add({'name': name, 'done': false});
+                              }
+                            });
+                            saveHabits();
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      disabledBackgroundColor: Colors.grey.shade200,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      total == 0 ? '請輸入或選擇習慣' : '新增 ($total 項)',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -532,58 +536,18 @@ class _HomePageState extends State<HomePage> {
           // 新增習慣
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    decoration: InputDecoration(
-                      hintText: '新增一個習慣...',
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    onSubmitted: (_) => addHabit(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: addHabit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                  ),
-                  child: const Icon(Icons.add, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 16, top: 4),
-              child: TextButton.icon(
-                onPressed: _showHabitPresets,
-                icon: Icon(Icons.lightbulb_outline,
-                    size: 15, color: Colors.orange.shade400),
-                label: Text('常用選項',
-                    style: TextStyle(
-                        color: Colors.orange.shade600, fontSize: 13)),
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _showAddHabitSheet,
+                icon: const Icon(Icons.add),
+                label: const Text('新增習慣'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                  side: BorderSide(color: Colors.orange.shade300),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
