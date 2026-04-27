@@ -2433,6 +2433,246 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     setState(() {});
   }
 
+  int _habitPresetPoints(String name) {
+    for (final p in _kHabitPresets) {
+      if (p.name == name) return p.value;
+    }
+    return 10;
+  }
+
+  // 常用習慣子選單：可捲動清單，每項可個別調整積分
+  Future<Map<String, int>?> _showFamilyPresetSubSheet(
+    List<_Preset> available,
+    Map<String, int> initial,
+  ) {
+    final selected = Map<String, int>.from(initial);
+    return showModalBottomSheet<Map<String, int>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome,
+                        size: 18, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('常用習慣',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    if (selected.isNotEmpty)
+                      Text('${selected.length} 項已選',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollCtrl,
+                  itemCount: available.length,
+                  itemBuilder: (_, i) {
+                    final p = available[i];
+                    final sel = selected.containsKey(p.name);
+                    final pts = selected[p.name] ?? p.value;
+                    return InkWell(
+                      onTap: () => setS(() {
+                        if (sel) {
+                          selected.remove(p.name);
+                        } else {
+                          selected[p.name] = p.value;
+                        }
+                      }),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? Colors.orange.shade50
+                              : Colors.white,
+                          border: Border(
+                            bottom: BorderSide(color: Colors.grey.shade100),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(p.emoji,
+                                style: const TextStyle(fontSize: 22)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                p.name,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: sel
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: sel
+                                      ? Colors.orange.shade800
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            // 積分徽章（點擊可調整）
+                            GestureDetector(
+                              onTap: () async {
+                                if (!sel) {
+                                  setS(() => selected[p.name] = p.value);
+                                }
+                                final ctrl =
+                                    TextEditingController(text: '$pts');
+                                final newPts = await showDialog<int>(
+                                  context: ctx,
+                                  builder: (dCtx) => AlertDialog(
+                                    title: Text('調整積分：${p.name}'),
+                                    content: TextField(
+                                      controller: ctrl,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter
+                                            .digitsOnly
+                                      ],
+                                      decoration: const InputDecoration(
+                                          labelText: '完成可得積分'),
+                                      autofocus: true,
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dCtx),
+                                        child: Text('取消',
+                                            style: TextStyle(
+                                                color:
+                                                    Colors.grey.shade600)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(
+                                            dCtx,
+                                            int.tryParse(ctrl.text) ?? pts),
+                                        child: const Text('確認'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (newPts != null && newPts > 0) {
+                                  setS(() => selected[p.name] = newPts);
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: sel
+                                      ? Colors.orange
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '+$pts',
+                                      style: TextStyle(
+                                        color: sel
+                                            ? Colors.white
+                                            : Colors.grey.shade600,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (sel) ...[
+                                      const SizedBox(width: 3),
+                                      const Icon(Icons.edit,
+                                          size: 10, color: Colors.white),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: sel
+                                    ? Colors.orange
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: sel
+                                      ? Colors.orange
+                                      : Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              child: sel
+                                  ? const Icon(Icons.check,
+                                      size: 14, color: Colors.white)
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20,
+                    MediaQuery.of(ctx).viewInsets.bottom + 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, selected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      selected.isEmpty
+                          ? '確認（未選取）'
+                          : '確認選取 (${selected.length} 項)',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── 新增習慣 ──
   Future<void> _addHabit() async {
     if (_children.isEmpty) {
@@ -2446,8 +2686,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final pointCtrl = TextEditingController(text: '10');
     final Set<String> selectedIds = {_children.first.id};
     final selectedPresets = <String>{};
+    final selectedPresetPts = <String, int>{};
 
-    // 過濾掉已存在的習慣名稱
     final existingNames = _habits.map((h) => h.name).toSet();
     final available =
         _kHabitPresets.where((p) => !existingNames.contains(p.name)).toList();
@@ -2464,8 +2704,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           final total =
               (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
           final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-          final canAdd =
-              total > 0 && pts > 0 && selectedIds.isNotEmpty;
+          final hasCustom = customName.isNotEmpty;
+          final canAdd = (hasCustom || selectedPresets.isNotEmpty) &&
+              (!hasCustom || pts > 0) &&
+              selectedIds.isNotEmpty;
 
           return Padding(
             padding: EdgeInsets.fromLTRB(
@@ -2475,7 +2717,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 拖曳把手
                   Center(
                     child: Container(
                       width: 36,
@@ -2519,95 +2760,81 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   ),
                   const SizedBox(height: 14),
 
-                  // 常用習慣預設
+                  // 從常用習慣選取 按鈕
                   if (available.isNotEmpty) ...[
-                    Text('常用習慣',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: available.map((p) {
-                        final sel = selectedPresets.contains(p.name);
-                        return GestureDetector(
-                          onTap: () => setS(() {
-                            if (sel) {
-                              selectedPresets.remove(p.name);
-                            } else {
-                              selectedPresets.add(p.name);
-                            }
-                          }),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
-                            decoration: BoxDecoration(
-                              color: sel ? Colors.orange : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: sel
-                                    ? Colors.orange
-                                    : Colors.grey.shade300,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: sel
-                                      ? Colors.orange.withValues(alpha: 0.25)
-                                      : Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: sel ? 6 : 3,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (p.emoji.isNotEmpty) ...[
-                                  Text(p.emoji,
-                                      style:
-                                          const TextStyle(fontSize: 15)),
-                                  const SizedBox(width: 5),
-                                ],
-                                Text(
-                                  p.name,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: sel
-                                        ? Colors.white
-                                        : Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: sel
-                                        ? Colors.white
-                                            .withValues(alpha: 0.25)
-                                        : Colors.orange
-                                            .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '+${p.value}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: sel
-                                          ? Colors.white
-                                          : Colors.orange.shade700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                    InkWell(
+                      onTap: () async {
+                        final result = await _showFamilyPresetSubSheet(
+                          available,
+                          Map.fromEntries(
+                            selectedPresets.map((n) => MapEntry(
+                                n,
+                                selectedPresetPts[n] ??
+                                    _habitPresetPoints(n))),
                           ),
                         );
-                      }).toList(),
+                        if (result != null) {
+                          setS(() {
+                            selectedPresets.clear();
+                            selectedPresetPts.clear();
+                            selectedPresets.addAll(result.keys);
+                            selectedPresetPts.addAll(result);
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: selectedPresets.isEmpty
+                              ? Colors.grey.shade50
+                              : Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedPresets.isEmpty
+                                ? Colors.grey.shade300
+                                : Colors.orange.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 18,
+                              color: selectedPresets.isEmpty
+                                  ? Colors.grey.shade500
+                                  : Colors.orange,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                selectedPresets.isEmpty
+                                    ? '從常用習慣選取'
+                                    : '已選 ${selectedPresets.length} 個常用習慣',
+                                style: TextStyle(
+                                  color: selectedPresets.isEmpty
+                                      ? Colors.grey.shade600
+                                      : Colors.orange.shade700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              selectedPresets.isEmpty
+                                  ? Icons.chevron_right
+                                  : Icons.check_circle,
+                              size: 20,
+                              color: selectedPresets.isEmpty
+                                  ? Colors.grey.shade400
+                                  : Colors.orange.shade600,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                   ],
 
                   // 自訂名稱
@@ -2626,25 +2853,30 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                           const Icon(Icons.edit_outlined, size: 18),
                     ),
                   ),
-                  const SizedBox(height: 12),
 
-                  // 分數
-                  TextField(
-                    controller: pointCtrl,
-                    onChanged: (_) => setS(() {}),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: '完成可得分數',
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                  // 自訂習慣分數（有輸入名稱才顯示）
+                  if (hasCustom) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: pointCtrl,
+                      onChanged: (_) => setS(() {}),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
+                      decoration: InputDecoration(
+                        labelText: '自訂習慣分數',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon:
+                            const Icon(Icons.star_outline, size: 18),
                       ),
-                      prefixIcon: const Icon(Icons.star_outline, size: 18),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 20),
 
                   // 新增按鈕
@@ -2654,22 +2886,33 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       onPressed: canAdd
                           ? () async {
                               Navigator.pop(ctx);
-                              final name = nameCtrl.text.trim();
-                              final pts =
-                                  int.tryParse(pointCtrl.text.trim()) ?? 0;
-                              final namesToAdd = <String>[
-                                ...selectedPresets,
-                                if (name.isNotEmpty) name,
-                              ];
                               final prefs = _prefs!;
                               final habits = await _loadHabits(prefs);
-                              for (final n in namesToAdd) {
+                              // 常用習慣各自積分
+                              for (final presetName in selectedPresets) {
+                                final habitPts =
+                                    selectedPresetPts[presetName] ??
+                                        _habitPresetPoints(presetName);
                                 for (final childId in selectedIds) {
                                   habits.add(ChildHabit(
                                     id: _genId(),
                                     childId: childId,
-                                    name: n,
-                                    points: pts,
+                                    name: presetName,
+                                    points: habitPts,
+                                  ));
+                                }
+                              }
+                              // 自訂習慣
+                              if (customName.isNotEmpty) {
+                                final customPts =
+                                    int.tryParse(pointCtrl.text.trim()) ??
+                                        10;
+                                for (final childId in selectedIds) {
+                                  habits.add(ChildHabit(
+                                    id: _genId(),
+                                    childId: childId,
+                                    name: customName,
+                                    points: customPts,
                                   ));
                                 }
                               }

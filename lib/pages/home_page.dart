@@ -3,6 +3,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'settings_page.dart';
 
+class _HomePreset {
+  final String name;
+  final String emoji;
+  final String? linkedSetting;
+  final String? linkedLabel;
+  const _HomePreset(this.name, this.emoji,
+      [this.linkedSetting, this.linkedLabel]);
+}
+
+const List<_HomePreset> _kHomePresets = [
+  _HomePreset('刷牙', '🦷'),
+  _HomePreset('整理環境', '🧹'),
+  _HomePreset('閱讀 15 分鐘', '📖'),
+  _HomePreset('早起', '🌅'),
+  _HomePreset('運動 30 分鐘', '🏃'),
+  _HomePreset('喝足夠的水', '💧', 'water_enabled', '選取後自動開啟喝水頁籤'),
+  _HomePreset('冥想 10 分鐘', '🧘'),
+  _HomePreset('早睡', '🌙'),
+];
+
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
   const HomePage({super.key, this.onSettingsChanged});
@@ -247,15 +267,192 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (confirm == true) deleteHabit(index);
   }
 
-  static const List<String> _kHabitPresets = [
-    '刷牙', '整理環境', '閱讀 15 分鐘', '早起', '運動 30 分鐘',
-    '喝足夠的水', '冥想 10 分鐘', '早睡',
-  ];
+  // 常用習慣子選單（可捲動清單 + 功能聯動提示）
+  Future<Set<String>?> _showHabitPresetSheet(
+    List<_HomePreset> available,
+    Set<String> initialSelected,
+  ) {
+    final tempSelected = Set<String>.from(initialSelected);
+    return showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome,
+                        size: 18, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('常用習慣',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    if (tempSelected.isNotEmpty)
+                      Text('${tempSelected.length} 項已選',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollCtrl,
+                  itemCount: available.length,
+                  itemBuilder: (_, i) {
+                    final p = available[i];
+                    final sel = tempSelected.contains(p.name);
+                    return InkWell(
+                      onTap: () => setS(() {
+                        if (sel) {
+                          tempSelected.remove(p.name);
+                        } else {
+                          tempSelected.add(p.name);
+                        }
+                      }),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14),
+                        decoration: BoxDecoration(
+                          color:
+                              sel ? Colors.orange.shade50 : Colors.white,
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Colors.grey.shade100),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(p.emoji,
+                                style: const TextStyle(fontSize: 22)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    p.name,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: sel
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: sel
+                                          ? Colors.orange.shade800
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                  if (p.linkedSetting != null)
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.only(top: 2),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.link,
+                                              size: 11,
+                                              color:
+                                                  Colors.blue.shade400),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            p.linkedLabel!,
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color:
+                                                    Colors.blue.shade500),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: sel
+                                    ? Colors.orange
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: sel
+                                      ? Colors.orange
+                                      : Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              child: sel
+                                  ? const Icon(Icons.check,
+                                      size: 14, color: Colors.white)
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20,
+                    MediaQuery.of(ctx).viewInsets.bottom + 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, tempSelected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      tempSelected.isEmpty
+                          ? '確認（未選取）'
+                          : '確認選取 (${tempSelected.length} 項)',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _showAddHabitSheet() async {
     final nameCtrl = TextEditingController();
     final existing = habits.map((h) => h['name'] as String).toSet();
-    final available = _kHabitPresets.where((n) => !existing.contains(n)).toList();
+    final available =
+        _kHomePresets.where((p) => !existing.contains(p.name)).toList();
     final selected = <String>{};
 
     await showModalBottomSheet(
@@ -269,14 +466,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           final customName = nameCtrl.text.trim();
           final total = (customName.isNotEmpty ? 1 : 0) + selected.length;
           return Padding(
-            padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
-                    width: 36, height: 4,
+                    width: 36,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
@@ -284,11 +483,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('新增習慣', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text('新增習慣',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameCtrl,
-                  autofocus: true,
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
                     hintText: '自訂習慣名稱...',
@@ -302,27 +502,69 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 if (available.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text('常用習慣', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8, runSpacing: 8,
-                    children: available.map((name) {
-                      final isSelected = selected.contains(name);
-                      return FilterChip(
-                        label: Text(name),
-                        selected: isSelected,
-                        selectedColor: Colors.orange.shade100,
-                        checkmarkColor: Colors.orange,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.orange.shade800 : Colors.black87,
-                          fontSize: 13,
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () async {
+                      final result = await _showHabitPresetSheet(
+                          available, selected);
+                      if (result != null) {
+                        setS(() {
+                          selected.clear();
+                          selected.addAll(result);
+                        });
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: selected.isEmpty
+                            ? Colors.grey.shade50
+                            : Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected.isEmpty
+                              ? Colors.grey.shade300
+                              : Colors.orange.shade300,
                         ),
-                        onSelected: (v) => setS(() {
-                          if (v) { selected.add(name); } else { selected.remove(name); }
-                        }),
-                      );
-                    }).toList(),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            size: 18,
+                            color: selected.isEmpty
+                                ? Colors.grey.shade500
+                                : Colors.orange,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              selected.isEmpty
+                                  ? '從常用習慣選取'
+                                  : '已選 ${selected.length} 個常用習慣',
+                              style: TextStyle(
+                                color: selected.isEmpty
+                                    ? Colors.grey.shade600
+                                    : Colors.orange.shade700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            selected.isEmpty
+                                ? Icons.chevron_right
+                                : Icons.check_circle,
+                            size: 20,
+                            color: selected.isEmpty
+                                ? Colors.grey.shade400
+                                : Colors.orange.shade600,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 20),
@@ -331,11 +573,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   child: ElevatedButton(
                     onPressed: total == 0
                         ? null
-                        : () {
+                        : () async {
                             Navigator.pop(ctx);
+                            bool settingsChanged = false;
+                            final prefs =
+                                await SharedPreferences.getInstance();
+                            for (final name in selected) {
+                              final idx = available
+                                  .indexWhere((p) => p.name == name);
+                              if (idx != -1 &&
+                                  available[idx].linkedSetting != null) {
+                                final already = prefs.getBool(
+                                        available[idx].linkedSetting!) ??
+                                    false;
+                                if (!already) {
+                                  await prefs.setBool(
+                                      available[idx].linkedSetting!, true);
+                                  settingsChanged = true;
+                                }
+                              }
+                            }
+                            if (settingsChanged) {
+                              widget.onSettingsChanged?.call();
+                            }
                             setState(() {
                               if (customName.isNotEmpty) {
-                                habits.add({'name': customName, 'done': false});
+                                habits.add(
+                                    {'name': customName, 'done': false});
                               }
                               for (final name in selected) {
                                 habits.add({'name': name, 'done': false});
@@ -346,7 +610,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       disabledBackgroundColor: Colors.grey.shade200,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
