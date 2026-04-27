@@ -3182,143 +3182,31 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
   }
 
-  // ── 項目選項 Bottom Sheet（編輯 / 刪除）──
-  Future<void> _showHabitOptions(ChildHabit habit) async {
-    final action = await showModalBottomSheet<String>(
+  // ── 共用刪除確認 ──
+  Future<void> _confirmDelete({
+    required String title,
+    required String name,
+    required Future<void> Function() onConfirm,
+  }) async {
+    if (!mounted) return;
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('編輯'),
-              onTap: () => Navigator.pop(context, 'edit'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('刪除', style: TextStyle(color: Colors.red)),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
-          ],
-        ),
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text('確定要刪除「$name」嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
-    if (!mounted) return;
-    if (action == 'edit') {
-      await _editHabit(habit);
-    } else if (action == 'delete') {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('刪除習慣'),
-          content: Text('確定要刪除「${habit.name}」嗎？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('刪除', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      );
-      if (confirm == true) await _deleteHabit(habit);
-    }
-  }
-
-  Future<void> _showDeductionOptions(DeductionItem item) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('編輯'),
-              onTap: () => Navigator.pop(context, 'edit'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('刪除', style: TextStyle(color: Colors.red)),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!mounted) return;
-    if (action == 'edit') {
-      await _editDeduction(item);
-    } else if (action == 'delete') {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('刪除扣分項目'),
-          content: Text('確定要刪除「${item.name}」嗎？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('刪除', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      );
-      if (confirm == true) await _deleteDeduction(item);
-    }
-  }
-
-  Future<void> _showRewardOptions(RewardItem reward) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('編輯'),
-              onTap: () => Navigator.pop(context, 'edit'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('刪除', style: TextStyle(color: Colors.red)),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!mounted) return;
-    if (action == 'edit') {
-      await _editReward(reward);
-    } else if (action == 'delete') {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('刪除獎勵'),
-          content: Text('確定要刪除「${reward.name}」嗎？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('刪除', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      );
-      if (confirm == true) await _deleteReward(reward);
-    }
+    if (confirm == true) await onConfirm();
   }
 
   // ── 共用：常用選項 Bottom Sheet ──
@@ -3950,9 +3838,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             title: Text(habit.name, style: const TextStyle(fontSize: 14)),
             subtitle: Text('+${habit.points} 分',
                 style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
-            trailing: IconButton(
+            trailing: PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-              onPressed: () => _showHabitOptions(habit),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'edit', child: Text('編輯')),
+                PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
+              ],
+              onSelected: (action) {
+                if (action == 'edit') {
+                  _editHabit(habit);
+                } else {
+                  _confirmDelete(title: '刪除習慣', name: habit.name, onConfirm: () => _deleteHabit(habit));
+                }
+              },
             ),
           ),
         ));
@@ -4003,9 +3901,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             title: Text(item.name, style: const TextStyle(fontSize: 14)),
             subtitle: Text('-${item.points} 分',
                 style: const TextStyle(fontSize: 12, color: Colors.red)),
-            trailing: IconButton(
+            trailing: PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-              onPressed: () => _showDeductionOptions(item),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'edit', child: Text('編輯')),
+                PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
+              ],
+              onSelected: (action) {
+                if (action == 'edit') {
+                  _editDeduction(item);
+                } else {
+                  _confirmDelete(title: '刪除扣分項目', name: item.name, onConfirm: () => _deleteDeduction(item));
+                }
+              },
             ),
           ),
         ));
@@ -4064,9 +3972,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             ].join(' · '),
             style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
           ),
-          trailing: IconButton(
+          trailing: PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-            onPressed: () => _showRewardOptions(reward),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('編輯')),
+              PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
+            ],
+            onSelected: (action) {
+              if (action == 'edit') {
+                _editReward(reward);
+              } else {
+                _confirmDelete(title: '刪除獎勵', name: reward.name, onConfirm: () => _deleteReward(reward));
+              }
+            },
           ),
         ),
       );

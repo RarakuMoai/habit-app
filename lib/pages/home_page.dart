@@ -243,51 +243,26 @@ class _HomePageState extends State<HomePage> {
     saveHabits();
   }
 
-  Future<void> _showHabitOptions(int index) async {
-    final action = await showModalBottomSheet<String>(
+  Future<void> _confirmDeleteHabit(int index) async {
+    final name = habits[index]['name'] as String;
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('改名'),
-              onTap: () => Navigator.pop(context, 'rename'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('刪除', style: TextStyle(color: Colors.red)),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
-          ],
-        ),
+      builder: (_) => AlertDialog(
+        title: const Text('刪除習慣'),
+        content: Text('確定要刪除「$name」嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
-    if (!mounted) return;
-    if (action == 'rename') {
-      await renameHabit(index);
-    } else if (action == 'delete') {
-      final name = habits[index]['name'] as String;
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('刪除習慣'),
-          content: Text('確定要刪除「$name」嗎？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('刪除', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      );
-      if (confirm == true) deleteHabit(index);
-    }
+    if (confirm == true) deleteHabit(index);
   }
 
   static const List<String> _kHabitPresets = [
@@ -681,10 +656,20 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            IconButton(
+                            PopupMenuButton<String>(
                               icon: Icon(Icons.more_vert,
                                   size: 20, color: Colors.grey.shade400),
-                              onPressed: () => _showHabitOptions(index),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(value: 'rename', child: Text('改名')),
+                                PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
+                              ],
+                              onSelected: (action) {
+                                if (action == 'rename') {
+                                  renameHabit(index);
+                                } else {
+                                  _confirmDeleteHabit(index);
+                                }
+                              },
                             ),
                           ],
                         ),
