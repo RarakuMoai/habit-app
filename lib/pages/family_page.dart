@@ -2216,6 +2216,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   bool _loaded = false;
   SharedPreferences? _prefs;
 
+  // 獎勵票券預設使用上限
+  String _rewardDefaultLimitType = 'daily';
+  int _rewardDefaultLimitCount = 1;
+
   // 追蹤是否有異動，回傳給上層以決定是否重新載入
   bool _changed = false;
 
@@ -2260,6 +2264,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       _habits = habits;
       _deductions = deductions;
       _rewards = rewards;
+      _rewardDefaultLimitType =
+          prefs.getString('reward_default_limit_type') ?? 'daily';
+      _rewardDefaultLimitCount =
+          prefs.getInt('reward_default_limit_count') ?? 1;
       _loaded = true;
     });
   }
@@ -3119,6 +3127,100 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
   }
 
+  // ── 獎勵票券預設使用上限 ──
+  Future<void> _showRewardLimitSettings() async {
+    String limitType = _rewardDefaultLimitType;
+    int limitCount = _rewardDefaultLimitCount;
+    final limitCtrl = TextEditingController(text: '$limitCount');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('票券預設使用上限'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('新增獎勵時的預設值',
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 4),
+                RadioGroup<String>(
+                  groupValue: limitType,
+                  onChanged: (v) {
+                    if (v != null) setS(() => limitType = v);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('無上限',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'none',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('每日限制',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'daily',
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('每週限制',
+                            style: TextStyle(fontSize: 14)),
+                        value: 'weekly',
+                      ),
+                    ],
+                  ),
+                ),
+                if (limitType != 'none') ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: limitCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText:
+                          limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
+                    ),
+                    onChanged: (v) => limitCount = int.tryParse(v) ?? 1,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('儲存'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+    final count =
+        limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text) ?? 1);
+    await _prefs?.setString('reward_default_limit_type', limitType);
+    await _prefs?.setInt('reward_default_limit_count', count);
+    setState(() {
+      _rewardDefaultLimitType = limitType;
+      _rewardDefaultLimitCount = count;
+    });
+  }
+
   // ── 新增獎勵 ──
   Future<void> _addReward() async {
     if (_children.isEmpty) {
@@ -3130,11 +3232,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
-    final limitCtrl = TextEditingController(text: '1');
+    final limitCtrl = TextEditingController(text: '$_rewardDefaultLimitCount');
     final expiryDaysCtrl = TextEditingController(text: '7');
     final expiryDateCtrl = TextEditingController();
     final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
-    String limitType = 'daily';
+    String limitType = _rewardDefaultLimitType;
     String expiryType = 'none';
 
     final result = await showDialog<bool>(
@@ -3945,6 +4047,34 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         _sectionTitle('獎勵管理', Icons.card_giftcard_outlined,
             Colors.amber.shade700),
         const SizedBox(height: 8),
+        // 票券預設使用上限設定列
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.confirmation_num_outlined,
+                color: Colors.amber.shade700, size: 20),
+            title: const Text('票券預設使用上限',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            subtitle: Text(
+              _rewardDefaultLimitType == 'none'
+                  ? '無上限'
+                  : _rewardDefaultLimitType == 'daily'
+                      ? '每日 $_rewardDefaultLimitCount 次'
+                      : '每週 $_rewardDefaultLimitCount 次',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            onTap: _showRewardLimitSettings,
+          ),
+        ),
         ..._buildRewardSection(),
         _addWithPresetButtons('自訂獎勵', Colors.amber.shade700, _addReward, _showRewardPresets),
 

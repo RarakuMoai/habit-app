@@ -21,10 +21,6 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _parentPin;   // null 表示尚未設定
   int _pinDigits = 4;   // 4 或 6 位
 
-  // 家庭模式：獎勵預設使用上限
-  String _rewardDefaultLimitType = 'daily';
-  int _rewardDefaultLimitCount = 1;
-
   SharedPreferences? _prefs;
 
   @override
@@ -42,8 +38,6 @@ class _SettingsPageState extends State<SettingsPage> {
       _familyEnabled = _prefs!.getBool('family_enabled') ?? false;
       _parentPin = _prefs!.getString('parent_pin');
       _pinDigits = _prefs!.getInt('pin_digits') ?? 4;
-      _rewardDefaultLimitType = _prefs!.getString('reward_default_limit_type') ?? 'daily';
-      _rewardDefaultLimitCount = _prefs!.getInt('reward_default_limit_count') ?? 1;
       _loaded = true;
     });
   }
@@ -183,93 +177,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // PIN 設定入口：底部彈出，含位數切換 + 設定/修改 PIN
-  Future<void> _showRewardLimitSettings() async {
-    String limitType = _rewardDefaultLimitType;
-    int limitCount = _rewardDefaultLimitCount;
-    final limitCtrl = TextEditingController(text: '$limitCount');
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('獎勵票券預設使用上限'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('新增獎勵時的預設值',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                const SizedBox(height: 4),
-                RadioGroup<String>(
-                  groupValue: limitType,
-                  onChanged: (v) {
-                    if (v != null) setS(() => limitType = v);
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('無上限', style: TextStyle(fontSize: 14)),
-                        value: 'none',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('每日限制', style: TextStyle(fontSize: 14)),
-                        value: 'daily',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('每週限制', style: TextStyle(fontSize: 14)),
-                        value: 'weekly',
-                      ),
-                    ],
-                  ),
-                ),
-                if (limitType != 'none') ...[
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: limitCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
-                    ),
-                    onChanged: (v) => limitCount = int.tryParse(v) ?? 1,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('儲存'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed != true) return;
-    final count = limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text) ?? 1);
-    await _prefs?.setString('reward_default_limit_type', limitType);
-    await _prefs?.setInt('reward_default_limit_count', count);
-    setState(() {
-      _rewardDefaultLimitType = limitType;
-      _rewardDefaultLimitCount = count;
-    });
-  }
-
   Future<void> _showPinSettings() async {
     await showModalBottomSheet(
       context: context,
@@ -394,48 +301,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     await _saveBool('family_enabled', v);
                   },
                 ),
-
-                // 家庭模式：獎勵預設使用上限
-                if (_familyEnabled) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: ListTile(
-                      leading: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.confirmation_num_outlined,
-                            color: Colors.purple, size: 20),
-                      ),
-                      title: const Text('獎勵票券使用上限',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
-                      subtitle: Text(
-                        _rewardDefaultLimitType == 'none'
-                            ? '無上限'
-                            : _rewardDefaultLimitType == 'daily'
-                                ? '每日 $_rewardDefaultLimitCount 次'
-                                : '每週 $_rewardDefaultLimitCount 次',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500),
-                      ),
-                      trailing:
-                          Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      onTap: () => _showRewardLimitSettings(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
 
                 const Divider(height: 32, thickness: 1),
 
