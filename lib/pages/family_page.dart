@@ -1219,7 +1219,7 @@ class _HabitTabState extends State<_HabitTab> {
 }
 
 // 習慣列表項目
-class _HabitItem extends StatelessWidget {
+class _HabitItem extends StatefulWidget {
   final ChildHabit habit;
   final bool doneToday;
   final VoidCallback onCheckIn;
@@ -1233,61 +1233,126 @@ class _HabitItem extends StatelessWidget {
   });
 
   @override
+  State<_HabitItem> createState() => _HabitItemState();
+}
+
+class _HabitItemState extends State<_HabitItem> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.75), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 0.75, end: 1.20), weight: 45),
+      TweenSequenceItem(tween: Tween(begin: 1.20, end: 1.0), weight: 30),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _ctrl.forward(from: 0);
+    if (widget.doneToday) {
+      widget.onUndo?.call();
+    } else {
+      widget.onCheckIn();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: doneToday ? onUndo : onCheckIn,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  doneToday
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
-                  key: ValueKey(doneToday),
-                  color: doneToday ? Colors.green : Colors.grey.shade400,
-                  size: 28,
+    final doneToday = widget.doneToday;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: doneToday ? 0 : 2,
+        shadowColor: Colors.black12,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 5,
+                  color: doneToday ? Colors.green.shade400 : Colors.orange.shade300,
                 ),
-              ),
+                Expanded(
+                  child: ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    leading: GestureDetector(
+                      onTap: _handleTap,
+                      child: ScaleTransition(
+                        scale: _scale,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: doneToday ? Colors.green.shade400 : Colors.transparent,
+                            border: doneToday
+                                ? null
+                                : Border.all(color: Colors.grey.shade300, width: 2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: doneToday
+                              ? const Icon(Icons.check, color: Colors.white, size: 18)
+                              : null,
+                        ),
+                      ),
+                    ),
+                    title: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 250),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        decoration: doneToday
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        color: doneToday ? Colors.grey.shade400 : Colors.black87,
+                      ),
+                      child: Text(widget.habit.name),
+                    ),
+                    subtitle: Text(
+                      '+${widget.habit.points} 分',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: doneToday ? Colors.grey.shade400 : Colors.orange,
+                      ),
+                    ),
+                    trailing: doneToday
+                        ? TextButton(
+                            onPressed: widget.onUndo,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text('撤銷',
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey.shade400)),
+                          )
+                        : null,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        title: Text(
-          habit.name,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            decoration: doneToday ? TextDecoration.lineThrough : null,
-            color: doneToday ? Colors.grey : Colors.black87,
-          ),
-        ),
-        subtitle: Text(
-          '+${habit.points} 分',
-          style: TextStyle(
-            fontSize: 12,
-            color: doneToday ? Colors.grey.shade400 : Colors.orange,
-          ),
-        ),
-        trailing: doneToday
-            ? TextButton(
-                onPressed: onUndo,
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text('撤銷',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade400)),
-              )
-            : null,
       ),
     );
   }
@@ -1309,62 +1374,98 @@ class _DeductionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Icon(
-          deductedToday
-              ? Icons.remove_circle
-              : Icons.remove_circle_outline,
-          color: deductedToday ? Colors.red.shade200 : Colors.red,
-          size: 26,
-        ),
-        title: Text(
-          item.name,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: deductedToday ? Colors.grey : Colors.black87,
-          ),
-        ),
-        subtitle: Text(
-          '-${item.points} 分',
-          style: TextStyle(
-            fontSize: 12,
-            color: deductedToday ? Colors.grey.shade400 : Colors.red,
-          ),
-        ),
-        trailing: deductedToday
-            ? GestureDetector(
-                onTap: onUndo,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('已扣分',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade400)),
-                    Text('點擊撤銷',
-                        style: TextStyle(
-                            fontSize: 10, color: Colors.grey.shade300)),
-                  ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: deductedToday ? 0 : 2,
+        shadowColor: Colors.black12,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 5,
+                  color: deductedToday ? Colors.grey.shade300 : Colors.red.shade300,
                 ),
-              )
-            : OutlinedButton(
-                onPressed: onDeduct,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+                Expanded(
+                  child: ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    leading: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: deductedToday
+                            ? Colors.grey.shade100
+                            : Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        deductedToday
+                            ? Icons.remove_circle
+                            : Icons.remove_circle_outline,
+                        color: deductedToday ? Colors.grey.shade400 : Colors.red,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      item.name,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        decoration: deductedToday ? TextDecoration.lineThrough : null,
+                        color: deductedToday ? Colors.grey.shade400 : Colors.black87,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '-${item.points} 分',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: deductedToday ? Colors.grey.shade400 : Colors.red,
+                      ),
+                    ),
+                    trailing: deductedToday
+                        ? GestureDetector(
+                            onTap: onUndo,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('已扣分',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey.shade400)),
+                                Text('點擊撤銷',
+                                    style: TextStyle(
+                                        fontSize: 10, color: Colors.grey.shade300)),
+                              ],
+                            ),
+                          )
+                        : OutlinedButton(
+                            onPressed: onDeduct,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            child: const Text('扣分', style: TextStyle(fontSize: 13)),
+                          ),
                   ),
                 ),
-                child: const Text('扣分', style: TextStyle(fontSize: 13)),
-              ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

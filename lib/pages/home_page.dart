@@ -4,51 +4,72 @@ import 'dart:convert';
 import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
-  // 從設定頁返回時通知 MainPage 重新載入功能開關
   final VoidCallback? onSettingsChanged;
-
   const HomePage({super.key, this.onSettingsChanged});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final List<Map<String, dynamic>> habits = [];
   bool isLoading = true;
   int streak = 0;
-
-  // 用戶資訊
   String _nickname = '你';
   String mascotName0 = '兔咪';
-
-  // 每日問候相關
   bool yesterdayAllDone = false;
   DateTime? onboardingDate;
+
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
+
+  late AnimationController _celebCtrl;
+  late Animation<double> _celebScale;
+
+  final Set<String> _animatedIn = {};
 
   @override
   void initState() {
     super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+
+    _celebCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _celebScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.05), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.05, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _celebCtrl, curve: Curves.elasticOut));
+
     loadHabits();
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _celebCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
-
     final String today = todayString();
     final String? lastOpen = prefs.getString('last_open_date');
     streak = prefs.getInt('streak') ?? 0;
-
-    // 讀取用戶資訊
     _nickname = prefs.getString('user_nickname') ?? '你';
     mascotName0 = prefs.getString('mascot_name') ?? '兔咪';
 
-    // 讀取 onboarding 完成日期（用來判斷前三天問候語）
     final String? obDateStr = prefs.getString('onboarding_date');
     if (obDateStr != null) {
       onboardingDate = DateTime.tryParse(obDateStr);
     } else {
-      // 第一次進入 HomePage 就記錄 onboarding 完成日期
       onboardingDate = DateTime.now();
       await prefs.setString('onboarding_date', onboardingDate!.toIso8601String());
     }
@@ -59,34 +80,25 @@ class _HomePageState extends State<HomePage> {
       habits.addAll(decoded.map((e) => Map<String, dynamic>.from(e)));
     }
 
-    // 跨日處理
     if (lastOpen != null && lastOpen != today) {
-      final bool allDone =
-          habits.isNotEmpty && habits.every((h) => h['done'] == true);
+      final bool allDone = habits.isNotEmpty && habits.every((h) => h['done'] == true);
       yesterdayAllDone = allDone;
-
       if (allDone) {
         streak++;
       } else {
         streak = 0;
       }
-
       await prefs.setInt('streak', streak);
-
-      // 重置打卡狀態
       for (var habit in habits) {
         habit['done'] = false;
       }
       await prefs.setString('habits', jsonEncode(habits));
     }
 
-    // 判斷是否今天第一次開啟 → 顯示問候
     final bool isFirstOpenToday = lastOpen != today;
     await prefs.setString('last_open_date', today);
-
     setState(() => isLoading = false);
 
-    // 今天第一次開啟才顯示問候
     if (isFirstOpenToday && mounted) {
       Future.delayed(const Duration(milliseconds: 400), () {
         if (mounted) showGreeting(prefs, lastOpen);
@@ -94,43 +106,30 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // 判斷並顯示每日問候
   void showGreeting(SharedPreferences prefs, String? lastOpen) {
-    final String message = buildGreetingMessage(lastOpen);
-    showGreetingBanner(message);
+    showGreetingBanner(buildGreetingMessage(lastOpen));
   }
 
   String buildGreetingMessage(String? lastOpen) {
-    // 久違回來（上次超過2天前）
     if (lastOpen != null) {
       final parts = lastOpen.split('-');
       if (parts.length == 3) {
         final lastDate = DateTime.tryParse(
             '${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}');
-        if (lastDate != null) {
-          final diff = DateTime.now().difference(lastDate).inDays;
-          if (diff >= 2) return '你回來了！我好想你 🐰';
+        if (lastDate != null && DateTime.now().difference(lastDate).inDays >= 2) {
+          return '你回來了！我好想你 🐰';
         }
       }
     }
-
-    // Streak >= 7 天
     if (streak >= 7) return '連續一週了！你真的很厲害！🔥';
-
-    // 昨天全部完成
     if (yesterdayAllDone) return '昨天表現超棒！今天繼續！⭐';
-
-    // onboarding 完成後前三天
     if (onboardingDate != null) {
       final daysSince = DateTime.now().difference(onboardingDate!).inDays + 1;
       if (daysSince <= 3) return '第$daysSince天！我們越來越熟了～';
     }
-
-    // 一般問候
     return '早安 $_nickname！今天也要加油喔 🌟';
   }
 
-  // 底部滑出問候卡片，2秒後自動關閉
   void showGreetingBanner(String message) {
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
@@ -142,7 +141,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
     overlay.insert(entry);
-    // 2秒後自動關閉
     Future.delayed(const Duration(seconds: 2), () {
       if (entry.mounted) entry.remove();
     });
@@ -159,7 +157,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   int get doneCount => habits.where((h) => h['done'] == true).length;
-
   bool get allDone0 => habits.isNotEmpty && doneCount == habits.length;
 
   String get _mascotEmoji {
@@ -180,26 +177,21 @@ class _HomePageState extends State<HomePage> {
     return '今天要開始了嗎？我在等你！';
   }
 
-  Color get _mascotColor {
-    if (habits.isEmpty) return Colors.orange.shade200;
-    final ratio = doneCount / habits.length;
-    if (ratio == 1.0) return Colors.green.shade300;
-    if (ratio >= 0.5) return Colors.orange.shade300;
-    if (ratio > 0) return Colors.orange.shade200;
-    return Colors.grey.shade300;
-  }
-
   void toggleHabit(int index) {
+    final wasAllDone = allDone0;
     setState(() {
       habits[index]['done'] = !habits[index]['done'];
     });
     saveHabits();
+    if (!wasAllDone && allDone0) {
+      _celebCtrl.forward(from: 0);
+    }
   }
 
   void deleteHabit(int index) {
-    setState(() {
-      habits.removeAt(index);
-    });
+    final name = habits[index]['name'] as String;
+    _animatedIn.remove(name);
+    setState(() => habits.removeAt(index));
     saveHabits();
   }
 
@@ -256,14 +248,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   static const List<String> _kHabitPresets = [
-    '刷牙',
-    '整理環境',
-    '閱讀 15 分鐘',
-    '早起',
-    '運動 30 分鐘',
-    '喝足夠的水',
-    '冥想 10 分鐘',
-    '早睡',
+    '刷牙', '整理環境', '閱讀 15 分鐘', '早起', '運動 30 分鐘',
+    '喝足夠的水', '冥想 10 分鐘', '早睡',
   ];
 
   Future<void> _showAddHabitSheet() async {
@@ -282,18 +268,15 @@ class _HomePageState extends State<HomePage> {
         builder: (_, setS) {
           final customName = nameCtrl.text.trim();
           final total = (customName.isNotEmpty ? 1 : 0) + selected.length;
-
           return Padding(
-            padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
-                    width: 36,
-                    height: 4,
+                    width: 36, height: 4,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
@@ -301,9 +284,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('新增習慣',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text('新增習慣', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameCtrl,
@@ -311,25 +292,21 @@ class _HomePageState extends State<HomePage> {
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
                     hintText: '自訂習慣名稱...',
+                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    prefixIcon:
-                        const Icon(Icons.edit_outlined, size: 18),
                   ),
                 ),
                 if (available.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Text('常用習慣',
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.grey.shade600)),
+                  Text('常用習慣', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
                   const SizedBox(height: 8),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: 8, runSpacing: 8,
                     children: available.map((name) {
                       final isSelected = selected.contains(name);
                       return FilterChip(
@@ -338,17 +315,11 @@ class _HomePageState extends State<HomePage> {
                         selectedColor: Colors.orange.shade100,
                         checkmarkColor: Colors.orange,
                         labelStyle: TextStyle(
-                          color: isSelected
-                              ? Colors.orange.shade800
-                              : Colors.black87,
+                          color: isSelected ? Colors.orange.shade800 : Colors.black87,
                           fontSize: 13,
                         ),
                         onSelected: (v) => setS(() {
-                          if (v) {
-                            selected.add(name);
-                          } else {
-                            selected.remove(name);
-                          }
+                          if (v) { selected.add(name); } else { selected.remove(name); }
                         }),
                       );
                     }).toList(),
@@ -364,8 +335,7 @@ class _HomePageState extends State<HomePage> {
                             Navigator.pop(ctx);
                             setState(() {
                               if (customName.isNotEmpty) {
-                                habits.add(
-                                    {'name': customName, 'done': false});
+                                habits.add({'name': customName, 'done': false});
                               }
                               for (final name in selected) {
                                 habits.add({'name': name, 'done': false});
@@ -376,8 +346,7 @@ class _HomePageState extends State<HomePage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       disabledBackgroundColor: Colors.grey.shade200,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
@@ -399,34 +368,27 @@ class _HomePageState extends State<HomePage> {
     if (isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8F0),
+      backgroundColor: const Color(0xFFF7F3EF),
       appBar: AppBar(
-        backgroundColor: Colors.orange,
-        title: const Text('我的習慣', style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFFFF7043),
+        elevation: 0,
+        title: const Text('我的習慣'),
         centerTitle: true,
         actions: [
-          // 齒輪按鈕：進入設定頁，返回後通知 MainPage 重新載入功能開關
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: Colors.white),
             tooltip: '設定',
             onPressed: () async {
               await Navigator.of(context).push(
                 PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      const SettingsPage(),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                    const begin = Offset(1.0, 0.0);
-                    const end = Offset.zero;
-                    final tween = Tween(begin: begin, end: end)
-                        .chain(CurveTween(curve: Curves.easeInOut));
-                    return SlideTransition(
-                      position: animation.drive(tween),
-                      child: child,
-                    );
-                  },
+                  pageBuilder: (_, animation, _) => const SettingsPage(),
+                  transitionsBuilder: (_, animation, _, child) => SlideTransition(
+                    position: Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                        .chain(CurveTween(curve: Curves.easeInOut))
+                        .animate(animation),
+                    child: child,
+                  ),
                 ),
               );
               widget.onSettingsChanged?.call();
@@ -436,218 +398,318 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
-          const SizedBox(height: 24),
+          _buildHeader(),
+          const SizedBox(height: 12),
+          _buildAddButton(),
+          const SizedBox(height: 12),
+          Expanded(child: _buildHabitList()),
+        ],
+      ),
+    );
+  }
 
-          // 吉祥物
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: _mascotColor,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(_mascotEmoji, style: const TextStyle(fontSize: 48)),
-            ),
+  Widget _buildHeader() {
+    final progress = habits.isEmpty ? 0.0 : doneCount / habits.length;
+    return ScaleTransition(
+      scale: _celebScale,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: allDone0
+                ? [const Color(0xFF43A047), const Color(0xFF66BB6A)]
+                : [const Color(0xFFFF7043), const Color(0xFFFFAB40)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-
-          const SizedBox(height: 12),
-
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              _mascotMessage,
-              key: ValueKey(_mascotMessage),
-              style: const TextStyle(fontSize: 15, color: Colors.orange),
-              textAlign: TextAlign.center,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: (allDone0 ? Colors.green : const Color(0xFFFF7043))
+                  .withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
             ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // 連續天數
-          if (streak > 0)
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Container(
-                key: ValueKey(streak),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                ScaleTransition(
+                  scale: _pulseAnim,
+                  child: Text(_mascotEmoji, style: const TextStyle(fontSize: 50)),
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '🔥 已連續 $streak 天達成！',
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 12),
-
-          // 今日進度
-          if (habits.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: allDone0 ? Colors.green.shade50 : Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: allDone0
-                      ? Colors.green.shade300
-                      : Colors.orange.shade200,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '今日進度',
-                    style: TextStyle(
-                      color: allDone0
-                          ? Colors.green.shade700
-                          : Colors.orange.shade700,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    '$doneCount / ${habits.length} 完成',
-                    style: TextStyle(
-                      color: allDone0
-                          ? Colors.green.shade700
-                          : Colors.orange.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          const SizedBox(height: 16),
-
-          // 新增習慣
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _showAddHabitSheet,
-                icon: const Icon(Icons.add),
-                label: const Text('新增習慣'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.orange,
-                  side: BorderSide(color: Colors.orange.shade300),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // 習慣清單
-          Expanded(
-            child: habits.isEmpty
-                ? const Center(
-                    child: Text(
-                      '還沒有習慣，新增一個吧！',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    itemCount: habits.length,
-                    itemBuilder: (context, index) {
-                      final habit = habits[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: habit['done']
-                              ? Colors.orange.shade50
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: habit['done']
-                                ? Colors.orange
-                                : Colors.grey.shade200,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: Text(
+                          _mascotMessage,
+                          key: ValueKey(_mascotMessage),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                habit['name'],
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  decoration: habit['done']
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                  color: habit['done']
-                                      ? Colors.grey
-                                      : Colors.black87,
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => toggleHabit(index),
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: habit['done']
-                                      ? Colors.orange
-                                      : Colors.grey.shade200,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: habit['done']
-                                    ? const Icon(
-                                        Icons.check,
-                                        color: Colors.white,
-                                        size: 18,
-                                      )
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            PopupMenuButton<String>(
-                              icon: Icon(Icons.more_vert,
-                                  size: 20, color: Colors.grey.shade400),
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(value: 'rename', child: Text('改名')),
-                                PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
-                              ],
-                              onSelected: (action) {
-                                if (action == 'rename') {
-                                  renameHabit(index);
-                                } else {
-                                  _confirmDeleteHabit(index);
-                                }
-                              },
-                            ),
-                          ],
+                      ),
+                      if (streak > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '🔥 連續 $streak 天',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
                         ),
-                      );
-                    },
+                    ],
                   ),
+                ),
+                if (habits.isNotEmpty) ...[
+                  const SizedBox(width: 10),
+                  Column(
+                    children: [
+                      Text(
+                        '$doneCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          height: 1.0,
+                        ),
+                      ),
+                      Text(
+                        '/ ${habits.length}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+            if (habits.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: progress),
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.easeOut,
+                builder: (_, value, _) => ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: value,
+                    minHeight: 8,
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
+                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _showAddHabitSheet,
+          icon: const Icon(Icons.add),
+          label: const Text('新增習慣'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.orange,
+            side: BorderSide(color: Colors.orange.shade300),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHabitList() {
+    if (habits.isEmpty) {
+      return const Center(
+        child: Text('還沒有習慣，新增一個吧！', style: TextStyle(color: Colors.grey)),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: habits.length,
+      itemBuilder: (context, index) {
+        final habit = habits[index];
+        final name = habit['name'] as String;
+        final alreadyShown = _animatedIn.contains(name);
+        _animatedIn.add(name);
+
+        return TweenAnimationBuilder<double>(
+          key: ValueKey('anim_$name'),
+          tween: Tween(begin: alreadyShown ? 1.0 : 0.0, end: 1.0),
+          duration: Duration(milliseconds: alreadyShown ? 0 : 220 + index * 55),
+          curve: Curves.easeOut,
+          builder: (_, v, child) => Opacity(
+            opacity: v,
+            child: Transform.translate(offset: Offset(0, 16 * (1 - v)), child: child),
+          ),
+          child: _HabitCard(
+            key: ValueKey(name),
+            habit: habit,
+            onToggle: () => toggleHabit(index),
+            onRename: () => renameHabit(index),
+            onDelete: () => _confirmDeleteHabit(index),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── 習慣卡片（含彈跳動畫）──
+
+class _HabitCard extends StatefulWidget {
+  final Map<String, dynamic> habit;
+  final VoidCallback onToggle;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+
+  const _HabitCard({
+    super.key,
+    required this.habit,
+    required this.onToggle,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  @override
+  State<_HabitCard> createState() => _HabitCardState();
+}
+
+class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.78), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 0.78, end: 1.18), weight: 45),
+      TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 30),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _ctrl.forward(from: 0);
+    widget.onToggle();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final done = widget.habit['done'] as bool;
+    final name = widget.habit['name'] as String;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: done ? 0 : 2,
+        shadowColor: Colors.black12,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 5,
+                  color: done ? Colors.green.shade400 : Colors.orange.shade400,
+                ),
+                Expanded(
+                  child: ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    leading: GestureDetector(
+                      onTap: _handleTap,
+                      child: ScaleTransition(
+                        scale: _scale,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: done ? Colors.green.shade400 : Colors.transparent,
+                            border: done
+                                ? null
+                                : Border.all(color: Colors.grey.shade300, width: 2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: done
+                              ? const Icon(Icons.check, color: Colors.white, size: 18)
+                              : null,
+                        ),
+                      ),
+                    ),
+                    title: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 250),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        decoration:
+                            done ? TextDecoration.lineThrough : TextDecoration.none,
+                        color: done ? Colors.grey.shade400 : Colors.black87,
+                      ),
+                      child: Text(name),
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'rename', child: Text('改名')),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('刪除', style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                      onSelected: (action) {
+                        if (action == 'rename') {
+                          widget.onRename();
+                        } else {
+                          widget.onDelete();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-// 底部問候卡片 Widget（Overlay 方式顯示）
+// ── 問候橫幅 ──
+
 class _GreetingBanner extends StatefulWidget {
   final String mascotName;
   final String message;
@@ -697,8 +759,7 @@ class _GreetingBannerState extends State<_GreetingBanner>
           child: Material(
             color: Colors.transparent,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -717,20 +778,19 @@ class _GreetingBannerState extends State<_GreetingBanner>
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                        color: Colors.orange.shade200,
-                        shape: BoxShape.circle),
-                    child: const Center(
-                        child: Text('🐰',
-                            style: TextStyle(fontSize: 26))),
+                        color: Colors.orange.shade200, shape: BoxShape.circle),
+                    child:
+                        const Center(child: Text('🐰', style: TextStyle(fontSize: 26))),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       widget.message,
                       style: TextStyle(
-                          fontSize: 15,
-                          color: Colors.orange.shade900,
-                          fontWeight: FontWeight.w600),
+                        fontSize: 15,
+                        color: Colors.orange.shade900,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
