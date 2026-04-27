@@ -2434,93 +2434,208 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     }
 
     final nameCtrl = TextEditingController();
-    final pointCtrl = TextEditingController();
-    // 預設勾選第一個小孩
+    final pointCtrl = TextEditingController(text: '10');
     final Set<String> selectedIds = {_children.first.id};
+    final selectedPresets = <String>{};
 
-    final result = await showDialog<bool>(
+    // 過濾掉已存在的習慣名稱
+    final existingNames = _habits.map((h) => h.name).toSet();
+    final available =
+        _kHabitPresets.where((p) => !existingNames.contains(p.name)).toList();
+
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('新增習慣'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 多選小孩
-                Text('套用小孩',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600)),
-                ..._children.map((c) => CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(c.name),
-                      value: selectedIds.contains(c.id),
-                      onChanged: (v) => setS(() {
-                        if (v == true) {
-                          selectedIds.add(c.id);
-                        } else {
-                          selectedIds.remove(c.id);
-                        }
-                      }),
-                    )),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameCtrl,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: '習慣名稱'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: pointCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: '完成可得分數'),
-                ),
-              ],
+        builder: (_, setS) {
+          final customName = nameCtrl.text.trim();
+          final total =
+              (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
+          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final canAdd =
+              total > 0 && pts > 0 && selectedIds.isNotEmpty;
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 拖曳把手
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('新增習慣',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 14),
+
+                  // 套用小孩
+                  Text('套用小孩',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _children.map((c) {
+                      final sel = selectedIds.contains(c.id);
+                      return FilterChip(
+                        label: Text(c.name),
+                        selected: sel,
+                        selectedColor: Colors.orange.shade100,
+                        checkmarkColor: Colors.orange,
+                        onSelected: (v) => setS(() {
+                          if (v) {
+                            selectedIds.add(c.id);
+                          } else {
+                            selectedIds.remove(c.id);
+                          }
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 常用習慣預設
+                  if (available.isNotEmpty) ...[
+                    Text('常用習慣',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: available.map((p) {
+                        final sel = selectedPresets.contains(p.name);
+                        return FilterChip(
+                          label: Text(p.name,
+                              style: const TextStyle(fontSize: 13)),
+                          selected: sel,
+                          selectedColor: Colors.orange.shade100,
+                          checkmarkColor: Colors.orange,
+                          labelStyle: TextStyle(
+                            color: sel
+                                ? Colors.orange.shade800
+                                : Colors.black87,
+                          ),
+                          onSelected: (v) => setS(() {
+                            if (v) {
+                              selectedPresets.add(p.name);
+                            } else {
+                              selectedPresets.remove(p.name);
+                            }
+                          }),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // 自訂名稱
+                  TextField(
+                    controller: nameCtrl,
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      hintText: '自訂習慣名稱...',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon:
+                          const Icon(Icons.edit_outlined, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 分數
+                  TextField(
+                    controller: pointCtrl,
+                    onChanged: (_) => setS(() {}),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: '完成可得分數',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: const Icon(Icons.star_outline, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 新增按鈕
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canAdd
+                          ? () async {
+                              Navigator.pop(ctx);
+                              final name = nameCtrl.text.trim();
+                              final pts =
+                                  int.tryParse(pointCtrl.text.trim()) ?? 0;
+                              final namesToAdd = <String>[
+                                ...selectedPresets,
+                                if (name.isNotEmpty) name,
+                              ];
+                              final prefs = _prefs!;
+                              final habits = await _loadHabits(prefs);
+                              for (final n in namesToAdd) {
+                                for (final childId in selectedIds) {
+                                  habits.add(ChildHabit(
+                                    id: _genId(),
+                                    childId: childId,
+                                    name: n,
+                                    points: pts,
+                                  ));
+                                }
+                              }
+                              await _saveHabits(prefs, habits);
+                              _changed = true;
+                              await _loadAll();
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        total == 0
+                            ? '請選擇或輸入習慣'
+                            : '新增 ($total 項)',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child:
-                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('新增'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-
-    if (result != true) return;
-    final name = nameCtrl.text.trim();
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('請至少選一個小孩，且習慣名稱不得為空、分數須大於 0')),
-        );
-      }
-      return;
-    }
-
-    final prefs = _prefs!;
-    final habits = await _loadHabits(prefs);
-    for (final childId in selectedIds) {
-      habits.add(ChildHabit(
-        id: _genId(),
-        childId: childId,
-        name: name,
-        points: pts,
-      ));
-    }
-    await _saveHabits(prefs, habits);
-    _changed = true;
-    await _loadAll();
   }
 
   // ── 刪除習慣 ──
@@ -2610,93 +2725,205 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     }
 
     final nameCtrl = TextEditingController();
-    final pointCtrl = TextEditingController();
-    // 預設勾選第一個小孩
+    final pointCtrl = TextEditingController(text: '5');
     final Set<String> selectedIds = {_children.first.id};
+    final selectedPresets = <String>{};
 
-    final result = await showDialog<bool>(
+    final existingNames = _deductions.map((d) => d.name).toSet();
+    final available =
+        _kDeductionPresets.where((p) => !existingNames.contains(p.name)).toList();
+
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('新增扣分項目'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 多選小孩
-                Text('套用小孩',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600)),
-                ..._children.map((c) => CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(c.name),
-                      value: selectedIds.contains(c.id),
-                      onChanged: (v) => setS(() {
-                        if (v == true) {
-                          selectedIds.add(c.id);
-                        } else {
-                          selectedIds.remove(c.id);
-                        }
-                      }),
-                    )),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameCtrl,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: '扣分項目名稱'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: pointCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: '扣幾分'),
-                ),
-              ],
+        builder: (_, setS) {
+          final customName = nameCtrl.text.trim();
+          final total =
+              (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
+          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final canAdd = total > 0 && pts > 0 && selectedIds.isNotEmpty;
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('新增扣分項目',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 14),
+
+                  // 套用小孩
+                  Text('套用小孩',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _children.map((c) {
+                      final sel = selectedIds.contains(c.id);
+                      return FilterChip(
+                        label: Text(c.name),
+                        selected: sel,
+                        selectedColor: Colors.red.shade100,
+                        checkmarkColor: Colors.red,
+                        onSelected: (v) => setS(() {
+                          if (v) {
+                            selectedIds.add(c.id);
+                          } else {
+                            selectedIds.remove(c.id);
+                          }
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 常用扣分預設
+                  if (available.isNotEmpty) ...[
+                    Text('常用項目',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: available.map((p) {
+                        final sel = selectedPresets.contains(p.name);
+                        return FilterChip(
+                          label: Text(p.name,
+                              style: const TextStyle(fontSize: 13)),
+                          selected: sel,
+                          selectedColor: Colors.red.shade100,
+                          checkmarkColor: Colors.red,
+                          labelStyle: TextStyle(
+                            color: sel ? Colors.red.shade800 : Colors.black87,
+                          ),
+                          onSelected: (v) => setS(() {
+                            if (v) {
+                              selectedPresets.add(p.name);
+                            } else {
+                              selectedPresets.remove(p.name);
+                            }
+                          }),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // 自訂名稱
+                  TextField(
+                    controller: nameCtrl,
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      hintText: '自訂扣分項目名稱...',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon:
+                          const Icon(Icons.edit_outlined, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 扣幾分
+                  TextField(
+                    controller: pointCtrl,
+                    onChanged: (_) => setS(() {}),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: '扣幾分',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon:
+                          const Icon(Icons.remove_circle_outline, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 新增按鈕
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canAdd
+                          ? () async {
+                              Navigator.pop(ctx);
+                              final name = nameCtrl.text.trim();
+                              final pts =
+                                  int.tryParse(pointCtrl.text.trim()) ?? 0;
+                              final namesToAdd = <String>[
+                                ...selectedPresets,
+                                if (name.isNotEmpty) name,
+                              ];
+                              final prefs = _prefs!;
+                              final deductions =
+                                  await _loadDeductions(prefs);
+                              for (final n in namesToAdd) {
+                                for (final childId in selectedIds) {
+                                  deductions.add(DeductionItem(
+                                    id: _genId(),
+                                    childId: childId,
+                                    name: n,
+                                    points: pts,
+                                  ));
+                                }
+                              }
+                              await _saveDeductions(prefs, deductions);
+                              _changed = true;
+                              await _loadAll();
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        total == 0
+                            ? '請選擇或輸入項目'
+                            : '新增 ($total 項)',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child:
-                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('新增'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-
-    if (result != true) return;
-    final name = nameCtrl.text.trim();
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('請至少選一個小孩，且項目名稱不得為空、扣分須大於 0')),
-        );
-      }
-      return;
-    }
-
-    final prefs = _prefs!;
-    final deductions = await _loadDeductions(prefs);
-    for (final childId in selectedIds) {
-      deductions.add(DeductionItem(
-        id: _genId(),
-        childId: childId,
-        name: name,
-        points: pts,
-      ));
-    }
-    await _saveDeductions(prefs, deductions);
-    _changed = true;
-    await _loadAll();
   }
 
   // ── 刪除扣分項目 ──
@@ -3487,62 +3714,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
   }
 
-  Future<void> _showHabitPresets() => _showPresetSheet(
-        title: '常用習慣',
-        titleIcon: Icons.check_circle_outline,
-        color: Colors.green,
-        presets: _kHabitPresets,
-        defaultAllChildren: false,
-        subtitle: (p) => '+${p.value} 分',
-        subtitleColor: Colors.green.shade700,
-        valueLabel: '可得分數',
-        onConfirm: (childIds, selected) async {
-          final prefs = _prefs!;
-          final habits = await _loadHabits(prefs);
-          for (final p in selected) {
-            for (final childId in childIds) {
-              habits.add(ChildHabit(
-                id: _genId(),
-                childId: childId,
-                name: p.name,
-                points: p.value,
-              ));
-            }
-          }
-          await _saveHabits(prefs, habits);
-          _changed = true;
-          await _loadAll();
-        },
-      );
-
-  Future<void> _showDeductionPresets() => _showPresetSheet(
-        title: '常用扣分',
-        titleIcon: Icons.remove_circle_outline,
-        color: Colors.red,
-        presets: _kDeductionPresets,
-        defaultAllChildren: false,
-        subtitle: (p) => '-${p.value} 分',
-        subtitleColor: Colors.red.shade700,
-        valueLabel: '扣幾分',
-        onConfirm: (childIds, selected) async {
-          final prefs = _prefs!;
-          final deductions = await _loadDeductions(prefs);
-          for (final p in selected) {
-            for (final childId in childIds) {
-              deductions.add(DeductionItem(
-                id: _genId(),
-                childId: childId,
-                name: p.name,
-                points: p.value,
-              ));
-            }
-          }
-          await _saveDeductions(prefs, deductions);
-          _changed = true;
-          await _loadAll();
-        },
-      );
-
   Future<void> _showRewardPresets() => _showPresetSheet(
         title: '常用獎勵',
         titleIcon: Icons.card_giftcard_outlined,
@@ -3642,15 +3813,15 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         _sectionTitle('習慣管理', Icons.check_circle_outline, Colors.green),
         const SizedBox(height: 8),
         ..._buildHabitSection(),
-        _addWithPresetButtons('自訂習慣', Colors.green, _addHabit, _showHabitPresets),
+        _addButton('新增習慣', Icons.add, Colors.green, _addHabit),
 
         const SizedBox(height: 24),
 
         // ── 扣分項目區塊 ──
-        _sectionTitle('扣分項目', Icons.remove_circle_outline, Colors.red),
+        _sectionTitle('扣分預設理由', Icons.remove_circle_outline, Colors.red),
         const SizedBox(height: 8),
         ..._buildDeductionSection(),
-        _addWithPresetButtons('自訂扣分項目', Colors.red, _addDeduction, _showDeductionPresets),
+        _addButton('新增扣分項目', Icons.add, Colors.red, _addDeduction),
 
         const SizedBox(height: 24),
 
