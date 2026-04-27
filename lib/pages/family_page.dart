@@ -1238,10 +1238,26 @@ class _HabitItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: Icon(
-          doneToday ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: doneToday ? Colors.green : Colors.grey.shade400,
-          size: 28,
+        leading: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: doneToday ? onUndo : onCheckIn,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  doneToday
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  key: ValueKey(doneToday),
+                  color: doneToday ? Colors.green : Colors.grey.shade400,
+                  size: 28,
+                ),
+              ),
+            ),
+          ),
         ),
         title: Text(
           habit.name,
@@ -1260,35 +1276,18 @@ class _HabitItem extends StatelessWidget {
           ),
         ),
         trailing: doneToday
-            ? GestureDetector(
-                onTap: onUndo,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('已完成',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade400)),
-                    Text('點擊撤銷',
-                        style: TextStyle(
-                            fontSize: 10, color: Colors.grey.shade300)),
-                  ],
-                ),
-              )
-            : ElevatedButton(
-                onPressed: onCheckIn,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            ? TextButton(
+                onPressed: onUndo,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
                 ),
-                child: const Text('做到了', style: TextStyle(fontSize: 13)),
-              ),
+                child: Text('撤銷',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade400)),
+              )
+            : null,
       ),
     );
   }
