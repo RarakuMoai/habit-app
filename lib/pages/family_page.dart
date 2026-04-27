@@ -259,37 +259,38 @@ const Map<String, String> _resetModeLabels = {
 class _Preset {
   final String name;
   final int value;
-  const _Preset(this.name, this.value);
+  final String emoji;
+  const _Preset(this.name, this.value, [this.emoji = '']);
 }
 
 const List<_Preset> _kHabitPresets = [
-  _Preset('刷牙', 5),
-  _Preset('寫作業', 10),
-  _Preset('整理房間', 10),
-  _Preset('閱讀 15 分鐘', 10),
-  _Preset('早起', 10),
-  _Preset('運動 30 分鐘', 15),
-  _Preset('喝足夠的水', 5),
+  _Preset('刷牙', 5, '🦷'),
+  _Preset('寫作業', 10, '📚'),
+  _Preset('整理房間', 10, '🧹'),
+  _Preset('閱讀 15 分鐘', 10, '📖'),
+  _Preset('早起', 10, '🌅'),
+  _Preset('運動 30 分鐘', 15, '🏃'),
+  _Preset('喝足夠的水', 5, '💧'),
 ];
 
 const List<_Preset> _kDeductionPresets = [
-  _Preset('罵髒話', 10),
-  _Preset('不寫作業', 15),
-  _Preset('頂嘴不聽話', 10),
-  _Preset('睡過頭', 10),
-  _Preset('說謊', 20),
-  _Preset('亂發脾氣', 10),
-  _Preset('打架動手', 30),
+  _Preset('罵髒話', 10, '🤬'),
+  _Preset('不寫作業', 15, '📵'),
+  _Preset('頂嘴不聽話', 10, '😤'),
+  _Preset('睡過頭', 10, '😴'),
+  _Preset('說謊', 20, '🤥'),
+  _Preset('亂發脾氣', 10, '💢'),
+  _Preset('打架動手', 30, '👊'),
 ];
 
 const List<_Preset> _kRewardPresets = [
-  _Preset('看電視 30 分鐘', 30),
-  _Preset('玩遊戲 30 分鐘', 30),
-  _Preset('選今晚的晚餐', 50),
-  _Preset('買零食一樣', 50),
-  _Preset('延後睡覺 30 分鐘', 40),
-  _Preset('看一部電影', 100),
-  _Preset('買一個小玩具', 150),
+  _Preset('看電視 30 分鐘', 30, '📺'),
+  _Preset('玩遊戲 30 分鐘', 30, '🎮'),
+  _Preset('選今晚的晚餐', 50, '🍽️'),
+  _Preset('買零食一樣', 50, '🍬'),
+  _Preset('延後睡覺 30 分鐘', 40, '🌙'),
+  _Preset('看一部電影', 100, '🎬'),
+  _Preset('買一個小玩具', 150, '🧸'),
 ];
 
 // 今日日期字串（yyyy-MM-dd）
@@ -2515,30 +2516,86 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     Text('常用習慣',
                         style: TextStyle(
                             fontSize: 12, color: Colors.grey.shade600)),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      runSpacing: 6,
+                      runSpacing: 8,
                       children: available.map((p) {
                         final sel = selectedPresets.contains(p.name);
-                        return FilterChip(
-                          label: Text(p.name,
-                              style: const TextStyle(fontSize: 13)),
-                          selected: sel,
-                          selectedColor: Colors.orange.shade100,
-                          checkmarkColor: Colors.orange,
-                          labelStyle: TextStyle(
-                            color: sel
-                                ? Colors.orange.shade800
-                                : Colors.black87,
-                          ),
-                          onSelected: (v) => setS(() {
-                            if (v) {
-                              selectedPresets.add(p.name);
-                            } else {
+                        return GestureDetector(
+                          onTap: () => setS(() {
+                            if (sel) {
                               selectedPresets.remove(p.name);
+                            } else {
+                              selectedPresets.add(p.name);
                             }
                           }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+                            decoration: BoxDecoration(
+                              color: sel ? Colors.orange : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: sel
+                                    ? Colors.orange
+                                    : Colors.grey.shade300,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: sel
+                                      ? Colors.orange.withValues(alpha: 0.25)
+                                      : Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: sel ? 6 : 3,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (p.emoji.isNotEmpty) ...[
+                                  Text(p.emoji,
+                                      style:
+                                          const TextStyle(fontSize: 15)),
+                                  const SizedBox(width: 5),
+                                ],
+                                Text(
+                                  p.name,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: sel
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: sel
+                                        ? Colors.white
+                                            .withValues(alpha: 0.25)
+                                        : Colors.orange
+                                            .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '+${p.value}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: sel
+                                          ? Colors.white
+                                          : Colors.orange.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         );
                       }).toList(),
                     ),
@@ -2803,28 +2860,87 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     Text('常用項目',
                         style: TextStyle(
                             fontSize: 12, color: Colors.grey.shade600)),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      runSpacing: 6,
+                      runSpacing: 8,
                       children: available.map((p) {
                         final sel = selectedPresets.contains(p.name);
-                        return FilterChip(
-                          label: Text(p.name,
-                              style: const TextStyle(fontSize: 13)),
-                          selected: sel,
-                          selectedColor: Colors.red.shade100,
-                          checkmarkColor: Colors.red,
-                          labelStyle: TextStyle(
-                            color: sel ? Colors.red.shade800 : Colors.black87,
-                          ),
-                          onSelected: (v) => setS(() {
-                            if (v) {
-                              selectedPresets.add(p.name);
-                            } else {
+                        final baseColor = Colors.red.shade600;
+                        return GestureDetector(
+                          onTap: () => setS(() {
+                            if (sel) {
                               selectedPresets.remove(p.name);
+                            } else {
+                              selectedPresets.add(p.name);
                             }
                           }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+                            decoration: BoxDecoration(
+                              color: sel ? baseColor : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: sel
+                                    ? baseColor
+                                    : Colors.grey.shade300,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: sel
+                                      ? baseColor.withValues(alpha: 0.25)
+                                      : Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: sel ? 6 : 3,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (p.emoji.isNotEmpty) ...[
+                                  Text(p.emoji,
+                                      style:
+                                          const TextStyle(fontSize: 15)),
+                                  const SizedBox(width: 5),
+                                ],
+                                Text(
+                                  p.name,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: sel
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: sel
+                                        ? Colors.white
+                                            .withValues(alpha: 0.25)
+                                        : baseColor
+                                            .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '-${p.value}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: sel
+                                          ? Colors.white
+                                          : baseColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         );
                       }).toList(),
                     ),
