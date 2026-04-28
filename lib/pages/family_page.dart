@@ -971,8 +971,249 @@ class _HabitTabState extends State<_HabitTab> {
 
   // ── 特殊積分（需家長密碼）──
   static const _kAddPresets = [
-    '幫忙做家事', '表現良好', '考試進步', '幫助別人', '準時完成作業', '主動學習',
+    _Preset('幫忙做家事', 10, '🏠'),
+    _Preset('表現良好', 10, '😊'),
+    _Preset('考試進步', 20, '📈'),
+    _Preset('幫助別人', 10, '🤝'),
+    _Preset('準時完成作業', 15, '⏰'),
+    _Preset('主動學習', 15, '📚'),
   ];
+
+  // 特殊積分預設子選單（勾選 + 個別調整分數）
+  Future<Map<String, int>?> _showSpecialPresetSubSheet({
+    required List<_Preset> available,
+    required Map<String, int> initial,
+    required String title,
+    required Color accentColor,
+    required String badgePrefix,
+    required String dialogLabel,
+  }) {
+    final selected = Map<String, int>.from(initial);
+    return showModalBottomSheet<Map<String, int>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, size: 18, color: accentColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(title,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    if (selected.isNotEmpty)
+                      Text('${selected.length} 項已選',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollCtrl,
+                  itemCount: available.length,
+                  itemBuilder: (_, i) {
+                    final p = available[i];
+                    final sel = selected.containsKey(p.name);
+                    final pts = selected[p.name] ?? p.value;
+                    return InkWell(
+                      onTap: () => setS(() {
+                        if (sel) {
+                          selected.remove(p.name);
+                        } else {
+                          selected[p.name] = p.value;
+                        }
+                      }),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? accentColor.withValues(alpha: 0.08)
+                              : Colors.white,
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Colors.grey.shade100),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(p.emoji,
+                                style: const TextStyle(fontSize: 22)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                p.name,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: sel
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color:
+                                      sel ? accentColor : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () async {
+                                if (!sel) {
+                                  setS(() => selected[p.name] = p.value);
+                                }
+                                final ctrl =
+                                    TextEditingController(text: '$pts');
+                                final newPts = await showDialog<int>(
+                                  context: ctx,
+                                  builder: (dCtx) => AlertDialog(
+                                    title: Text('調整分數：${p.name}'),
+                                    content: TextField(
+                                      controller: ctrl,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter
+                                            .digitsOnly
+                                      ],
+                                      decoration: InputDecoration(
+                                          labelText: dialogLabel),
+                                      autofocus: true,
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dCtx),
+                                        child: Text('取消',
+                                            style: TextStyle(
+                                                color: Colors
+                                                    .grey.shade600)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(
+                                            dCtx,
+                                            int.tryParse(ctrl.text) ??
+                                                pts),
+                                        child: const Text('確認'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (newPts != null && newPts > 0) {
+                                  setS(() => selected[p.name] = newPts);
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: sel
+                                      ? accentColor
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '$badgePrefix$pts',
+                                      style: TextStyle(
+                                        color: sel
+                                            ? Colors.white
+                                            : Colors.grey.shade600,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (sel) ...[
+                                      const SizedBox(width: 3),
+                                      const Icon(Icons.edit,
+                                          size: 10, color: Colors.white),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: sel
+                                    ? accentColor
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: sel
+                                      ? accentColor
+                                      : Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              child: sel
+                                  ? const Icon(Icons.check,
+                                      size: 14, color: Colors.white)
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    20, 12, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, selected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      selected.isEmpty
+                          ? '確認（未選取）'
+                          : '確認選取 (${selected.length} 項)',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _giveSpecialPoints() async {
     if (!mounted) return;
@@ -982,8 +1223,8 @@ class _HabitTabState extends State<_HabitTab> {
     bool isAdd = true;
     final reasonCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
-    final selectedAdd = <String>{};
-    final selectedDeduct = <String>{};
+    final selectedAddPresets = <String, int>{};
+    final selectedDeductItems = <String, int>{};
 
     await showModalBottomSheet(
       context: context,
@@ -993,11 +1234,13 @@ class _HabitTabState extends State<_HabitTab> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (_, setS) {
-          final reason = reasonCtrl.text.trim();
-          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-          final hasReason =
-              reason.isNotEmpty || (!isAdd && selectedDeduct.isNotEmpty);
-          final canConfirm = hasReason && pts > 0;
+          final customReason = reasonCtrl.text.trim();
+          final customPts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final hasCustom = customReason.isNotEmpty;
+          final selectedPresets =
+              isAdd ? selectedAddPresets : selectedDeductItems;
+          final canConfirm = selectedPresets.isNotEmpty ||
+              (hasCustom && customPts > 0);
 
           return Padding(
             padding: EdgeInsets.fromLTRB(
@@ -1040,98 +1283,122 @@ class _HabitTabState extends State<_HabitTab> {
                     selected: {isAdd},
                     onSelectionChanged: (s) => setS(() {
                       isAdd = s.first;
-                      selectedAdd.clear();
-                      selectedDeduct.clear();
+                      selectedAddPresets.clear();
+                      selectedDeductItems.clear();
                       reasonCtrl.clear();
                       pointCtrl.clear();
                     }),
                     style: SegmentedButton.styleFrom(
-                      selectedBackgroundColor:
-                          isAdd ? Colors.green.shade50 : Colors.red.shade50,
+                      selectedBackgroundColor: isAdd
+                          ? Colors.green.shade50
+                          : Colors.red.shade50,
                       selectedForegroundColor:
                           isAdd ? Colors.green : Colors.red,
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  // 加分預設理由
-                  if (isAdd) ...[
-                    Text('快速理由',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600)),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: _kAddPresets.map((name) {
-                        final sel = selectedAdd.contains(name);
-                        return FilterChip(
-                          label: Text(name,
-                              style: const TextStyle(fontSize: 12)),
-                          selected: sel,
-                          selectedColor: Colors.green.shade100,
-                          checkmarkColor: Colors.green,
-                          labelStyle: TextStyle(
-                            color: sel
-                                ? Colors.green.shade800
-                                : Colors.black87,
-                          ),
-                          onSelected: (v) => setS(() {
-                            if (v) {
-                              selectedAdd.add(name);
-                            } else {
-                              selectedAdd.remove(name);
-                            }
-                            reasonCtrl.text = selectedAdd.join('、');
-                          }),
+                  // 快速理由 / 扣分項目 子選單按鈕
+                  InkWell(
+                    onTap: () async {
+                      if (isAdd) {
+                        final result = await _showSpecialPresetSubSheet(
+                          available: _kAddPresets.toList(),
+                          initial: Map.from(selectedAddPresets),
+                          title: '快速理由',
+                          accentColor: Colors.green.shade600,
+                          badgePrefix: '+',
+                          dialogLabel: '加幾分',
                         );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-
-                  // 扣分預設理由（來自家長設定的扣分項目）
-                  if (!isAdd && _deductions.isNotEmpty) ...[
-                    Text('扣分原因',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600)),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: _deductions.map((d) {
-                        final sel = selectedDeduct.contains(d.name);
-                        return FilterChip(
-                          label: Text('${d.name}  −${d.points}分',
-                              style: const TextStyle(fontSize: 12)),
-                          selected: sel,
-                          selectedColor: Colors.red.shade100,
-                          checkmarkColor: Colors.red,
-                          labelStyle: TextStyle(
-                            color:
-                                sel ? Colors.red.shade800 : Colors.black87,
-                          ),
-                          onSelected: (v) {
-                            if (v) {
-                              selectedDeduct.add(d.name);
-                            } else {
-                              selectedDeduct.remove(d.name);
-                            }
-                            int total = 0;
-                            for (final item in _deductions) {
-                              if (selectedDeduct.contains(item.name)) {
-                                total += item.points;
-                              }
-                            }
-                            pointCtrl.text =
-                                total > 0 ? total.toString() : '';
-                            setS(() {});
-                          },
+                        if (result != null) {
+                          setS(() {
+                            selectedAddPresets.clear();
+                            selectedAddPresets.addAll(result);
+                          });
+                        }
+                      } else {
+                        if (_deductions.isEmpty) return;
+                        final result = await _showSpecialPresetSubSheet(
+                          available: _deductions
+                              .map((d) => _Preset(d.name, d.points))
+                              .toList(),
+                          initial: Map.from(selectedDeductItems),
+                          title: '扣分項目',
+                          accentColor: Colors.red.shade600,
+                          badgePrefix: '-',
+                          dialogLabel: '扣幾分',
                         );
-                      }).toList(),
+                        if (result != null) {
+                          setS(() {
+                            selectedDeductItems.clear();
+                            selectedDeductItems.addAll(result);
+                          });
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: selectedPresets.isEmpty
+                            ? Colors.grey.shade50
+                            : (isAdd
+                                ? Colors.green.shade50
+                                : Colors.red.shade50),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selectedPresets.isEmpty
+                              ? Colors.grey.shade300
+                              : (isAdd
+                                  ? Colors.green.shade300
+                                  : Colors.red.shade300),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            size: 18,
+                            color: selectedPresets.isEmpty
+                                ? Colors.grey.shade500
+                                : (isAdd
+                                    ? Colors.green.shade600
+                                    : Colors.red.shade600),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              selectedPresets.isEmpty
+                                  ? (isAdd ? '從快速理由選取' : '從扣分項目選取')
+                                  : '已選 ${selectedPresets.length} 項',
+                              style: TextStyle(
+                                color: selectedPresets.isEmpty
+                                    ? Colors.grey.shade600
+                                    : (isAdd
+                                        ? Colors.green.shade700
+                                        : Colors.red.shade700),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            selectedPresets.isEmpty
+                                ? Icons.chevron_right
+                                : Icons.check_circle,
+                            size: 20,
+                            color: selectedPresets.isEmpty
+                                ? Colors.grey.shade400
+                                : (isAdd
+                                    ? Colors.green.shade600
+                                    : Colors.red.shade600),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                  ],
+                  ),
+                  const SizedBox(height: 14),
 
                   // 自訂原因
                   TextField(
@@ -1149,33 +1416,35 @@ class _HabitTabState extends State<_HabitTab> {
                           const Icon(Icons.edit_outlined, size: 18),
                     ),
                   ),
-                  const SizedBox(height: 12),
 
-                  // 分數
-                  TextField(
-                    controller: pointCtrl,
-                    onChanged: (_) => setS(() {}),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly
-                    ],
-                    decoration: InputDecoration(
-                      labelText: '分數',
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      prefixIcon: Icon(
-                        isAdd
-                            ? Icons.add_circle_outline
-                            : Icons.remove_circle_outline,
-                        size: 18,
-                        color: isAdd ? Colors.green : Colors.red,
+                  // 自訂分數（有輸入原因才顯示）
+                  if (hasCustom) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: pointCtrl,
+                      onChanged: (_) => setS(() {}),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
+                      decoration: InputDecoration(
+                        labelText: isAdd ? '自訂加分數' : '自訂扣分數',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon: Icon(
+                          isAdd
+                              ? Icons.add_circle_outline
+                              : Icons.remove_circle_outline,
+                          size: 18,
+                          color: isAdd ? Colors.green : Colors.red,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 20),
 
                   // 確認按鈕
@@ -1185,29 +1454,42 @@ class _HabitTabState extends State<_HabitTab> {
                       onPressed: canConfirm
                           ? () async {
                               Navigator.pop(ctx);
-                              String reason = reasonCtrl.text.trim();
-                              if (reason.isEmpty &&
-                                  !isAdd &&
-                                  selectedDeduct.isNotEmpty) {
-                                reason = selectedDeduct.join('、');
+                              final prefs = _prefs!;
+                              int latestPts = widget.child.points;
+                              final presets = isAdd
+                                  ? selectedAddPresets
+                                  : selectedDeductItems;
+                              for (final entry in presets.entries) {
+                                final delta =
+                                    isAdd ? entry.value : -entry.value;
+                                latestPts = await _applyPoints(
+                                  prefs: prefs,
+                                  child: widget.child,
+                                  delta: delta,
+                                  reason: '特殊積分：${entry.key}',
+                                );
                               }
-                              final pts =
+                              final customReason = reasonCtrl.text.trim();
+                              final customPts =
                                   int.tryParse(pointCtrl.text.trim()) ?? 0;
-                              final delta = isAdd ? pts : -pts;
-                              final newPoints = await _applyPoints(
-                                prefs: _prefs!,
-                                child: widget.child,
-                                delta: delta,
-                                reason: '特殊積分：$reason',
-                              );
+                              if (customReason.isNotEmpty && customPts > 0) {
+                                final delta =
+                                    isAdd ? customPts : -customPts;
+                                latestPts = await _applyPoints(
+                                  prefs: prefs,
+                                  child: widget.child,
+                                  delta: delta,
+                                  reason: '特殊積分：$customReason',
+                                );
+                              }
                               setState(
-                                  () => widget.child.points = newPoints);
+                                  () => widget.child.points = latestPts);
                               widget.onPointsChanged();
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                      '已給予${widget.child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
+                                      '已更新 ${widget.child.name} 的積分，目前共 $latestPts 分'),
                                 ),
                               );
                             }
