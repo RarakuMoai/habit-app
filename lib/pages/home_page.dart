@@ -486,21 +486,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 const Text('新增習慣',
                     style: TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: nameCtrl,
-                  onChanged: (_) => setS(() {}),
-                  decoration: InputDecoration(
-                    hintText: '自訂習慣名稱...',
-                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
                 if (available.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   InkWell(
@@ -567,6 +552,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                   ),
                 ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  onChanged: (_) => setS(() {}),
+                  decoration: InputDecoration(
+                    hintText: '自訂習慣名稱...',
+                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
