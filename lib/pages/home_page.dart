@@ -106,18 +106,31 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     if (lastOpen != null && lastOpen != today) {
-      final bool allDone = habits.isNotEmpty && habits.every((h) => h['done'] == true);
-      yesterdayAllDone = allDone;
-      if (allDone) {
-        streak++;
-      } else {
-        streak = 0;
+      final dailyHabits = habits.where((h) => (h['frequency'] ?? 'daily') != 'weekly').toList();
+      final bool allDailyDone = dailyHabits.isNotEmpty && dailyHabits.every((h) => h['done'] == true);
+      yesterdayAllDone = allDailyDone;
+      if (dailyHabits.isNotEmpty) {
+        if (allDailyDone) {
+          streak++;
+        } else {
+          streak = 0;
+        }
+        await prefs.setInt('streak', streak);
       }
-      await prefs.setInt('streak', streak);
       for (var habit in habits) {
-        habit['done'] = false;
+        if ((habit['frequency'] ?? 'daily') != 'weekly') {
+          habit['done'] = false;
+        }
       }
       await prefs.setString('habits', jsonEncode(habits));
+    }
+
+    // Always recompute done for weekly habits from weeklyDates
+    for (var habit in habits) {
+      if ((habit['frequency'] ?? 'daily') == 'weekly') {
+        final target = (habit['weeklyTarget'] as int?) ?? 3;
+        habit['done'] = _weeklyCount(habit) >= target;
+      }
     }
 
     final bool isFirstOpenToday = lastOpen != today;
@@ -176,6 +189,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return '${now.year}-${now.month}-${now.day}';
   }
 
+  List<String> _currentWeekStrings() {
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    return List.generate(7, (i) {
+      final d = monday.add(Duration(days: i));
+      return '${d.year}-${d.month}-${d.day}';
+    });
+  }
+
+  int _weeklyCount(Map<String, dynamic> habit) {
+    final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
+    final weekSet = _currentWeekStrings().toSet();
+    return dates.where(weekSet.contains).length;
+  }
+
   Future<void> saveHabits() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('habits', jsonEncode(habits));
@@ -196,7 +224,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     saveHabits();
   }
 
-  int get doneCount => habits.where((h) => h['done'] == true).length;
+  int get doneCount {
+    final weekSet = _currentWeekStrings().toSet();
+    return habits.where((h) {
+      if ((h['frequency'] ?? 'daily') == 'weekly') {
+        final target = (h['weeklyTarget'] as int?) ?? 3;
+        final dates = List<String>.from((h['weeklyDates'] as List?) ?? []);
+        return dates.where(weekSet.contains).length >= target;
+      }
+      return h['done'] == true;
+    }).length;
+  }
+
   bool get allDone0 => habits.isNotEmpty && doneCount == habits.length;
 
   String get _mascotEmoji {
@@ -219,9 +258,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void toggleHabit(int index) {
     final wasAllDone = allDone0;
-    setState(() {
-      habits[index]['done'] = !habits[index]['done'];
-    });
+    final habit = habits[index];
+    if ((habit['frequency'] ?? 'daily') == 'weekly') {
+      final today = todayString();
+      final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
+      if (dates.contains(today)) {
+        dates.remove(today);
+      } else {
+        dates.add(today);
+      }
+      final target = (habit['weeklyTarget'] as int?) ?? 3;
+      final weekSet = _currentWeekStrings().toSet();
+      setState(() {
+        habit['weeklyDates'] = dates;
+        habit['done'] = dates.where(weekSet.contains).length >= target;
+      });
+    } else {
+      setState(() {
+        habit['done'] = !(habit['done'] as bool);
+      });
+    }
     saveHabits();
     if (!wasAllDone && allDone0) {
       _celebCtrl.forward(from: 0);
@@ -480,6 +536,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final available =
         _kHomePresets.where((p) => !existing.contains(p.name)).toList();
     final selected = <String>{};
+    String freq = 'daily';
+    int weeklyTarget = 3;
 
     await showModalBottomSheet(
       context: context,
@@ -593,6 +651,83 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                Text('頻率', style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setS(() => freq = 'daily'),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: freq == 'daily' ? Colors.orange : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '每日',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: freq == 'daily' ? Colors.white : Colors.grey.shade600,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setS(() => freq = 'weekly'),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: freq == 'weekly' ? Colors.orange : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '每週',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: freq == 'weekly' ? Colors.white : Colors.grey.shade600,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (freq == 'weekly') ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('每週目標次數：', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                      IconButton(
+                        icon: Icon(Icons.remove_circle_outline, size: 22, color: weeklyTarget > 1 ? Colors.orange : Colors.grey.shade300),
+                        onPressed: weeklyTarget > 1 ? () => setS(() => weeklyTarget--) : null,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('$weeklyTarget', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(Icons.add_circle_outline, size: 22, color: weeklyTarget < 7 ? Colors.orange : Colors.grey.shade300),
+                        onPressed: weeklyTarget < 7 ? () => setS(() => weeklyTarget++) : null,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      Text('次', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
@@ -623,12 +758,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               widget.onSettingsChanged?.call();
                             }
                             setState(() {
+                              Map<String, dynamic> buildHabitMap(String n) {
+                                final map = <String, dynamic>{'name': n, 'done': false, 'frequency': freq};
+                                if (freq == 'weekly') {
+                                  map['weeklyTarget'] = weeklyTarget;
+                                  map['weeklyDates'] = <String>[];
+                                }
+                                return map;
+                              }
                               if (customName.isNotEmpty) {
-                                habits.add(
-                                    {'name': customName, 'done': false});
+                                habits.add(buildHabitMap(customName));
                               }
                               for (final name in selected) {
-                                habits.add({'name': name, 'done': false});
+                                habits.add(buildHabitMap(name));
                               }
                             });
                             saveHabits();
@@ -856,6 +998,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             onToggle: () => toggleHabit(index),
             onRename: () => renameHabit(index),
             onDelete: () => _confirmDeleteHabit(index),
+            isWeekly: (habit['frequency'] ?? 'daily') == 'weekly',
+            weeklyCount: _weeklyCount(habit),
+            weeklyTarget: (habit['weeklyTarget'] as int?) ?? 3,
+            isTodayChecked: List<String>.from((habit['weeklyDates'] as List?) ?? []).contains(todayString()),
           ),
         );
       },
@@ -870,6 +1016,10 @@ class _HabitCard extends StatefulWidget {
   final VoidCallback onToggle;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+  final bool isWeekly;
+  final int weeklyCount;
+  final int weeklyTarget;
+  final bool isTodayChecked;
 
   const _HabitCard({
     super.key,
@@ -877,6 +1027,10 @@ class _HabitCard extends StatefulWidget {
     required this.onToggle,
     required this.onRename,
     required this.onDelete,
+    this.isWeekly = false,
+    this.weeklyCount = 0,
+    this.weeklyTarget = 3,
+    this.isTodayChecked = false,
   });
 
   @override
@@ -914,7 +1068,11 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
 
   @override
   Widget build(BuildContext context) {
-    final done = widget.habit['done'] as bool;
+    final isWeekly = widget.isWeekly;
+    final done = isWeekly
+        ? (widget.weeklyCount >= widget.weeklyTarget)
+        : (widget.habit['done'] as bool);
+    final checkboxFilled = isWeekly ? widget.isTodayChecked : done;
     final name = widget.habit['name'] as String;
 
     return Padding(
@@ -948,13 +1106,13 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: done ? Colors.green.shade400 : Colors.transparent,
-                            border: done
+                            color: checkboxFilled ? Colors.green.shade400 : Colors.transparent,
+                            border: checkboxFilled
                                 ? null
                                 : Border.all(color: Colors.grey.shade300, width: 2),
                             shape: BoxShape.circle,
                           ),
-                          child: done
+                          child: checkboxFilled
                               ? const Icon(Icons.check, color: Colors.white, size: 18)
                               : null,
                         ),
@@ -971,6 +1129,18 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                       ),
                       child: Text(name),
                     ),
+                    subtitle: isWeekly
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              '本週 ${widget.weeklyCount}/${widget.weeklyTarget} 次',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: done ? Colors.green.shade500 : Colors.orange.shade600,
+                              ),
+                            ),
+                          )
+                        : null,
                     trailing: PopupMenuButton<String>(
                       icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
                       itemBuilder: (_) => const [
