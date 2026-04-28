@@ -88,10 +88,11 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
-  bool _waterEnabled = true;
+  bool _waterEnabled = false;
   bool _timerEnabled = true;
   bool _weightTrackingEnabled = false;
   bool _familyEnabled = false;
+  bool _waterGoalReached = false;
   bool _loaded = false;
 
   @override
@@ -100,28 +101,54 @@ class _MainPageState extends State<MainPage> {
     _loadSettings();
   }
 
+  String _todayString() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      // 若 onboarding 尚未執行過（key 不存在），預設顯示所有頁籤
-      _waterEnabled = prefs.getBool('water_enabled') ?? true;
+      _waterEnabled = prefs.getBool('water_enabled') ?? false;
       _timerEnabled = prefs.getBool('timer_enabled') ?? true;
       _weightTrackingEnabled = prefs.getBool('weight_tracking_enabled') ?? false;
       _familyEnabled = prefs.getBool('family_enabled') ?? false;
+      _waterGoalReached = prefs.getString('water_goal_date') == _todayString();
       _loaded = true;
     });
+  }
+
+  Future<void> _handleWaterGoal(bool reached) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (reached) {
+      await prefs.setString('water_goal_date', _todayString());
+    } else {
+      await prefs.remove('water_goal_date');
+    }
+    setState(() => _waterGoalReached = reached);
   }
 
   // 依功能開關動態組裝頁籤
   List<_TabItem> get _tabs {
     final list = <_TabItem>[
-      _TabItem(page: HomePage(onSettingsChanged: _loadSettings), icon: Icons.home, label: '習慣'),
+      _TabItem(
+        page: HomePage(
+          onSettingsChanged: _loadSettings,
+          waterHabitAutoComplete: _waterGoalReached,
+        ),
+        icon: Icons.home,
+        label: '習慣',
+      ),
     ];
     if (_timerEnabled) {
       list.add(_TabItem(page: const TimerPage(), icon: Icons.timer, label: '番茄鐘'));
     }
     if (_waterEnabled) {
-      list.add(_TabItem(page: const WaterPage(), icon: Icons.water_drop, label: '喝水'));
+      list.add(_TabItem(
+        page: WaterPage(onGoalStatusChanged: _handleWaterGoal),
+        icon: Icons.water_drop,
+        label: '喝水',
+      ));
     }
     // 體重頁籤，依 weight_tracking_enabled 開關決定是否顯示
     if (_weightTrackingEnabled) {

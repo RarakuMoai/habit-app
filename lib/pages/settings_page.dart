@@ -11,7 +11,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _waterEnabled = true;
   bool _timerEnabled = true;
   bool _weightTrackingEnabled = false;
   bool _familyEnabled = false;
@@ -32,7 +31,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     setState(() {
-      _waterEnabled = _prefs!.getBool('water_enabled') ?? true;
       _timerEnabled = _prefs!.getBool('timer_enabled') ?? true;
       _weightTrackingEnabled = _prefs!.getBool('weight_tracking_enabled') ?? false;
       _familyEnabled = _prefs!.getBool('family_enabled') ?? false;
@@ -249,19 +247,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 // ── 區塊2：功能開關 ──
                 _sectionTitle('功能開關', Icons.tune_outlined),
-
-                // 喝水記錄開關
-                _toggleTile(
-                  icon: Icons.water_drop_outlined,
-                  iconColor: Colors.blue,
-                  title: '喝水記錄',
-                  subtitle: '顯示底部喝水頁籤',
-                  value: _waterEnabled,
-                  onChanged: (v) async {
-                    setState(() => _waterEnabled = v);
-                    await _saveBool('water_enabled', v);
-                  },
-                ),
 
                 // 番茄鐘開關
                 _toggleTile(

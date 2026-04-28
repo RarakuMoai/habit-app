@@ -25,7 +25,12 @@ const List<_HomePreset> _kHomePresets = [
 
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
-  const HomePage({super.key, this.onSettingsChanged});
+  final bool waterHabitAutoComplete;
+  const HomePage({
+    super.key,
+    this.onSettingsChanged,
+    this.waterHabitAutoComplete = false,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -176,6 +181,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     await prefs.setString('habits', jsonEncode(habits));
   }
 
+  @override
+  void didUpdateWidget(HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.waterHabitAutoComplete != widget.waterHabitAutoComplete) {
+      _syncWaterHabit(widget.waterHabitAutoComplete);
+    }
+  }
+
+  void _syncWaterHabit(bool done) {
+    final idx = habits.indexWhere((h) => h['name'] == '喝足夠的水');
+    if (idx == -1 || habits[idx]['done'] == done) return;
+    setState(() => habits[idx]['done'] = done);
+    saveHabits();
+  }
+
   int get doneCount => habits.where((h) => h['done'] == true).length;
   bool get allDone0 => habits.isNotEmpty && doneCount == habits.length;
 
@@ -213,6 +233,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _animatedIn.remove(name);
     setState(() => habits.removeAt(index));
     saveHabits();
+    if (name == '喝足夠的水') {
+      SharedPreferences.getInstance().then((prefs) async {
+        await prefs.setBool('water_enabled', false);
+        widget.onSettingsChanged?.call();
+      });
+    }
   }
 
   Future<void> renameHabit(int index) async {

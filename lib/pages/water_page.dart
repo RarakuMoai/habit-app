@@ -3,7 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_page.dart';
 
 class WaterPage extends StatefulWidget {
-  const WaterPage({super.key});
+  final void Function(bool)? onGoalStatusChanged;
+  const WaterPage({super.key, this.onGoalStatusChanged});
 
   @override
   State<WaterPage> createState() => _WaterPageState();
@@ -39,13 +40,16 @@ class _WaterPageState extends State<WaterPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() => _cups++);
     await prefs.setInt(_todayKey, _cups);
+    if (_cups == _goal) widget.onGoalStatusChanged?.call(true);
   }
 
   Future<void> _removeCup() async {
     if (_cups <= 0) return;
+    final wasAtGoal = _cups == _goal;
     final prefs = await SharedPreferences.getInstance();
     setState(() => _cups--);
     await prefs.setInt(_todayKey, _cups);
+    if (wasAtGoal) widget.onGoalStatusChanged?.call(false);
   }
 
   String get _message {
