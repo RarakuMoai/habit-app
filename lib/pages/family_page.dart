@@ -985,198 +985,253 @@ class _HabitTabState extends State<_HabitTab> {
     final selectedAdd = <String>{};
     final selectedDeduct = <String>{};
 
-    final result = await showDialog<bool>(
+    await showModalBottomSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('特殊積分'),
-          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 加分 / 扣分 切換
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(
-                      value: true,
-                      label: Text('加分'),
-                      icon: Icon(Icons.add_circle_outline),
-                    ),
-                    ButtonSegment(
-                      value: false,
-                      label: Text('扣分'),
-                      icon: Icon(Icons.remove_circle_outline),
-                    ),
-                  ],
-                  selected: {isAdd},
-                  onSelectionChanged: (s) => setS(() {
-                    isAdd = s.first;
-                    selectedAdd.clear();
-                    selectedDeduct.clear();
-                    reasonCtrl.clear();
-                    pointCtrl.clear();
-                  }),
-                  style: SegmentedButton.styleFrom(
-                    selectedBackgroundColor:
-                        isAdd ? Colors.green.shade50 : Colors.red.shade50,
-                    selectedForegroundColor:
-                        isAdd ? Colors.green : Colors.red,
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // 加分預設理由
-                if (isAdd) ...[
-                  Text('快速理由',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: _kAddPresets.map((name) {
-                      final sel = selectedAdd.contains(name);
-                      return FilterChip(
-                        label: Text(name, style: const TextStyle(fontSize: 12)),
-                        selected: sel,
-                        selectedColor: Colors.green.shade100,
-                        checkmarkColor: Colors.green,
-                        labelStyle: TextStyle(
-                          color: sel ? Colors.green.shade800 : Colors.black87,
-                        ),
-                        onSelected: (v) => setS(() {
-                          if (v) {
-                            selectedAdd.add(name);
-                          } else {
-                            selectedAdd.remove(name);
-                          }
-                          reasonCtrl.text = selectedAdd.join('、');
-                        }),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-
-                // 扣分預設理由（來自家長設定的扣分項目）
-                if (!isAdd && _deductions.isNotEmpty) ...[
-                  Text('扣分原因',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: _deductions.map((d) {
-                      final sel = selectedDeduct.contains(d.name);
-                      return FilterChip(
-                        label: Text('${d.name}  −${d.points}分',
-                            style: const TextStyle(fontSize: 12)),
-                        selected: sel,
-                        selectedColor: Colors.red.shade100,
-                        checkmarkColor: Colors.red,
-                        labelStyle: TextStyle(
-                          color: sel ? Colors.red.shade800 : Colors.black87,
-                        ),
-                        onSelected: (v) {
-                          if (v) {
-                            selectedDeduct.add(d.name);
-                          } else {
-                            selectedDeduct.remove(d.name);
-                          }
-                          // 自動加總已選項目的分數
-                          int total = 0;
-                          for (final item in _deductions) {
-                            if (selectedDeduct.contains(item.name)) {
-                              total += item.points;
-                            }
-                          }
-                          pointCtrl.text = total > 0 ? total.toString() : '';
-                          setS(() {});
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-
-                // 自訂原因
-                TextField(
-                  controller: reasonCtrl,
-                  decoration: InputDecoration(
-                    labelText: isAdd ? '自訂原因' : '自訂原因（選填）',
-                    isDense: true,
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // 分數
-                TextField(
-                  controller: pointCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(
-                    labelText: '分數',
-                    isDense: true,
-                    prefixText: isAdd ? '+' : '−',
-                    prefixStyle: TextStyle(
-                      color: isAdd ? Colors.green : Colors.red,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('確認'),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-    );
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) {
+          final reason = reasonCtrl.text.trim();
+          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final hasReason =
+              reason.isNotEmpty || (!isAdd && selectedDeduct.isNotEmpty);
+          final canConfirm = hasReason && pts > 0;
 
-    if (result != true || !mounted) return;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('特殊積分',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 14),
 
-    // 若未輸入自訂原因，用已選預設理由組合
-    String reason = reasonCtrl.text.trim();
-    if (reason.isEmpty && !isAdd && selectedDeduct.isNotEmpty) {
-      reason = selectedDeduct.join('、');
-    }
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (reason.isEmpty || pts <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('原因不得為空，且分數須大於 0')),
-        );
-      }
-      return;
-    }
+                  // 加分 / 扣分 切換
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: true,
+                        label: Text('加分'),
+                        icon: Icon(Icons.add_circle_outline),
+                      ),
+                      ButtonSegment(
+                        value: false,
+                        label: Text('扣分'),
+                        icon: Icon(Icons.remove_circle_outline),
+                      ),
+                    ],
+                    selected: {isAdd},
+                    onSelectionChanged: (s) => setS(() {
+                      isAdd = s.first;
+                      selectedAdd.clear();
+                      selectedDeduct.clear();
+                      reasonCtrl.clear();
+                      pointCtrl.clear();
+                    }),
+                    style: SegmentedButton.styleFrom(
+                      selectedBackgroundColor:
+                          isAdd ? Colors.green.shade50 : Colors.red.shade50,
+                      selectedForegroundColor:
+                          isAdd ? Colors.green : Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
 
-    final delta = isAdd ? pts : -pts;
-    final newPoints = await _applyPoints(
-      prefs: _prefs!,
-      child: widget.child,
-      delta: delta,
-      reason: '特殊積分：$reason',
-    );
+                  // 加分預設理由
+                  if (isAdd) ...[
+                    Text('快速理由',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _kAddPresets.map((name) {
+                        final sel = selectedAdd.contains(name);
+                        return FilterChip(
+                          label: Text(name,
+                              style: const TextStyle(fontSize: 12)),
+                          selected: sel,
+                          selectedColor: Colors.green.shade100,
+                          checkmarkColor: Colors.green,
+                          labelStyle: TextStyle(
+                            color: sel
+                                ? Colors.green.shade800
+                                : Colors.black87,
+                          ),
+                          onSelected: (v) => setS(() {
+                            if (v) {
+                              selectedAdd.add(name);
+                            } else {
+                              selectedAdd.remove(name);
+                            }
+                            reasonCtrl.text = selectedAdd.join('、');
+                          }),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
 
-    setState(() => widget.child.points = newPoints);
-    widget.onPointsChanged();
+                  // 扣分預設理由（來自家長設定的扣分項目）
+                  if (!isAdd && _deductions.isNotEmpty) ...[
+                    Text('扣分原因',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _deductions.map((d) {
+                        final sel = selectedDeduct.contains(d.name);
+                        return FilterChip(
+                          label: Text('${d.name}  −${d.points}分',
+                              style: const TextStyle(fontSize: 12)),
+                          selected: sel,
+                          selectedColor: Colors.red.shade100,
+                          checkmarkColor: Colors.red,
+                          labelStyle: TextStyle(
+                            color:
+                                sel ? Colors.red.shade800 : Colors.black87,
+                          ),
+                          onSelected: (v) {
+                            if (v) {
+                              selectedDeduct.add(d.name);
+                            } else {
+                              selectedDeduct.remove(d.name);
+                            }
+                            int total = 0;
+                            for (final item in _deductions) {
+                              if (selectedDeduct.contains(item.name)) {
+                                total += item.points;
+                              }
+                            }
+                            pointCtrl.text =
+                                total > 0 ? total.toString() : '';
+                            setS(() {});
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            '已給予${widget.child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
+                  // 自訂原因
+                  TextField(
+                    controller: reasonCtrl,
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      hintText: isAdd ? '自訂原因...' : '自訂原因（選填）...',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon:
+                          const Icon(Icons.edit_outlined, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 分數
+                  TextField(
+                    controller: pointCtrl,
+                    onChanged: (_) => setS(() {}),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly
+                    ],
+                    decoration: InputDecoration(
+                      labelText: '分數',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: Icon(
+                        isAdd
+                            ? Icons.add_circle_outline
+                            : Icons.remove_circle_outline,
+                        size: 18,
+                        color: isAdd ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 確認按鈕
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canConfirm
+                          ? () async {
+                              Navigator.pop(ctx);
+                              String reason = reasonCtrl.text.trim();
+                              if (reason.isEmpty &&
+                                  !isAdd &&
+                                  selectedDeduct.isNotEmpty) {
+                                reason = selectedDeduct.join('、');
+                              }
+                              final pts =
+                                  int.tryParse(pointCtrl.text.trim()) ?? 0;
+                              final delta = isAdd ? pts : -pts;
+                              final newPoints = await _applyPoints(
+                                prefs: _prefs!,
+                                child: widget.child,
+                                delta: delta,
+                                reason: '特殊積分：$reason',
+                              );
+                              setState(
+                                  () => widget.child.points = newPoints);
+                              widget.onPointsChanged();
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      '已給予${widget.child.name} ${delta > 0 ? '+' : ''}$delta 分，目前共 $newPoints 分'),
+                                ),
+                              );
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            isAdd ? Colors.green : Colors.red,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        isAdd ? '確認加分' : '確認扣分',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
