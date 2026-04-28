@@ -27,18 +27,18 @@ class ChildData {
   });
 
   factory ChildData.fromJson(Map<String, dynamic> json) => ChildData(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        points: (json['points'] as int?) ?? 0,
-        resetMode: (json['reset_mode'] as String?) ?? 'none',
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    points: (json['points'] as int?) ?? 0,
+    resetMode: (json['reset_mode'] as String?) ?? 'none',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'points': points,
-        'reset_mode': resetMode,
-      };
+    'id': id,
+    'name': name,
+    'points': points,
+    'reset_mode': resetMode,
+  };
 }
 
 // 小孩習慣
@@ -58,20 +58,20 @@ class ChildHabit {
   });
 
   factory ChildHabit.fromJson(Map<String, dynamic> json) => ChildHabit(
-        id: json['id'] as String,
-        childId: json['child_id'] as String,
-        name: json['name'] as String,
-        points: (json['points'] as int?) ?? 0,
-        completedDate: (json['completed_date'] as String?) ?? '',
-      );
+    id: json['id'] as String,
+    childId: json['child_id'] as String,
+    name: json['name'] as String,
+    points: (json['points'] as int?) ?? 0,
+    completedDate: (json['completed_date'] as String?) ?? '',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'child_id': childId,
-        'name': name,
-        'points': points,
-        'completed_date': completedDate,
-      };
+    'id': id,
+    'child_id': childId,
+    'name': name,
+    'points': points,
+    'completed_date': completedDate,
+  };
 }
 
 // 扣分項目
@@ -91,20 +91,20 @@ class DeductionItem {
   });
 
   factory DeductionItem.fromJson(Map<String, dynamic> json) => DeductionItem(
-        id: json['id'] as String,
-        childId: json['child_id'] as String,
-        name: json['name'] as String,
-        points: (json['points'] as int?) ?? 0,
-        deductedDate: (json['deducted_date'] as String?) ?? '',
-      );
+    id: json['id'] as String,
+    childId: json['child_id'] as String,
+    name: json['name'] as String,
+    points: (json['points'] as int?) ?? 0,
+    deductedDate: (json['deducted_date'] as String?) ?? '',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'child_id': childId,
-        'name': name,
-        'points': points,
-        'deducted_date': deductedDate,
-      };
+    'id': id,
+    'child_id': childId,
+    'name': name,
+    'points': points,
+    'deducted_date': deductedDate,
+  };
 }
 
 // 獎勵項目
@@ -132,31 +132,29 @@ class RewardItem {
   });
 
   factory RewardItem.fromJson(Map<String, dynamic> json) => RewardItem(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        pointsCost: (json['points_cost'] as int?) ?? 0,
-        childIds: (json['child_ids'] as List?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [],
-        limitType: (json['limit_type'] as String?) ?? 'daily',
-        limitCount: (json['limit_count'] as int?) ?? 1,
-        expiryType: (json['expiry_type'] as String?) ?? 'none',
-        expiryDays: (json['expiry_days'] as int?) ?? 7,
-        expiryDate: (json['expiry_date'] as String?) ?? '',
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    pointsCost: (json['points_cost'] as int?) ?? 0,
+    childIds:
+        (json['child_ids'] as List?)?.map((e) => e as String).toList() ?? [],
+    limitType: (json['limit_type'] as String?) ?? 'daily',
+    limitCount: (json['limit_count'] as int?) ?? 1,
+    expiryType: (json['expiry_type'] as String?) ?? 'none',
+    expiryDays: (json['expiry_days'] as int?) ?? 7,
+    expiryDate: (json['expiry_date'] as String?) ?? '',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'points_cost': pointsCost,
-        'child_ids': childIds,
-        'limit_type': limitType,
-        'limit_count': limitCount,
-        'expiry_type': expiryType,
-        'expiry_days': expiryDays,
-        'expiry_date': expiryDate,
-      };
+    'id': id,
+    'name': name,
+    'points_cost': pointsCost,
+    'child_ids': childIds,
+    'limit_type': limitType,
+    'limit_count': limitCount,
+    'expiry_type': expiryType,
+    'expiry_days': expiryDays,
+    'expiry_date': expiryDate,
+  };
 
   // 計算此次兌換的到期日（空字串 = 無到期）
   String computeVoucherExpiry() {
@@ -188,25 +186,26 @@ class VoucherLog {
   });
 
   factory VoucherLog.fromJson(Map<String, dynamic> json) => VoucherLog(
-        id: json['id'] as String,
-        rewardId: json['reward_id'] as String,
-        childId: json['child_id'] as String,
-        redeemedAt: (json['redeemed_at'] as String?) ??
-            (json['time'] as String? ?? ''), // 向下相容舊格式
-        used: (json['used'] as bool?) ?? false,
-        usedAt: (json['used_at'] as String?) ?? '',
-        expiryDate: (json['expiry_date'] as String?) ?? '',
-      );
+    id: json['id'] as String,
+    rewardId: json['reward_id'] as String,
+    childId: json['child_id'] as String,
+    redeemedAt:
+        (json['redeemed_at'] as String?) ??
+        (json['time'] as String? ?? ''), // 向下相容舊格式
+    used: (json['used'] as bool?) ?? false,
+    usedAt: (json['used_at'] as String?) ?? '',
+    expiryDate: (json['expiry_date'] as String?) ?? '',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'reward_id': rewardId,
-        'child_id': childId,
-        'redeemed_at': redeemedAt,
-        'used': used,
-        'used_at': usedAt,
-        'expiry_date': expiryDate,
-      };
+    'id': id,
+    'reward_id': rewardId,
+    'child_id': childId,
+    'redeemed_at': redeemedAt,
+    'used': used,
+    'used_at': usedAt,
+    'expiry_date': expiryDate,
+  };
 }
 
 // 積分紀錄
@@ -228,22 +227,22 @@ class PointRecord {
   });
 
   factory PointRecord.fromJson(Map<String, dynamic> json) => PointRecord(
-        id: json['id'] as String,
-        childId: json['child_id'] as String,
-        time: json['time'] as String,
-        reason: json['reason'] as String,
-        delta: (json['delta'] as int?) ?? 0,
-        total: (json['total'] as int?) ?? 0,
-      );
+    id: json['id'] as String,
+    childId: json['child_id'] as String,
+    time: json['time'] as String,
+    reason: json['reason'] as String,
+    delta: (json['delta'] as int?) ?? 0,
+    total: (json['total'] as int?) ?? 0,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'child_id': childId,
-        'time': time,
-        'reason': reason,
-        'delta': delta,
-        'total': total,
-      };
+    'id': id,
+    'child_id': childId,
+    'time': time,
+    'reason': reason,
+    'delta': delta,
+    'total': total,
+  };
 }
 
 // 積分重置模式的顯示文字
@@ -324,9 +323,13 @@ Future<List<ChildHabit>> _loadHabits(SharedPreferences prefs) async {
 }
 
 Future<void> _saveHabits(
-    SharedPreferences prefs, List<ChildHabit> habits) async {
+  SharedPreferences prefs,
+  List<ChildHabit> habits,
+) async {
   await prefs.setString(
-      'child_habits', jsonEncode(habits.map((h) => h.toJson()).toList()));
+    'child_habits',
+    jsonEncode(habits.map((h) => h.toJson()).toList()),
+  );
 }
 
 Future<List<DeductionItem>> _loadDeductions(SharedPreferences prefs) async {
@@ -338,9 +341,13 @@ Future<List<DeductionItem>> _loadDeductions(SharedPreferences prefs) async {
 }
 
 Future<void> _saveDeductions(
-    SharedPreferences prefs, List<DeductionItem> items) async {
+  SharedPreferences prefs,
+  List<DeductionItem> items,
+) async {
   await prefs.setString(
-      'deduction_items', jsonEncode(items.map((d) => d.toJson()).toList()));
+    'deduction_items',
+    jsonEncode(items.map((d) => d.toJson()).toList()),
+  );
 }
 
 Future<List<RewardItem>> _loadRewards(SharedPreferences prefs) async {
@@ -352,13 +359,18 @@ Future<List<RewardItem>> _loadRewards(SharedPreferences prefs) async {
 }
 
 Future<void> _saveRewards(
-    SharedPreferences prefs, List<RewardItem> rewards) async {
+  SharedPreferences prefs,
+  List<RewardItem> rewards,
+) async {
   await prefs.setString(
-      'reward_items', jsonEncode(rewards.map((r) => r.toJson()).toList()));
+    'reward_items',
+    jsonEncode(rewards.map((r) => r.toJson()).toList()),
+  );
 }
 
 Future<List<VoucherLog>> _loadVouchers(SharedPreferences prefs) async {
-  final raw = prefs.getString('voucher_logs') ?? prefs.getString('redemption_logs');
+  final raw =
+      prefs.getString('voucher_logs') ?? prefs.getString('redemption_logs');
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
       .map((e) => VoucherLog.fromJson(e as Map<String, dynamic>))
@@ -366,9 +378,13 @@ Future<List<VoucherLog>> _loadVouchers(SharedPreferences prefs) async {
 }
 
 Future<void> _saveVouchers(
-    SharedPreferences prefs, List<VoucherLog> logs) async {
+  SharedPreferences prefs,
+  List<VoucherLog> logs,
+) async {
   await prefs.setString(
-      'voucher_logs', jsonEncode(logs.map((l) => l.toJson()).toList()));
+    'voucher_logs',
+    jsonEncode(logs.map((l) => l.toJson()).toList()),
+  );
 }
 
 Future<List<PointRecord>> _loadRecords(SharedPreferences prefs) async {
@@ -380,9 +396,13 @@ Future<List<PointRecord>> _loadRecords(SharedPreferences prefs) async {
 }
 
 Future<void> _saveRecords(
-    SharedPreferences prefs, List<PointRecord> records) async {
+  SharedPreferences prefs,
+  List<PointRecord> records,
+) async {
   await prefs.setString(
-      'point_records', jsonEncode(records.map((r) => r.toJson()).toList()));
+    'point_records',
+    jsonEncode(records.map((r) => r.toJson()).toList()),
+  );
 }
 
 // 更新小孩積分並寫入積分紀錄；回傳更新後積分
@@ -398,8 +418,8 @@ Future<int> _applyPoints({
   final children = raw == null
       ? <ChildData>[]
       : (jsonDecode(raw) as List)
-          .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
-          .toList();
+            .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
+            .toList();
 
   // 找到對應小孩並更新積分
   final idx = children.indexWhere((c) => c.id == child.id);
@@ -410,7 +430,9 @@ Future<int> _applyPoints({
   child.points = newPoints; // 同步更新傳入的物件
 
   await prefs.setString(
-      'children', jsonEncode(children.map((c) => c.toJson()).toList()));
+    'children',
+    jsonEncode(children.map((c) => c.toJson()).toList()),
+  );
 
   // 寫入積分紀錄
   final records = await _loadRecords(prefs);
@@ -491,9 +513,9 @@ Future<bool> _verifyParentPinIfNeeded(BuildContext context) async {
   if (!context.mounted) return false;
   if (entered == null) return false;
   if (entered == savedPin) return true;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('密碼錯誤')),
-  );
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
   return false;
 }
 
@@ -525,8 +547,8 @@ class _FamilyPageState extends State<FamilyPage> {
       _children = raw == null
           ? []
           : (jsonDecode(raw) as List)
-              .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
-              .toList();
+                .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
+                .toList();
       _loaded = true;
     });
   }
@@ -561,16 +583,15 @@ class _FamilyPageState extends State<FamilyPage> {
         parentSessionActive = true;
         final changed = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
-            builder: (_) =>
-                const ParentManagementPage(noPinWarning: false),
+            builder: (_) => const ParentManagementPage(noPinWarning: false),
           ),
         );
         if (changed == true) _loadChildren();
       } else if (entered != null) {
         // 輸入了內容但不正確
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('密碼錯誤，請再試一次')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('密碼錯誤，請再試一次')));
       }
     }
   }
@@ -592,15 +613,17 @@ class _FamilyPageState extends State<FamilyPage> {
                       const SettingsPage(),
                   transitionsBuilder:
                       (context, animation, secondaryAnimation, child) {
-                    const begin = Offset(1.0, 0.0);
-                    const end = Offset.zero;
-                    final tween = Tween(begin: begin, end: end)
-                        .chain(CurveTween(curve: Curves.easeInOut));
-                    return SlideTransition(
-                      position: animation.drive(tween),
-                      child: child,
-                    );
-                  },
+                        const begin = Offset(1.0, 0.0);
+                        const end = Offset.zero;
+                        final tween = Tween(
+                          begin: begin,
+                          end: end,
+                        ).chain(CurveTween(curve: Curves.easeInOut));
+                        return SlideTransition(
+                          position: animation.drive(tween),
+                          child: child,
+                        );
+                      },
                 ),
               );
               widget.onSettingsChanged?.call();
@@ -612,8 +635,8 @@ class _FamilyPageState extends State<FamilyPage> {
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : _children.isEmpty
-              ? _buildEmpty()
-              : _buildChildList(),
+          ? _buildEmpty()
+          : _buildChildList(),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _enterParentManagement,
         icon: const Icon(Icons.lock_outline),
@@ -654,10 +677,8 @@ class _FamilyPageState extends State<FamilyPage> {
             // 進入小孩主頁後，回來重新載入（積分等可能異動）
             await Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => _ChildHomePage(
-                  children: _children,
-                  initialIndex: i,
-                ),
+                builder: (_) =>
+                    _ChildHomePage(children: _children, initialIndex: i),
               ),
             );
             widget.onSettingsChanged?.call();
@@ -685,8 +706,10 @@ class _ChildCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 12,
+        ),
         leading: CircleAvatar(
           radius: 24,
           backgroundColor: primary.withValues(alpha: 0.12),
@@ -720,10 +743,7 @@ class _ChildHomePage extends StatefulWidget {
   final List<ChildData> children;
   final int initialIndex;
 
-  const _ChildHomePage({
-    required this.children,
-    required this.initialIndex,
-  });
+  const _ChildHomePage({required this.children, required this.initialIndex});
 
   @override
   State<_ChildHomePage> createState() => _ChildHomePageState();
@@ -762,8 +782,7 @@ class _ChildHomePageState extends State<_ChildHomePage> {
               backgroundColor: primary.withValues(alpha: 0.12),
               child: Text(
                 c.name.isNotEmpty ? c.name[0] : '?',
-                style:
-                    TextStyle(color: primary, fontWeight: FontWeight.bold),
+                style: TextStyle(color: primary, fontWeight: FontWeight.bold),
               ),
             ),
             title: Text(c.name),
@@ -800,8 +819,7 @@ class _ChildHomePageState extends State<_ChildHomePage> {
             const Icon(Icons.arrow_drop_down, color: Colors.white, size: 22),
           const SizedBox(width: 10),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
@@ -834,15 +852,17 @@ class _ChildHomePageState extends State<_ChildHomePage> {
                       const SettingsPage(),
                   transitionsBuilder:
                       (context, animation, secondaryAnimation, child) {
-                    const begin = Offset(1.0, 0.0);
-                    const end = Offset.zero;
-                    final tween = Tween(begin: begin, end: end)
-                        .chain(CurveTween(curve: Curves.easeInOut));
-                    return SlideTransition(
-                      position: animation.drive(tween),
-                      child: child,
-                    );
-                  },
+                        const begin = Offset(1.0, 0.0);
+                        const end = Offset.zero;
+                        final tween = Tween(
+                          begin: begin,
+                          end: end,
+                        ).chain(CurveTween(curve: Curves.easeInOut));
+                        return SlideTransition(
+                          position: animation.drive(tween),
+                          child: child,
+                        );
+                      },
                 ),
               ),
             ),
@@ -905,8 +925,9 @@ class _HabitTabState extends State<_HabitTab> {
     setState(() {
       // 只顯示此小孩的習慣與扣分項目
       _habits = habits.where((h) => h.childId == widget.child.id).toList();
-      _deductions =
-          deductions.where((d) => d.childId == widget.child.id).toList();
+      _deductions = deductions
+          .where((d) => d.childId == widget.child.id)
+          .toList();
       _loaded = true;
     });
   }
@@ -968,7 +989,6 @@ class _HabitTabState extends State<_HabitTab> {
     widget.onPointsChanged();
   }
 
-
   // ── 特殊積分（需家長密碼）──
   static const _kAddPresets = [
     _Preset('幫忙做家事', 10, '🏠'),
@@ -1021,14 +1041,22 @@ class _HabitTabState extends State<_HabitTab> {
                     Icon(Icons.auto_awesome, size: 18, color: accentColor),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(title,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     if (selected.isNotEmpty)
-                      Text('${selected.length} 項已選',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade500)),
+                      Text(
+                        '${selected.length} 項已選',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1052,20 +1080,20 @@ class _HabitTabState extends State<_HabitTab> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 14),
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
                           color: sel
                               ? accentColor.withValues(alpha: 0.08)
                               : Colors.white,
                           border: Border(
-                            bottom:
-                                BorderSide(color: Colors.grey.shade100),
+                            bottom: BorderSide(color: Colors.grey.shade100),
                           ),
                         ),
                         child: Row(
                           children: [
-                            Text(p.emoji,
-                                style: const TextStyle(fontSize: 22)),
+                            Text(p.emoji, style: const TextStyle(fontSize: 22)),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Text(
@@ -1075,8 +1103,7 @@ class _HabitTabState extends State<_HabitTab> {
                                   fontWeight: sel
                                       ? FontWeight.w600
                                       : FontWeight.normal,
-                                  color:
-                                      sel ? accentColor : Colors.black87,
+                                  color: sel ? accentColor : Colors.black87,
                                 ),
                               ),
                             ),
@@ -1085,8 +1112,9 @@ class _HabitTabState extends State<_HabitTab> {
                                 if (!sel) {
                                   setS(() => selected[p.name] = p.value);
                                 }
-                                final ctrl =
-                                    TextEditingController(text: '$pts');
+                                final ctrl = TextEditingController(
+                                  text: '$pts',
+                                );
                                 final newPts = await showDialog<int>(
                                   context: ctx,
                                   builder: (dCtx) => AlertDialog(
@@ -1095,27 +1123,28 @@ class _HabitTabState extends State<_HabitTab> {
                                       controller: ctrl,
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
-                                        FilteringTextInputFormatter
-                                            .digitsOnly
+                                        FilteringTextInputFormatter.digitsOnly,
                                       ],
                                       decoration: InputDecoration(
-                                          labelText: dialogLabel),
+                                        labelText: dialogLabel,
+                                      ),
                                       autofocus: true,
                                     ),
                                     actions: [
                                       TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(dCtx),
-                                        child: Text('取消',
-                                            style: TextStyle(
-                                                color: Colors
-                                                    .grey.shade600)),
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: Text(
+                                          '取消',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
                                       ),
                                       TextButton(
                                         onPressed: () => Navigator.pop(
-                                            dCtx,
-                                            int.tryParse(ctrl.text) ??
-                                                pts),
+                                          dCtx,
+                                          int.tryParse(ctrl.text) ?? pts,
+                                        ),
                                         child: const Text('確認'),
                                       ),
                                     ],
@@ -1128,7 +1157,9 @@ class _HabitTabState extends State<_HabitTab> {
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: sel
                                       ? accentColor
@@ -1150,8 +1181,11 @@ class _HabitTabState extends State<_HabitTab> {
                                     ),
                                     if (sel) ...[
                                       const SizedBox(width: 3),
-                                      const Icon(Icons.edit,
-                                          size: 10, color: Colors.white),
+                                      const Icon(
+                                        Icons.edit,
+                                        size: 10,
+                                        color: Colors.white,
+                                      ),
                                     ],
                                   ],
                                 ),
@@ -1164,9 +1198,7 @@ class _HabitTabState extends State<_HabitTab> {
                               height: 24,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: sel
-                                    ? accentColor
-                                    : Colors.transparent,
+                                color: sel ? accentColor : Colors.transparent,
                                 border: Border.all(
                                   color: sel
                                       ? accentColor
@@ -1175,8 +1207,11 @@ class _HabitTabState extends State<_HabitTab> {
                                 ),
                               ),
                               child: sel
-                                  ? const Icon(Icons.check,
-                                      size: 14, color: Colors.white)
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.white,
+                                    )
                                   : null,
                             ),
                           ],
@@ -1188,7 +1223,11 @@ class _HabitTabState extends State<_HabitTab> {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                    20, 12, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+                  20,
+                  12,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 24,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -1196,7 +1235,8 @@ class _HabitTabState extends State<_HabitTab> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accentColor,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
@@ -1237,14 +1277,19 @@ class _HabitTabState extends State<_HabitTab> {
           final customReason = reasonCtrl.text.trim();
           final customPts = int.tryParse(pointCtrl.text.trim()) ?? 0;
           final hasCustom = customReason.isNotEmpty;
-          final selectedPresets =
-              isAdd ? selectedAddPresets : selectedDeductItems;
-          final canConfirm = selectedPresets.isNotEmpty ||
-              (hasCustom && customPts > 0);
+          final selectedPresets = isAdd
+              ? selectedAddPresets
+              : selectedDeductItems;
+          final canConfirm =
+              selectedPresets.isNotEmpty || (hasCustom && customPts > 0);
 
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1261,9 +1306,10 @@ class _HabitTabState extends State<_HabitTab> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('特殊積分',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '特殊積分',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 14),
 
                   // 加分 / 扣分 切換
@@ -1292,8 +1338,9 @@ class _HabitTabState extends State<_HabitTab> {
                       selectedBackgroundColor: isAdd
                           ? Colors.green.shade50
                           : Colors.red.shade50,
-                      selectedForegroundColor:
-                          isAdd ? Colors.green : Colors.red,
+                      selectedForegroundColor: isAdd
+                          ? Colors.green
+                          : Colors.red,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -1340,20 +1387,22 @@ class _HabitTabState extends State<_HabitTab> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: selectedPresets.isEmpty
                             ? Colors.grey.shade50
                             : (isAdd
-                                ? Colors.green.shade50
-                                : Colors.red.shade50),
+                                  ? Colors.green.shade50
+                                  : Colors.red.shade50),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: selectedPresets.isEmpty
                               ? Colors.grey.shade300
                               : (isAdd
-                                  ? Colors.green.shade300
-                                  : Colors.red.shade300),
+                                    ? Colors.green.shade300
+                                    : Colors.red.shade300),
                         ),
                       ),
                       child: Row(
@@ -1364,8 +1413,8 @@ class _HabitTabState extends State<_HabitTab> {
                             color: selectedPresets.isEmpty
                                 ? Colors.grey.shade500
                                 : (isAdd
-                                    ? Colors.green.shade600
-                                    : Colors.red.shade600),
+                                      ? Colors.green.shade600
+                                      : Colors.red.shade600),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1377,8 +1426,8 @@ class _HabitTabState extends State<_HabitTab> {
                                 color: selectedPresets.isEmpty
                                     ? Colors.grey.shade600
                                     : (isAdd
-                                        ? Colors.green.shade700
-                                        : Colors.red.shade700),
+                                          ? Colors.green.shade700
+                                          : Colors.red.shade700),
                                 fontSize: 14,
                               ),
                             ),
@@ -1391,8 +1440,8 @@ class _HabitTabState extends State<_HabitTab> {
                             color: selectedPresets.isEmpty
                                 ? Colors.grey.shade400
                                 : (isAdd
-                                    ? Colors.green.shade600
-                                    : Colors.red.shade600),
+                                      ? Colors.green.shade600
+                                      : Colors.red.shade600),
                           ),
                         ],
                       ),
@@ -1405,15 +1454,14 @@ class _HabitTabState extends State<_HabitTab> {
                     controller: reasonCtrl,
                     onChanged: (_) => setS(() {}),
                     decoration: InputDecoration(
-                      hintText: isAdd ? '自訂原因...' : '自訂原因（選填）...',
+                      hintText: isAdd ? '自訂原因...' : '自訂原因...',
                       filled: true,
                       fillColor: Colors.grey.shade50,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon:
-                          const Icon(Icons.edit_outlined, size: 18),
+                      prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                     ),
                   ),
 
@@ -1424,9 +1472,7 @@ class _HabitTabState extends State<_HabitTab> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         labelText: isAdd ? '自訂加分數' : '自訂扣分數',
                         filled: true,
@@ -1460,8 +1506,9 @@ class _HabitTabState extends State<_HabitTab> {
                                   ? selectedAddPresets
                                   : selectedDeductItems;
                               for (final entry in presets.entries) {
-                                final delta =
-                                    isAdd ? entry.value : -entry.value;
+                                final delta = isAdd
+                                    ? entry.value
+                                    : -entry.value;
                                 latestPts = await _applyPoints(
                                   prefs: prefs,
                                   child: widget.child,
@@ -1473,8 +1520,7 @@ class _HabitTabState extends State<_HabitTab> {
                               final customPts =
                                   int.tryParse(pointCtrl.text.trim()) ?? 0;
                               if (customReason.isNotEmpty && customPts > 0) {
-                                final delta =
-                                    isAdd ? customPts : -customPts;
+                                final delta = isAdd ? customPts : -customPts;
                                 latestPts = await _applyPoints(
                                   prefs: prefs,
                                   child: widget.child,
@@ -1482,26 +1528,25 @@ class _HabitTabState extends State<_HabitTab> {
                                   reason: '特殊積分：$customReason',
                                 );
                               }
-                              setState(
-                                  () => widget.child.points = latestPts);
+                              setState(() => widget.child.points = latestPts);
                               widget.onPointsChanged();
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                      '已更新 ${widget.child.name} 的積分，目前共 $latestPts 分'),
+                                    '已更新 ${widget.child.name} 的積分，目前共 $latestPts 分',
+                                  ),
                                 ),
                               );
                             }
                           : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isAdd ? Colors.green : Colors.red,
+                        backgroundColor: isAdd ? Colors.green : Colors.red,
                         disabledBackgroundColor: Colors.grey.shade200,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
                         isAdd ? '確認加分' : '確認扣分',
@@ -1535,12 +1580,14 @@ class _HabitTabState extends State<_HabitTab> {
           if (_habits.isEmpty)
             _emptyHint('尚無習慣，請家長至家長管理新增')
           else
-            ..._habits.map((habit) => _HabitItem(
-                  habit: habit,
-                  doneToday: _isDoneToday(habit),
-                  onCheckIn: () => _checkIn(habit),
-                  onUndo: () => _undoCheckIn(habit),
-                )),
+            ..._habits.map(
+              (habit) => _HabitItem(
+                habit: habit,
+                doneToday: _isDoneToday(habit),
+                onCheckIn: () => _checkIn(habit),
+                onUndo: () => _undoCheckIn(habit),
+              ),
+            ),
 
           const SizedBox(height: 24),
 
@@ -1553,7 +1600,8 @@ class _HabitTabState extends State<_HabitTab> {
               side: BorderSide(color: Colors.purple.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -1581,10 +1629,12 @@ class _HabitTabState extends State<_HabitTab> {
   }
 
   Widget _emptyHint(String text) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(text,
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Text(
+      text,
+      style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+    ),
+  );
 }
 
 // 習慣列表項目
@@ -1605,7 +1655,8 @@ class _HabitItem extends StatefulWidget {
   State<_HabitItem> createState() => _HabitItemState();
 }
 
-class _HabitItemState extends State<_HabitItem> with SingleTickerProviderStateMixin {
+class _HabitItemState extends State<_HabitItem>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _scale;
 
@@ -1657,12 +1708,16 @@ class _HabitItemState extends State<_HabitItem> with SingleTickerProviderStateMi
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   width: 5,
-                  color: doneToday ? Colors.green.shade400 : Colors.orange.shade300,
+                  color: doneToday
+                      ? Colors.green.shade400
+                      : Colors.orange.shade300,
                 ),
                 Expanded(
                   child: ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 2,
+                    ),
                     leading: GestureDetector(
                       onTap: _handleTap,
                       child: ScaleTransition(
@@ -1672,14 +1727,23 @@ class _HabitItemState extends State<_HabitItem> with SingleTickerProviderStateMi
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: doneToday ? Colors.green.shade400 : Colors.transparent,
+                            color: doneToday
+                                ? Colors.green.shade400
+                                : Colors.transparent,
                             border: doneToday
                                 ? null
-                                : Border.all(color: Colors.grey.shade300, width: 2),
+                                : Border.all(
+                                    color: Colors.grey.shade300,
+                                    width: 2,
+                                  ),
                             shape: BoxShape.circle,
                           ),
                           child: doneToday
-                              ? const Icon(Icons.check, color: Colors.white, size: 18)
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 18,
+                                )
                               : null,
                         ),
                       ),
@@ -1692,7 +1756,9 @@ class _HabitItemState extends State<_HabitItem> with SingleTickerProviderStateMi
                         decoration: doneToday
                             ? TextDecoration.lineThrough
                             : TextDecoration.none,
-                        color: doneToday ? Colors.grey.shade400 : Colors.black87,
+                        color: doneToday
+                            ? Colors.grey.shade400
+                            : Colors.black87,
                       ),
                       child: Text(widget.habit.name),
                     ),
@@ -1711,9 +1777,13 @@ class _HabitItemState extends State<_HabitItem> with SingleTickerProviderStateMi
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: Text('撤銷',
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey.shade400)),
+                            child: Text(
+                              '撤銷',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
                           )
                         : null,
                   ),
@@ -1793,11 +1863,9 @@ class _PointRecordTabState extends State<_PointRecordTab> {
       firstDate: DateTime(now.year - 2),
       lastDate: now,
       initialEntryMode: DatePickerEntryMode.input,
-      initialDateRange: _customRange ??
-          DateTimeRange(
-            start: now.subtract(const Duration(days: 6)),
-            end: now,
-          ),
+      initialDateRange:
+          _customRange ??
+          DateTimeRange(start: now.subtract(const Duration(days: 6)), end: now),
       locale: const Locale('zh', 'TW'),
     );
     if (picked != null) {
@@ -1811,8 +1879,7 @@ class _PointRecordTabState extends State<_PointRecordTab> {
   String _customLabel() {
     final r = _customRange;
     if (r == null) return '自訂';
-    String fmt(DateTime d) =>
-        '${d.month}/${d.day}';
+    String fmt(DateTime d) => '${d.month}/${d.day}';
     return '${fmt(r.start)}–${fmt(r.end)}';
   }
 
@@ -1829,9 +1896,7 @@ class _PointRecordTabState extends State<_PointRecordTab> {
         fontWeight: selected ? FontWeight.bold : FontWeight.normal,
         fontSize: 13,
       ),
-      side: BorderSide(
-        color: selected ? primary : Colors.grey.shade300,
-      ),
+      side: BorderSide(color: selected ? primary : Colors.grey.shade300),
     );
   }
 
@@ -1893,14 +1958,24 @@ class _PointRecordTabState extends State<_PointRecordTab> {
                   final r = filtered[i];
                   final isPlus = r.delta >= 0;
                   return ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    title: Text(r.reason,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
-                    subtitle: Text(r.time,
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500)),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
+                    title: Text(
+                      r.reason,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      r.time,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
                     trailing: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1916,7 +1991,9 @@ class _PointRecordTabState extends State<_PointRecordTab> {
                         Text(
                           '共 ${r.total} 分',
                           style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade400),
+                            fontSize: 11,
+                            color: Colors.grey.shade400,
+                          ),
                         ),
                       ],
                     ),
@@ -1948,17 +2025,17 @@ class _CustomRangeChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: selected ? primary.withValues(alpha: 0.15) : Colors.transparent,
-        border: Border.all(
-          color: selected ? primary : Colors.grey.shade300,
-        ),
+        border: Border.all(color: selected ? primary : Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.date_range,
-              size: 14,
-              color: selected ? primary : Colors.grey.shade600),
+          Icon(
+            Icons.date_range,
+            size: 14,
+            color: selected ? primary : Colors.grey.shade600,
+          ),
           const SizedBox(width: 4),
           Text(
             label,
@@ -2006,8 +2083,9 @@ class _RewardTabState extends State<_RewardTab> {
       _rewards = allRewards
           .where((r) => r.childIds.contains(widget.child.id))
           .toList();
-      _vouchers =
-          allVouchers.where((v) => v.childId == widget.child.id).toList();
+      _vouchers = allVouchers
+          .where((v) => v.childId == widget.child.id)
+          .toList();
       _loaded = true;
     });
   }
@@ -2021,14 +2099,19 @@ class _RewardTabState extends State<_RewardTab> {
   int _todayUsageCount(String rewardId) {
     final today = _todayStr();
     return _vouchers
-        .where((v) => v.rewardId == rewardId && v.used && v.usedAt.startsWith(today))
+        .where(
+          (v) => v.rewardId == rewardId && v.used && v.usedAt.startsWith(today),
+        )
         .length;
   }
 
   int _weekUsageCount(String rewardId) {
     final now = DateTime.now();
-    final weekStart =
-        DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    final weekStart = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(const Duration(days: 6));
     return _vouchers.where((v) {
       if (v.rewardId != rewardId || !v.used) return false;
       final d = DateTime.tryParse(v.usedAt.split(' ').first);
@@ -2055,9 +2138,9 @@ class _RewardTabState extends State<_RewardTab> {
   Future<void> _redeem(RewardItem r) async {
     if (!mounted) return;
     if (widget.child.points < r.pointsCost) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('積分不足，無法兌換')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('積分不足，無法兌換')));
       return;
     }
 
@@ -2070,8 +2153,10 @@ class _RewardTabState extends State<_RewardTab> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('每張票券需 ${r.pointsCost} 分',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              Text(
+                '每張票券需 ${r.pointsCost} 分',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -2082,9 +2167,13 @@ class _RewardTabState extends State<_RewardTab> {
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text('$qty 張',
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      '$qty 張',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   IconButton(
                     onPressed: widget.child.points >= r.pointsCost * (qty + 1)
@@ -2152,8 +2241,7 @@ class _RewardTabState extends State<_RewardTab> {
       final hint = reward.limitType == 'daily'
           ? '今日使用已達 ${reward.limitCount} 次上限'
           : '本週使用已達 ${reward.limitCount} 次上限';
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(hint)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(hint)));
       return;
     }
 
@@ -2214,18 +2302,23 @@ class _RewardTabState extends State<_RewardTab> {
             icon: Icons.confirmation_num_outlined,
             label: '我的票券',
             color: Colors.purple.shade400,
-            trailing: pendingVouchers.isEmpty ? null : '${pendingVouchers.length} 張',
+            trailing: pendingVouchers.isEmpty
+                ? null
+                : '${pendingVouchers.length} 張',
           ),
           if (pendingVouchers.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: Text('目前沒有票券',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              child: Text(
+                '目前沒有票券',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              ),
             )
           else
             ...pendingVouchers.map((v) {
-              final reward =
-                  _rewards.where((r) => r.id == v.rewardId).firstOrNull;
+              final reward = _rewards
+                  .where((r) => r.id == v.rewardId)
+                  .firstOrNull;
               final canUse = reward == null || _canUse(reward);
               String? limitHint;
               if (reward != null && !canUse) {
@@ -2254,8 +2347,10 @@ class _RewardTabState extends State<_RewardTab> {
           if (_rewards.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: Text('尚無獎勵，請家長至家長管理新增',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              child: Text(
+                '尚無獎勵，請家長至家長管理新增',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              ),
             )
           else
             ..._rewards.map((r) {
@@ -2272,24 +2367,40 @@ class _RewardTabState extends State<_RewardTab> {
           // ── 兌換紀錄（已使用票券） ──
           if (usedVouchers.isNotEmpty)
             Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              data: Theme.of(
+                context,
+              ).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                leading: Icon(Icons.history, color: Colors.grey.shade500, size: 20),
-                title: Text('兌換紀錄（${usedVouchers.length} 張）',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                leading: Icon(
+                  Icons.history,
+                  color: Colors.grey.shade500,
+                  size: 20,
+                ),
+                title: Text(
+                  '兌換紀錄（${usedVouchers.length} 張）',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: EdgeInsets.zero,
                 children: usedVouchers.map((v) {
                   return ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.check_circle_outline,
-                        size: 18, color: Colors.green.shade400),
-                    title: Text(_rewardName(v.rewardId),
-                        style: const TextStyle(fontSize: 13)),
+                    leading: Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: Colors.green.shade400,
+                    ),
+                    title: Text(
+                      _rewardName(v.rewardId),
+                      style: const TextStyle(fontSize: 13),
+                    ),
                     subtitle: Text(
                       '兌換 ${v.redeemedAt}　使用 ${v.usedAt}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
                     ),
                   );
                 }).toList(),
@@ -2322,11 +2433,14 @@ class _SectionHeader extends StatelessWidget {
         children: [
           Icon(icon, size: 17, color: color),
           const SizedBox(width: 6),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: color)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
           if (trailing != null) ...[
             const SizedBox(width: 6),
             Container(
@@ -2335,8 +2449,10 @@ class _SectionHeader extends StatelessWidget {
                 color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(trailing!,
-                  style: TextStyle(fontSize: 11, color: color)),
+              child: Text(
+                trailing!,
+                style: TextStyle(fontSize: 11, color: color),
+              ),
             ),
           ],
         ],
@@ -2395,31 +2511,42 @@ class _VoucherCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.confirmation_num,
-                size: 32,
-                color: isExpired
-                    ? Colors.red.shade300
-                    : isAlmostExpired
-                        ? Colors.orange.shade400
-                        : Colors.purple.shade300),
+            Icon(
+              Icons.confirmation_num,
+              size: 32,
+              color: isExpired
+                  ? Colors.red.shade300
+                  : isAlmostExpired
+                  ? Colors.orange.shade400
+                  : Colors.purple.shade300,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(rewardName,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(
+                    rewardName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text('兌換於 ${voucher.redeemedAt}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  Text(
+                    '兌換於 ${voucher.redeemedAt}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
                   if (expiryLabel != null)
-                    Text(expiryLabel,
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: isExpired
-                                ? Colors.red.shade400
-                                : Colors.orange.shade600)),
+                    Text(
+                      expiryLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isExpired
+                            ? Colors.red.shade400
+                            : Colors.orange.shade600,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -2430,12 +2557,15 @@ class _VoucherCard extends StatelessWidget {
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.shade200,
                 disabledForegroundColor: Colors.grey.shade400,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20)),
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 textStyle: const TextStyle(fontSize: 13),
               ),
               child: Text(limitHint ?? '使用'),
@@ -2482,27 +2612,43 @@ class _RewardCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(reward.name,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(
+                    reward.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
                       Icon(Icons.star, size: 12, color: Colors.amber.shade600),
                       const SizedBox(width: 2),
-                      Text('${reward.pointsCost} 分',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade600)),
+                      Text(
+                        '${reward.pointsCost} 分',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
                       if (reward.limitType == 'daily') ...[
                         const SizedBox(width: 6),
-                        Text('每日限用 ${reward.limitCount} 次',
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade400)),
+                        Text(
+                          '每日限用 ${reward.limitCount} 次',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
                       ] else if (reward.limitType == 'weekly') ...[
                         const SizedBox(width: 6),
-                        Text('每週限用 ${reward.limitCount} 次',
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade400)),
+                        Text(
+                          '每週限用 ${reward.limitCount} 次',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -2516,12 +2662,15 @@ class _RewardCard extends StatelessWidget {
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.shade200,
                 disabledForegroundColor: Colors.grey.shade400,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20)),
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 textStyle: const TextStyle(fontSize: 13),
               ),
               child: Text(canAfford ? '兌換' : '積分不足'),
@@ -2591,8 +2740,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final children = raw == null
         ? <ChildData>[]
         : (jsonDecode(raw) as List)
-            .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
-            .toList();
+              .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
+              .toList();
     final habits = await _loadHabits(prefs);
     final deductions = await _loadDeductions(prefs);
     final rewards = await _loadRewards(prefs);
@@ -2643,9 +2792,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (name == null || name.isEmpty) return;
 
     final id = _genId();
-    _children.add(
-      ChildData(id: id, name: name, points: 0, resetMode: 'none'),
-    );
+    _children.add(ChildData(id: id, name: name, points: 0, resetMode: 'none'));
     await _saveChildren();
     setState(() {});
   }
@@ -2679,23 +2826,35 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     // 同步刪除相關習慣、扣分項目、積分紀錄、兌換紀錄
     final prefs = _prefs!;
     final habits = await _loadHabits(prefs);
-    await _saveHabits(prefs, habits.where((h) => h.childId != childId).toList());
+    await _saveHabits(
+      prefs,
+      habits.where((h) => h.childId != childId).toList(),
+    );
     final deductions = await _loadDeductions(prefs);
     await _saveDeductions(
-        prefs, deductions.where((d) => d.childId != childId).toList());
+      prefs,
+      deductions.where((d) => d.childId != childId).toList(),
+    );
     final records = await _loadRecords(prefs);
     await _saveRecords(
-        prefs, records.where((r) => r.childId != childId).toList());
+      prefs,
+      records.where((r) => r.childId != childId).toList(),
+    );
     // 獎勵：移除該小孩；若某獎勵所有小孩都被移除則刪除整個獎勵
     final rewards = await _loadRewards(prefs);
     for (final r in rewards) {
       r.childIds.remove(childId);
     }
-    await _saveRewards(prefs, rewards.where((r) => r.childIds.isNotEmpty).toList());
+    await _saveRewards(
+      prefs,
+      rewards.where((r) => r.childIds.isNotEmpty).toList(),
+    );
     // 票券紀錄
     final vouchers = await _loadVouchers(prefs);
     await _saveVouchers(
-        prefs, vouchers.where((l) => l.childId != childId).toList());
+      prefs,
+      vouchers.where((l) => l.childId != childId).toList(),
+    );
 
     await _loadAll();
   }
@@ -2749,8 +2908,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child:
-                Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -2830,18 +2988,25 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.auto_awesome,
-                        size: 18, color: accentColor),
+                    Icon(Icons.auto_awesome, size: 18, color: accentColor),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(title,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     if (selected.isNotEmpty)
-                      Text('${selected.length} 項已選',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade500)),
+                      Text(
+                        '${selected.length} 項已選',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -2865,7 +3030,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 14),
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
                           color: sel
                               ? accentColor.withValues(alpha: 0.08)
@@ -2876,8 +3043,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         ),
                         child: Row(
                           children: [
-                            Text(p.emoji,
-                                style: const TextStyle(fontSize: 22)),
+                            Text(p.emoji, style: const TextStyle(fontSize: 22)),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Text(
@@ -2897,8 +3063,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                 if (!sel) {
                                   setS(() => selected[p.name] = p.value);
                                 }
-                                final ctrl =
-                                    TextEditingController(text: '$pts');
+                                final ctrl = TextEditingController(
+                                  text: '$pts',
+                                );
                                 final newPts = await showDialog<int>(
                                   context: ctx,
                                   builder: (dCtx) => AlertDialog(
@@ -2907,26 +3074,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       controller: ctrl,
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
-                                        FilteringTextInputFormatter
-                                            .digitsOnly
+                                        FilteringTextInputFormatter.digitsOnly,
                                       ],
                                       decoration: InputDecoration(
-                                          labelText: dialogLabel),
+                                        labelText: dialogLabel,
+                                      ),
                                       autofocus: true,
                                     ),
                                     actions: [
                                       TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(dCtx),
-                                        child: Text('取消',
-                                            style: TextStyle(
-                                                color:
-                                                    Colors.grey.shade600)),
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: Text(
+                                          '取消',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
                                       ),
                                       TextButton(
                                         onPressed: () => Navigator.pop(
-                                            dCtx,
-                                            int.tryParse(ctrl.text) ?? pts),
+                                          dCtx,
+                                          int.tryParse(ctrl.text) ?? pts,
+                                        ),
                                         child: const Text('確認'),
                                       ),
                                     ],
@@ -2939,7 +3108,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: sel
                                       ? accentColor
@@ -2961,8 +3132,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                     ),
                                     if (sel) ...[
                                       const SizedBox(width: 3),
-                                      const Icon(Icons.edit,
-                                          size: 10, color: Colors.white),
+                                      const Icon(
+                                        Icons.edit,
+                                        size: 10,
+                                        color: Colors.white,
+                                      ),
                                     ],
                                   ],
                                 ),
@@ -2975,9 +3149,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               height: 24,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: sel
-                                    ? accentColor
-                                    : Colors.transparent,
+                                color: sel ? accentColor : Colors.transparent,
                                 border: Border.all(
                                   color: sel
                                       ? accentColor
@@ -2986,8 +3158,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                 ),
                               ),
                               child: sel
-                                  ? const Icon(Icons.check,
-                                      size: 14, color: Colors.white)
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.white,
+                                    )
                                   : null,
                             ),
                           ],
@@ -2998,8 +3173,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 ),
               ),
               Padding(
-                padding: EdgeInsets.fromLTRB(20, 12, 20,
-                    MediaQuery.of(ctx).viewInsets.bottom + 24),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 24,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -3007,7 +3186,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accentColor,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
@@ -3029,9 +3209,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   // ── 新增習慣 ──
   Future<void> _addHabit() async {
     if (_children.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先新增小孩')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請先新增小孩')));
       return;
     }
 
@@ -3042,8 +3222,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final selectedPresetPts = <String, int>{};
 
     final existingNames = _habits.map((h) => h.name).toSet();
-    final available =
-        _kHabitPresets.where((p) => !existingNames.contains(p.name)).toList();
+    final available = _kHabitPresets
+        .where((p) => !existingNames.contains(p.name))
+        .toList();
 
     await showModalBottomSheet(
       context: context,
@@ -3058,13 +3239,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
           final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
           final hasCustom = customName.isNotEmpty;
-          final canAdd = (hasCustom || selectedPresets.isNotEmpty) &&
+          final canAdd =
+              (hasCustom || selectedPresets.isNotEmpty) &&
               (!hasCustom || pts > 0) &&
               selectedIds.isNotEmpty;
 
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -3081,15 +3267,17 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('新增習慣',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '新增習慣',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 14),
 
                   // 套用小孩
-                  Text('套用小孩',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    '套用小孩',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 8,
@@ -3120,10 +3308,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         final result = await _showFamilyPresetSubSheet(
                           available,
                           Map.fromEntries(
-                            selectedPresets.map((n) => MapEntry(
+                            selectedPresets.map(
+                              (n) => MapEntry(
                                 n,
-                                selectedPresetPts[n] ??
-                                    _habitPresetPoints(n))),
+                                selectedPresetPts[n] ?? _habitPresetPoints(n),
+                              ),
+                            ),
                           ),
                         );
                         if (result != null) {
@@ -3139,7 +3329,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
                           color: selectedPresets.isEmpty
                               ? Colors.grey.shade50
@@ -3202,8 +3394,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon:
-                          const Icon(Icons.edit_outlined, size: 18),
+                      prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                     ),
                   ),
 
@@ -3214,9 +3405,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         labelText: '自訂習慣分數',
                         filled: true,
@@ -3225,8 +3414,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        prefixIcon:
-                            const Icon(Icons.star_outline, size: 18),
+                        prefixIcon: const Icon(Icons.star_outline, size: 18),
                       ),
                     ),
                   ],
@@ -3245,28 +3433,31 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               for (final presetName in selectedPresets) {
                                 final habitPts =
                                     selectedPresetPts[presetName] ??
-                                        _habitPresetPoints(presetName);
+                                    _habitPresetPoints(presetName);
                                 for (final childId in selectedIds) {
-                                  habits.add(ChildHabit(
-                                    id: _genId(),
-                                    childId: childId,
-                                    name: presetName,
-                                    points: habitPts,
-                                  ));
+                                  habits.add(
+                                    ChildHabit(
+                                      id: _genId(),
+                                      childId: childId,
+                                      name: presetName,
+                                      points: habitPts,
+                                    ),
+                                  );
                                 }
                               }
                               // 自訂習慣
                               if (customName.isNotEmpty) {
                                 final customPts =
-                                    int.tryParse(pointCtrl.text.trim()) ??
-                                        10;
+                                    int.tryParse(pointCtrl.text.trim()) ?? 10;
                                 for (final childId in selectedIds) {
-                                  habits.add(ChildHabit(
-                                    id: _genId(),
-                                    childId: childId,
-                                    name: customName,
-                                    points: customPts,
-                                  ));
+                                  habits.add(
+                                    ChildHabit(
+                                      id: _genId(),
+                                      childId: childId,
+                                      name: customName,
+                                      points: customPts,
+                                    ),
+                                  );
                                 }
                               }
                               await _saveHabits(prefs, habits);
@@ -3278,14 +3469,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         backgroundColor: Colors.orange,
                         disabledBackgroundColor: Colors.grey.shade200,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
-                        total == 0
-                            ? '請選擇或輸入習慣'
-                            : '新增 ($total 項)',
+                        total == 0 ? '請選擇或輸入習慣' : '新增 ($total 項)',
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
@@ -3353,9 +3542,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
     if (name.isEmpty || pts <= 0) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('習慣名稱不得為空、分數須大於 0')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('習慣名稱不得為空、分數須大於 0')));
       }
       return;
     }
@@ -3379,9 +3568,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   // ── 新增扣分項目 ──
   Future<void> _addDeduction() async {
     if (_children.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先新增小孩')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請先新增小孩')));
       return;
     }
 
@@ -3392,8 +3581,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final selectedPresetPts = <String, int>{};
 
     final existingNames = _deductions.map((d) => d.name).toSet();
-    final available =
-        _kDeductionPresets.where((p) => !existingNames.contains(p.name)).toList();
+    final available = _kDeductionPresets
+        .where((p) => !existingNames.contains(p.name))
+        .toList();
 
     await showModalBottomSheet(
       context: context,
@@ -3408,13 +3598,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
           final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
           final hasCustom = customName.isNotEmpty;
-          final canAdd = (hasCustom || selectedPresets.isNotEmpty) &&
+          final canAdd =
+              (hasCustom || selectedPresets.isNotEmpty) &&
               (!hasCustom || pts > 0) &&
               selectedIds.isNotEmpty;
 
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -3431,15 +3626,17 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('新增扣分項目',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '新增扣分項目',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 14),
 
                   // 套用小孩
-                  Text('套用小孩',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    '套用小孩',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 8,
@@ -3470,10 +3667,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         final result = await _showFamilyPresetSubSheet(
                           available,
                           Map.fromEntries(
-                            selectedPresets.map((n) => MapEntry(
+                            selectedPresets.map(
+                              (n) => MapEntry(
                                 n,
                                 selectedPresetPts[n] ??
-                                    _deductionPresetPoints(n))),
+                                    _deductionPresetPoints(n),
+                              ),
+                            ),
                           ),
                           title: '常用扣分項目',
                           accentColor: Colors.red.shade600,
@@ -3493,7 +3693,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
                           color: selectedPresets.isEmpty
                               ? Colors.grey.shade50
@@ -3556,8 +3758,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon:
-                          const Icon(Icons.edit_outlined, size: 18),
+                      prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                     ),
                   ),
 
@@ -3568,9 +3769,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         labelText: '自訂扣分數',
                         filled: true,
@@ -3579,8 +3778,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        prefixIcon:
-                            const Icon(Icons.remove_circle_outline, size: 18),
+                        prefixIcon: const Icon(
+                          Icons.remove_circle_outline,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ],
@@ -3594,32 +3795,34 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                           ? () async {
                               Navigator.pop(ctx);
                               final prefs = _prefs!;
-                              final deductions =
-                                  await _loadDeductions(prefs);
+                              final deductions = await _loadDeductions(prefs);
                               for (final presetName in selectedPresets) {
                                 final deductPts =
                                     selectedPresetPts[presetName] ??
-                                        _deductionPresetPoints(presetName);
+                                    _deductionPresetPoints(presetName);
                                 for (final childId in selectedIds) {
-                                  deductions.add(DeductionItem(
-                                    id: _genId(),
-                                    childId: childId,
-                                    name: presetName,
-                                    points: deductPts,
-                                  ));
+                                  deductions.add(
+                                    DeductionItem(
+                                      id: _genId(),
+                                      childId: childId,
+                                      name: presetName,
+                                      points: deductPts,
+                                    ),
+                                  );
                                 }
                               }
                               if (customName.isNotEmpty) {
                                 final customPts =
-                                    int.tryParse(pointCtrl.text.trim()) ??
-                                        5;
+                                    int.tryParse(pointCtrl.text.trim()) ?? 5;
                                 for (final childId in selectedIds) {
-                                  deductions.add(DeductionItem(
-                                    id: _genId(),
-                                    childId: childId,
-                                    name: customName,
-                                    points: customPts,
-                                  ));
+                                  deductions.add(
+                                    DeductionItem(
+                                      id: _genId(),
+                                      childId: childId,
+                                      name: customName,
+                                      points: customPts,
+                                    ),
+                                  );
                                 }
                               }
                               await _saveDeductions(prefs, deductions);
@@ -3631,14 +3834,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         backgroundColor: Colors.red,
                         disabledBackgroundColor: Colors.grey.shade200,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
-                        total == 0
-                            ? '請選擇或輸入項目'
-                            : '新增 ($total 項)',
+                        total == 0 ? '請選擇或輸入項目' : '新增 ($total 項)',
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
@@ -3706,9 +3907,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
     if (name.isEmpty || pts <= 0) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('項目名稱不得為空、扣分須大於 0')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('項目名稱不得為空、扣分須大於 0')));
       }
       return;
     }
@@ -3745,9 +3946,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('新增獎勵時的預設值',
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(
+                  '新增獎勵時的預設值',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
                 const SizedBox(height: 4),
                 RadioGroup<String>(
                   groupValue: limitType,
@@ -3760,22 +3962,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('無上限',
-                            style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '無上限',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'none',
                       ),
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('每日限制',
-                            style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '每日限制',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'daily',
                       ),
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('每週限制',
-                            style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '每週限制',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'weekly',
                       ),
                     ],
@@ -3788,8 +3996,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
-                      labelText:
-                          limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
+                      labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
                     ),
                     onChanged: (v) => limitCount = int.tryParse(v) ?? 1,
                   ),
@@ -3800,8 +4007,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child:
-                  Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -3813,8 +4019,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
 
     if (confirmed != true) return;
-    final count =
-        limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text) ?? 1);
+    final count = limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text) ?? 1);
     await _prefs?.setString('reward_default_limit_type', limitType);
     await _prefs?.setInt('reward_default_limit_count', count);
     setState(() {
@@ -3826,9 +4031,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   // ── 新增獎勵 ──
   Future<void> _addReward() async {
     if (_children.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先新增小孩')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請先新增小孩')));
       return;
     }
 
@@ -3844,8 +4049,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final selectedPresetPts = <String, int>{};
 
     final existingNames = _rewards.map((r) => r.name).toSet();
-    final available =
-        _kRewardPresets.where((p) => !existingNames.contains(p.name)).toList();
+    final available = _kRewardPresets
+        .where((p) => !existingNames.contains(p.name))
+        .toList();
 
     await showModalBottomSheet(
       context: context,
@@ -3860,13 +4066,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
           final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
           final hasCustom = customName.isNotEmpty;
-          final canAdd = (hasCustom || selectedPresets.isNotEmpty) &&
+          final canAdd =
+              (hasCustom || selectedPresets.isNotEmpty) &&
               (!hasCustom || pts > 0) &&
               selectedIds.isNotEmpty;
 
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -3883,15 +4094,17 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('新增獎勵',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '新增獎勵',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 14),
 
                   // 套用小孩
-                  Text('套用小孩',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    '套用小孩',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 8,
@@ -3922,10 +4135,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         final result = await _showFamilyPresetSubSheet(
                           available,
                           Map.fromEntries(
-                            selectedPresets.map((n) => MapEntry(
+                            selectedPresets.map(
+                              (n) => MapEntry(
                                 n,
-                                selectedPresetPts[n] ??
-                                    _rewardPresetPoints(n))),
+                                selectedPresetPts[n] ?? _rewardPresetPoints(n),
+                              ),
+                            ),
                           ),
                           title: '常用獎勵',
                           accentColor: Colors.purple.shade600,
@@ -3945,7 +4160,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
                           color: selectedPresets.isEmpty
                               ? Colors.grey.shade50
@@ -4008,8 +4225,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon:
-                          const Icon(Icons.card_giftcard_outlined, size: 18),
+                      prefixIcon: const Icon(
+                        Icons.card_giftcard_outlined,
+                        size: 18,
+                      ),
                     ),
                   ),
 
@@ -4020,9 +4239,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         labelText: '所需積分',
                         filled: true,
@@ -4031,17 +4248,17 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        prefixIcon:
-                            const Icon(Icons.stars_outlined, size: 18),
+                        prefixIcon: const Icon(Icons.stars_outlined, size: 18),
                       ),
                     ),
                   ],
                   const SizedBox(height: 16),
 
                   // 使用上限
-                  Text('使用上限',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    '使用上限',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 4),
                   RadioGroup<String>(
                     groupValue: limitType,
@@ -4054,22 +4271,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         RadioListTile<String>(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('無上限',
-                              style: TextStyle(fontSize: 14)),
+                          title: const Text(
+                            '無上限',
+                            style: TextStyle(fontSize: 14),
+                          ),
                           value: 'none',
                         ),
                         RadioListTile<String>(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('每日限制',
-                              style: TextStyle(fontSize: 14)),
+                          title: const Text(
+                            '每日限制',
+                            style: TextStyle(fontSize: 14),
+                          ),
                           value: 'daily',
                         ),
                         RadioListTile<String>(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('每週限制',
-                              style: TextStyle(fontSize: 14)),
+                          title: const Text(
+                            '每週限制',
+                            style: TextStyle(fontSize: 14),
+                          ),
                           value: 'weekly',
                         ),
                       ],
@@ -4080,12 +4303,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     TextField(
                       controller: limitCtrl,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
-                        labelText:
-                            limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
+                        labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
                         filled: true,
                         fillColor: Colors.grey.shade50,
                         border: OutlineInputBorder(
@@ -4098,9 +4318,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   const SizedBox(height: 16),
 
                   // 票券有效期
-                  Text('票券有效期',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    '票券有效期',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 4),
                   RadioGroup<String>(
                     groupValue: expiryType,
@@ -4113,22 +4334,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         RadioListTile<String>(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('永不到期',
-                              style: TextStyle(fontSize: 14)),
+                          title: const Text(
+                            '永不到期',
+                            style: TextStyle(fontSize: 14),
+                          ),
                           value: 'none',
                         ),
                         RadioListTile<String>(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('兌換後幾天內',
-                              style: TextStyle(fontSize: 14)),
+                          title: const Text(
+                            '兌換後幾天內',
+                            style: TextStyle(fontSize: 14),
+                          ),
                           value: 'days',
                         ),
                         RadioListTile<String>(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('指定日期',
-                              style: TextStyle(fontSize: 14)),
+                          title: const Text(
+                            '指定日期',
+                            style: TextStyle(fontSize: 14),
+                          ),
                           value: 'date',
                         ),
                       ],
@@ -4139,9 +4366,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     TextField(
                       controller: expiryDaysCtrl,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         labelText: '有效天數',
                         filled: true,
@@ -4181,46 +4406,46 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               Navigator.pop(ctx);
                               final limitCount = limitType == 'none'
                                   ? 1
-                                  : (int.tryParse(limitCtrl.text.trim()) ??
-                                      1);
-                              final expiryDays = int.tryParse(
-                                      expiryDaysCtrl.text.trim()) ??
-                                  7;
-                              final expiryDate =
-                                  expiryDateCtrl.text.trim();
+                                  : (int.tryParse(limitCtrl.text.trim()) ?? 1);
+                              final expiryDays =
+                                  int.tryParse(expiryDaysCtrl.text.trim()) ?? 7;
+                              final expiryDate = expiryDateCtrl.text.trim();
                               final prefs = _prefs!;
                               final rewards = await _loadRewards(prefs);
                               for (final presetName in selectedPresets) {
                                 final costPts =
                                     selectedPresetPts[presetName] ??
-                                        _rewardPresetPoints(presetName);
-                                rewards.add(RewardItem(
-                                  id: _genId(),
-                                  name: presetName,
-                                  pointsCost: costPts,
-                                  childIds: selectedIds.toList(),
-                                  limitType: limitType,
-                                  limitCount: limitCount,
-                                  expiryType: expiryType,
-                                  expiryDays: expiryDays,
-                                  expiryDate: expiryDate,
-                                ));
+                                    _rewardPresetPoints(presetName);
+                                rewards.add(
+                                  RewardItem(
+                                    id: _genId(),
+                                    name: presetName,
+                                    pointsCost: costPts,
+                                    childIds: selectedIds.toList(),
+                                    limitType: limitType,
+                                    limitCount: limitCount,
+                                    expiryType: expiryType,
+                                    expiryDays: expiryDays,
+                                    expiryDate: expiryDate,
+                                  ),
+                                );
                               }
                               if (customName.isNotEmpty) {
                                 final customPts =
-                                    int.tryParse(pointCtrl.text.trim()) ??
-                                        0;
-                                rewards.add(RewardItem(
-                                  id: _genId(),
-                                  name: customName,
-                                  pointsCost: customPts,
-                                  childIds: selectedIds.toList(),
-                                  limitType: limitType,
-                                  limitCount: limitCount,
-                                  expiryType: expiryType,
-                                  expiryDays: expiryDays,
-                                  expiryDate: expiryDate,
-                                ));
+                                    int.tryParse(pointCtrl.text.trim()) ?? 0;
+                                rewards.add(
+                                  RewardItem(
+                                    id: _genId(),
+                                    name: customName,
+                                    pointsCost: customPts,
+                                    childIds: selectedIds.toList(),
+                                    limitType: limitType,
+                                    limitCount: limitCount,
+                                    expiryType: expiryType,
+                                    expiryDays: expiryDays,
+                                    expiryDate: expiryDate,
+                                  ),
+                                );
                               }
                               await _saveRewards(prefs, rewards);
                               _changed = true;
@@ -4231,14 +4456,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         backgroundColor: Colors.purple,
                         disabledBackgroundColor: Colors.grey.shade200,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
-                        total == 0
-                            ? '請選擇或輸入獎勵'
-                            : '新增 ($total 項)',
+                        total == 0 ? '請選擇或輸入獎勵' : '新增 ($total 項)',
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
@@ -4267,7 +4490,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final nameCtrl = TextEditingController(text: reward.name);
     final pointCtrl = TextEditingController(text: reward.pointsCost.toString());
     final limitCtrl = TextEditingController(text: reward.limitCount.toString());
-    final expiryDaysCtrl = TextEditingController(text: reward.expiryDays.toString());
+    final expiryDaysCtrl = TextEditingController(
+      text: reward.expiryDays.toString(),
+    );
     final expiryDateCtrl = TextEditingController(text: reward.expiryDate);
     final Set<String> selectedIds = Set.from(reward.childIds);
     String limitType = reward.limitType;
@@ -4283,21 +4508,25 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('套用小孩',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                ..._children.map((c) => CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(c.name),
-                      value: selectedIds.contains(c.id),
-                      onChanged: (v) => setS(() {
-                        if (v == true) {
-                          selectedIds.add(c.id);
-                        } else {
-                          selectedIds.remove(c.id);
-                        }
-                      }),
-                    )),
+                Text(
+                  '套用小孩',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                ..._children.map(
+                  (c) => CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(c.name),
+                    value: selectedIds.contains(c.id),
+                    onChanged: (v) => setS(() {
+                      if (v == true) {
+                        selectedIds.add(c.id);
+                      } else {
+                        selectedIds.remove(c.id);
+                      }
+                    }),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: nameCtrl,
@@ -4312,8 +4541,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   decoration: const InputDecoration(labelText: '所需積分'),
                 ),
                 const SizedBox(height: 16),
-                Text('使用上限',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(
+                  '使用上限',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
                 const SizedBox(height: 4),
                 RadioGroup<String>(
                   groupValue: limitType,
@@ -4326,19 +4557,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('無上限', style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '無上限',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'none',
                       ),
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('每日限制', style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '每日限制',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'daily',
                       ),
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('每週限制', style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '每週限制',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'weekly',
                       ),
                     ],
@@ -4356,8 +4596,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                Text('票券有效期',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(
+                  '票券有效期',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
                 const SizedBox(height: 4),
                 RadioGroup<String>(
                   groupValue: expiryType,
@@ -4370,19 +4612,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('永不到期', style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '永不到期',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'none',
                       ),
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('兌換後幾天內', style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '兌換後幾天內',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'days',
                       ),
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('指定日期', style: TextStyle(fontSize: 14)),
+                        title: const Text(
+                          '指定日期',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: 'date',
                       ),
                     ],
@@ -4428,8 +4679,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (result != true) return;
     final name = nameCtrl.text.trim();
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    final limitCount =
-        limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text.trim()) ?? 1);
+    final limitCount = limitType == 'none'
+        ? 1
+        : (int.tryParse(limitCtrl.text.trim()) ?? 1);
     final expiryDays = int.tryParse(expiryDaysCtrl.text.trim()) ?? 7;
     final expiryDate = expiryDateCtrl.text.trim();
     if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
@@ -4500,12 +4752,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     required Color subtitleColor,
     required String valueLabel,
     required Future<void> Function(Set<String> childIds, List<_Preset> presets)
-        onConfirm,
+    onConfirm,
   }) async {
     if (_children.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先新增小孩')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請先新增小孩')));
       return;
     }
 
@@ -4546,9 +4798,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   children: [
                     Icon(titleIcon, size: 18, color: color),
                     const SizedBox(width: 8),
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -4557,17 +4813,23 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('套用小孩',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600)),
+                    Text(
+                      '套用小孩',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 8,
                       children: _children.map((c) {
                         final sel = selectedChildIds.contains(c.id);
                         return FilterChip(
-                          label: Text(c.name,
-                              style: const TextStyle(fontSize: 13)),
+                          label: Text(
+                            c.name,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                           selected: sel,
                           selectedColor: color.withValues(alpha: 0.15),
                           checkmarkColor: color,
@@ -4596,8 +4858,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     final isSelected = selectedIdx.contains(i);
                     return ListTile(
                       dense: true,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 8),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                       leading: Checkbox(
                         value: isSelected,
                         activeColor: color,
@@ -4613,28 +4874,30 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         p.name,
                         style: isEdited
                             ? TextStyle(
-                                color: color, fontWeight: FontWeight.w500)
+                                color: color,
+                                fontWeight: FontWeight.w500,
+                              )
                             : null,
                       ),
                       subtitle: Text(
                         subtitle(p),
-                        style:
-                            TextStyle(color: subtitleColor, fontSize: 12),
+                        style: TextStyle(color: subtitleColor, fontSize: 12),
                       ),
                       trailing: IconButton(
                         icon: Icon(
                           Icons.edit_outlined,
                           size: 18,
-                          color:
-                              isEdited ? color : Colors.grey.shade400,
+                          color: isEdited ? color : Colors.grey.shade400,
                         ),
                         tooltip: '編輯',
                         onPressed: () async {
                           final src = overrides[i] ?? presets[i];
-                          final nameCtrl =
-                              TextEditingController(text: src.name);
+                          final nameCtrl = TextEditingController(
+                            text: src.name,
+                          );
                           final valCtrl = TextEditingController(
-                              text: '${src.value}');
+                            text: '${src.value}',
+                          );
                           await showDialog<void>(
                             context: ctx,
                             builder: (d) => AlertDialog(
@@ -4646,18 +4909,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                     controller: nameCtrl,
                                     autofocus: true,
                                     decoration: const InputDecoration(
-                                        labelText: '名稱'),
+                                      labelText: '名稱',
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
                                   TextField(
                                     controller: valCtrl,
                                     keyboardType: TextInputType.number,
                                     inputFormatters: [
-                                      FilteringTextInputFormatter
-                                          .digitsOnly
+                                      FilteringTextInputFormatter.digitsOnly,
                                     ],
                                     decoration: InputDecoration(
-                                        labelText: valueLabel),
+                                      labelText: valueLabel,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -4667,26 +4931,32 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                     setS(() => overrides.remove(i));
                                     Navigator.pop(d);
                                   },
-                                  child: Text('還原預設',
-                                      style: TextStyle(
-                                          color: Colors.grey.shade500,
-                                          fontSize: 13)),
+                                  child: Text(
+                                    '還原預設',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                 ),
                                 TextButton(
                                   onPressed: () => Navigator.pop(d),
-                                  child: Text('取消',
-                                      style: TextStyle(
-                                          color: Colors.grey.shade600)),
+                                  child: Text(
+                                    '取消',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
                                 ),
                                 TextButton(
                                   onPressed: () {
                                     final name = nameCtrl.text.trim();
                                     final val =
-                                        int.tryParse(valCtrl.text) ??
-                                            src.value;
+                                        int.tryParse(valCtrl.text) ?? src.value;
                                     if (name.isNotEmpty) {
-                                      setS(() => overrides[i] =
-                                          _Preset(name, val));
+                                      setS(
+                                        () => overrides[i] = _Preset(name, val),
+                                      );
                                     }
                                     Navigator.pop(d);
                                   },
@@ -4710,28 +4980,29 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                    20, 8, 20, MediaQuery.of(ctx).viewInsets.bottom + 16),
+                  20,
+                  8,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 16,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed:
-                        (selectedIdx.isEmpty || selectedChildIds.isEmpty)
-                            ? null
-                            : () async {
-                                Navigator.pop(ctx);
-                                final editedPresets =
-                                    (selectedIdx.toList()..sort())
-                                        .map((i) =>
-                                            overrides[i] ?? presets[i])
-                                        .toList();
-                                await onConfirm(
-                                    selectedChildIds, editedPresets);
-                              },
+                    onPressed: (selectedIdx.isEmpty || selectedChildIds.isEmpty)
+                        ? null
+                        : () async {
+                            Navigator.pop(ctx);
+                            final editedPresets = (selectedIdx.toList()..sort())
+                                .map((i) => overrides[i] ?? presets[i])
+                                .toList();
+                            await onConfirm(selectedChildIds, editedPresets);
+                          },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: color,
                       disabledBackgroundColor: Colors.grey.shade200,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     child: Text(
                       selectedIdx.isEmpty
@@ -4750,32 +5021,34 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   }
 
   Future<void> _showRewardPresets() => _showPresetSheet(
-        title: '常用獎勵',
-        titleIcon: Icons.card_giftcard_outlined,
-        color: Colors.amber.shade700,
-        presets: _kRewardPresets,
-        defaultAllChildren: true,
-        subtitle: (p) => '${p.value} 積分',
-        subtitleColor: Colors.amber.shade800,
-        valueLabel: '所需積分',
-        onConfirm: (childIds, selected) async {
-          final prefs = _prefs!;
-          final rewards = await _loadRewards(prefs);
-          for (final p in selected) {
-            rewards.add(RewardItem(
-              id: _genId(),
-              name: p.name,
-              pointsCost: p.value,
-              childIds: childIds.toList(),
-              limitType: 'none',
-              limitCount: 1,
-            ));
-          }
-          await _saveRewards(prefs, rewards);
-          _changed = true;
-          await _loadAll();
-        },
-      );
+    title: '常用獎勵',
+    titleIcon: Icons.card_giftcard_outlined,
+    color: Colors.amber.shade700,
+    presets: _kRewardPresets,
+    defaultAllChildren: true,
+    subtitle: (p) => '${p.value} 積分',
+    subtitleColor: Colors.amber.shade800,
+    valueLabel: '所需積分',
+    onConfirm: (childIds, selected) async {
+      final prefs = _prefs!;
+      final rewards = await _loadRewards(prefs);
+      for (final p in selected) {
+        rewards.add(
+          RewardItem(
+            id: _genId(),
+            name: p.name,
+            pointsCost: p.value,
+            childIds: childIds.toList(),
+            limitType: 'none',
+            limitCount: 1,
+          ),
+        );
+      }
+      await _saveRewards(prefs, rewards);
+      _changed = true;
+      await _loadAll();
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -4803,8 +5076,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         body: !_loaded
             ? const Center(child: CircularProgressIndicator())
             : _children.isEmpty
-                ? _buildEmpty()
-                : _buildContent(),
+            ? _buildEmpty()
+            : _buildContent(),
         floatingActionButton: FloatingActionButton(
           onPressed: _addChild,
           tooltip: '新增小孩',
@@ -4861,8 +5134,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         const SizedBox(height: 24),
 
         // ── 獎勵管理區塊 ──
-        _sectionTitle('獎勵管理', Icons.card_giftcard_outlined,
-            Colors.amber.shade700),
+        _sectionTitle(
+          '獎勵管理',
+          Icons.card_giftcard_outlined,
+          Colors.amber.shade700,
+        ),
         const SizedBox(height: 8),
         // 票券預設使用上限設定列
         Container(
@@ -4874,27 +5150,37 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           ),
           child: ListTile(
             dense: true,
-            leading: Icon(Icons.confirmation_num_outlined,
-                color: Colors.amber.shade700, size: 20),
-            title: const Text('票券預設使用上限',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            leading: Icon(
+              Icons.confirmation_num_outlined,
+              color: Colors.amber.shade700,
+              size: 20,
+            ),
+            title: const Text(
+              '票券預設使用上限',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
             subtitle: Text(
               _rewardDefaultLimitType == 'none'
                   ? '無上限'
                   : _rewardDefaultLimitType == 'daily'
-                      ? '每日 $_rewardDefaultLimitCount 次'
-                      : '每週 $_rewardDefaultLimitCount 次',
+                  ? '每日 $_rewardDefaultLimitCount 次'
+                  : '每週 $_rewardDefaultLimitCount 次',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
             trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12),
+            ),
             onTap: _showRewardLimitSettings,
           ),
         ),
         ..._buildRewardSection(),
-        _addWithPresetButtons('自訂獎勵', Colors.amber.shade700, _addReward, _showRewardPresets),
-
+        _addWithPresetButtons(
+          '自訂獎勵',
+          Colors.amber.shade700,
+          _addReward,
+          _showRewardPresets,
+        ),
       ],
     );
   }
@@ -4922,7 +5208,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
   // 新增按鈕
   Widget _addButton(
-      String label, IconData icon, Color color, VoidCallback onTap) {
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 16),
@@ -4957,7 +5247,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               side: BorderSide(color: color.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -4984,7 +5275,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   child: Text(
                     child.name.isNotEmpty ? child.name[0] : '?',
                     style: TextStyle(
-                        color: primary, fontWeight: FontWeight.bold),
+                      color: primary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -4992,24 +5285,30 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(child.name,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
-                      Text('積分：${child.points}',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade500)),
+                      Text(
+                        child.name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '積分：${child.points}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.edit_outlined,
-                      color: Colors.grey.shade500),
+                  icon: Icon(Icons.edit_outlined, color: Colors.grey.shade500),
                   tooltip: '修改名稱',
                   onPressed: () => _editChildName(index),
                 ),
                 IconButton(
-                  icon:
-                      const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
                   tooltip: '刪除',
                   onPressed: () => _deleteChild(index),
                 ),
@@ -5020,20 +5319,25 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               children: [
                 Icon(Icons.refresh, size: 16, color: Colors.grey.shade500),
                 const SizedBox(width: 6),
-                Text('積分重置：',
-                    style: TextStyle(
-                        fontSize: 13, color: Colors.grey.shade600)),
+                Text(
+                  '積分重置：',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
                 Text(
                   _resetModeLabels[child.resetMode] ?? '不重置',
                   style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w500),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const Spacer(),
                 TextButton(
                   onPressed: () => _setResetMode(index),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -5053,9 +5357,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       return [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('尚無習慣',
-              style:
-                  TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+          child: Text(
+            '尚無習慣',
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          ),
         ),
       ];
     }
@@ -5071,41 +5376,63 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       final habits = grouped[child.id] ?? [];
       if (habits.isEmpty) continue;
 
-      widgets.add(Padding(
-        padding: const EdgeInsets.only(bottom: 4, top: 4),
-        child: Text(child.name,
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4, top: 4),
+          child: Text(
+            child.name,
             style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500)),
-      ));
-
-      for (final habit in habits) {
-        widgets.add(Card(
-          key: ValueKey(habit.id),
-          margin: const EdgeInsets.only(bottom: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
-            dense: true,
-            title: Text(habit.name, style: const TextStyle(fontSize: 14)),
-            subtitle: Text('+${habit.points} 分',
-                style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
-            trailing: PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('編輯')),
-                PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
-              ],
-              onSelected: (action) {
-                if (action == 'edit') {
-                  _editHabit(habit);
-                } else {
-                  _confirmDelete(title: '刪除習慣', name: habit.name, onConfirm: () => _deleteHabit(habit));
-                }
-              },
+              fontSize: 13,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
             ),
           ),
-        ));
+        ),
+      );
+
+      for (final habit in habits) {
+        widgets.add(
+          Card(
+            key: ValueKey(habit.id),
+            margin: const EdgeInsets.only(bottom: 6),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              dense: true,
+              title: Text(habit.name, style: const TextStyle(fontSize: 14)),
+              subtitle: Text(
+                '+${habit.points} 分',
+                style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+              ),
+              trailing: PopupMenuButton<String>(
+                icon: Icon(
+                  Icons.more_vert,
+                  size: 20,
+                  color: Colors.grey.shade400,
+                ),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('編輯')),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text('刪除', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+                onSelected: (action) {
+                  if (action == 'edit') {
+                    _editHabit(habit);
+                  } else {
+                    _confirmDelete(
+                      title: '刪除習慣',
+                      name: habit.name,
+                      onConfirm: () => _deleteHabit(habit),
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+        );
       }
     }
     return widgets;
@@ -5117,9 +5444,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       return [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('尚無扣分項目',
-              style:
-                  TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+          child: Text(
+            '尚無扣分項目',
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          ),
         ),
       ];
     }
@@ -5134,41 +5462,63 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       final items = grouped[child.id] ?? [];
       if (items.isEmpty) continue;
 
-      widgets.add(Padding(
-        padding: const EdgeInsets.only(bottom: 4, top: 4),
-        child: Text(child.name,
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4, top: 4),
+          child: Text(
+            child.name,
             style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500)),
-      ));
-
-      for (final item in items) {
-        widgets.add(Card(
-          key: ValueKey(item.id),
-          margin: const EdgeInsets.only(bottom: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
-            dense: true,
-            title: Text(item.name, style: const TextStyle(fontSize: 14)),
-            subtitle: Text('-${item.points} 分',
-                style: const TextStyle(fontSize: 12, color: Colors.red)),
-            trailing: PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('編輯')),
-                PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
-              ],
-              onSelected: (action) {
-                if (action == 'edit') {
-                  _editDeduction(item);
-                } else {
-                  _confirmDelete(title: '刪除扣分項目', name: item.name, onConfirm: () => _deleteDeduction(item));
-                }
-              },
+              fontSize: 13,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
             ),
           ),
-        ));
+        ),
+      );
+
+      for (final item in items) {
+        widgets.add(
+          Card(
+            key: ValueKey(item.id),
+            margin: const EdgeInsets.only(bottom: 6),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              dense: true,
+              title: Text(item.name, style: const TextStyle(fontSize: 14)),
+              subtitle: Text(
+                '-${item.points} 分',
+                style: const TextStyle(fontSize: 12, color: Colors.red),
+              ),
+              trailing: PopupMenuButton<String>(
+                icon: Icon(
+                  Icons.more_vert,
+                  size: 20,
+                  color: Colors.grey.shade400,
+                ),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('編輯')),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text('刪除', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+                onSelected: (action) {
+                  if (action == 'edit') {
+                    _editDeduction(item);
+                  } else {
+                    _confirmDelete(
+                      title: '刪除扣分項目',
+                      name: item.name,
+                      onConfirm: () => _deleteDeduction(item),
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+        );
       }
     }
     return widgets;
@@ -5180,8 +5530,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       return [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('尚無獎勵',
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+          child: Text(
+            '尚無獎勵',
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          ),
         ),
       ];
     }
@@ -5228,13 +5580,20 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'edit', child: Text('編輯')),
-              PopupMenuItem(value: 'delete', child: Text('刪除', style: TextStyle(color: Colors.red))),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text('刪除', style: TextStyle(color: Colors.red)),
+              ),
             ],
             onSelected: (action) {
               if (action == 'edit') {
                 _editReward(reward);
               } else {
-                _confirmDelete(title: '刪除獎勵', name: reward.name, onConfirm: () => _deleteReward(reward));
+                _confirmDelete(
+                  title: '刪除獎勵',
+                  name: reward.name,
+                  onConfirm: () => _deleteReward(reward),
+                );
               }
             },
           ),
