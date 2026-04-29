@@ -551,6 +551,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Future<int?> _showMinutesDialog(int current) async {
+    final ctrl = TextEditingController(text: current > 0 ? '$current' : '');
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('持續時間'),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+            suffixText: '分鐘',
+            hintText: '輸入分鐘數',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+          onSubmitted: (v) {
+            final n = int.tryParse(v.trim());
+            if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 999));
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () {
+              final n = int.tryParse(ctrl.text.trim());
+              if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 999));
+            },
+            child: const Text('確定'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPresetCustomization(_HomePreset p, _PresetConfig config, StateSetter setS) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -574,12 +613,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 onTap: () => setS(() => config.minutes = (config.minutes - 5).clamp(5, 180)),
               ),
               const SizedBox(width: 14),
-              SizedBox(
-                width: 44,
-                child: Text(
-                  '${config.minutes}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              GestureDetector(
+                onTap: () async {
+                  final result = await _showMinutesDialog(config.minutes);
+                  if (result != null) setS(() => config.minutes = result);
+                },
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.orange.shade300, width: 1.5),
+                    ),
+                  ),
+                  child: Text(
+                    '${config.minutes}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
               Text('分鐘', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
@@ -657,6 +708,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final selected = <String, _PresetConfig>{};
     String freq = 'daily';
     int weeklyTarget = 3;
+    int customMinutes = 0;
     bool customExpanded = false;
 
     await showModalBottomSheet(
@@ -855,6 +907,64 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ],
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        Text('持續時間（選填）',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            _AdjustBtn(
+                              icon: Icons.remove,
+                              enabled: customMinutes > 0,
+                              onTap: () => setS(() =>
+                                  customMinutes = customMinutes <= 5 ? 0 : customMinutes - 5),
+                            ),
+                            const SizedBox(width: 10),
+                            GestureDetector(
+                              onTap: () async {
+                                final result = await _showMinutesDialog(customMinutes);
+                                if (result != null) setS(() => customMinutes = result);
+                              },
+                              child: Container(
+                                constraints: const BoxConstraints(minWidth: 52),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: customMinutes > 0
+                                          ? Colors.orange.shade300
+                                          : Colors.grey.shade300,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  customMinutes > 0 ? '$customMinutes' : '--',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: customMinutes > 0 ? Colors.black87 : Colors.grey.shade400,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '  分鐘',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: customMinutes > 0 ? Colors.grey.shade600 : Colors.grey.shade400,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            _AdjustBtn(
+                              icon: Icons.add,
+                              enabled: customMinutes < 180,
+                              onTap: () => setS(() =>
+                                  customMinutes = customMinutes == 0 ? 5 : (customMinutes + 5).clamp(5, 180)),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -884,8 +994,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             if (settingsChanged) widget.onSettingsChanged?.call();
                             setState(() {
                               if (customName.isNotEmpty) {
+                                final fullName = customMinutes > 0
+                                    ? '$customName $customMinutes 分鐘'
+                                    : customName;
                                 final map = <String, dynamic>{
-                                  'name': customName,
+                                  'name': fullName,
                                   'done': false,
                                   'frequency': freq,
                                 };
