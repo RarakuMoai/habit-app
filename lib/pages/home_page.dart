@@ -565,14 +565,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           autofocus: true,
           decoration: InputDecoration(
             suffixText: '分鐘',
-            hintText: '1 ~ 180',
-            helperText: '上限 180 分鐘',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
           onSubmitted: (v) {
             final n = int.tryParse(v.trim());
-            if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 180));
+            if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 999));
           },
         ),
         actions: [
@@ -583,7 +581,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           TextButton(
             onPressed: () {
               final n = int.tryParse(ctrl.text.trim());
-              if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 180));
+              if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 999));
             },
             child: const Text('確定'),
           ),
@@ -612,7 +610,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               _AdjustBtn(
                 icon: Icons.remove,
                 enabled: config.minutes > 5,
-                onTap: () => setS(() => config.minutes = (config.minutes - 5).clamp(5, 180)),
+                onTap: () => setS(() => config.minutes = (config.minutes - 5).clamp(5, 999)),
               ),
               const SizedBox(width: 14),
               GestureDetector(
@@ -639,8 +637,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               const SizedBox(width: 14),
               _AdjustBtn(
                 icon: Icons.add,
-                enabled: config.minutes < 180,
-                onTap: () => setS(() => config.minutes = (config.minutes + 5).clamp(5, 180)),
+                enabled: config.minutes < 999,
+                onTap: () => setS(() => config.minutes = (config.minutes + 5).clamp(5, 999)),
               ),
             ],
           ),
@@ -971,9 +969,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             const SizedBox(width: 10),
                             _AdjustBtn(
                               icon: Icons.add,
-                              enabled: customMinutes < 180,
+                              enabled: customMinutes < 999,
                               onTap: () => setS(() =>
-                                  customMinutes = customMinutes == 0 ? 5 : (customMinutes + 5).clamp(5, 180)),
+                                  customMinutes = customMinutes == 0 ? 5 : (customMinutes + 5).clamp(5, 999)),
                             ),
                           ],
                         ),
