@@ -113,22 +113,12 @@ class RewardItem {
   String name;
   int pointsCost;
   List<String> childIds;
-  String limitType; // 'none' | 'daily' | 'weekly'（使用次數上限）
-  int limitCount;
-  String expiryType; // 'none' | 'days' | 'date'
-  int expiryDays;
-  String expiryDate; // yyyy-MM-dd，僅 expiryType=='date' 時使用
 
   RewardItem({
     required this.id,
     required this.name,
     required this.pointsCost,
     required this.childIds,
-    this.limitType = 'daily',
-    this.limitCount = 1,
-    this.expiryType = 'none',
-    this.expiryDays = 7,
-    this.expiryDate = '',
   });
 
   factory RewardItem.fromJson(Map<String, dynamic> json) => RewardItem(
@@ -137,11 +127,6 @@ class RewardItem {
     pointsCost: (json['points_cost'] as int?) ?? 0,
     childIds:
         (json['child_ids'] as List?)?.map((e) => e as String).toList() ?? [],
-    limitType: (json['limit_type'] as String?) ?? 'daily',
-    limitCount: (json['limit_count'] as int?) ?? 1,
-    expiryType: (json['expiry_type'] as String?) ?? 'none',
-    expiryDays: (json['expiry_days'] as int?) ?? 7,
-    expiryDate: (json['expiry_date'] as String?) ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -149,20 +134,7 @@ class RewardItem {
     'name': name,
     'points_cost': pointsCost,
     'child_ids': childIds,
-    'limit_type': limitType,
-    'limit_count': limitCount,
-    'expiry_type': expiryType,
-    'expiry_days': expiryDays,
-    'expiry_date': expiryDate,
   };
-
-  // 計算此次兌換的到期日（空字串 = 無到期）
-  String computeVoucherExpiry() {
-    if (expiryType == 'none') return '';
-    if (expiryType == 'date') return expiryDate;
-    final expiry = DateTime.now().add(Duration(days: expiryDays));
-    return '${expiry.year}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}';
-  }
 }
 
 // 票券紀錄（兌換後產生，need 使用才算消耗）
@@ -173,7 +145,6 @@ class VoucherLog {
   final String redeemedAt; // yyyy-MM-dd HH:mm
   bool used;
   String usedAt; // 空字串 = 尚未使用
-  String expiryDate; // 空字串 = 無到期，yyyy-MM-dd
 
   VoucherLog({
     required this.id,
@@ -182,7 +153,6 @@ class VoucherLog {
     required this.redeemedAt,
     this.used = false,
     this.usedAt = '',
-    this.expiryDate = '',
   });
 
   factory VoucherLog.fromJson(Map<String, dynamic> json) => VoucherLog(
@@ -194,7 +164,6 @@ class VoucherLog {
         (json['time'] as String? ?? ''), // 向下相容舊格式
     used: (json['used'] as bool?) ?? false,
     usedAt: (json['used_at'] as String?) ?? '',
-    expiryDate: (json['expiry_date'] as String?) ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -204,7 +173,6 @@ class VoucherLog {
     'redeemed_at': redeemedAt,
     'used': used,
     'used_at': usedAt,
-    'expiry_date': expiryDate,
   };
 }
 
@@ -2095,45 +2063,6 @@ class _RewardTabState extends State<_RewardTab> {
     return r?.name ?? '已刪除的獎勵';
   }
 
-  // 使用次數統計（以 usedAt 為準）
-  int _todayUsageCount(String rewardId) {
-    final today = _todayStr();
-    return _vouchers
-        .where(
-          (v) => v.rewardId == rewardId && v.used && v.usedAt.startsWith(today),
-        )
-        .length;
-  }
-
-  int _weekUsageCount(String rewardId) {
-    final now = DateTime.now();
-    final weekStart = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).subtract(const Duration(days: 6));
-    return _vouchers.where((v) {
-      if (v.rewardId != rewardId || !v.used) return false;
-      final d = DateTime.tryParse(v.usedAt.split(' ').first);
-      return d != null && !d.isBefore(weekStart);
-    }).length;
-  }
-
-  bool _canUse(RewardItem r) {
-    if (r.limitType == 'daily') return _todayUsageCount(r.id) < r.limitCount;
-    if (r.limitType == 'weekly') return _weekUsageCount(r.id) < r.limitCount;
-    return true;
-  }
-
-  // 正數 = 剩餘天數，0 = 今天到期，負數 = 已超過幾天
-  int? _daysUntilExpiry(String expiryDate) {
-    if (expiryDate.isEmpty) return null;
-    final exp = DateTime.tryParse(expiryDate);
-    if (exp == null) return null;
-    final today = DateTime.now();
-    final todayOnly = DateTime(today.year, today.month, today.day);
-    return exp.difference(todayOnly).inDays;
-  }
 
   Future<void> _redeem(RewardItem r) async {
     if (!mounted) return;
@@ -2214,14 +2143,12 @@ class _RewardTabState extends State<_RewardTab> {
     );
     final allVouchers = await _loadVouchers(prefs);
     final now = _nowStr();
-    final expiry = r.computeVoucherExpiry();
     for (var i = 0; i < qty; i++) {
       final v = VoucherLog(
         id: _genId(),
         rewardId: r.id,
         childId: widget.child.id,
         redeemedAt: now,
-        expiryDate: expiry,
       );
       allVouchers.add(v);
       _vouchers.add(v);
@@ -2234,28 +2161,12 @@ class _RewardTabState extends State<_RewardTab> {
   Future<void> _useVoucher(VoucherLog v) async {
     if (!mounted) return;
     final rewardName = _rewardName(v.rewardId);
-    final reward = _rewards.where((r) => r.id == v.rewardId).firstOrNull;
-
-    // 使用次數上限檢查
-    if (reward != null && !_canUse(reward)) {
-      final hint = reward.limitType == 'daily'
-          ? '今日使用已達 ${reward.limitCount} 次上限'
-          : '本週使用已達 ${reward.limitCount} 次上限';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(hint)));
-      return;
-    }
-
-    final days = _daysUntilExpiry(v.expiryDate);
-    String confirmMsg = '確定使用「$rewardName」這張票券嗎？';
-    if (days != null && days < 0) {
-      confirmMsg += '\n\n⚠️ 此票券已逾期 ${-days} 天，仍要使用嗎？';
-    }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('使用票券'),
-        content: Text(confirmMsg),
+        content: Text('確定使用「$rewardName」這張票券嗎？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -2315,26 +2226,11 @@ class _RewardTabState extends State<_RewardTab> {
               ),
             )
           else
-            ...pendingVouchers.map((v) {
-              final reward = _rewards
-                  .where((r) => r.id == v.rewardId)
-                  .firstOrNull;
-              final canUse = reward == null || _canUse(reward);
-              String? limitHint;
-              if (reward != null && !canUse) {
-                limitHint = reward.limitType == 'daily'
-                    ? '今日已達使用上限'
-                    : '本週已達使用上限';
-              }
-              return _VoucherCard(
-                voucher: v,
-                rewardName: _rewardName(v.rewardId),
-                daysUntilExpiry: _daysUntilExpiry(v.expiryDate),
-                canUse: canUse,
-                limitHint: limitHint,
-                onUse: () => _useVoucher(v),
-              );
-            }),
+            ...pendingVouchers.map((v) => _VoucherCard(
+              voucher: v,
+              rewardName: _rewardName(v.rewardId),
+              onUse: () => _useVoucher(v),
+            )),
 
           const SizedBox(height: 8),
 
@@ -2464,62 +2360,24 @@ class _SectionHeader extends StatelessWidget {
 class _VoucherCard extends StatelessWidget {
   final VoucherLog voucher;
   final String rewardName;
-  final int? daysUntilExpiry;
-  final bool canUse;
-  final String? limitHint;
   final VoidCallback onUse;
 
   const _VoucherCard({
     required this.voucher,
     required this.rewardName,
-    required this.daysUntilExpiry,
-    required this.canUse,
-    required this.limitHint,
     required this.onUse,
   });
 
   @override
   Widget build(BuildContext context) {
-    final days = daysUntilExpiry;
-    final isExpired = days != null && days < 0;
-    final isAlmostExpired = days != null && days >= 0 && days <= 3;
-
-    Color? borderColor;
-    if (isExpired) borderColor = Colors.red.shade300;
-    if (isAlmostExpired) borderColor = Colors.orange.shade400;
-
-    String? expiryLabel;
-    if (days == null) {
-      expiryLabel = null;
-    } else if (isExpired) {
-      expiryLabel = '已逾期 ${-days} 天';
-    } else if (days == 0) {
-      expiryLabel = '今天到期';
-    } else {
-      expiryLabel = '$days 天後到期';
-    }
-
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: borderColor != null
-            ? BorderSide(color: borderColor, width: 1.5)
-            : BorderSide.none,
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
-            Icon(
-              Icons.confirmation_num,
-              size: 32,
-              color: isExpired
-                  ? Colors.red.shade300
-                  : isAlmostExpired
-                  ? Colors.orange.shade400
-                  : Colors.purple.shade300,
-            ),
+            Icon(Icons.confirmation_num, size: 32, color: Colors.purple.shade300),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -2527,48 +2385,28 @@ class _VoucherCard extends StatelessWidget {
                 children: [
                   Text(
                     rewardName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '兌換於 ${voucher.redeemedAt}',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
-                  if (expiryLabel != null)
-                    Text(
-                      expiryLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isExpired
-                            ? Colors.red.shade400
-                            : Colors.orange.shade600,
-                      ),
-                    ),
                 ],
               ),
             ),
             ElevatedButton(
-              onPressed: canUse ? onUse : null,
+              onPressed: onUse,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple.shade400,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.shade200,
-                disabledForegroundColor: Colors.grey.shade400,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 textStyle: const TextStyle(fontSize: 13),
               ),
-              child: Text(limitHint ?? '使用'),
+              child: const Text('使用'),
             ),
           ],
         ),
@@ -2631,25 +2469,6 @@ class _RewardCard extends StatelessWidget {
                           color: Colors.grey.shade600,
                         ),
                       ),
-                      if (reward.limitType == 'daily') ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '每日限用 ${reward.limitCount} 次',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                      ] else if (reward.limitType == 'weekly') ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '每週限用 ${reward.limitCount} 次',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ],
@@ -2702,10 +2521,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   bool _loaded = false;
   SharedPreferences? _prefs;
 
-  // 獎勵票券預設使用上限
-  String _rewardDefaultLimitType = 'daily';
-  int _rewardDefaultLimitCount = 1;
-
   // 追蹤是否有異動，回傳給上層以決定是否重新載入
   bool _changed = false;
 
@@ -2750,10 +2565,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       _habits = habits;
       _deductions = deductions;
       _rewards = rewards;
-      _rewardDefaultLimitType =
-          prefs.getString('reward_default_limit_type') ?? 'daily';
-      _rewardDefaultLimitCount =
-          prefs.getInt('reward_default_limit_count') ?? 1;
       _loaded = true;
     });
   }
@@ -3930,104 +3741,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
   }
 
-  // ── 獎勵票券預設使用上限 ──
-  Future<void> _showRewardLimitSettings() async {
-    String limitType = _rewardDefaultLimitType;
-    int limitCount = _rewardDefaultLimitCount;
-    final limitCtrl = TextEditingController(text: '$limitCount');
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('票券預設使用上限'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '新增獎勵時的預設值',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 4),
-                RadioGroup<String>(
-                  groupValue: limitType,
-                  onChanged: (v) {
-                    if (v != null) setS(() => limitType = v);
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '無上限',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'none',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '每日限制',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'daily',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '每週限制',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'weekly',
-                      ),
-                    ],
-                  ),
-                ),
-                if (limitType != 'none') ...[
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: limitCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
-                    ),
-                    onChanged: (v) => limitCount = int.tryParse(v) ?? 1,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('儲存'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed != true) return;
-    final count = limitType == 'none' ? 1 : (int.tryParse(limitCtrl.text) ?? 1);
-    await _prefs?.setString('reward_default_limit_type', limitType);
-    await _prefs?.setInt('reward_default_limit_count', count);
-    setState(() {
-      _rewardDefaultLimitType = limitType;
-      _rewardDefaultLimitCount = count;
-    });
-  }
-
   // ── 新增獎勵 ──
   Future<void> _addReward() async {
     if (_children.isEmpty) {
@@ -4039,12 +3752,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
-    final limitCtrl = TextEditingController(text: '$_rewardDefaultLimitCount');
-    final expiryDaysCtrl = TextEditingController(text: '7');
-    final expiryDateCtrl = TextEditingController();
     final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
-    String limitType = _rewardDefaultLimitType;
-    String expiryType = 'none';
     final selectedPresets = <String>{};
     final selectedPresetPts = <String, int>{};
 
@@ -4252,149 +3960,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 16),
-
-                  // 使用上限
-                  Text(
-                    '使用上限',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 4),
-                  RadioGroup<String>(
-                    groupValue: limitType,
-                    onChanged: (v) {
-                      if (v != null) setS(() => limitType = v);
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            '無上限',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          value: 'none',
-                        ),
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            '每日限制',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          value: 'daily',
-                        ),
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            '每週限制',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          value: 'weekly',
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (limitType != 'none') ...[
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: limitCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-
-                  // 票券有效期
-                  Text(
-                    '票券有效期',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 4),
-                  RadioGroup<String>(
-                    groupValue: expiryType,
-                    onChanged: (v) {
-                      if (v != null) setS(() => expiryType = v);
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            '永不到期',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          value: 'none',
-                        ),
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            '兌換後幾天內',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          value: 'days',
-                        ),
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            '指定日期',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          value: 'date',
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (expiryType == 'days') ...[
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: expiryDaysCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        labelText: '有效天數',
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (expiryType == 'date') ...[
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: expiryDateCtrl,
-                      keyboardType: TextInputType.datetime,
-                      decoration: InputDecoration(
-                        labelText: '到期日（yyyy-MM-dd）',
-                        hintText: '例：2026-12-31',
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 20),
 
                   // 新增按鈕
@@ -4404,12 +3969,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       onPressed: canAdd
                           ? () async {
                               Navigator.pop(ctx);
-                              final limitCount = limitType == 'none'
-                                  ? 1
-                                  : (int.tryParse(limitCtrl.text.trim()) ?? 1);
-                              final expiryDays =
-                                  int.tryParse(expiryDaysCtrl.text.trim()) ?? 7;
-                              final expiryDate = expiryDateCtrl.text.trim();
                               final prefs = _prefs!;
                               final rewards = await _loadRewards(prefs);
                               for (final presetName in selectedPresets) {
@@ -4422,11 +3981,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                     name: presetName,
                                     pointsCost: costPts,
                                     childIds: selectedIds.toList(),
-                                    limitType: limitType,
-                                    limitCount: limitCount,
-                                    expiryType: expiryType,
-                                    expiryDays: expiryDays,
-                                    expiryDate: expiryDate,
                                   ),
                                 );
                               }
@@ -4439,11 +3993,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                     name: customName,
                                     pointsCost: customPts,
                                     childIds: selectedIds.toList(),
-                                    limitType: limitType,
-                                    limitCount: limitCount,
-                                    expiryType: expiryType,
-                                    expiryDays: expiryDays,
-                                    expiryDate: expiryDate,
                                   ),
                                 );
                               }
@@ -4489,14 +4038,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _editReward(RewardItem reward) async {
     final nameCtrl = TextEditingController(text: reward.name);
     final pointCtrl = TextEditingController(text: reward.pointsCost.toString());
-    final limitCtrl = TextEditingController(text: reward.limitCount.toString());
-    final expiryDaysCtrl = TextEditingController(
-      text: reward.expiryDays.toString(),
-    );
-    final expiryDateCtrl = TextEditingController(text: reward.expiryDate);
     final Set<String> selectedIds = Set.from(reward.childIds);
-    String limitType = reward.limitType;
-    String expiryType = reward.expiryType;
 
     final result = await showDialog<bool>(
       context: context,
@@ -4540,125 +4082,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(labelText: '所需積分'),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  '使用上限',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 4),
-                RadioGroup<String>(
-                  groupValue: limitType,
-                  onChanged: (v) {
-                    if (v != null) setS(() => limitType = v);
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '無上限',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'none',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '每日限制',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'daily',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '每週限制',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'weekly',
-                      ),
-                    ],
-                  ),
-                ),
-                if (limitType != 'none') ...[
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: limitCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: limitType == 'daily' ? '每日最多幾次' : '每週最多幾次',
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Text(
-                  '票券有效期',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 4),
-                RadioGroup<String>(
-                  groupValue: expiryType,
-                  onChanged: (v) {
-                    if (v != null) setS(() => expiryType = v);
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '永不到期',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'none',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '兌換後幾天內',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'days',
-                      ),
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '指定日期',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        value: 'date',
-                      ),
-                    ],
-                  ),
-                ),
-                if (expiryType == 'days') ...[
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: expiryDaysCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(labelText: '有效天數'),
-                  ),
-                ],
-                if (expiryType == 'date') ...[
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: expiryDateCtrl,
-                    keyboardType: TextInputType.datetime,
-                    decoration: const InputDecoration(
-                      labelText: '到期日（yyyy-MM-dd）',
-                      hintText: '例：2026-12-31',
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -4679,11 +4102,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (result != true) return;
     final name = nameCtrl.text.trim();
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    final limitCount = limitType == 'none'
-        ? 1
-        : (int.tryParse(limitCtrl.text.trim()) ?? 1);
-    final expiryDays = int.tryParse(expiryDaysCtrl.text.trim()) ?? 7;
-    final expiryDate = expiryDateCtrl.text.trim();
     if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4702,11 +4120,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         name: name,
         pointsCost: pts,
         childIds: selectedIds.toList(),
-        limitType: limitType,
-        limitCount: limitCount,
-        expiryType: expiryType,
-        expiryDays: expiryDays,
-        expiryDate: expiryDate,
       );
     }
     await _saveRewards(prefs, rewards);
@@ -4830,40 +4243,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           Colors.amber.shade700,
         ),
         const SizedBox(height: 8),
-        // 票券預設使用上限設定列
-        Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: ListTile(
-            dense: true,
-            leading: Icon(
-              Icons.confirmation_num_outlined,
-              color: Colors.amber.shade700,
-              size: 20,
-            ),
-            title: const Text(
-              '票券預設使用上限',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(
-              _rewardDefaultLimitType == 'none'
-                  ? '無上限'
-                  : _rewardDefaultLimitType == 'daily'
-                  ? '每日 $_rewardDefaultLimitCount 次'
-                  : '每週 $_rewardDefaultLimitCount 次',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-            ),
-            trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            onTap: _showRewardLimitSettings,
-          ),
-        ),
         ..._buildRewardSection(),
         _addButton('新增獎勵', Icons.add, Colors.amber.shade700, _addReward),
       ],
@@ -5195,20 +4574,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final amber = Colors.amber.shade700;
     return _rewards.map((reward) {
-      String limitLabel = '';
-      if (reward.limitType == 'daily') {
-        limitLabel = '每日限用 ${reward.limitCount} 次';
-      } else if (reward.limitType == 'weekly') {
-        limitLabel = '每週限用 ${reward.limitCount} 次';
-      }
-
-      String expiryLabel = '';
-      if (reward.expiryType == 'days') {
-        expiryLabel = '兌換後 ${reward.expiryDays} 天';
-      } else if (reward.expiryType == 'date') {
-        expiryLabel = '到期 ${reward.expiryDate}';
-      }
-
       final childNames = _children
           .where((c) => reward.childIds.contains(c.id))
           .map((c) => c.name)
@@ -5225,8 +4590,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           subtitle: Text(
             [
               '${reward.pointsCost} 分',
-              if (limitLabel.isNotEmpty) limitLabel,
-              if (expiryLabel.isNotEmpty) expiryLabel,
               if (childNames.isNotEmpty) childNames,
             ].join(' · '),
             style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
