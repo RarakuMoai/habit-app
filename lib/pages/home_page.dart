@@ -657,6 +657,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final selected = <String, _PresetConfig>{};
     String freq = 'daily';
     int weeklyTarget = 3;
+    bool customExpanded = false;
 
     await showModalBottomSheet(
       context: context,
@@ -687,14 +688,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 16),
                 const Text('新增習慣',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-                if (available.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                // 常用習慣選取
+                if (available.isNotEmpty)
                   InkWell(
                     onTap: () async {
-                      final result = await _showHabitPresetSheet(
-                          available, selected);
+                      final result = await _showHabitPresetSheet(available, selected);
                       if (result != null) {
                         setS(() {
                           selected.clear();
@@ -705,148 +705,162 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(12),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
-                        color: selected.isEmpty
-                            ? Colors.grey.shade50
-                            : Colors.orange.shade50,
+                        color: selected.isEmpty ? Colors.grey.shade50 : Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: selected.isEmpty
-                              ? Colors.grey.shade300
-                              : Colors.orange.shade300,
+                          color: selected.isEmpty ? Colors.grey.shade300 : Colors.orange.shade300,
                         ),
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.auto_awesome,
-                            size: 18,
-                            color: selected.isEmpty
-                                ? Colors.grey.shade500
-                                : Colors.orange,
-                          ),
+                          Icon(Icons.auto_awesome, size: 18,
+                              color: selected.isEmpty ? Colors.grey.shade500 : Colors.orange),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              selected.isEmpty
-                                  ? '從常用習慣選取'
-                                  : '已選 ${selected.length} 個常用習慣',
+                              selected.isEmpty ? '從常用習慣選取' : '已選 ${selected.length} 個常用習慣',
                               style: TextStyle(
-                                color: selected.isEmpty
-                                    ? Colors.grey.shade600
-                                    : Colors.orange.shade700,
+                                color: selected.isEmpty ? Colors.grey.shade600 : Colors.orange.shade700,
                                 fontSize: 14,
                               ),
                             ),
                           ),
                           Icon(
-                            selected.isEmpty
-                                ? Icons.chevron_right
-                                : Icons.check_circle,
+                            selected.isEmpty ? Icons.chevron_right : Icons.check_circle,
                             size: 20,
-                            color: selected.isEmpty
-                                ? Colors.grey.shade400
-                                : Colors.orange.shade600,
+                            color: selected.isEmpty ? Colors.grey.shade400 : Colors.orange.shade600,
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
-                const SizedBox(height: 12),
-                TextField(
-                  controller: nameCtrl,
-                  onChanged: (_) => setS(() {}),
-                  decoration: InputDecoration(
-                    hintText: '自訂習慣名稱...',
-                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    border: OutlineInputBorder(
+                const SizedBox(height: 10),
+                // 自訂習慣 toggle
+                InkWell(
+                  onTap: () => setS(() => customExpanded = !customExpanded),
+                  borderRadius: BorderRadius.circular(12),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: customExpanded
+                          ? (customName.isNotEmpty ? Colors.deepOrange.shade50 : Colors.grey.shade100)
+                          : Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                      border: Border.all(
+                        color: customExpanded
+                            ? (customName.isNotEmpty ? Colors.deepOrange.shade300 : Colors.grey.shade300)
+                            : Colors.grey.shade300,
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text('頻率', style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setS(() => freq = 'daily'),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: freq == 'daily' ? Colors.orange : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_note, size: 18,
+                            color: customName.isNotEmpty
+                                ? Colors.deepOrange.shade500
+                                : Colors.grey.shade500),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: Text(
-                            '每日',
-                            textAlign: TextAlign.center,
+                            customName.isNotEmpty ? customName : '自訂習慣',
                             style: TextStyle(
-                              color: freq == 'daily' ? Colors.white : Colors.grey.shade600,
-                              fontWeight: FontWeight.w600,
+                              color: customName.isNotEmpty
+                                  ? Colors.deepOrange.shade700
+                                  : Colors.grey.shade600,
                               fontSize: 14,
                             ),
                           ),
                         ),
-                      ),
+                        Icon(
+                          customExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          size: 20,
+                          color: Colors.grey.shade400,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setS(() => freq = 'weekly'),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: freq == 'weekly' ? Colors.orange : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '每週',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: freq == 'weekly' ? Colors.white : Colors.grey.shade600,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                  ),
+                ),
+                // 自訂習慣展開內容
+                AnimatedCrossFade(
+                  firstChild: const SizedBox(width: double.infinity, height: 0),
+                  secondChild: Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: nameCtrl,
+                          onChanged: (_) => setS(() {}),
+                          decoration: InputDecoration(
+                            hintText: '習慣名稱',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade200),
                             ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade200),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.orange.shade400),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 12),
+                        Text('頻率',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            _FreqChip(
+                              label: '每日',
+                              selected: freq == 'daily',
+                              onTap: () => setS(() => freq = 'daily'),
+                            ),
+                            const SizedBox(width: 8),
+                            _FreqChip(
+                              label: '每週',
+                              selected: freq == 'weekly',
+                              onTap: () => setS(() => freq = 'weekly'),
+                            ),
+                            if (freq == 'weekly') ...[
+                              const SizedBox(width: 16),
+                              _AdjustBtn(
+                                icon: Icons.remove,
+                                enabled: weeklyTarget > 1,
+                                onTap: () => setS(() => weeklyTarget--),
+                              ),
+                              const SizedBox(width: 8),
+                              Text('$weeklyTarget',
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              Text('  次', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                              const SizedBox(width: 8),
+                              _AdjustBtn(
+                                icon: Icons.add,
+                                enabled: weeklyTarget < 7,
+                                onTap: () => setS(() => weeklyTarget++),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                if (freq == 'weekly') ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('每週目標次數：', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-                      IconButton(
-                        icon: Icon(Icons.remove_circle_outline, size: 22, color: weeklyTarget > 1 ? Colors.orange : Colors.grey.shade300),
-                        onPressed: weeklyTarget > 1 ? () => setS(() => weeklyTarget--) : null,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('$weeklyTarget', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: Icon(Icons.add_circle_outline, size: 22, color: weeklyTarget < 7 ? Colors.orange : Colors.grey.shade300),
-                        onPressed: weeklyTarget < 7 ? () => setS(() => weeklyTarget++) : null,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      Text('次', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-                    ],
                   ),
-                ],
+                  crossFadeState: customExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 200),
+                ),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
@@ -856,28 +870,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         : () async {
                             Navigator.pop(ctx);
                             bool settingsChanged = false;
-                            final prefs =
-                                await SharedPreferences.getInstance();
+                            final prefs = await SharedPreferences.getInstance();
                             for (final name in selected.keys) {
-                              final idx = available
-                                  .indexWhere((p) => p.name == name);
-                              if (idx != -1 &&
-                                  available[idx].linkedSetting != null) {
-                                final already = prefs.getBool(
-                                        available[idx].linkedSetting!) ??
-                                    false;
+                              final idx = available.indexWhere((p) => p.name == name);
+                              if (idx != -1 && available[idx].linkedSetting != null) {
+                                final already = prefs.getBool(available[idx].linkedSetting!) ?? false;
                                 if (!already) {
-                                  await prefs.setBool(
-                                      available[idx].linkedSetting!, true);
+                                  await prefs.setBool(available[idx].linkedSetting!, true);
                                   settingsChanged = true;
                                 }
                               }
                             }
-                            if (settingsChanged) {
-                              widget.onSettingsChanged?.call();
-                            }
+                            if (settingsChanged) widget.onSettingsChanged?.call();
                             setState(() {
-                              // 自訂習慣：使用底部頻率選擇器
                               if (customName.isNotEmpty) {
                                 final map = <String, dynamic>{
                                   'name': customName,
@@ -890,7 +895,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 }
                                 habits.add(map);
                               }
-                              // 預設習慣：使用各自的 config
                               for (final entry in selected.entries) {
                                 final p = available.firstWhere((p) => p.name == entry.key);
                                 final cfg = entry.value;
@@ -914,8 +918,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       disabledBackgroundColor: Colors.grey.shade200,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
