@@ -94,6 +94,7 @@ class _MainPageState extends State<MainPage> {
   bool _familyEnabled = false;
   bool _waterGoalReached = false;
   bool _loaded = false;
+  int _waterReloadTrigger = 0;
 
   @override
   void initState() {
@@ -128,6 +129,27 @@ class _MainPageState extends State<MainPage> {
     setState(() => _waterGoalReached = reached);
   }
 
+  Future<void> _handleWaterHabitToggle(bool checked) async {
+    const int waterGoal = 8;
+    final prefs = await SharedPreferences.getInstance();
+    final today = _todayString();
+    final todayKey = 'water_$today';
+    final savedKey = 'water_saved_$today';
+
+    if (checked) {
+      final actual = prefs.getInt(todayKey) ?? 0;
+      await prefs.setInt(savedKey, actual);
+      await prefs.setInt(todayKey, waterGoal);
+      await _handleWaterGoal(true);
+    } else {
+      final saved = prefs.getInt(savedKey) ?? 0;
+      await prefs.setInt(todayKey, saved);
+      await prefs.remove(savedKey);
+      await _handleWaterGoal(false);
+    }
+    setState(() => _waterReloadTrigger++);
+  }
+
   // 依功能開關動態組裝頁籤
   List<_TabItem> get _tabs {
     final list = <_TabItem>[
@@ -135,6 +157,7 @@ class _MainPageState extends State<MainPage> {
         page: HomePage(
           onSettingsChanged: _loadSettings,
           waterHabitAutoComplete: _waterGoalReached,
+          onWaterHabitToggled: _handleWaterHabitToggle,
         ),
         icon: Icons.home,
         label: '習慣',
@@ -145,7 +168,10 @@ class _MainPageState extends State<MainPage> {
     }
     if (_waterEnabled) {
       list.add(_TabItem(
-        page: WaterPage(onGoalStatusChanged: _handleWaterGoal),
+        page: WaterPage(
+          onGoalStatusChanged: _handleWaterGoal,
+          reloadTrigger: _waterReloadTrigger,
+        ),
         icon: Icons.water_drop,
         label: '喝水',
       ));

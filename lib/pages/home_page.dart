@@ -35,10 +35,12 @@ const List<_HomePreset> _kHomePresets = [
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
   final bool waterHabitAutoComplete;
+  final Future<void> Function(bool)? onWaterHabitToggled;
   const HomePage({
     super.key,
     this.onSettingsChanged,
     this.waterHabitAutoComplete = false,
+    this.onWaterHabitToggled,
   });
 
   @override
@@ -290,6 +292,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     saveHabits();
     if (!wasAllDone && allDone0) {
       _celebCtrl.forward(from: 0);
+    }
+    if (habits[index]['name'] == '喝足夠的水') {
+      widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
     }
   }
 
@@ -1560,6 +1565,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             weeklyCount: _weeklyCount(habit),
             weeklyTarget: (habit['weeklyTarget'] as int?) ?? 3,
             isTodayChecked: List<String>.from((habit['weeklyDates'] as List?) ?? []).contains(todayString()),
+            isLinked: _kHomePresets.any((p) =>
+                p.linkedSetting != null && habit['name'] == p.name),
           ),
         );
       },
@@ -1578,6 +1585,7 @@ class _HabitCard extends StatefulWidget {
   final int weeklyCount;
   final int weeklyTarget;
   final bool isTodayChecked;
+  final bool isLinked;
 
   const _HabitCard({
     super.key,
@@ -1589,6 +1597,7 @@ class _HabitCard extends StatefulWidget {
     this.weeklyCount = 0,
     this.weeklyTarget = 3,
     this.isTodayChecked = false,
+    this.isLinked = false,
   });
 
   @override
@@ -1649,7 +1658,11 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   width: 5,
-                  color: done ? Colors.green.shade400 : Colors.orange.shade400,
+                  color: done
+                      ? Colors.green.shade400
+                      : widget.isLinked
+                          ? Colors.blue.shade400
+                          : Colors.orange.shade400,
                 ),
                 Expanded(
                   child: ListTile(
@@ -1687,15 +1700,34 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                       ),
                       child: Text(name),
                     ),
-                    subtitle: isWeekly
+                    subtitle: (isWeekly || widget.isLinked)
                         ? Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              '本週 ${widget.weeklyCount}/${widget.weeklyTarget} 次',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: done ? Colors.green.shade500 : Colors.orange.shade600,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isWeekly)
+                                  Text(
+                                    '本週 ${widget.weeklyCount}/${widget.weeklyTarget} 次',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: done ? Colors.green.shade500 : Colors.orange.shade600,
+                                    ),
+                                  ),
+                                if (widget.isLinked)
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.link, size: 11, color: Colors.blue.shade400),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '連動喝水頁面',
+                                        style: TextStyle(fontSize: 11, color: Colors.blue.shade500),
+                                      ),
+                                    ],
+                                  ),
+                              ],
                             ),
                           )
                         : null,

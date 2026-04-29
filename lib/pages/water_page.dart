@@ -4,7 +4,8 @@ import 'settings_page.dart';
 
 class WaterPage extends StatefulWidget {
   final void Function(bool)? onGoalStatusChanged;
-  const WaterPage({super.key, this.onGoalStatusChanged});
+  final int reloadTrigger;
+  const WaterPage({super.key, this.onGoalStatusChanged, this.reloadTrigger = 0});
 
   @override
   State<WaterPage> createState() => _WaterPageState();
@@ -19,6 +20,14 @@ class _WaterPageState extends State<WaterPage> {
   void initState() {
     super.initState();
     _loadWater();
+  }
+
+  @override
+  void didUpdateWidget(WaterPage old) {
+    super.didUpdateWidget(old);
+    if (old.reloadTrigger != widget.reloadTrigger) {
+      _loadWater();
+    }
   }
 
   String _todayString() {
