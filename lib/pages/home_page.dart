@@ -315,6 +315,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         content: TextField(
           controller: ctrl,
           autofocus: true,
+          maxLength: 20,
           decoration: const InputDecoration(labelText: '習慣名稱'),
         ),
         actions: [
@@ -564,13 +565,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           autofocus: true,
           decoration: InputDecoration(
             suffixText: '分鐘',
-            hintText: '輸入分鐘數',
+            hintText: '1 ~ 180',
+            helperText: '上限 180 分鐘',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
           onSubmitted: (v) {
             final n = int.tryParse(v.trim());
-            if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 999));
+            if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 180));
           },
         ),
         actions: [
@@ -581,7 +583,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           TextButton(
             onPressed: () {
               final n = int.tryParse(ctrl.text.trim());
-              if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 999));
+              if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 180));
             },
             child: const Text('確定'),
           ),
@@ -860,6 +862,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         TextField(
                           controller: nameCtrl,
                           onChanged: (_) => setS(() {}),
+                          maxLength: 20,
                           decoration: InputDecoration(
                             hintText: '習慣名稱',
                             filled: true,
