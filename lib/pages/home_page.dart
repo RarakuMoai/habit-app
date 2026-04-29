@@ -24,11 +24,11 @@ class _HomePreset {
 const List<_HomePreset> _kHomePresets = [
   _HomePreset('刷牙', '🦷'),
   _HomePreset('整理環境', '🧹'),
-  _HomePreset('閱讀', '📖', null, null, 15),
+  _HomePreset('閱讀', '📖', null, null, 0, true),
   _HomePreset('早起', '🌅'),
-  _HomePreset('運動', '🏃', null, null, 30, true),
+  _HomePreset('運動', '🏃', null, null, 0, true),
   _HomePreset('喝足夠的水', '💧', 'water_enabled', '選取後自動開啟喝水頁籤'),
-  _HomePreset('冥想', '🧘', null, null, 10),
+  _HomePreset('冥想', '🧘', null, null, 0, true),
   _HomePreset('早睡', '🌙'),
 ];
 
@@ -80,7 +80,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _celebScale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.05), weight: 50),
       TweenSequenceItem(tween: Tween(begin: 1.05, end: 1.0), weight: 50),
-    ]).animate(CurvedAnimation(parent: _celebCtrl, curve: Curves.elasticOut));
+    ]).animate(_celebCtrl);
 
     loadHabits();
   }
@@ -476,7 +476,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                           Padding(
                                             padding: const EdgeInsets.only(top: 3),
                                             child: Text(
-                                              '預設 ${p.defaultMinutes} 分鐘${p.supportsFrequency ? "・可設頻率" : ""}',
+                                              '可自訂時間${p.supportsFrequency ? "・可設頻率" : ""}',
                                               style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                                             ),
                                           ),
@@ -484,7 +484,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                           Padding(
                                             padding: const EdgeInsets.only(top: 3),
                                             child: Text(
-                                              '${config!.minutes} 分鐘${config.frequency == "weekly" ? "・每週 ${config.weeklyTarget} 次" : "・每日"}',
+                                              '${config!.minutes > 0 ? "${config.minutes} 分鐘" : "未設時間"}${config.frequency == "weekly" ? "・每週 ${config.weeklyTarget} 次" : "・每日"}',
                                               style: TextStyle(fontSize: 11, color: Colors.orange.shade600, fontWeight: FontWeight.w500),
                                             ),
                                           ),
@@ -609,8 +609,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               const SizedBox(width: 10),
               _AdjustBtn(
                 icon: Icons.remove,
-                enabled: config.minutes > 5,
-                onTap: () => setS(() => config.minutes = (config.minutes - 5).clamp(5, 999)),
+                enabled: config.minutes > 0,
+                onTap: () => setS(() =>
+                    config.minutes = config.minutes <= 5 ? 0 : config.minutes - 5),
               ),
               const SizedBox(width: 14),
               GestureDetector(
@@ -627,9 +628,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                   ),
                   child: Text(
-                    '${config.minutes}',
+                    config.minutes > 0 ? '${config.minutes}' : '--',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: config.minutes > 0 ? Colors.black87 : Colors.grey.shade400,
+                    ),
                   ),
                 ),
               ),
@@ -638,7 +643,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               _AdjustBtn(
                 icon: Icons.add,
                 enabled: config.minutes < 999,
-                onTap: () => setS(() => config.minutes = (config.minutes + 5).clamp(5, 999)),
+                onTap: () => setS(() =>
+                    config.minutes = config.minutes == 0 ? 5 : (config.minutes + 5).clamp(5, 999)),
               ),
             ],
           ),
@@ -701,6 +707,262 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
           ],
         ],
+      ),
+    );
+  }
+
+  Future<void> _editHabitSheet(int index) async {
+    final habit = habits[index];
+    final fullName = habit['name'] as String;
+
+    final minuteMatch = RegExp(r'^(.*)\s+(\d+)\s+分鐘$').firstMatch(fullName);
+    final initBase = minuteMatch != null ? minuteMatch.group(1)! : fullName;
+    final initMinutes = minuteMatch != null ? int.parse(minuteMatch.group(2)!) : 0;
+    final initFreq = (habit['frequency'] ?? 'daily') as String;
+    final initWeekly = (habit['weeklyTarget'] as int?) ?? 3;
+
+    final nameCtrl = TextEditingController(text: initBase);
+    String freq = initFreq;
+    int weeklyTarget = initWeekly;
+    int minutes = initMinutes;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) {
+          final baseName = nameCtrl.text.trim();
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('編輯習慣',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  onChanged: (_) => setS(() {}),
+                  maxLength: 20,
+                  decoration: InputDecoration(
+                    labelText: '習慣名稱',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.orange.shade400),
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('頻率',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    _FreqChip(
+                      label: '每日',
+                      selected: freq == 'daily',
+                      onTap: () => setS(() => freq = 'daily'),
+                    ),
+                    const SizedBox(width: 8),
+                    _FreqChip(
+                      label: '每週',
+                      selected: freq == 'weekly',
+                      onTap: () => setS(() => freq = 'weekly'),
+                    ),
+                    if (freq == 'weekly') ...[
+                      const SizedBox(width: 16),
+                      _AdjustBtn(
+                        icon: Icons.remove,
+                        enabled: weeklyTarget > 1,
+                        onTap: () => setS(() => weeklyTarget--),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('$weeklyTarget',
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('  次',
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade600)),
+                      const SizedBox(width: 8),
+                      _AdjustBtn(
+                        icon: Icons.add,
+                        enabled: weeklyTarget < 7,
+                        onTap: () => setS(() => weeklyTarget++),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text('持續時間（選填）',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: minutes > 0
+                          ? Colors.orange.shade300
+                          : Colors.grey.shade300,
+                      width: 1.5,
+                    ),
+                    color: minutes > 0 ? Colors.orange.shade50 : Colors.white,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: minutes > 0
+                            ? () => setS(() =>
+                                minutes = minutes <= 5 ? 0 : minutes - 5)
+                            : null,
+                        child: Container(
+                          width: 44, height: 44,
+                          alignment: Alignment.center,
+                          child: Icon(Icons.remove, size: 18,
+                              color: minutes > 0
+                                  ? Colors.orange.shade700
+                                  : Colors.grey.shade300),
+                        ),
+                      ),
+                      Container(
+                          width: 1, height: 28,
+                          color: minutes > 0
+                              ? Colors.orange.shade200
+                              : Colors.grey.shade200),
+                      GestureDetector(
+                        onTap: () async {
+                          final result = await _showMinutesDialog(minutes);
+                          if (result != null) setS(() => minutes = result);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                minutes > 0 ? '$minutes' : '--',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: minutes > 0
+                                      ? Colors.black87
+                                      : Colors.grey.shade400,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text('分鐘',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: minutes > 0
+                                        ? Colors.grey.shade600
+                                        : Colors.grey.shade400,
+                                  )),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                          width: 1, height: 28,
+                          color: minutes > 0
+                              ? Colors.orange.shade200
+                              : Colors.grey.shade200),
+                      GestureDetector(
+                        onTap: minutes < 999
+                            ? () => setS(() =>
+                                minutes = minutes == 0
+                                    ? 5
+                                    : (minutes + 5).clamp(5, 999))
+                            : null,
+                        child: Container(
+                          width: 44, height: 44,
+                          alignment: Alignment.center,
+                          child: Icon(Icons.add, size: 18,
+                              color: minutes < 999
+                                  ? Colors.orange.shade700
+                                  : Colors.grey.shade300),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: baseName.isEmpty
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            final newName = minutes > 0
+                                ? '$baseName $minutes 分鐘'
+                                : baseName;
+                            setState(() {
+                              habits[index]['name'] = newName;
+                              habits[index]['frequency'] = freq;
+                              if (freq == 'weekly') {
+                                habits[index]['weeklyTarget'] = weeklyTarget;
+                                habits[index].putIfAbsent(
+                                    'weeklyDates', () => <String>[]);
+                              } else {
+                                habits[index].remove('weeklyTarget');
+                                habits[index].remove('weeklyDates');
+                                habits[index]['done'] = false;
+                              }
+                            });
+                            saveHabits();
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      disabledBackgroundColor: Colors.grey.shade200,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('儲存',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -1055,7 +1317,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               for (final entry in selected.entries) {
                                 final p = available.firstWhere((p) => p.name == entry.key);
                                 final cfg = entry.value;
-                                final habitName = p.defaultMinutes != null
+                                final habitName = (p.defaultMinutes != null && cfg.minutes > 0)
                                     ? '${p.name} ${cfg.minutes} 分鐘'
                                     : p.name;
                                 final map = <String, dynamic>{
@@ -1292,7 +1554,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             key: ValueKey(name),
             habit: habit,
             onToggle: () => toggleHabit(index),
-            onRename: () => renameHabit(index),
+            onEdit: () => _editHabitSheet(index),
             onDelete: () => _confirmDeleteHabit(index),
             isWeekly: (habit['frequency'] ?? 'daily') == 'weekly',
             weeklyCount: _weeklyCount(habit),
@@ -1310,7 +1572,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 class _HabitCard extends StatefulWidget {
   final Map<String, dynamic> habit;
   final VoidCallback onToggle;
-  final VoidCallback onRename;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
   final bool isWeekly;
   final int weeklyCount;
@@ -1321,7 +1583,7 @@ class _HabitCard extends StatefulWidget {
     super.key,
     required this.habit,
     required this.onToggle,
-    required this.onRename,
+    required this.onEdit,
     required this.onDelete,
     this.isWeekly = false,
     this.weeklyCount = 0,
@@ -1440,15 +1702,15 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                     trailing: PopupMenuButton<String>(
                       icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'rename', child: Text('改名')),
+                        PopupMenuItem(value: 'edit', child: Text('編輯')),
                         PopupMenuItem(
                           value: 'delete',
                           child: Text('刪除', style: TextStyle(color: Colors.red)),
                         ),
                       ],
                       onSelected: (action) {
-                        if (action == 'rename') {
-                          widget.onRename();
+                        if (action == 'edit') {
+                          widget.onEdit();
                         } else {
                           widget.onDelete();
                         }
