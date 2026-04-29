@@ -421,27 +421,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     final sel = tempSelected.containsKey(p.name);
                     final config = tempSelected[p.name];
                     final hasCustom = p.defaultMinutes != null;
-                    return InkWell(
-                      onTap: () => setS(() {
-                        if (sel) {
-                          tempSelected.remove(p.name);
-                        } else {
-                          tempSelected[p.name] = _PresetConfig(
-                            minutes: p.defaultMinutes ?? 0,
-                          );
-                        }
-                      }),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: sel ? Colors.orange.shade50 : Colors.white,
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade100),
-                          ),
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        color: sel ? Colors.orange.shade50 : Colors.white,
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey.shade100),
                         ),
-                        child: Column(
-                          children: [
-                            Padding(
+                      ),
+                      child: Column(
+                        children: [
+                          InkWell(
+                            onTap: () => setS(() {
+                              if (sel) {
+                                tempSelected.remove(p.name);
+                              } else {
+                                tempSelected[p.name] = _PresetConfig(
+                                  minutes: p.defaultMinutes ?? 0,
+                                );
+                              }
+                            }),
+                            child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                               child: Row(
                                 children: [
@@ -508,18 +508,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 ],
                               ),
                             ),
-                            AnimatedCrossFade(
-                              firstChild: const SizedBox(width: double.infinity, height: 0),
-                              secondChild: sel && hasCustom && config != null
-                                  ? _buildPresetCustomization(p, config, setS)
-                                  : const SizedBox(width: double.infinity, height: 0),
-                              crossFadeState: (sel && hasCustom)
-                                  ? CrossFadeState.showSecond
-                                  : CrossFadeState.showFirst,
-                              duration: const Duration(milliseconds: 220),
-                            ),
-                          ],
-                        ),
+                          ),
+                          AnimatedCrossFade(
+                            firstChild: const SizedBox(width: double.infinity, height: 0),
+                            secondChild: sel && hasCustom && config != null
+                                ? _buildPresetCustomization(p, config, setS)
+                                : const SizedBox(width: double.infinity, height: 0),
+                            crossFadeState: (sel && hasCustom)
+                                ? CrossFadeState.showSecond
+                                : CrossFadeState.showFirst,
+                            duration: const Duration(milliseconds: 220),
+                          ),
+                        ],
                       ),
                     );
                   },
