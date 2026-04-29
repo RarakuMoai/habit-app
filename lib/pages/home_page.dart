@@ -647,7 +647,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Divider(height: 1, color: Colors.orange.shade100),
             ),
-            // 頻率切換 + 每週次數
+            // 頻率切換
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -664,32 +664,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   selected: config.frequency == 'weekly',
                   onTap: () => setS(() => config.frequency = 'weekly'),
                 ),
-                if (config.frequency == 'weekly') ...[
-                  const SizedBox(width: 16),
-                  _AdjustBtn(
-                    icon: Icons.remove,
-                    enabled: config.weeklyTarget > 1,
-                    onTap: () => setS(() => config.weeklyTarget--),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 24,
-                    child: Text(
-                      '${config.weeklyTarget}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  Text('次', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                  const SizedBox(width: 8),
-                  _AdjustBtn(
-                    icon: Icons.add,
-                    enabled: config.weeklyTarget < 7,
-                    onTap: () => setS(() => config.weeklyTarget++),
-                  ),
-                ],
               ],
             ),
+            // 每週目標次數（另起一行避免溢出）
+            if (config.frequency == 'weekly')
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('每週目標', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    const SizedBox(width: 12),
+                    _AdjustBtn(
+                      icon: Icons.remove,
+                      enabled: config.weeklyTarget > 1,
+                      onTap: () => setS(() => config.weeklyTarget--),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 28,
+                      child: Text(
+                        '${config.weeklyTarget}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text('次', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                    const SizedBox(width: 10),
+                    _AdjustBtn(
+                      icon: Icons.add,
+                      enabled: config.weeklyTarget < 7,
+                      onTap: () => setS(() => config.weeklyTarget++),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ],
       ),
