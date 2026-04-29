@@ -920,60 +920,94 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         const SizedBox(height: 12),
                         Text('持續時間（選填）',
                             style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            _AdjustBtn(
-                              icon: Icons.remove,
-                              enabled: customMinutes > 0,
-                              onTap: () => setS(() =>
-                                  customMinutes = customMinutes <= 5 ? 0 : customMinutes - 5),
+                        const SizedBox(height: 8),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(
+                              color: customMinutes > 0 ? Colors.orange.shade300 : Colors.grey.shade300,
+                              width: 1.5,
                             ),
-                            const SizedBox(width: 10),
-                            GestureDetector(
-                              onTap: () async {
-                                final result = await _showMinutesDialog(customMinutes);
-                                if (result != null) setS(() => customMinutes = result);
-                              },
-                              child: Container(
-                                constraints: const BoxConstraints(minWidth: 52),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
+                            color: customMinutes > 0 ? Colors.orange.shade50 : Colors.white,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: customMinutes > 0
+                                    ? () => setS(() =>
+                                        customMinutes = customMinutes <= 5 ? 0 : customMinutes - 5)
+                                    : null,
+                                child: Container(
+                                  width: 44, height: 44,
+                                  alignment: Alignment.center,
+                                  child: Icon(Icons.remove, size: 18,
                                       color: customMinutes > 0
-                                          ? Colors.orange.shade300
-                                          : Colors.grey.shade300,
-                                      width: 1.5,
-                                    ),
-                                  ),
+                                          ? Colors.orange.shade700
+                                          : Colors.grey.shade300),
                                 ),
-                                child: Text(
-                                  customMinutes > 0 ? '$customMinutes' : '--',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: customMinutes > 0 ? Colors.black87 : Colors.grey.shade400,
+                              ),
+                              Container(width: 1, height: 28,
+                                  color: customMinutes > 0
+                                      ? Colors.orange.shade200
+                                      : Colors.grey.shade200),
+                              GestureDetector(
+                                onTap: () async {
+                                  final result = await _showMinutesDialog(customMinutes);
+                                  if (result != null) setS(() => customMinutes = result);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      Text(
+                                        customMinutes > 0 ? '$customMinutes' : '--',
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: customMinutes > 0
+                                              ? Colors.black87
+                                              : Colors.grey.shade400,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text('分鐘',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: customMinutes > 0
+                                                ? Colors.grey.shade600
+                                                : Colors.grey.shade400,
+                                          )),
+                                    ],
                                   ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              '  分鐘',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: customMinutes > 0 ? Colors.grey.shade600 : Colors.grey.shade400,
+                              Container(width: 1, height: 28,
+                                  color: customMinutes > 0
+                                      ? Colors.orange.shade200
+                                      : Colors.grey.shade200),
+                              GestureDetector(
+                                onTap: customMinutes < 999
+                                    ? () => setS(() =>
+                                        customMinutes = customMinutes == 0
+                                            ? 5
+                                            : (customMinutes + 5).clamp(5, 999))
+                                    : null,
+                                child: Container(
+                                  width: 44, height: 44,
+                                  alignment: Alignment.center,
+                                  child: Icon(Icons.add, size: 18,
+                                      color: customMinutes < 999
+                                          ? Colors.orange.shade700
+                                          : Colors.grey.shade300),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            _AdjustBtn(
-                              icon: Icons.add,
-                              enabled: customMinutes < 999,
-                              onTap: () => setS(() =>
-                                  customMinutes = customMinutes == 0 ? 5 : (customMinutes + 5).clamp(5, 999)),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
