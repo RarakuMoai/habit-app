@@ -17,27 +17,22 @@ class ChildData {
   final String id;
   String name;
   int points;
-  String resetMode; // 'none' | 'weekly' | 'monthly' | 'manual'
-
   ChildData({
     required this.id,
     required this.name,
     required this.points,
-    required this.resetMode,
   });
 
   factory ChildData.fromJson(Map<String, dynamic> json) => ChildData(
     id: json['id'] as String,
     name: json['name'] as String,
     points: (json['points'] as int?) ?? 0,
-    resetMode: (json['reset_mode'] as String?) ?? 'none',
   );
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'points': points,
-    'reset_mode': resetMode,
   };
 }
 
@@ -229,13 +224,6 @@ class PointRecord {
   };
 }
 
-// 積分重置模式的顯示文字
-const Map<String, String> _resetModeLabels = {
-  'none': '不重置',
-  'weekly': '每週一',
-  'monthly': '每月1號',
-  'manual': '手動重置',
-};
 
 // ── 常用選項預設資料 ──
 
@@ -2722,7 +2710,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (name == null || name.isEmpty) return;
 
     final id = _genId();
-    _children.add(ChildData(id: id, name: name, points: 0, resetMode: 'none'));
+    _children.add(ChildData(id: id, name: name, points: 0));
     await _saveChildren();
     setState(() {});
   }
@@ -2842,38 +2830,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _saveHabits(prefs, habits);
 
     await _loadAll();
-  }
-
-  // 設定積分重置模式
-  Future<void> _setResetMode(int index) async {
-    final current = _children[index].resetMode;
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text('${_children[index].name} 的積分重置'),
-        children: [
-          RadioGroup<String>(
-            groupValue: current,
-            onChanged: (v) {
-              if (v != null) Navigator.pop(ctx, v);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: _resetModeLabels.entries.map((e) {
-                return RadioListTile<String>(
-                  title: Text(e.value),
-                  value: e.key,
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (selected == null || selected == current) return;
-    _children[index].resetMode = selected;
-    await _saveChildren();
-    setState(() {});
   }
 
   // ── 修改小孩名稱 ──
@@ -4782,37 +4738,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
                   tooltip: '刪除',
                   onPressed: () => _deleteChild(index),
-                ),
-              ],
-            ),
-            const Divider(height: 20, thickness: 1),
-            Row(
-              children: [
-                Icon(Icons.refresh, size: 16, color: Colors.grey.shade500),
-                const SizedBox(width: 6),
-                Text(
-                  '積分重置：',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                ),
-                Text(
-                  _resetModeLabels[child.resetMode] ?? '不重置',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => _setResetMode(index),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('修改'),
                 ),
               ],
             ),
