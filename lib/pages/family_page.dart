@@ -253,11 +253,11 @@ class _HabitPresetCfg {
 
 const List<_Preset> _kHabitPresets = [
   _Preset('刷牙', 5, '🦷'),
-  _Preset('寫作業', 10, '📚', 30, true),
+  _Preset('寫作業', 10, '📚', 0, true),
   _Preset('整理房間', 10, '🧹'),
-  _Preset('閱讀', 10, '📖', 15, true),
+  _Preset('閱讀', 10, '📖', 0, true),
   _Preset('早起', 10, '🌅'),
-  _Preset('運動', 15, '🏃', 30, true),
+  _Preset('運動', 15, '🏃', 0, true),
   _Preset('喝足夠的水', 5, '💧'),
 ];
 
@@ -3725,7 +3725,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController(text: '10');
-    final Set<String> selectedIds = {_children.first.id};
+    final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
     final selectedPresetCfgs = <String, _HabitPresetCfg>{};
     String freq = 'daily';
     int weeklyTarget = 3;
@@ -4334,7 +4334,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController(text: '5');
-    final Set<String> selectedIds = {_children.first.id};
+    final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
     final selectedPresets = <String>{};
     final selectedPresetPts = <String, int>{};
 
