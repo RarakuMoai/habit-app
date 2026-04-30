@@ -290,6 +290,99 @@ String _todayStr() {
 String _genId() =>
     '${DateTime.now().millisecondsSinceEpoch}_${Object().hashCode}';
 
+// 新增小孩 bottom sheet（支援一次新增多位）
+Future<List<String>?> _showAddChildrenSheet(BuildContext context) async {
+  final controllers = <TextEditingController>[TextEditingController()];
+  return showModalBottomSheet<List<String>>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('新增小孩',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            ...controllers.asMap().entries.map((e) {
+              final i = e.key;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: e.value,
+                        autofocus: i == 0,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          hintText: controllers.length > 1 ? '小孩名字 ${i + 1}' : '小孩名字',
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    if (controllers.length > 1) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => setS(() => controllers.removeAt(i)),
+                        child: Icon(Icons.remove_circle_outline,
+                            color: Colors.red.shade300, size: 22),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+            TextButton.icon(
+              onPressed: () =>
+                  setS(() => controllers.add(TextEditingController())),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('再加一位'),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('取消',
+                      style: TextStyle(color: Colors.grey.shade600)),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () {
+                    final names = controllers
+                        .map((c) => c.text.trim())
+                        .where((s) => s.isNotEmpty)
+                        .toList();
+                    Navigator.pop(ctx, names.isEmpty ? null : names);
+                  },
+                  child: const Text('新增'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 // 格式化現在時間為 yyyy-MM-dd HH:mm
 String _nowStr() {
   final now = DateTime.now();
@@ -644,12 +737,32 @@ class _FamilyPageState extends State<FamilyPage> {
           Icon(Icons.child_care, size: 72, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           Text(
-            '還沒有小孩，請家長先新增',
+            '還沒有任何小孩',
             style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: _addChildFromEmptyState,
+            icon: const Icon(Icons.person_add_outlined),
+            label: const Text('新增小孩'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _addChildFromEmptyState() async {
+    final ok = await _verifyParentPinIfNeeded(context);
+    if (!ok || !mounted) return;
+    final names = await _showAddChildrenSheet(context);
+    if (names == null || names.isEmpty || !mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    for (final name in names) {
+      _children.add(ChildData(id: _genId(), name: name, points: 0));
+    }
+    await prefs.setString(
+        'children', jsonEncode(_children.map((c) => c.toJson()).toList()));
+    setState(() {});
   }
 
   // 小孩卡片清單
@@ -2685,32 +2798,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
   // 新增小孩
   Future<void> _addChild() async {
-    final nameCtrl = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('新增小孩'),
-        content: TextField(
-          controller: nameCtrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '請輸入小孩名字'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, nameCtrl.text.trim()),
-            child: const Text('新增'),
-          ),
-        ],
-      ),
-    );
-    if (name == null || name.isEmpty) return;
-
-    final id = _genId();
-    _children.add(ChildData(id: id, name: name, points: 0));
+    final names = await _showAddChildrenSheet(context);
+    if (names == null || names.isEmpty || !mounted) return;
+    for (final name in names) {
+      _children.add(ChildData(id: _genId(), name: name, points: 0));
+    }
     await _saveChildren();
     setState(() {});
   }
