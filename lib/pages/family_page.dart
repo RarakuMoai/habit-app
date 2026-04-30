@@ -46,8 +46,12 @@ class ChildHabit {
   final String id;
   final String childId;
   String name;
-  int points; // 完成可得積分
-  String completedDate; // 最後打卡日期，格式 yyyy-MM-dd；空字串表示尚未打卡
+  int points;
+  String completedDate; // 每日習慣：最後打卡日期；每週習慣：不使用
+  String frequency;     // 'daily' | 'weekly'
+  int weeklyTarget;     // 每週目標次數（1-7）
+  List<String> weeklyDates; // 本週已完成的日期清單
+  int minutes;          // 持續時間（分鐘），0 表示未設定
 
   ChildHabit({
     required this.id,
@@ -55,7 +59,11 @@ class ChildHabit {
     required this.name,
     required this.points,
     this.completedDate = '',
-  });
+    this.frequency = 'daily',
+    this.weeklyTarget = 3,
+    List<String>? weeklyDates,
+    this.minutes = 0,
+  }) : weeklyDates = weeklyDates ?? [];
 
   factory ChildHabit.fromJson(Map<String, dynamic> json) => ChildHabit(
     id: json['id'] as String,
@@ -63,6 +71,10 @@ class ChildHabit {
     name: json['name'] as String,
     points: (json['points'] as int?) ?? 0,
     completedDate: (json['completed_date'] as String?) ?? '',
+    frequency: (json['frequency'] as String?) ?? 'daily',
+    weeklyTarget: (json['weekly_target'] as int?) ?? 3,
+    weeklyDates: (json['weekly_dates'] as List?)?.map((e) => e as String).toList() ?? [],
+    minutes: (json['minutes'] as int?) ?? 0,
   );
 
   Map<String, dynamic> toJson() => {
@@ -71,6 +83,10 @@ class ChildHabit {
     'name': name,
     'points': points,
     'completed_date': completedDate,
+    'frequency': frequency,
+    'weekly_target': weeklyTarget,
+    'weekly_dates': weeklyDates,
+    'minutes': minutes,
   };
 }
 
@@ -259,6 +275,22 @@ const List<_Preset> _kRewardPresets = [
   _Preset('看一部電影', 100, '🎬'),
   _Preset('買一個小玩具', 150, '🧸'),
 ];
+
+// 本週一到週日的日期字串集合
+Set<String> _currentWeekDateSet() {
+  final now = DateTime.now();
+  final monday = now.subtract(Duration(days: now.weekday - 1));
+  return List.generate(7, (i) {
+    final d = monday.add(Duration(days: i));
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }).toSet();
+}
+
+// 計算每週習慣本週已完成次數
+int _weeklyCount(ChildHabit habit) {
+  final weekSet = _currentWeekDateSet();
+  return habit.weeklyDates.where((d) => weekSet.contains(d)).length;
+}
 
 // 今日日期字串（yyyy-MM-dd）
 String _todayStr() {
@@ -900,12 +932,20 @@ class _HabitTabState extends State<_HabitTab> {
     });
   }
 
-  // 判斷習慣今日是否已打卡
-  bool _isDoneToday(ChildHabit habit) => habit.completedDate == _todayStr();
+  // 判斷習慣今日是否完成（每日：今日打卡；每週：本週次數達標）
+  bool _isDoneToday(ChildHabit habit) => habit.frequency == 'weekly'
+      ? _weeklyCount(habit) >= habit.weeklyTarget
+      : habit.completedDate == _todayStr();
 
   // 打卡：增加積分、標記日期
   Future<void> _checkIn(ChildHabit habit) async {
-    if (_isDoneToday(habit)) return; // 已打卡，不重複
+    final today = _todayStr();
+    // 每日：已打卡則跳過；每週：今日已打卡則跳過（不重複計算同一天）
+    if (habit.frequency == 'weekly') {
+      if (habit.weeklyDates.contains(today)) return;
+    } else {
+      if (habit.completedDate == today) return;
+    }
     final prefs = _prefs!;
 
     final newPoints = await _applyPoints(
@@ -918,20 +958,30 @@ class _HabitTabState extends State<_HabitTab> {
     final allHabits = await _loadHabits(prefs);
     final idx = allHabits.indexWhere((h) => h.id == habit.id);
     if (idx != -1) {
-      allHabits[idx].completedDate = _todayStr();
+      if (habit.frequency == 'weekly') {
+        allHabits[idx].weeklyDates.add(today);
+        habit.weeklyDates.add(today);
+      } else {
+        allHabits[idx].completedDate = today;
+        habit.completedDate = today;
+      }
       await _saveHabits(prefs, allHabits);
     }
 
-    setState(() {
-      habit.completedDate = _todayStr();
-      widget.child.points = newPoints;
-    });
+    setState(() => widget.child.points = newPoints);
     widget.onPointsChanged();
   }
 
   // 撤銷打卡：扣回積分並清除日期
   Future<void> _undoCheckIn(ChildHabit habit) async {
-    if (!_isDoneToday(habit) || !mounted) return;
+    if (!mounted) return;
+    final today = _todayStr();
+    // 只能撤銷今日的打卡
+    if (habit.frequency == 'weekly') {
+      if (!habit.weeklyDates.contains(today)) return;
+    } else {
+      if (habit.completedDate != today) return;
+    }
 
     final prefs = _prefs!;
     final newPoints = await _applyPoints(
@@ -944,14 +994,17 @@ class _HabitTabState extends State<_HabitTab> {
     final allHabits = await _loadHabits(prefs);
     final idx = allHabits.indexWhere((h) => h.id == habit.id);
     if (idx != -1) {
-      allHabits[idx].completedDate = '';
+      if (habit.frequency == 'weekly') {
+        allHabits[idx].weeklyDates.remove(today);
+        habit.weeklyDates.remove(today);
+      } else {
+        allHabits[idx].completedDate = '';
+        habit.completedDate = '';
+      }
       await _saveHabits(prefs, allHabits);
     }
 
-    setState(() {
-      habit.completedDate = '';
-      widget.child.points = newPoints;
-    });
+    setState(() => widget.child.points = newPoints);
     widget.onPointsChanged();
   }
 
@@ -1776,15 +1829,27 @@ class _HabitItemState extends State<_HabitItem>
                       ),
                       child: Text(widget.habit.name),
                     ),
-                    subtitle: doneToday
-                        ? null
-                        : Text(
-                            '+${widget.habit.points} 分',
-                            style: const TextStyle(
+                    subtitle: widget.habit.frequency == 'weekly'
+                        ? Text(
+                            '本週 ${_weeklyCount(widget.habit)}/${widget.habit.weeklyTarget} 次',
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.orange,
+                              color: doneToday
+                                  ? Colors.green.shade500
+                                  : Colors.orange.shade600,
                             ),
-                          ),
+                          )
+                        : (doneToday
+                            ? null
+                            : Text(
+                                widget.habit.minutes > 0
+                                    ? '+${widget.habit.points}分 · ${widget.habit.minutes}分鐘'
+                                    : '+${widget.habit.points}分',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange,
+                                ),
+                              )),
                     trailing: doneToday
                         ? Container(
                             padding: const EdgeInsets.symmetric(
@@ -2769,7 +2834,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final habits = await _loadHabits(prefs);
     for (final h in habits) {
-      if (h.childId == childId) h.completedDate = '';
+      if (h.childId == childId) {
+        h.completedDate = '';
+        h.weeklyDates.clear();
+      }
     }
     await _saveHabits(prefs, habits);
 
@@ -3137,6 +3205,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final Set<String> selectedIds = {_children.first.id};
     final selectedPresets = <String>{};
     final selectedPresetPts = <String, int>{};
+    String freq = 'daily';
+    int weeklyTarget = 3;
+    int minutes = 0;
 
     final existingNames = _habits.map((h) => h.name).toSet();
     final available = _kHabitPresets
@@ -3335,6 +3406,79 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 16),
+
+                  // ── 頻率 ──
+                  Text('頻率', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _FreqChip(
+                        label: '每日',
+                        selected: freq == 'daily',
+                        onTap: () => setS(() => freq = 'daily'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FreqChip(
+                        label: '每週',
+                        selected: freq == 'weekly',
+                        onTap: () => setS(() => freq = 'weekly'),
+                      ),
+                    ],
+                  ),
+                  if (freq == 'weekly') ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text('每週目標', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: weeklyTarget > 1 ? () => setS(() => weeklyTarget--) : null,
+                          icon: const Icon(Icons.remove_circle_outline, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text('$weeklyTarget 次', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        ),
+                        IconButton(
+                          onPressed: weeklyTarget < 7 ? () => setS(() => weeklyTarget++) : null,
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+
+                  // ── 持續時間 ──
+                  Row(
+                    children: [
+                      Text('持續時間', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: minutes > 0 ? () => setS(() => minutes = minutes <= 5 ? 0 : minutes - 5) : null,
+                        icon: const Icon(Icons.remove_circle_outline, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          minutes > 0 ? '$minutes 分鐘' : '不設定',
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setS(() => minutes += 5),
+                        icon: const Icon(Icons.add_circle_outline, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 20),
 
                   // 新增按鈕
@@ -3358,6 +3502,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       childId: childId,
                                       name: presetName,
                                       points: habitPts,
+                                      frequency: freq,
+                                      weeklyTarget: weeklyTarget,
+                                      minutes: minutes,
                                     ),
                                   );
                                 }
@@ -3373,6 +3520,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       childId: childId,
                                       name: customName,
                                       points: customPts,
+                                      frequency: freq,
+                                      weeklyTarget: weeklyTarget,
+                                      minutes: minutes,
                                     ),
                                   );
                                 }
@@ -3419,38 +3569,115 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _editHabit(ChildHabit habit) async {
     final nameCtrl = TextEditingController(text: habit.name);
     final pointCtrl = TextEditingController(text: habit.points.toString());
+    String freq = habit.frequency;
+    int weeklyTarget = habit.weeklyTarget;
+    int minutes = habit.minutes;
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('編輯習慣'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: '習慣名稱'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('編輯習慣'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: '習慣名稱'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pointCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: '完成可得分數'),
+                ),
+                const SizedBox(height: 14),
+                Text('頻率', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    _FreqChip(
+                      label: '每日',
+                      selected: freq == 'daily',
+                      onTap: () => setS(() => freq = 'daily'),
+                    ),
+                    const SizedBox(width: 8),
+                    _FreqChip(
+                      label: '每週',
+                      selected: freq == 'weekly',
+                      onTap: () => setS(() => freq = 'weekly'),
+                    ),
+                  ],
+                ),
+                if (freq == 'weekly') ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Text('每週目標', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: weeklyTarget > 1 ? () => setS(() => weeklyTarget--) : null,
+                        icon: const Icon(Icons.remove_circle_outline, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text('$weeklyTarget 次', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      ),
+                      IconButton(
+                        onPressed: weeklyTarget < 7 ? () => setS(() => weeklyTarget++) : null,
+                        icon: const Icon(Icons.add_circle_outline, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text('持續時間', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: minutes > 0 ? () => setS(() => minutes = minutes <= 5 ? 0 : minutes - 5) : null,
+                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text(
+                        minutes > 0 ? '$minutes 分鐘' : '不設定',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setS(() => minutes += 5),
+                      icon: const Icon(Icons.add_circle_outline, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: pointCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: '完成可得分數'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('儲存'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('儲存'),
-          ),
-        ],
       ),
     );
 
@@ -3459,9 +3686,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
     if (name.isEmpty || pts <= 0) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('習慣名稱不得為空、分數須大於 0')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('習慣名稱不得為空、分數須大於 0')),
+        );
       }
       return;
     }
@@ -3475,6 +3702,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         childId: habit.childId,
         name: name,
         points: pts,
+        completedDate: habit.completedDate,
+        frequency: freq,
+        weeklyTarget: weeklyTarget,
+        weeklyDates: habit.weeklyDates,
+        minutes: minutes,
       );
     }
     await _saveHabits(prefs, habits);
@@ -4558,7 +4790,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               dense: true,
               title: Text(habit.name, style: const TextStyle(fontSize: 14)),
               subtitle: Text(
-                '+${habit.points} 分',
+                '+${habit.points} 分 · ${habit.frequency == 'weekly' ? '每週 ${habit.weeklyTarget} 次' : '每日'}${habit.minutes > 0 ? ' · ${habit.minutes}分鐘' : ''}',
                 style: TextStyle(fontSize: 12, color: Colors.green.shade700),
               ),
               trailing: PopupMenuButton<String>(
@@ -4740,5 +4972,43 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         ),
       );
     }).toList();
+  }
+}
+
+// 頻率切換 Chip（每日 / 每週）
+class _FreqChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FreqChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? Colors.orange : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.orange : Colors.grey.shade300,
+            width: 1.5,
+          ),
+          boxShadow: selected
+              ? [BoxShadow(color: Colors.orange.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : Colors.grey.shade600,
+          ),
+        ),
+      ),
+    );
   }
 }
