@@ -2805,9 +2805,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    final ok = await _verifyParentPinIfNeeded(context);
-    if (!ok || !mounted) return;
-
     final prefs = _prefs!;
     final childId = child.id;
 
