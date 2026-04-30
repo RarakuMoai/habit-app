@@ -11,27 +11,44 @@ import 'settings_page.dart';
 // 驗證密碼成功後設為 true；切換離開家庭頁籤時設為 false
 bool parentSessionActive = false;
 
+// ── 小孩頭像選項 ──
+const List<String> _kChildAvatars = [
+  '🐼', '🦁', '🐸', '🦊', '🐨', '🐯', '🐻', '🐰',
+  '🦄', '🐙', '🦋', '🐢', '🦕', '🐬', '🦅', '🐧',
+  '🐺', '🐮', '🐹', '🐱', '🌟', '🌈', '🚀', '⚡',
+];
+
+// 新增小孩時的暫存資料（名字 + 頭像）
+class _ChildInput {
+  String name = '';
+  String avatar = '🐼';
+}
+
 // ── 資料模型 ──
 
 class ChildData {
   final String id;
   String name;
+  String avatar;
   int points;
   ChildData({
     required this.id,
     required this.name,
+    this.avatar = '🐼',
     required this.points,
   });
 
   factory ChildData.fromJson(Map<String, dynamic> json) => ChildData(
     id: json['id'] as String,
     name: json['name'] as String,
+    avatar: (json['avatar'] as String?) ?? '🐼',
     points: (json['points'] as int?) ?? 0,
   );
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
+    'avatar': avatar,
     'points': points,
   };
 }
@@ -318,9 +335,60 @@ String _genId() =>
     '${DateTime.now().millisecondsSinceEpoch}_${Object().hashCode}';
 
 // 新增小孩 bottom sheet（支援一次新增多位）
-Future<List<String>?> _showAddChildrenSheet(BuildContext context) async {
-  final controllers = <TextEditingController>[TextEditingController()];
-  return showModalBottomSheet<List<String>>(
+Future<String?> _showAvatarPickerDialog(
+    BuildContext context, String current) {
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('選擇頭像'),
+      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      content: SizedBox(
+        width: 280,
+        child: GridView.builder(
+          shrinkWrap: true,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 6,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+          ),
+          itemCount: _kChildAvatars.length,
+          itemBuilder: (_, i) {
+            final emoji = _kChildAvatars[i];
+            final selected = emoji == current;
+            return GestureDetector(
+              onTap: () => Navigator.pop(ctx, emoji),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: selected
+                      ? Colors.blue.shade100
+                      : Colors.grey.shade100,
+                  border: selected
+                      ? Border.all(color: Colors.blue.shade400, width: 2)
+                      : null,
+                ),
+                child: Center(
+                  child: Text(emoji,
+                      style: const TextStyle(fontSize: 22)),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<List<_ChildInput>?> _showAddChildrenSheet(BuildContext context) async {
+  final inputs = <_ChildInput>[_ChildInput()];
+  return showModalBottomSheet<List<_ChildInput>>(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
@@ -338,19 +406,40 @@ Future<List<String>?> _showAddChildrenSheet(BuildContext context) async {
             const Text('新增小孩',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            ...controllers.asMap().entries.map((e) {
+            ...inputs.asMap().entries.map((e) {
               final i = e.key;
+              final input = e.value;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Row(
                   children: [
+                    GestureDetector(
+                      onTap: () async {
+                        final picked = await _showAvatarPickerDialog(
+                            ctx, input.avatar);
+                        if (picked != null) setS(() => input.avatar = picked);
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.grey.shade100,
+                        ),
+                        child: Center(
+                          child: Text(input.avatar,
+                              style: const TextStyle(fontSize: 22)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
-                        controller: e.value,
                         autofocus: i == 0,
                         textInputAction: TextInputAction.next,
+                        onChanged: (v) => input.name = v,
                         decoration: InputDecoration(
-                          hintText: controllers.length > 1 ? '小孩名字 ${i + 1}' : '小孩名字',
+                          hintText: inputs.length > 1 ? '小孩名字 ${i + 1}' : '小孩名字',
                           border: const OutlineInputBorder(),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
@@ -358,10 +447,10 @@ Future<List<String>?> _showAddChildrenSheet(BuildContext context) async {
                         ),
                       ),
                     ),
-                    if (controllers.length > 1) ...[
+                    if (inputs.length > 1) ...[
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: () => setS(() => controllers.removeAt(i)),
+                        onTap: () => setS(() => inputs.removeAt(i)),
                         child: Icon(Icons.remove_circle_outline,
                             color: Colors.red.shade300, size: 22),
                       ),
@@ -371,8 +460,7 @@ Future<List<String>?> _showAddChildrenSheet(BuildContext context) async {
               );
             }),
             TextButton.icon(
-              onPressed: () =>
-                  setS(() => controllers.add(TextEditingController())),
+              onPressed: () => setS(() => inputs.add(_ChildInput())),
               icon: const Icon(Icons.add, size: 16),
               label: const Text('再加一位'),
               style: TextButton.styleFrom(
@@ -393,11 +481,10 @@ Future<List<String>?> _showAddChildrenSheet(BuildContext context) async {
                 const SizedBox(width: 8),
                 FilledButton(
                   onPressed: () {
-                    final names = controllers
-                        .map((c) => c.text.trim())
-                        .where((s) => s.isNotEmpty)
+                    final valid = inputs
+                        .where((inp) => inp.name.trim().isNotEmpty)
                         .toList();
-                    Navigator.pop(ctx, names.isEmpty ? null : names);
+                    Navigator.pop(ctx, valid.isEmpty ? null : valid);
                   },
                   child: const Text('新增'),
                 ),
@@ -621,7 +708,10 @@ Future<bool> _verifyParentPinIfNeeded(BuildContext context,
   );
   if (!context.mounted) return false;
   if (entered == null) return false;
-  if (entered == savedPin) return true;
+  if (entered == savedPin) {
+    parentSessionActive = true;
+    return true;
+  }
   ScaffoldMessenger.of(
     context,
   ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
@@ -646,6 +736,12 @@ class _FamilyPageState extends State<FamilyPage> {
   void initState() {
     super.initState();
     _loadChildren();
+  }
+
+  @override
+  void deactivate() {
+    parentSessionActive = false;
+    super.deactivate();
   }
 
   // 從 SharedPreferences 讀取小孩清單
@@ -782,11 +878,12 @@ class _FamilyPageState extends State<FamilyPage> {
   Future<void> _addChildAction() async {
     final ok = await _verifyParentPinIfNeeded(context, title: '請輸入家長密碼');
     if (!ok || !mounted) return;
-    final names = await _showAddChildrenSheet(context);
-    if (names == null || names.isEmpty || !mounted) return;
+    final inputs = await _showAddChildrenSheet(context);
+    if (inputs == null || inputs.isEmpty || !mounted) return;
     final prefs = await SharedPreferences.getInstance();
-    for (final name in names) {
-      _children.add(ChildData(id: _genId(), name: name, points: 0));
+    for (final inp in inputs) {
+      _children.add(ChildData(
+          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0));
     }
     await prefs.setString(
         'children', jsonEncode(_children.map((c) => c.toJson()).toList()));
@@ -841,7 +938,6 @@ class _ChildCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -853,14 +949,10 @@ class _ChildCard extends StatelessWidget {
         ),
         leading: CircleAvatar(
           radius: 24,
-          backgroundColor: primary.withValues(alpha: 0.12),
+          backgroundColor: Colors.grey.shade100,
           child: Text(
-            child.name.isNotEmpty ? child.name[0] : '?',
-            style: TextStyle(
-              fontSize: 20,
-              color: primary,
-              fontWeight: FontWeight.bold,
-            ),
+            child.avatar.isNotEmpty ? child.avatar : '🐼',
+            style: const TextStyle(fontSize: 24),
           ),
         ),
         title: Text(
@@ -2838,10 +2930,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
   // 新增小孩
   Future<void> _addChild() async {
-    final names = await _showAddChildrenSheet(context);
-    if (names == null || names.isEmpty || !mounted) return;
-    for (final name in names) {
-      _children.add(ChildData(id: _genId(), name: name, points: 0));
+    final inputs = await _showAddChildrenSheet(context);
+    if (inputs == null || inputs.isEmpty || !mounted) return;
+    for (final inp in inputs) {
+      _children.add(ChildData(
+          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0));
     }
     await _saveChildren();
     setState(() {});
@@ -2965,34 +3058,61 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _editChildName(int index) async {
     final child = _children[index];
     final nameCtrl = TextEditingController(text: child.name);
+    String selectedAvatar = child.avatar;
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('修改名稱'),
-        content: TextField(
-          controller: nameCtrl,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '小孩名稱'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('編輯小孩'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  final picked =
+                      await _showAvatarPickerDialog(ctx, selectedAvatar);
+                  if (picked != null) setS(() => selectedAvatar = picked);
+                },
+                child: CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Colors.grey.shade100,
+                  child: Text(selectedAvatar,
+                      style: const TextStyle(fontSize: 32)),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text('點擊更換頭像',
+                  style:
+                      TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '小孩名稱'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('儲存'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('儲存'),
-          ),
-        ],
       ),
     );
 
     if (result != true) return;
     final name = nameCtrl.text.trim();
-    if (name.isEmpty || name == child.name) return;
+    if (name.isEmpty) return;
 
     _children[index].name = name;
+    _children[index].avatar = selectedAvatar;
     await _saveChildren();
     _changed = true;
     setState(() {});
@@ -5484,6 +5604,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           final child = entry.value;
           return _buildChildCard(child, i);
         }),
+        _addButton('新增小孩', Icons.person_add_outlined, Colors.orange, _addChild),
 
         const SizedBox(height: 24),
 
@@ -5559,7 +5680,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
   // 小孩卡片（含名稱、積分、重置、刪除）
   Widget _buildChildCard(ChildData child, int index) {
-    final primary = Theme.of(context).colorScheme.primary;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -5572,13 +5692,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: primary.withValues(alpha: 0.12),
+                  backgroundColor: Colors.grey.shade100,
                   child: Text(
-                    child.name.isNotEmpty ? child.name[0] : '?',
-                    style: TextStyle(
-                      color: primary,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    child.avatar.isNotEmpty ? child.avatar : '🐼',
+                    style: const TextStyle(fontSize: 20),
                   ),
                 ),
                 const SizedBox(width: 12),
