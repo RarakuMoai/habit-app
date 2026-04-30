@@ -2722,6 +2722,58 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _loadAll();
   }
 
+  // 清空指定小孩的所有歷史資料（積分歸零、紀錄與票券清除、習慣完成日期清空）
+  Future<void> _clearChildData(int index) async {
+    final child = _children[index];
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('清空「${child.name}」的資料'),
+        content: const Text(
+          '這將清除以下資料，且無法復原：\n\n'
+          '• 目前積分歸零\n'
+          '• 所有積分紀錄\n'
+          '• 所有票券紀錄\n'
+          '• 習慣的完成記錄（習慣本身保留）',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('確認清空', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final ok = await _verifyParentPinIfNeeded(context);
+    if (!ok || !mounted) return;
+
+    final prefs = _prefs!;
+    final childId = child.id;
+
+    _children[index].points = 0;
+    await _saveChildren();
+
+    final records = await _loadRecords(prefs);
+    await _saveRecords(prefs, records.where((r) => r.childId != childId).toList());
+
+    final vouchers = await _loadVouchers(prefs);
+    await _saveVouchers(prefs, vouchers.where((v) => v.childId != childId).toList());
+
+    final habits = await _loadHabits(prefs);
+    for (final h in habits) {
+      if (h.childId == childId) h.completedDate = '';
+    }
+    await _saveHabits(prefs, habits);
+
+    await _loadAll();
+  }
+
   // 設定積分重置模式
   Future<void> _setResetMode(int index) async {
     final current = _children[index].resetMode;
@@ -4430,6 +4482,22 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   child: const Text('修改'),
                 ),
               ],
+            ),
+            const Divider(height: 16, thickness: 1),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => _clearChildData(index),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  '清空資料',
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade400),
+                ),
+              ),
             ),
           ],
         ),
