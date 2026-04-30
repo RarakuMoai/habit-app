@@ -579,7 +579,8 @@ Future<String?> _showPinDialog(
 }
 
 // 驗證家長密碼（Session 有效或未設密碼時直接通過）
-Future<bool> _verifyParentPinIfNeeded(BuildContext context) async {
+Future<bool> _verifyParentPinIfNeeded(BuildContext context,
+    {String title = '請輸入家長密碼'}) async {
   if (parentSessionActive) return true;
   final prefs = await SharedPreferences.getInstance();
   final savedPin = prefs.getString('parent_pin');
@@ -589,7 +590,7 @@ Future<bool> _verifyParentPinIfNeeded(BuildContext context) async {
   final entered = await _showPinDialog(
     context,
     digits: digits,
-    title: '請輸入家長密碼以撤銷',
+    title: title,
   );
   if (!context.mounted) return false;
   if (entered == null) return false;
@@ -752,7 +753,7 @@ class _FamilyPageState extends State<FamilyPage> {
   }
 
   Future<void> _addChildFromEmptyState() async {
-    final ok = await _verifyParentPinIfNeeded(context);
+    final ok = await _verifyParentPinIfNeeded(context, title: '請輸入家長密碼');
     if (!ok || !mounted) return;
     final names = await _showAddChildrenSheet(context);
     if (names == null || names.isEmpty || !mounted) return;
@@ -1377,7 +1378,7 @@ class _HabitTabState extends State<_HabitTab> {
 
   Future<void> _giveSpecialPoints() async {
     if (!mounted) return;
-    final ok = await _verifyParentPinIfNeeded(context);
+    final ok = await _verifyParentPinIfNeeded(context, title: '請輸入家長密碼以給予特殊積分');
     if (!ok || !mounted) return;
 
     bool isAdd = true;
@@ -2378,7 +2379,7 @@ class _RewardTabState extends State<_RewardTab> {
 
   Future<void> _useVoucher(VoucherLog v) async {
     if (!mounted) return;
-    final ok = await _verifyParentPinIfNeeded(context);
+    final ok = await _verifyParentPinIfNeeded(context, title: '請輸入家長密碼以使用票券');
     if (!ok || !mounted) return;
     final rewardName = _rewardName(v.rewardId);
 
