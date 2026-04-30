@@ -743,7 +743,7 @@ class _FamilyPageState extends State<FamilyPage> {
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: _addChildFromEmptyState,
+            onPressed: _addChildAction,
             icon: const Icon(Icons.person_add_outlined),
             label: const Text('新增小孩'),
           ),
@@ -752,7 +752,7 @@ class _FamilyPageState extends State<FamilyPage> {
     );
   }
 
-  Future<void> _addChildFromEmptyState() async {
+  Future<void> _addChildAction() async {
     final ok = await _verifyParentPinIfNeeded(context, title: '請輸入家長密碼');
     if (!ok || !mounted) return;
     final names = await _showAddChildrenSheet(context);
@@ -770,13 +770,25 @@ class _FamilyPageState extends State<FamilyPage> {
   Widget _buildChildList() {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      itemCount: _children.length,
+      itemCount: _children.length + 1,
       itemBuilder: (_, i) {
+        if (i == _children.length) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: TextButton.icon(
+              onPressed: _addChildAction,
+              icon: const Icon(Icons.person_add_outlined, size: 18),
+              label: const Text('新增小孩'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey.shade600,
+              ),
+            ),
+          );
+        }
         final child = _children[i];
         return _ChildCard(
           child: child,
           onTap: () async {
-            // 進入小孩主頁後，回來重新載入（積分等可能異動）
             await Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) =>
