@@ -3208,6 +3208,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     String freq = 'daily';
     int weeklyTarget = 3;
     int minutes = 0;
+    bool customExpanded = false;
 
     final existingNames = _habits.map((h) => h.name).toSet();
     final available = _kHabitPresets
@@ -3370,114 +3371,212 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     const SizedBox(height: 14),
                   ],
 
-                  // 自訂名稱
-                  TextField(
-                    controller: nameCtrl,
-                    onChanged: (_) => setS(() {}),
-                    decoration: InputDecoration(
-                      hintText: '自訂習慣名稱...',
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
+                  // 自訂習慣 toggle
+                  InkWell(
+                    onTap: () => setS(() => customExpanded = !customExpanded),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: customExpanded
+                            ? (hasCustom ? Colors.deepOrange.shade50 : Colors.grey.shade100)
+                            : Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                        border: Border.all(
+                          color: customExpanded
+                              ? (hasCustom ? Colors.deepOrange.shade300 : Colors.grey.shade300)
+                              : Colors.grey.shade300,
+                        ),
                       ),
-                      prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_note, size: 18,
+                              color: hasCustom ? Colors.deepOrange.shade500 : Colors.grey.shade500),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              hasCustom ? customName : '自訂習慣',
+                              style: TextStyle(
+                                color: hasCustom ? Colors.deepOrange.shade700 : Colors.grey.shade600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            customExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            size: 20, color: Colors.grey.shade400,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-
-                  // 自訂習慣分數（有輸入名稱才顯示）
-                  if (hasCustom) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: pointCtrl,
-                      onChanged: (_) => setS(() {}),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        labelText: '自訂習慣分數',
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        prefixIcon: const Icon(Icons.star_outline, size: 18),
+                  AnimatedCrossFade(
+                    firstChild: const SizedBox(width: double.infinity, height: 0),
+                    secondChild: Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: nameCtrl,
+                            onChanged: (_) => setS(() {}),
+                            maxLength: 20,
+                            decoration: InputDecoration(
+                              hintText: '習慣名稱',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: Colors.orange.shade400),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: pointCtrl,
+                            onChanged: (_) => setS(() {}),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: InputDecoration(
+                              hintText: '完成可得分數',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: Colors.orange.shade400),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              prefixIcon: const Icon(Icons.star_outline, size: 18),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text('頻率', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              _FreqChip(
+                                label: '每日',
+                                selected: freq == 'daily',
+                                onTap: () => setS(() => freq = 'daily'),
+                              ),
+                              const SizedBox(width: 8),
+                              _FreqChip(
+                                label: '每週',
+                                selected: freq == 'weekly',
+                                onTap: () => setS(() => freq = 'weekly'),
+                              ),
+                              if (freq == 'weekly') ...[
+                                const SizedBox(width: 16),
+                                _AdjustBtn(
+                                  icon: Icons.remove,
+                                  enabled: weeklyTarget > 1,
+                                  onTap: () => setS(() => weeklyTarget--),
+                                ),
+                                const SizedBox(width: 8),
+                                Text('$weeklyTarget', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                Text('  次', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                                const SizedBox(width: 8),
+                                _AdjustBtn(
+                                  icon: Icons.add,
+                                  enabled: weeklyTarget < 7,
+                                  onTap: () => setS(() => weeklyTarget++),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text('持續時間（選填）', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 8),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: minutes > 0 ? Colors.orange.shade300 : Colors.grey.shade300,
+                                width: 1.5,
+                              ),
+                              color: minutes > 0 ? Colors.orange.shade50 : Colors.white,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                GestureDetector(
+                                  onTap: minutes > 0
+                                      ? () => setS(() => minutes = minutes <= 5 ? 0 : minutes - 5)
+                                      : null,
+                                  child: Container(
+                                    width: 44, height: 44,
+                                    alignment: Alignment.center,
+                                    child: Icon(Icons.remove, size: 18,
+                                        color: minutes > 0 ? Colors.orange.shade700 : Colors.grey.shade300),
+                                  ),
+                                ),
+                                Container(width: 1, height: 28,
+                                    color: minutes > 0 ? Colors.orange.shade200 : Colors.grey.shade200),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      Text(
+                                        minutes > 0 ? '$minutes' : '--',
+                                        style: TextStyle(
+                                          fontSize: 22, fontWeight: FontWeight.bold,
+                                          color: minutes > 0 ? Colors.black87 : Colors.grey.shade400,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text('分鐘', style: TextStyle(
+                                        fontSize: 13,
+                                        color: minutes > 0 ? Colors.grey.shade600 : Colors.grey.shade400,
+                                      )),
+                                    ],
+                                  ),
+                                ),
+                                Container(width: 1, height: 28,
+                                    color: minutes > 0 ? Colors.orange.shade200 : Colors.grey.shade200),
+                                GestureDetector(
+                                  onTap: () => setS(() => minutes = minutes == 0 ? 5 : (minutes + 5).clamp(5, 999)),
+                                  child: Container(
+                                    width: 44, height: 44,
+                                    alignment: Alignment.center,
+                                    child: Icon(Icons.add, size: 18, color: Colors.orange.shade700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                  const SizedBox(height: 16),
-
-                  // ── 頻率 ──
-                  Text('頻率', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      _FreqChip(
-                        label: '每日',
-                        selected: freq == 'daily',
-                        onTap: () => setS(() => freq = 'daily'),
-                      ),
-                      const SizedBox(width: 8),
-                      _FreqChip(
-                        label: '每週',
-                        selected: freq == 'weekly',
-                        onTap: () => setS(() => freq = 'weekly'),
-                      ),
-                    ],
-                  ),
-                  if (freq == 'weekly') ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Text('每週目標', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: weeklyTarget > 1 ? () => setS(() => weeklyTarget--) : null,
-                          icon: const Icon(Icons.remove_circle_outline, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text('$weeklyTarget 次', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                        ),
-                        IconButton(
-                          onPressed: weeklyTarget < 7 ? () => setS(() => weeklyTarget++) : null,
-                          icon: const Icon(Icons.add_circle_outline, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-
-                  // ── 持續時間 ──
-                  Row(
-                    children: [
-                      Text('持續時間', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: minutes > 0 ? () => setS(() => minutes = minutes <= 5 ? 0 : minutes - 5) : null,
-                        icon: const Icon(Icons.remove_circle_outline, size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          minutes > 0 ? '$minutes 分鐘' : '不設定',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => setS(() => minutes += 5),
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
+                    crossFadeState: customExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                    duration: const Duration(milliseconds: 200),
                   ),
                   const SizedBox(height: 20),
 
@@ -4972,6 +5071,38 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         ),
       );
     }).toList();
+  }
+}
+
+// 調整按鈕（＋ / −）
+class _AdjustBtn extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _AdjustBtn({required this.icon, required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled ? Colors.white : Colors.grey.shade100,
+          border: Border.all(
+            color: enabled ? Colors.orange.shade300 : Colors.grey.shade200,
+            width: 1.5,
+          ),
+          boxShadow: enabled
+              ? [BoxShadow(color: Colors.orange.withValues(alpha: 0.15), blurRadius: 4, offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Icon(icon, size: 16,
+            color: enabled ? Colors.orange.shade700 : Colors.grey.shade400),
+      ),
+    );
   }
 }
 
