@@ -1895,6 +1895,9 @@ class _HabitTabState extends State<_HabitTab> {
     final done = habits.where(_isDoneToday).length;
     final total = habits.length;
     final allDone = done == total;
+    final todayPts = habits
+        .where(_isDoneToday)
+        .fold(0, (sum, h) => sum + h.points);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1909,7 +1912,16 @@ class _HabitTabState extends State<_HabitTab> {
                 fontWeight: allDone ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
-            if (allDone)
+            if (todayPts > 0)
+              Text(
+                '今日已獲得 +$todayPts 分',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            else if (allDone)
               Text(
                 '全部完成！',
                 style: TextStyle(
@@ -4635,145 +4647,262 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     int weeklyTarget = habit.weeklyTarget;
     int minutes = habit.minutes;
 
-    final result = await showDialog<bool>(
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('編輯習慣'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: '習慣名稱'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: pointCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: '完成可得分數'),
-                ),
-                const SizedBox(height: 14),
-                Text('頻率', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _FreqChip(
-                      label: '每日',
-                      selected: freq == 'daily',
-                      onTap: () => setS(() => freq = 'daily'),
+        builder: (_, setS) {
+          final name = nameCtrl.text.trim();
+          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final canSave = name.isNotEmpty && pts > 0;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36, height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('編輯習慣',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    autofocus: true,
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      labelText: '習慣名稱',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: pointCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      labelText: '完成可得分數',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none),
+                      prefixIcon:
+                          const Icon(Icons.stars_outlined, size: 18),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('頻率',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    _FreqChip(
+                        label: '每日',
+                        selected: freq == 'daily',
+                        onTap: () => setS(() => freq = 'daily')),
                     const SizedBox(width: 8),
                     _FreqChip(
-                      label: '每週',
-                      selected: freq == 'weekly',
-                      onTap: () => setS(() => freq = 'weekly'),
-                    ),
-                  ],
-                ),
-                if (freq == 'weekly') ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Text('每週目標', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: weeklyTarget > 1 ? () => setS(() => weeklyTarget--) : null,
-                        icon: const Icon(Icons.remove_circle_outline, size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text('$weeklyTarget 次', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                      ),
-                      IconButton(
-                        onPressed: weeklyTarget < 7 ? () => setS(() => weeklyTarget++) : null,
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
+                        label: '每週',
+                        selected: freq == 'weekly',
+                        onTap: () => setS(() => freq = 'weekly')),
+                    if (freq == 'weekly') ...[
+                      const SizedBox(width: 16),
+                      _AdjustBtn(
+                          icon: Icons.remove,
+                          enabled: weeklyTarget > 1,
+                          onTap: () => setS(() => weeklyTarget--)),
+                      const SizedBox(width: 8),
+                      Text('$weeklyTarget',
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('  次',
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade600)),
+                      const SizedBox(width: 8),
+                      _AdjustBtn(
+                          icon: Icons.add,
+                          enabled: weeklyTarget < 7,
+                          onTap: () => setS(() => weeklyTarget++)),
                     ],
+                  ]),
+                  const SizedBox(height: 14),
+                  Text('持續時間（選填）',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 8),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: minutes > 0
+                            ? Colors.orange.shade300
+                            : Colors.grey.shade300,
+                        width: 1.5,
+                      ),
+                      color: minutes > 0
+                          ? Colors.orange.shade50
+                          : Colors.white,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: minutes > 0
+                              ? () => setS(() => minutes =
+                                  minutes <= 5 ? 0 : minutes - 5)
+                              : null,
+                          child: Container(
+                            width: 44, height: 44,
+                            alignment: Alignment.center,
+                            child: Icon(Icons.remove,
+                                size: 18,
+                                color: minutes > 0
+                                    ? Colors.orange.shade700
+                                    : Colors.grey.shade300),
+                          ),
+                        ),
+                        Container(
+                            width: 1, height: 28,
+                            color: minutes > 0
+                                ? Colors.orange.shade200
+                                : Colors.grey.shade200),
+                        GestureDetector(
+                          onTap: () async {
+                            final r =
+                                await _showFamilyMinutesDialog(minutes);
+                            if (r != null) setS(() => minutes = r);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  minutes > 0 ? '$minutes' : '--',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: minutes > 0
+                                        ? Colors.black87
+                                        : Colors.grey.shade400,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text('分鐘',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: minutes > 0
+                                          ? Colors.grey.shade600
+                                          : Colors.grey.shade400,
+                                    )),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Container(
+                            width: 1, height: 28,
+                            color: minutes > 0
+                                ? Colors.orange.shade200
+                                : Colors.grey.shade200),
+                        GestureDetector(
+                          onTap: minutes < 999
+                              ? () => setS(() => minutes = minutes == 0
+                                  ? 5
+                                  : (minutes + 5).clamp(5, 999))
+                              : null,
+                          child: Container(
+                            width: 44, height: 44,
+                            alignment: Alignment.center,
+                            child: Icon(Icons.add,
+                                size: 18,
+                                color: minutes < 999
+                                    ? Colors.orange.shade700
+                                    : Colors.grey.shade300),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canSave
+                          ? () async {
+                              Navigator.pop(ctx);
+                              final prefs = _prefs!;
+                              final habits = await _loadHabits(prefs);
+                              final idx =
+                                  habits.indexWhere((h) => h.id == habit.id);
+                              if (idx != -1) {
+                                habits[idx] = ChildHabit(
+                                  id: habit.id,
+                                  childId: habit.childId,
+                                  name: name,
+                                  points: pts,
+                                  completedDate: habit.completedDate,
+                                  frequency: freq,
+                                  weeklyTarget: weeklyTarget,
+                                  weeklyDates: habit.weeklyDates,
+                                  minutes: minutes,
+                                );
+                              }
+                              await _saveHabits(prefs, habits);
+                              _changed = true;
+                              if (mounted) await _loadAll();
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('儲存',
+                          style: TextStyle(color: Colors.white)),
+                    ),
                   ),
                 ],
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Text('持續時間', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: minutes > 0 ? () => setS(() => minutes = minutes <= 5 ? 0 : minutes - 5) : null,
-                      icon: const Icon(Icons.remove_circle_outline, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Text(
-                        minutes > 0 ? '$minutes 分鐘' : '不設定',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => setS(() => minutes += 5),
-                      icon: const Icon(Icons.add_circle_outline, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('儲存'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-
-    if (result != true) return;
-    final name = nameCtrl.text.trim();
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (name.isEmpty || pts <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('習慣名稱不得為空、分數須大於 0')),
-        );
-      }
-      return;
-    }
-
-    final prefs = _prefs!;
-    final habits = await _loadHabits(prefs);
-    final idx = habits.indexWhere((h) => h.id == habit.id);
-    if (idx != -1) {
-      habits[idx] = ChildHabit(
-        id: habit.id,
-        childId: habit.childId,
-        name: name,
-        points: pts,
-        completedDate: habit.completedDate,
-        frequency: freq,
-        weeklyTarget: weeklyTarget,
-        weeklyDates: habit.weeklyDates,
-        minutes: minutes,
-      );
-    }
-    await _saveHabits(prefs, habits);
-    _changed = true;
-    await _loadAll();
   }
 
   // ── 新增扣分項目 ──
@@ -5079,66 +5208,112 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final nameCtrl = TextEditingController(text: item.name);
     final pointCtrl = TextEditingController(text: item.points.toString());
 
-    final result = await showDialog<bool>(
+    await showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('編輯扣分項目'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: '扣分項目名稱'),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) {
+          final name = nameCtrl.text.trim();
+          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final canSave = name.isNotEmpty && pts > 0;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('編輯扣分項目',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  onChanged: (_) => setS(() {}),
+                  decoration: InputDecoration(
+                    labelText: '扣分項目名稱',
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: pointCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (_) => setS(() {}),
+                  decoration: InputDecoration(
+                    labelText: '扣幾分',
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                    prefixIcon:
+                        const Icon(Icons.remove_circle_outline, size: 18),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: canSave
+                        ? () async {
+                            Navigator.pop(ctx);
+                            final prefs = _prefs!;
+                            final deductions = await _loadDeductions(prefs);
+                            final idx =
+                                deductions.indexWhere((d) => d.id == item.id);
+                            if (idx != -1) {
+                              deductions[idx] = DeductionItem(
+                                id: item.id,
+                                childId: item.childId,
+                                name: name,
+                                points: pts,
+                              );
+                            }
+                            await _saveDeductions(prefs, deductions);
+                            _changed = true;
+                            if (mounted) await _loadAll();
+                          }
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      disabledBackgroundColor: Colors.grey.shade200,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('儲存',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: pointCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: '扣幾分'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('儲存'),
-          ),
-        ],
+          );
+        },
       ),
     );
-
-    if (result != true) return;
-    final name = nameCtrl.text.trim();
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (name.isEmpty || pts <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('項目名稱不得為空、扣分須大於 0')));
-      }
-      return;
-    }
-
-    final prefs = _prefs!;
-    final deductions = await _loadDeductions(prefs);
-    final idx = deductions.indexWhere((d) => d.id == item.id);
-    if (idx != -1) {
-      deductions[idx] = DeductionItem(
-        id: item.id,
-        childId: item.childId,
-        name: name,
-        points: pts,
-      );
-    }
-    await _saveDeductions(prefs, deductions);
-    _changed = true;
-    await _loadAll();
   }
 
   // ── 新增獎勵 ──
@@ -5427,91 +5602,145 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final pointCtrl = TextEditingController(text: reward.pointsCost.toString());
     final Set<String> selectedIds = Set.from(reward.childIds);
 
-    final result = await showDialog<bool>(
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('編輯獎勵'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '套用小孩',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                ..._children.map(
-                  (c) => CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(c.name),
-                    value: selectedIds.contains(c.id),
-                    onChanged: (v) => setS(() {
-                      if (v == true) {
-                        selectedIds.add(c.id);
-                      } else {
-                        selectedIds.remove(c.id);
-                      }
-                    }),
+        builder: (_, setS) {
+          final name = nameCtrl.text.trim();
+          final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final canSave = name.isNotEmpty && pts > 0 && selectedIds.isNotEmpty;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36, height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameCtrl,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: '獎勵名稱'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: pointCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: '所需積分'),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  const Text('編輯獎勵',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 14),
+                  Text('套用小孩',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _children.map((c) {
+                      final sel = selectedIds.contains(c.id);
+                      return FilterChip(
+                        label: Text(c.name),
+                        selected: sel,
+                        selectedColor: Colors.purple.shade100,
+                        checkmarkColor: Colors.purple,
+                        onSelected: (v) => setS(() {
+                          if (v) {
+                            selectedIds.add(c.id);
+                          } else {
+                            selectedIds.remove(c.id);
+                          }
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    autofocus: true,
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      labelText: '獎勵名稱',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none),
+                      prefixIcon: const Icon(
+                          Icons.card_giftcard_outlined,
+                          size: 18),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: pointCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      labelText: '所需積分',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none),
+                      prefixIcon:
+                          const Icon(Icons.stars_outlined, size: 18),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canSave
+                          ? () async {
+                              Navigator.pop(ctx);
+                              final prefs = _prefs!;
+                              final rewards = await _loadRewards(prefs);
+                              final idx = rewards
+                                  .indexWhere((r) => r.id == reward.id);
+                              if (idx != -1) {
+                                rewards[idx] = RewardItem(
+                                  id: reward.id,
+                                  name: name,
+                                  pointsCost: pts,
+                                  minutes: reward.minutes,
+                                  childIds: selectedIds.toList(),
+                                );
+                              }
+                              await _saveRewards(prefs, rewards);
+                              _changed = true;
+                              if (mounted) await _loadAll();
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('儲存',
+                          style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('儲存'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-
-    if (result != true) return;
-    final name = nameCtrl.text.trim();
-    final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
-    if (name.isEmpty || pts <= 0 || selectedIds.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('請至少選一個小孩，且名稱不得為空、積分須大於 0')),
-        );
-      }
-      return;
-    }
-
-    final prefs = _prefs!;
-    final rewards = await _loadRewards(prefs);
-    final idx = rewards.indexWhere((r) => r.id == reward.id);
-    if (idx != -1) {
-      rewards[idx] = RewardItem(
-        id: reward.id,
-        name: name,
-        pointsCost: pts,
-        childIds: selectedIds.toList(),
-      );
-    }
-    await _saveRewards(prefs, rewards);
-    _changed = true;
-    await _loadAll();
   }
 
   // ── 共用刪除確認 ──
