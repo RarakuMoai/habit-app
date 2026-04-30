@@ -929,11 +929,9 @@ class _HabitTabState extends State<_HabitTab> {
     widget.onPointsChanged();
   }
 
-  // 撤銷打卡：需家長密碼，扣回積分並清除日期
+  // 撤銷打卡：扣回積分並清除日期
   Future<void> _undoCheckIn(ChildHabit habit) async {
     if (!_isDoneToday(habit) || !mounted) return;
-    final ok = await _verifyParentPinIfNeeded(context);
-    if (!ok || !mounted) return;
 
     final prefs = _prefs!;
     final newPoints = await _applyPoints(
@@ -2212,6 +2210,8 @@ class _RewardTabState extends State<_RewardTab> {
 
   Future<void> _useVoucher(VoucherLog v) async {
     if (!mounted) return;
+    final ok = await _verifyParentPinIfNeeded(context);
+    if (!ok || !mounted) return;
     final rewardName = _rewardName(v.rewardId);
 
     final confirmed = await showDialog<bool>(
