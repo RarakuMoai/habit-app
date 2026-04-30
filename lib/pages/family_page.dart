@@ -282,13 +282,13 @@ const List<_Preset> _kDeductionPresets = [
 ];
 
 const List<_Preset> _kRewardPresets = [
-  _Preset('看電視 30 分鐘', 30, '📺', 0, true),
-  _Preset('玩遊戲 30 分鐘', 30, '🎮', 0, true),
+  _Preset('看電視', 30, '📺', 0, true),
+  _Preset('玩遊戲', 30, '🎮', 0, true),
   _Preset('選今晚的晚餐', 50, '🍽️'),
-  _Preset('買零食一樣', 50, '🍬'),
-  _Preset('延後睡覺 30 分鐘', 40, '🌙', 0, true),
-  _Preset('看一部電影', 100, '🎬', 0, true),
-  _Preset('買一個小玩具', 150, '🧸'),
+  _Preset('買零食', 50, '🍬'),
+  _Preset('延後睡覺', 40, '🌙', 0, true),
+  _Preset('電影院看電影', 100, '🎬'),
+  _Preset('買玩具', 150, '🧸'),
 ];
 
 // 本週一到週日的日期字串集合
@@ -3869,7 +3869,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          p.name,
+                                          sel && hasCustom && cfg != null && cfg.minutes > 0
+                                              ? '${p.name} ${cfg.minutes} 分鐘'
+                                              : p.name,
                                           style: TextStyle(
                                             fontSize: 15,
                                             fontWeight: sel
@@ -3888,20 +3890,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                               style: TextStyle(
                                                   fontSize: 11,
                                                   color: Colors.grey.shade500),
-                                            ),
-                                          ),
-                                        if (sel && hasCustom && cfg != null)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 3),
-                                            child: Text(
-                                              cfg.minutes > 0
-                                                  ? '${cfg.minutes} 分鐘'
-                                                  : '未設時間',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.purple.shade600,
-                                                fontWeight: FontWeight.w500,
-                                              ),
                                             ),
                                           ),
                                       ],
@@ -5250,10 +5238,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               final prefs = _prefs!;
                               final rewards = await _loadRewards(prefs);
                               for (final e in selectedPresetCfgs.entries) {
+                                final rewardName = e.value.minutes > 0
+                                    ? '${e.key} ${e.value.minutes} 分鐘'
+                                    : e.key;
                                 rewards.add(
                                   RewardItem(
                                     id: _genId(),
-                                    name: e.key,
+                                    name: rewardName,
                                     pointsCost: e.value.points,
                                     minutes: e.value.minutes,
                                     childIds: selectedIds.toList(),
