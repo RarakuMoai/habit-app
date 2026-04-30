@@ -1547,7 +1547,9 @@ class _HabitTabState extends State<_HabitTab> {
           const SizedBox(height: 8),
           if (_habits.isEmpty)
             _emptyHint('尚無習慣，請家長至家長管理新增')
-          else
+          else ...[
+            _habitProgressBar(_habits),
+            const SizedBox(height: 10),
             ..._habits.map(
               (habit) => _HabitItem(
                 habit: habit,
@@ -1556,6 +1558,7 @@ class _HabitTabState extends State<_HabitTab> {
                 onUndo: () => _undoCheckIn(habit),
               ),
             ),
+          ],
 
           const SizedBox(height: 24),
 
@@ -1603,6 +1606,51 @@ class _HabitTabState extends State<_HabitTab> {
       style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
     ),
   );
+
+  Widget _habitProgressBar(List<ChildHabit> habits) {
+    final done = habits.where(_isDoneToday).length;
+    final total = habits.length;
+    final allDone = done == total;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '$done / $total 項完成',
+              style: TextStyle(
+                fontSize: 12,
+                color: allDone ? Colors.green.shade600 : Colors.grey.shade500,
+                fontWeight: allDone ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+            if (allDone)
+              Text(
+                '全部完成！',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.green.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: done / total,
+            minHeight: 6,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              allDone ? Colors.green.shade400 : Colors.orange.shade300,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // 習慣列表項目
@@ -1738,18 +1786,22 @@ class _HabitItemState extends State<_HabitItem>
                       ),
                     ),
                     trailing: doneToday
-                        ? TextButton(
-                            onPressed: widget.onUndo,
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.green.shade200),
                             ),
                             child: Text(
-                              '撤銷',
+                              '+${widget.habit.points}分',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade400,
+                                color: Colors.green.shade600,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           )
