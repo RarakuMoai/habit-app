@@ -1776,13 +1776,15 @@ class _HabitItemState extends State<_HabitItem>
                       ),
                       child: Text(widget.habit.name),
                     ),
-                    subtitle: Text(
-                      '+${widget.habit.points} 分',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: doneToday ? Colors.grey.shade400 : Colors.orange,
-                      ),
-                    ),
+                    subtitle: doneToday
+                        ? null
+                        : Text(
+                            '+${widget.habit.points} 分',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange,
+                            ),
+                          ),
                     trailing: doneToday
                         ? Container(
                             padding: const EdgeInsets.symmetric(
