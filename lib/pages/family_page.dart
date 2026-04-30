@@ -231,16 +231,33 @@ class _Preset {
   final String name;
   final int value;
   final String emoji;
-  const _Preset(this.name, this.value, [this.emoji = '']);
+  final int defaultMinutes;
+  final bool supportsFrequency;
+  const _Preset(this.name, this.value,
+      [this.emoji = '', this.defaultMinutes = 0, this.supportsFrequency = false]);
+}
+
+// 每個常用習慣的個別設定（積分、時間、頻率）
+class _HabitPresetCfg {
+  int points;
+  int minutes;
+  String frequency;
+  int weeklyTarget;
+  _HabitPresetCfg({
+    required this.points,
+    this.minutes = 0,
+    this.frequency = 'daily',
+    this.weeklyTarget = 3,
+  });
 }
 
 const List<_Preset> _kHabitPresets = [
   _Preset('刷牙', 5, '🦷'),
-  _Preset('寫作業', 10, '📚'),
+  _Preset('寫作業', 10, '📚', 30, true),
   _Preset('整理房間', 10, '🧹'),
-  _Preset('閱讀 15 分鐘', 10, '📖'),
+  _Preset('閱讀', 10, '📖', 15, true),
   _Preset('早起', 10, '🌅'),
-  _Preset('運動 30 分鐘', 15, '🏃'),
+  _Preset('運動', 15, '🏃', 30, true),
   _Preset('喝足夠的水', 5, '💧'),
 ];
 
@@ -2971,13 +2988,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     setState(() {});
   }
 
-  int _habitPresetPoints(String name) {
-    for (final p in _kHabitPresets) {
-      if (p.name == name) return p.value;
-    }
-    return 10;
-  }
-
   int _deductionPresetPoints(String name) {
     for (final p in _kDeductionPresets) {
       if (p.name == name) return p.value;
@@ -3249,6 +3259,330 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
   }
 
+  // 習慣常用選項：支援每項個別調整時間/頻率/積分
+  Future<Map<String, _HabitPresetCfg>?> _showHabitPresetSheet(
+    List<_Preset> available,
+    Map<String, _HabitPresetCfg> initial,
+  ) {
+    final selected = <String, _HabitPresetCfg>{
+      for (final e in initial.entries)
+        e.key: _HabitPresetCfg(
+          points: e.value.points,
+          minutes: e.value.minutes,
+          frequency: e.value.frequency,
+          weeklyTarget: e.value.weeklyTarget,
+        ),
+    };
+    return showModalBottomSheet<Map<String, _HabitPresetCfg>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          maxChildSize: 0.92,
+          minChildSize: 0.4,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, size: 18, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('常用習慣',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    if (selected.isNotEmpty)
+                      Text('${selected.length} 項已選',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollCtrl,
+                  itemCount: available.length,
+                  itemBuilder: (_, i) {
+                    final p = available[i];
+                    final sel = selected.containsKey(p.name);
+                    final cfg = selected[p.name];
+                    final pts = cfg?.points ?? p.value;
+                    final pMin = cfg?.minutes ?? p.defaultMinutes;
+                    final pFreq = cfg?.frequency ?? 'daily';
+                    final pWt = cfg?.weeklyTarget ?? 3;
+
+                    return Column(
+                      children: [
+                        InkWell(
+                          onTap: () => setS(() {
+                            if (sel) {
+                              selected.remove(p.name);
+                            } else {
+                              selected[p.name] = _HabitPresetCfg(
+                                points: p.value,
+                                minutes: p.defaultMinutes,
+                              );
+                            }
+                          }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: sel ? Colors.orange.withValues(alpha: 0.08) : Colors.white,
+                              border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Text(
+                                    p.name,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
+                                      color: sel ? Colors.orange : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () async {
+                                    if (!sel) {
+                                      setS(() => selected[p.name] = _HabitPresetCfg(
+                                          points: p.value, minutes: p.defaultMinutes));
+                                    }
+                                    final ctrl = TextEditingController(text: '$pts');
+                                    final newPts = await showDialog<int>(
+                                      context: ctx,
+                                      builder: (dCtx) => AlertDialog(
+                                        title: Text('調整積分：${p.name}'),
+                                        content: TextField(
+                                          controller: ctrl,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                          decoration: const InputDecoration(labelText: '完成可得積分'),
+                                          autofocus: true,
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(dCtx),
+                                            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(dCtx, int.tryParse(ctrl.text) ?? pts),
+                                            child: const Text('確認'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (newPts != null && newPts > 0) {
+                                      setS(() {
+                                        if (selected.containsKey(p.name)) {
+                                          selected[p.name]!.points = newPts;
+                                        } else {
+                                          selected[p.name] = _HabitPresetCfg(
+                                              points: newPts, minutes: p.defaultMinutes);
+                                        }
+                                      });
+                                    }
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: sel ? Colors.orange : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text('+$pts',
+                                            style: TextStyle(
+                                              color: sel ? Colors.white : Colors.grey.shade600,
+                                              fontWeight: FontWeight.bold, fontSize: 13)),
+                                        if (sel) ...[
+                                          const SizedBox(width: 3),
+                                          const Icon(Icons.edit, size: 10, color: Colors.white),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  width: 24, height: 24,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: sel ? Colors.orange : Colors.transparent,
+                                    border: Border.all(
+                                        color: sel ? Colors.orange : Colors.grey.shade300, width: 2),
+                                  ),
+                                  child: sel
+                                      ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                      : null,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (p.supportsFrequency)
+                          AnimatedCrossFade(
+                            firstChild: const SizedBox(width: double.infinity, height: 0),
+                            secondChild: Container(
+                              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.orange.shade100),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text('頻率', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                      const SizedBox(width: 10),
+                                      _FreqChip(
+                                        label: '每日',
+                                        selected: pFreq == 'daily',
+                                        onTap: () => setS(() => selected[p.name]!.frequency = 'daily'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _FreqChip(
+                                        label: '每週',
+                                        selected: pFreq == 'weekly',
+                                        onTap: () => setS(() => selected[p.name]!.frequency = 'weekly'),
+                                      ),
+                                      if (pFreq == 'weekly') ...[
+                                        const SizedBox(width: 12),
+                                        _AdjustBtn(
+                                          icon: Icons.remove,
+                                          enabled: pWt > 1,
+                                          onTap: () => setS(() => selected[p.name]!.weeklyTarget--),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text('$pWt 次',
+                                            style: const TextStyle(
+                                                fontSize: 14, fontWeight: FontWeight.bold)),
+                                        const SizedBox(width: 6),
+                                        _AdjustBtn(
+                                          icon: Icons.add,
+                                          enabled: pWt < 7,
+                                          onTap: () => setS(() => selected[p.name]!.weeklyTarget++),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Text('時間', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                      const SizedBox(width: 10),
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(28),
+                                          border: Border.all(
+                                              color: pMin > 0 ? Colors.orange.shade300 : Colors.grey.shade300,
+                                              width: 1.5),
+                                          color: pMin > 0 ? Colors.orange.shade50 : Colors.white,
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            GestureDetector(
+                                              onTap: pMin > 0
+                                                  ? () => setS(() =>
+                                                      selected[p.name]!.minutes = pMin <= 5 ? 0 : pMin - 5)
+                                                  : null,
+                                              child: Container(
+                                                width: 36, height: 36, alignment: Alignment.center,
+                                                child: Icon(Icons.remove, size: 16,
+                                                    color: pMin > 0 ? Colors.orange.shade700 : Colors.grey.shade300),
+                                              ),
+                                            ),
+                                            Container(width: 1, height: 24,
+                                                color: pMin > 0 ? Colors.orange.shade200 : Colors.grey.shade200),
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                              child: Text(
+                                                pMin > 0 ? '$pMin 分鐘' : '--',
+                                                style: TextStyle(
+                                                  fontSize: 14, fontWeight: FontWeight.bold,
+                                                  color: pMin > 0 ? Colors.black87 : Colors.grey.shade400,
+                                                ),
+                                              ),
+                                            ),
+                                            Container(width: 1, height: 24,
+                                                color: pMin > 0 ? Colors.orange.shade200 : Colors.grey.shade200),
+                                            GestureDetector(
+                                              onTap: () => setS(() =>
+                                                  selected[p.name]!.minutes =
+                                                      pMin == 0 ? 5 : (pMin + 5).clamp(5, 999)),
+                                              child: Container(
+                                                width: 36, height: 36, alignment: Alignment.center,
+                                                child: Icon(Icons.add, size: 16, color: Colors.orange.shade700),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            crossFadeState: sel ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                            duration: const Duration(milliseconds: 200),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, selected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      selected.isEmpty ? '確認（未選取）' : '確認選取 (${selected.length} 項)',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── 新增習慣 ──
   Future<void> _addHabit() async {
     if (_children.isEmpty) {
@@ -3261,8 +3595,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController(text: '10');
     final Set<String> selectedIds = {_children.first.id};
-    final selectedPresets = <String>{};
-    final selectedPresetPts = <String, int>{};
+    final selectedPresetCfgs = <String, _HabitPresetCfg>{};
     String freq = 'daily';
     int weeklyTarget = 3;
     int minutes = 0;
@@ -3283,11 +3616,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         builder: (_, setS) {
           final customName = nameCtrl.text.trim();
           final total =
-              (customName.isNotEmpty ? 1 : 0) + selectedPresets.length;
+              (customName.isNotEmpty ? 1 : 0) + selectedPresetCfgs.length;
           final pts = int.tryParse(pointCtrl.text.trim()) ?? 0;
           final hasCustom = customName.isNotEmpty;
           final canAdd =
-              (hasCustom || selectedPresets.isNotEmpty) &&
+              (hasCustom || selectedPresetCfgs.isNotEmpty) &&
               (!hasCustom || pts > 0) &&
               selectedIds.isNotEmpty;
 
@@ -3352,23 +3685,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   if (available.isNotEmpty) ...[
                     InkWell(
                       onTap: () async {
-                        final result = await _showFamilyPresetSubSheet(
+                        final result = await _showHabitPresetSheet(
                           available,
-                          Map.fromEntries(
-                            selectedPresets.map(
-                              (n) => MapEntry(
-                                n,
-                                selectedPresetPts[n] ?? _habitPresetPoints(n),
-                              ),
-                            ),
-                          ),
+                          selectedPresetCfgs,
                         );
                         if (result != null) {
                           setS(() {
-                            selectedPresets.clear();
-                            selectedPresetPts.clear();
-                            selectedPresets.addAll(result.keys);
-                            selectedPresetPts.addAll(result);
+                            selectedPresetCfgs.clear();
+                            selectedPresetCfgs.addAll(result);
                           });
                         }
                       },
@@ -3380,12 +3704,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                           vertical: 14,
                         ),
                         decoration: BoxDecoration(
-                          color: selectedPresets.isEmpty
+                          color: selectedPresetCfgs.isEmpty
                               ? Colors.grey.shade50
                               : Colors.orange.shade50,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: selectedPresets.isEmpty
+                            color: selectedPresetCfgs.isEmpty
                                 ? Colors.grey.shade300
                                 : Colors.orange.shade300,
                           ),
@@ -3395,18 +3719,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             Icon(
                               Icons.auto_awesome,
                               size: 18,
-                              color: selectedPresets.isEmpty
+                              color: selectedPresetCfgs.isEmpty
                                   ? Colors.grey.shade500
                                   : Colors.orange,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                selectedPresets.isEmpty
+                                selectedPresetCfgs.isEmpty
                                     ? '從常用習慣選取'
-                                    : '已選 ${selectedPresets.length} 個常用習慣',
+                                    : '已選 ${selectedPresetCfgs.length} 個常用習慣',
                                 style: TextStyle(
-                                  color: selectedPresets.isEmpty
+                                  color: selectedPresetCfgs.isEmpty
                                       ? Colors.grey.shade600
                                       : Colors.orange.shade700,
                                   fontSize: 14,
@@ -3414,11 +3738,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               ),
                             ),
                             Icon(
-                              selectedPresets.isEmpty
+                              selectedPresetCfgs.isEmpty
                                   ? Icons.chevron_right
                                   : Icons.check_circle,
                               size: 20,
-                              color: selectedPresets.isEmpty
+                              color: selectedPresetCfgs.isEmpty
                                   ? Colors.grey.shade400
                                   : Colors.orange.shade600,
                             ),
@@ -3647,21 +3971,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               Navigator.pop(ctx);
                               final prefs = _prefs!;
                               final habits = await _loadHabits(prefs);
-                              // 常用習慣各自積分
-                              for (final presetName in selectedPresets) {
-                                final habitPts =
-                                    selectedPresetPts[presetName] ??
-                                    _habitPresetPoints(presetName);
+                              // 常用習慣（各自積分/時間/頻率）
+                              for (final e in selectedPresetCfgs.entries) {
                                 for (final childId in selectedIds) {
                                   habits.add(
                                     ChildHabit(
                                       id: _genId(),
                                       childId: childId,
-                                      name: presetName,
-                                      points: habitPts,
-                                      frequency: freq,
-                                      weeklyTarget: weeklyTarget,
-                                      minutes: minutes,
+                                      name: e.key,
+                                      points: e.value.points,
+                                      frequency: e.value.frequency,
+                                      weeklyTarget: e.value.weeklyTarget,
+                                      minutes: e.value.minutes,
                                     ),
                                   );
                                 }
