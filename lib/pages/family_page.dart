@@ -1171,11 +1171,11 @@ class _HabitTabState extends State<_HabitTab> {
       : habit.completedDate == _todayStr();
 
   // 打卡：增加積分、標記日期
+  // 每日：今日已打卡則跳過；每週：允許一日多次（上限 20 次/週）
   Future<void> _checkIn(ChildHabit habit) async {
     final today = _todayStr();
-    // 每日：已打卡則跳過；每週：今日已打卡則跳過（不重複計算同一天）
     if (habit.frequency == 'weekly') {
-      if (habit.weeklyDates.contains(today)) return;
+      if (_weeklyCount(habit) >= 20) return; // 上限
     } else {
       if (habit.completedDate == today) return;
     }
@@ -1205,11 +1205,10 @@ class _HabitTabState extends State<_HabitTab> {
     widget.onPointsChanged();
   }
 
-  // 撤銷打卡：扣回積分並清除日期
+  // 撤銷打卡：扣回積分並清除日期（每週習慣移除最後一筆今日紀錄）
   Future<void> _undoCheckIn(ChildHabit habit) async {
     if (!mounted) return;
     final today = _todayStr();
-    // 只能撤銷今日的打卡
     if (habit.frequency == 'weekly') {
       if (!habit.weeklyDates.contains(today)) return;
     } else {
@@ -1228,8 +1227,15 @@ class _HabitTabState extends State<_HabitTab> {
     final idx = allHabits.indexWhere((h) => h.id == habit.id);
     if (idx != -1) {
       if (habit.frequency == 'weekly') {
-        allHabits[idx].weeklyDates.remove(today);
-        habit.weeklyDates.remove(today);
+        // 移除最後一筆今日紀錄（多次打卡只撤銷一次）
+        final lastIdx = allHabits[idx].weeklyDates.lastIndexOf(today);
+        if (lastIdx != -1) {
+          allHabits[idx].weeklyDates.removeAt(lastIdx);
+        }
+        final localIdx = habit.weeklyDates.lastIndexOf(today);
+        if (localIdx != -1) {
+          habit.weeklyDates.removeAt(localIdx);
+        }
       } else {
         allHabits[idx].completedDate = '';
         habit.completedDate = '';
@@ -1835,14 +1841,22 @@ class _HabitTabState extends State<_HabitTab> {
           else ...[
             // 每日習慣
             if (dailyHabits.isNotEmpty) ...[
-              _sectionHeader(Icons.check_circle_outline, '每日習慣', Colors.orange),
-              const SizedBox(height: 8),
-              _habitProgressBar(dailyHabits),
-              const SizedBox(height: 10),
+              _sectionHeader(
+                '每日習慣',
+                Icons.wb_sunny_rounded,
+                Colors.orange,
+                done: dailyHabits.where(_isDoneToday).length,
+                total: dailyHabits.length,
+              ),
+              _todayPointsHint(dailyHabits, isWeekly: false),
               ...dailyHabits.map(
                 (habit) => _HabitItem(
                   habit: habit,
                   doneToday: _isDoneToday(habit),
+                  weeklyCount: _weeklyCount(habit),
+                  todayCount: habit.weeklyDates
+                      .where((d) => d == _todayStr())
+                      .length,
                   onCheckIn: () => _checkIn(habit),
                   onUndo: () => _undoCheckIn(habit),
                 ),
@@ -1850,15 +1864,25 @@ class _HabitTabState extends State<_HabitTab> {
             ],
             // 每週習慣
             if (weeklyHabits.isNotEmpty) ...[
-              if (dailyHabits.isNotEmpty) const SizedBox(height: 20),
-              _sectionHeader(Icons.repeat_rounded, '每週習慣', Colors.indigo),
-              const SizedBox(height: 8),
-              _weeklyProgressBar(weeklyHabits),
-              const SizedBox(height: 10),
+              if (dailyHabits.isNotEmpty) const SizedBox(height: 18),
+              _sectionHeader(
+                '每週習慣',
+                Icons.calendar_view_week_rounded,
+                Colors.indigo,
+                done: weeklyHabits
+                    .where((h) => _weeklyCount(h) >= h.weeklyTarget)
+                    .length,
+                total: weeklyHabits.length,
+              ),
+              _todayPointsHint(weeklyHabits, isWeekly: true),
               ...weeklyHabits.map(
                 (habit) => _HabitItem(
                   habit: habit,
                   doneToday: _isDoneToday(habit),
+                  weeklyCount: _weeklyCount(habit),
+                  todayCount: habit.weeklyDates
+                      .where((d) => d == _todayStr())
+                      .length,
                   onCheckIn: () => _checkIn(habit),
                   onUndo: () => _undoCheckIn(habit),
                 ),
@@ -1887,21 +1911,98 @@ class _HabitTabState extends State<_HabitTab> {
     );
   }
 
-  // 小節標題列
-  Widget _sectionHeader(IconData icon, String title, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: color,
+  // 區段標題：圖示底框 + 名稱 + 計數膠囊（home_page 風格）
+  Widget _sectionHeader(
+    String label,
+    IconData icon,
+    Color color, {
+    required int done,
+    required int total,
+  }) {
+    final allDone = total > 0 && done == total;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 6, left: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: color),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: allDone
+                  ? Colors.green.shade50
+                  : color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$done / $total',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: allDone ? Colors.green.shade700 : color,
+              ),
+            ),
+          ),
+          if (allDone) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.check_circle_rounded,
+                size: 14, color: Colors.green.shade400),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // 今日已獲得分數提示（只在有得分時顯示）
+  Widget _todayPointsHint(List<ChildHabit> habits, {required bool isWeekly}) {
+    int todayPts;
+    if (isWeekly) {
+      // 每週習慣：每筆今日 weeklyDates 都計分（支援多次）
+      todayPts = habits.fold<int>(0, (sum, h) {
+        final todayCount =
+            h.weeklyDates.where((d) => d == _todayStr()).length;
+        return sum + todayCount * h.points;
+      });
+    } else {
+      todayPts = habits
+          .where((h) => h.completedDate == _todayStr())
+          .fold<int>(0, (sum, h) => sum + h.points);
+    }
+    if (todayPts <= 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 8),
+      child: Row(
+        children: [
+          Icon(Icons.stars_rounded, size: 13, color: Colors.orange.shade400),
+          const SizedBox(width: 4),
+          Text(
+            '今日已獲得 +$todayPts 分',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.orange.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1912,132 +2013,22 @@ class _HabitTabState extends State<_HabitTab> {
       style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
     ),
   );
-
-  Widget _habitProgressBar(List<ChildHabit> habits) {
-    final done = habits.where(_isDoneToday).length;
-    final total = habits.length;
-    final allDone = done == total;
-    final todayPts = habits
-        .where(_isDoneToday)
-        .fold(0, (sum, h) => sum + h.points);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '$done / $total 項完成',
-              style: TextStyle(
-                fontSize: 12,
-                color: allDone ? Colors.green.shade600 : Colors.grey.shade500,
-                fontWeight: allDone ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-            if (todayPts > 0)
-              Text(
-                '今日已獲得 +$todayPts 分',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.orange.shade600,
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            else if (allDone)
-              Text(
-                '全部完成！',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.green.shade600,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: done / total,
-            minHeight: 6,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              allDone ? Colors.green.shade400 : Colors.orange.shade300,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _weeklyProgressBar(List<ChildHabit> habits) {
-    final metTarget = habits.where((h) => _weeklyCount(h) >= h.weeklyTarget).length;
-    final total = habits.length;
-    final allMet = metTarget == total;
-    final todayPts = habits
-        .where((h) => h.weeklyDates.contains(_todayStr()))
-        .fold<int>(0, (sum, h) => sum + h.points);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '$metTarget / $total 項達標',
-              style: TextStyle(
-                fontSize: 12,
-                color: allMet ? Colors.green.shade600 : Colors.grey.shade500,
-                fontWeight: allMet ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-            if (todayPts > 0)
-              Text(
-                '今日已獲得 +$todayPts 分',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.orange.shade600,
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            else if (allMet)
-              Text(
-                '本週全達標！',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.green.shade600,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: total > 0 ? metTarget / total : 0,
-            minHeight: 6,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              allMet ? Colors.green.shade400 : Colors.indigo.shade300,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-// 習慣列表項目
+// 習慣列表項目（套用 home_page 風格）
 class _HabitItem extends StatefulWidget {
   final ChildHabit habit;
   final bool doneToday;
+  final int weeklyCount;
+  final int todayCount;
   final VoidCallback onCheckIn;
   final VoidCallback? onUndo;
 
   const _HabitItem({
     required this.habit,
     required this.doneToday,
+    required this.weeklyCount,
+    required this.todayCount,
     required this.onCheckIn,
     this.onUndo,
   });
@@ -2059,9 +2050,9 @@ class _HabitItemState extends State<_HabitItem>
       duration: const Duration(milliseconds: 380),
     );
     _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.75), weight: 25),
-      TweenSequenceItem(tween: Tween(begin: 0.75, end: 1.20), weight: 45),
-      TweenSequenceItem(tween: Tween(begin: 1.20, end: 1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.78), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 0.78, end: 1.18), weight: 45),
+      TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 30),
     ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
 
@@ -2071,7 +2062,7 @@ class _HabitItemState extends State<_HabitItem>
     super.dispose();
   }
 
-  void _handleTap() {
+  void _handleDailyTap() {
     _ctrl.forward(from: 0);
     if (widget.doneToday) {
       widget.onUndo?.call();
@@ -2080,124 +2071,329 @@ class _HabitItemState extends State<_HabitItem>
     }
   }
 
+  Widget _weeklyBtn({
+    required IconData icon,
+    VoidCallback? onTap,
+    double size = 30,
+  }) {
+    final active = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
+        ),
+        child: Icon(
+          icon,
+          size: size * 0.53,
+          color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final doneToday = widget.doneToday;
+    if (widget.habit.frequency == 'weekly') return _buildWeeklyCard();
+    return _buildDailyCard();
+  }
+
+  Widget _buildDailyCard() {
+    final done = widget.doneToday;
+    final habit = widget.habit;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: done ? const Color(0xFFF1F8E9) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        elevation: doneToday ? 0 : 2,
-        shadowColor: Colors.black12,
+        elevation: done ? 0 : 1.5,
+        shadowColor: Colors.orange.withValues(alpha: 0.18),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 5,
-                  color: doneToday
-                      ? Colors.green.shade400
-                      : Colors.orange.shade300,
-                ),
-                Expanded(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 2,
-                    ),
-                    leading: GestureDetector(
-                      onTap: _handleTap,
-                      child: ScaleTransition(
-                        scale: _scale,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: doneToday
-                                ? Colors.green.shade400
-                                : Colors.transparent,
-                            border: doneToday
-                                ? null
-                                : Border.all(
-                                    color: Colors.grey.shade300,
-                                    width: 2,
-                                  ),
-                            shape: BoxShape.circle,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 66),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 5,
+                    color: done
+                        ? Colors.green.shade400
+                        : Colors.orange.shade400,
+                  ),
+                  Expanded(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 2,
+                      ),
+                      leading: GestureDetector(
+                        onTap: _handleDailyTap,
+                        child: ScaleTransition(
+                          scale: _scale,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              gradient: done
+                                  ? LinearGradient(
+                                      colors: [
+                                        Colors.green.shade400,
+                                        Colors.green.shade500,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
+                              color: done ? null : Colors.grey.shade50,
+                              border: done
+                                  ? null
+                                  : Border.all(
+                                      color: Colors.grey.shade300,
+                                      width: 1.8,
+                                    ),
+                              shape: BoxShape.circle,
+                              boxShadow: done
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.green.withValues(
+                                            alpha: 0.3),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: done
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  )
+                                : null,
                           ),
-                          child: doneToday
-                              ? const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 18,
-                                )
-                              : null,
+                        ),
+                      ),
+                      title: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          decoration: done
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: done ? Colors.grey.shade400 : Colors.black87,
+                        ),
+                        child: Text(
+                          habit.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      subtitle: done
+                          ? null
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                habit.minutes > 0
+                                    ? '+${habit.points} 分 · ${habit.minutes} 分鐘'
+                                    : '+${habit.points} 分',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.orange.shade600,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                      trailing: done
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_rounded,
+                                      size: 11,
+                                      color: Colors.green.shade700),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '+${habit.points}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.green.shade700,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyCard() {
+    final done = widget.doneToday;
+    final habit = widget.habit;
+    final inProgress = widget.weeklyCount > 0 && !done;
+    final todayCount = widget.todayCount;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: done
+            ? const Color(0xFFF1F8E9)
+            : inProgress
+                ? const Color(0xFFF3F2FB)
+                : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: done ? 0 : 1.5,
+        shadowColor: Colors.indigo.withValues(alpha: 0.18),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 66),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 左邊條
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 5,
+                    color: done
+                        ? Colors.green.shade400
+                        : Colors.indigo.shade300,
+                  ),
+                  // ⊖ n ⊕ 計數區
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _weeklyBtn(
+                            icon: Icons.remove_rounded,
+                            onTap: todayCount > 0
+                                ? () {
+                                    widget.onUndo?.call();
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(width: 4),
+                          ScaleTransition(
+                            scale: _scale,
+                            child: SizedBox(
+                              width: 24,
+                              child: Text(
+                                '$todayCount',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: todayCount > 0
+                                      ? Colors.indigo.shade700
+                                      : Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          _weeklyBtn(
+                            icon: Icons.add_rounded,
+                            onTap: widget.weeklyCount < 20
+                                ? () {
+                                    _ctrl.forward(from: 0);
+                                    widget.onCheckIn();
+                                  }
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 名稱
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          decoration: done
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: done ? Colors.grey.shade400 : Colors.black87,
+                        ),
+                        child: Text(
+                          habit.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
-                    title: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 250),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        decoration: doneToday
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
-                        color: doneToday
-                            ? Colors.grey.shade400
-                            : Colors.black87,
-                      ),
-                      child: Text(widget.habit.name),
-                    ),
-                    subtitle: widget.habit.frequency == 'weekly'
-                        ? Text(
-                            '本週 ${_weeklyCount(widget.habit)}/${widget.habit.weeklyTarget} 次',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: doneToday
-                                  ? Colors.green.shade500
-                                  : Colors.orange.shade600,
-                            ),
-                          )
-                        : (doneToday
-                            ? null
-                            : Text(
-                                widget.habit.minutes > 0
-                                    ? '+${widget.habit.points}分 · ${widget.habit.minutes}分鐘'
-                                    : '+${widget.habit.points}分',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.orange,
-                                ),
-                              )),
-                    trailing: doneToday
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.green.shade200),
-                            ),
-                            child: Text(
-                              '+${widget.habit.points}分',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.green.shade600,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          )
-                        : null,
                   ),
-                ),
-              ],
+                  // 本週 N/M 膠囊
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: done
+                            ? Colors.green.shade100
+                            : Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            done ? Icons.check_rounded : Icons.flag_rounded,
+                            size: 11,
+                            color: done
+                                ? Colors.green.shade700
+                                : Colors.indigo.shade400,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${widget.weeklyCount}/${habit.weeklyTarget}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: done
+                                  ? Colors.green.shade700
+                                  : Colors.indigo.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
             ),
           ),
         ),
