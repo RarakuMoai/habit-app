@@ -289,11 +289,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if ((habit['frequency'] ?? 'daily') == 'weekly') {
       final today = todayString();
       final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
-      if (dates.contains(today)) {
-        dates.remove(today);
-      } else {
-        dates.add(today);
-      }
+      dates.add(today); // 每週習慣永遠累加，不 toggle
       final target = (habit['weeklyTarget'] as int?) ?? 3;
       final weekSet = _currentWeekStrings().toSet();
       setState(() {
@@ -312,6 +308,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (habits[index]['name'] == '喝足夠的水') {
       widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
     }
+  }
+
+  void decrementWeeklyHabit(int index) {
+    final habit = habits[index];
+    final today = todayString();
+    final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
+    final lastIdx = dates.lastIndexOf(today);
+    if (lastIdx == -1) return;
+    dates.removeAt(lastIdx);
+    final target = (habit['weeklyTarget'] as int?) ?? 3;
+    final weekSet = _currentWeekStrings().toSet();
+    setState(() {
+      habit['weeklyDates'] = dates;
+      habit['done'] = dates.where(weekSet.contains).length >= target;
+    });
+    saveHabits();
   }
 
   void deleteHabit(int index) {
@@ -1425,6 +1437,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
     final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
+    final now = DateTime.now();
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
     return ScaleTransition(
       scale: _celebScale,
       child: AnimatedContainer(
@@ -1451,6 +1466,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
         child: Column(
           children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                dateStr,
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 ScaleTransition(
@@ -1588,7 +1611,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           isWeekly: (habit['frequency'] ?? 'daily') == 'weekly',
           weeklyCount: _weeklyCount(habit),
           weeklyTarget: (habit['weeklyTarget'] as int?) ?? 3,
-          isTodayChecked: List<String>.from((habit['weeklyDates'] as List?) ?? []).contains(todayString()),
+          todayCount: List<String>.from((habit['weeklyDates'] as List?) ?? [])
+              .where((d) => d == todayString()).length,
+          onDecrement: (habit['frequency'] ?? 'daily') == 'weekly'
+              ? () => decrementWeeklyHabit(index)
+              : null,
           isLinked: _kHomePresets.any((p) =>
               p.linkedSetting != null && habit['name'] == p.name),
         ),
@@ -1643,7 +1670,8 @@ class _HabitCard extends StatefulWidget {
   final bool isWeekly;
   final int weeklyCount;
   final int weeklyTarget;
-  final bool isTodayChecked;
+  final int todayCount;
+  final VoidCallback? onDecrement;
   final bool isLinked;
 
   const _HabitCard({
@@ -1655,7 +1683,8 @@ class _HabitCard extends StatefulWidget {
     this.isWeekly = false,
     this.weeklyCount = 0,
     this.weeklyTarget = 3,
-    this.isTodayChecked = false,
+    this.todayCount = 0,
+    this.onDecrement,
     this.isLinked = false,
   });
 
@@ -1698,8 +1727,10 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
     final done = isWeekly
         ? (widget.weeklyCount >= widget.weeklyTarget)
         : (widget.habit['done'] as bool);
-    final checkboxFilled = isWeekly ? widget.isTodayChecked : done;
     final name = widget.habit['name'] as String;
+    final todayCount = widget.todayCount;
+    // 每日：填滿 = done；每週：填滿 = 今日已記錄至少一次
+    final checkboxFilled = isWeekly ? todayCount > 0 : done;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1729,6 +1760,9 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                     leading: GestureDetector(
                       onTap: _handleTap,
+                      onLongPress: isWeekly && todayCount > 0
+                          ? () { widget.onDecrement?.call(); }
+                          : null,
                       child: ScaleTransition(
                         scale: _scale,
                         child: AnimatedContainer(
@@ -1742,9 +1776,20 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                                 : Border.all(color: Colors.grey.shade300, width: 2),
                             shape: BoxShape.circle,
                           ),
-                          child: checkboxFilled
-                              ? const Icon(Icons.check, color: Colors.white, size: 18)
-                              : null,
+                          child: Center(
+                            child: isWeekly && todayCount > 0
+                                ? Text(
+                                    '$todayCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  )
+                                : checkboxFilled
+                                    ? const Icon(Icons.check, color: Colors.white, size: 18)
+                                    : null,
+                          ),
                         ),
                       ),
                     ),
@@ -1768,7 +1813,8 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                               children: [
                                 if (isWeekly)
                                   Text(
-                                    '本週 ${widget.weeklyCount}/${widget.weeklyTarget} 次',
+                                    '本週 ${widget.weeklyCount}/${widget.weeklyTarget} 次'
+                                    '${todayCount > 0 ? "・今日 $todayCount 次" : ""}',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: done ? Colors.green.shade500 : Colors.orange.shade600,
