@@ -1850,8 +1850,6 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
     final done = widget.weeklyCount >= widget.weeklyTarget;
     final name = widget.habit['name'] as String;
     final todayCount = widget.todayCount;
-    final progress =
-        (widget.weeklyCount / widget.weeklyTarget.clamp(1, 99)).clamp(0.0, 1.0);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1866,125 +1864,96 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // 左邊條
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   width: 5,
                   color: done ? Colors.green.shade400 : Colors.indigo.shade300,
                 ),
+                // ⊖ n ⊕ 計數區（取代 checkbox）
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _weeklyBtn(
+                        icon: Icons.remove_rounded,
+                        onTap: todayCount > 0
+                            ? () { widget.onDecrement?.call(); }
+                            : null,
+                      ),
+                      const SizedBox(width: 4),
+                      ScaleTransition(
+                        scale: _scale,
+                        child: SizedBox(
+                          width: 24,
+                          child: Text(
+                            '$todayCount',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: todayCount > 0
+                                  ? Colors.indigo.shade700
+                                  : Colors.grey.shade400,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      _weeklyBtn(
+                        icon: Icons.add_rounded,
+                        onTap: widget.weeklyCount < 20
+                            ? () {
+                                _ctrl.forward(from: 0);
+                                widget.onToggle();
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+                // 習慣名稱
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 4, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 名稱 + 選單
-                        Row(
-                          children: [
-                            Expanded(
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 250),
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: done
-                                      ? TextDecoration.lineThrough
-                                      : TextDecoration.none,
-                                  color: done ? Colors.grey.shade400 : Colors.black87,
-                                ),
-                                child: Text(name),
-                              ),
-                            ),
-                            PopupMenuButton<String>(
-                              icon: Icon(Icons.more_vert,
-                                  size: 20, color: Colors.grey.shade400),
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(value: 'edit', child: Text('編輯')),
-                                PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('刪除',
-                                        style: TextStyle(color: Colors.red))),
-                              ],
-                              onSelected: (v) {
-                                if (v == 'edit') { widget.onEdit(); }
-                                else { widget.onDelete(); }
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        // 計數器 + 本週進度（同一排）
-                        Row(
-                          children: [
-                            _weeklyBtn(
-                              icon: Icons.remove_rounded,
-                              onTap: todayCount > 0
-                                  ? () { widget.onDecrement?.call(); }
-                                  : null,
-                            ),
-                            const SizedBox(width: 6),
-                            ScaleTransition(
-                              scale: _scale,
-                              child: SizedBox(
-                                width: 56,
-                                child: Text(
-                                  '今日 $todayCount 次',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: todayCount > 0
-                                        ? Colors.indigo.shade700
-                                        : Colors.grey.shade400,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            _weeklyBtn(
-                              icon: Icons.add_rounded,
-                              onTap: widget.weeklyCount < 20
-                                  ? () {
-                                      _ctrl.forward(from: 0);
-                                      widget.onToggle();
-                                    }
-                                  : null,
-                            ),
-                            const SizedBox(width: 10),
-                            Container(width: 1, height: 18, color: Colors.grey.shade200),
-                            const SizedBox(width: 10),
-                            Text(
-                              '本週 ${widget.weeklyCount}/${widget.weeklyTarget}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: done
-                                    ? Colors.green.shade600
-                                    : Colors.indigo.shade400,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(3),
-                                child: LinearProgressIndicator(
-                                  value: progress,
-                                  minHeight: 4,
-                                  backgroundColor: Colors.grey.shade200,
-                                  valueColor: AlwaysStoppedAnimation(
-                                    done
-                                        ? Colors.green.shade400
-                                        : Colors.indigo.shade300,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                        ),
-                      ],
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 250),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        decoration:
+                            done ? TextDecoration.lineThrough : TextDecoration.none,
+                        color: done ? Colors.grey.shade400 : Colors.black87,
+                      ),
+                      child: Text(name),
                     ),
                   ),
+                ),
+                // 本週 N/M
+                Center(
+                  child: Text(
+                    '本週 ${widget.weeklyCount}/${widget.weeklyTarget}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: done ? Colors.green.shade600 : Colors.indigo.shade400,
+                    ),
+                  ),
+                ),
+                // 選單
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('編輯')),
+                    PopupMenuItem(
+                        value: 'delete',
+                        child: Text('刪除', style: TextStyle(color: Colors.red))),
+                  ],
+                  onSelected: (v) {
+                    if (v == 'edit') { widget.onEdit(); }
+                    else { widget.onDelete(); }
+                  },
                 ),
               ],
             ),
