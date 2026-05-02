@@ -1722,19 +1722,19 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
     widget.onToggle();
   }
 
-  Widget _weeklyBtn({required IconData icon, VoidCallback? onTap}) {
+  Widget _weeklyBtn({required IconData icon, VoidCallback? onTap, double size = 30}) {
     final active = onTap != null;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 40,
-        height: 40,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
         ),
-        child: Icon(icon, size: 20,
+        child: Icon(icon, size: size * 0.53,
             color: active ? Colors.indigo.shade500 : Colors.grey.shade400),
       ),
     );
@@ -1873,9 +1873,10 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 4, 12),
+                    padding: const EdgeInsets.fromLTRB(14, 6, 4, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         // 名稱 + 選單
                         Row(
@@ -1889,9 +1890,7 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                                   decoration: done
                                       ? TextDecoration.lineThrough
                                       : TextDecoration.none,
-                                  color: done
-                                      ? Colors.grey.shade400
-                                      : Colors.black87,
+                                  color: done ? Colors.grey.shade400 : Colors.black87,
                                 ),
                                 child: Text(name),
                               ),
@@ -1914,26 +1913,63 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                           ],
                         ),
                         const SizedBox(height: 6),
-                        // 本週進度
+                        // 計數器 + 本週進度（同一排）
                         Row(
                           children: [
+                            _weeklyBtn(
+                              icon: Icons.remove_rounded,
+                              onTap: todayCount > 0
+                                  ? () { widget.onDecrement?.call(); }
+                                  : null,
+                            ),
+                            const SizedBox(width: 6),
+                            ScaleTransition(
+                              scale: _scale,
+                              child: SizedBox(
+                                width: 56,
+                                child: Text(
+                                  '今日 $todayCount 次',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: todayCount > 0
+                                        ? Colors.indigo.shade700
+                                        : Colors.grey.shade400,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            _weeklyBtn(
+                              icon: Icons.add_rounded,
+                              onTap: widget.weeklyCount < 20
+                                  ? () {
+                                      _ctrl.forward(from: 0);
+                                      widget.onToggle();
+                                    }
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Container(width: 1, height: 18, color: Colors.grey.shade200),
+                            const SizedBox(width: 10),
                             Text(
-                              '本週 ${widget.weeklyCount} / ${widget.weeklyTarget} 次',
+                              '本週 ${widget.weeklyCount}/${widget.weeklyTarget}',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w500,
                                 color: done
                                     ? Colors.green.shade600
                                     : Colors.indigo.shade400,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(3),
                                 child: LinearProgressIndicator(
                                   value: progress,
-                                  minHeight: 5,
+                                  minHeight: 4,
                                   backgroundColor: Colors.grey.shade200,
                                   valueColor: AlwaysStoppedAnimation(
                                     done
@@ -1944,47 +1980,6 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                               ),
                             ),
                             const SizedBox(width: 8),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        // 今日計數器
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _weeklyBtn(
-                              icon: Icons.remove_rounded,
-                              onTap: todayCount > 0
-                                  ? () { widget.onDecrement?.call(); }
-                                  : null,
-                            ),
-                            const SizedBox(width: 16),
-                            ScaleTransition(
-                              scale: _scale,
-                              child: SizedBox(
-                                width: 88,
-                                child: Text(
-                                  '今日 $todayCount 次',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: todayCount > 0
-                                        ? Colors.indigo.shade700
-                                        : Colors.grey.shade400,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            _weeklyBtn(
-                              icon: Icons.add_rounded,
-                              onTap: widget.weeklyCount < 20
-                                  ? () {
-                                      _ctrl.forward(from: 0);
-                                      widget.onToggle();
-                                    }
-                                  : null,
-                            ),
                           ],
                         ),
                       ],
