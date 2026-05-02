@@ -1394,11 +1394,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F3EF),
+      backgroundColor: const Color(0xFFFAF6F1),
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFF7043),
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('我的習慣'),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFFF7043), Color(0xFFFF8A50)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        title: const Text(
+          '我的習慣',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -1421,14 +1437,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildHeader(),
-          const SizedBox(height: 12),
-          _buildAddButton(),
-          const SizedBox(height: 12),
-          Expanded(child: _buildHabitList()),
-        ],
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFAF6F1), Color(0xFFF3EDE5)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Column(
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 14),
+            _buildAddButton(),
+            const SizedBox(height: 12),
+            Expanded(child: _buildHabitList()),
+          ],
+        ),
       ),
     );
   }
@@ -1438,117 +1463,233 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
     final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
+    final percent = (progress * 100).round();
     final now = DateTime.now();
     const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
     final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
+    final primary = allDone0 ? const Color(0xFF43A047) : const Color(0xFFFF7043);
+    final secondary = allDone0 ? const Color(0xFF7CB342) : const Color(0xFFFFB74D);
+
     return ScaleTransition(
       scale: _celebScale,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 500),
-        margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: allDone0
-                ? [const Color(0xFF43A047), const Color(0xFF66BB6A)]
-                : [const Color(0xFFFF7043), const Color(0xFFFFAB40)],
+            colors: [primary, secondary],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(26),
           boxShadow: [
             BoxShadow(
-              color: (allDone0 ? Colors.green : const Color(0xFFFF7043))
-                  .withValues(alpha: 0.35),
-              blurRadius: 18,
-              offset: const Offset(0, 7),
+              color: primary.withValues(alpha: 0.32),
+              blurRadius: 22,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                dateStr,
-                style: const TextStyle(color: Colors.white70, fontSize: 11),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: Stack(
+            children: [
+              // 裝飾光暈
+              Positioned(
+                top: -32, right: -28,
+                child: Container(
+                  width: 120, height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.10),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                ScaleTransition(
-                  scale: _pulseAnim,
-                  child: Text(_mascotEmoji, style: const TextStyle(fontSize: 50)),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        child: Text(
-                          _mascotMessage,
-                          key: ValueKey(_mascotMessage),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (streak > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            '🔥 連續 $streak 天',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
-                          ),
-                        ),
-                    ],
+              Positioned(
+                bottom: -24, left: -18,
+                child: Container(
+                  width: 80, height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.08),
                   ),
                 ),
-                if (habits.isNotEmpty) ...[
-                  const SizedBox(width: 10),
-                  Column(
-                    children: [
-                      Text(
-                        '$displayDone',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          height: 1.0,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // 日期 pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.calendar_today_rounded,
+                                  size: 11, color: Colors.white),
+                              const SizedBox(width: 5),
+                              Text(
+                                dateStr,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        '/ $displayTotal',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        if (streak > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.22),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('🔥', style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '連續 $streak 天',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        // 吉祥物
+                        ScaleTransition(
+                          scale: _pulseAnim,
+                          child: Container(
+                            width: 64, height: 64,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.18),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(_mascotEmoji,
+                                style: const TextStyle(fontSize: 38)),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '今日進度',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: Text(
+                                  _mascotMessage,
+                                  key: ValueKey(_mascotMessage),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (habits.isNotEmpty) ...[
+                          const SizedBox(width: 10),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '$displayDone',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 38,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.0,
+                                  letterSpacing: -1,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  '/$displayTotal',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (habits.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0.0, end: progress),
+                              duration: const Duration(milliseconds: 700),
+                              curve: Curves.easeOut,
+                              builder: (_, value, _) => ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: LinearProgressIndicator(
+                                  value: value,
+                                  minHeight: 9,
+                                  backgroundColor: Colors.white.withValues(alpha: 0.25),
+                                  valueColor: const AlwaysStoppedAnimation(Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            '$percent%',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
-              ],
-            ),
-            if (habits.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: progress),
-                duration: const Duration(milliseconds: 700),
-                curve: Curves.easeOut,
-                builder: (_, value, _) => ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: value,
-                    minHeight: 8,
-                    backgroundColor: Colors.white.withValues(alpha: 0.3),
-                    valueColor: const AlwaysStoppedAnimation(Colors.white),
-                  ),
+                  ],
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1557,17 +1698,47 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildAddButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: _showAddHabitSheet,
-          icon: const Icon(Icons.add),
-          label: const Text('新增習慣'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.orange,
-            side: BorderSide(color: Colors.orange.shade300),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showAddHabitSheet,
+          borderRadius: BorderRadius.circular(14),
+          splashColor: Colors.orange.withValues(alpha: 0.15),
+          highlightColor: Colors.orange.withValues(alpha: 0.08),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.orange.shade200,
+                width: 1.2,
+                style: BorderStyle.solid,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 22, height: 22,
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade400,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add, size: 16, color: Colors.white),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '新增習慣',
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1627,34 +1798,76 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
         if (dailyEntries.isNotEmpty) ...[
-          _habitSectionLabel('每日習慣', Icons.check_circle_outline, Colors.orange),
+          _habitSectionLabel(
+            '每日習慣',
+            Icons.wb_sunny_rounded,
+            Colors.orange,
+            done: dailyDoneCount,
+            total: _dailyHabits.length,
+          ),
           ...dailyEntries.map(buildCard),
         ],
         if (weeklyEntries.isNotEmpty) ...[
-          if (dailyEntries.isNotEmpty) const SizedBox(height: 12),
-          _habitSectionLabel('每週習慣', Icons.repeat_rounded, Colors.indigo),
+          if (dailyEntries.isNotEmpty) const SizedBox(height: 14),
+          _habitSectionLabel(
+            '每週習慣',
+            Icons.calendar_view_week_rounded,
+            Colors.indigo,
+            done: weeklyMetCount,
+            total: _weeklyHabits.length,
+          ),
           ...weeklyEntries.map(buildCard),
         ],
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _habitSectionLabel(String label, IconData icon, Color color) {
+  Widget _habitSectionLabel(String label, IconData icon, Color color,
+      {required int done, required int total}) {
+    final allDone = total > 0 && done == total;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 4),
+      padding: const EdgeInsets.only(bottom: 10, top: 6, left: 2),
       child: Row(
         children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 5),
+          Container(
+            width: 26, height: 26,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: color),
+          ),
+          const SizedBox(width: 8),
           Text(
             label,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: color,
+              letterSpacing: 0.4,
             ),
           ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: allDone ? Colors.green.shade50 : color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$done / $total',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: allDone ? Colors.green.shade700 : color,
+              ),
+            ),
+          ),
+          if (allDone) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.check_circle_rounded, size: 14, color: Colors.green.shade400),
+          ],
         ],
       ),
     );
@@ -1753,10 +1966,10 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: done ? const Color(0xFFF1F8E9) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        elevation: done ? 0 : 2,
-        shadowColor: Colors.black12,
+        elevation: done ? 0 : 1.5,
+        shadowColor: Colors.orange.withValues(alpha: 0.18),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: IntrinsicHeight(
@@ -1787,14 +2000,28 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: done ? Colors.green.shade400 : Colors.transparent,
+                            gradient: done
+                                ? LinearGradient(
+                                    colors: [Colors.green.shade400, Colors.green.shade500],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : null,
+                            color: done ? null : Colors.grey.shade50,
                             border: done
                                 ? null
-                                : Border.all(color: Colors.grey.shade300, width: 2),
+                                : Border.all(color: Colors.grey.shade300, width: 1.8),
                             shape: BoxShape.circle,
+                            boxShadow: done
+                                ? [BoxShadow(
+                                    color: Colors.green.withValues(alpha: 0.3),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  )]
+                                : null,
                           ),
                           child: done
-                              ? const Icon(Icons.check, color: Colors.white, size: 18)
+                              ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
                               : null,
                         ),
                       ),
@@ -1853,14 +2080,19 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
     final done = widget.weeklyCount >= widget.weeklyTarget;
     final name = widget.habit['name'] as String;
     final todayCount = widget.todayCount;
+    final inProgress = widget.weeklyCount > 0 && !done;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: done
+            ? const Color(0xFFF1F8E9)
+            : inProgress
+                ? const Color(0xFFF3F2FB)
+                : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        elevation: done ? 0 : 2,
-        shadowColor: Colors.black12,
+        elevation: done ? 0 : 1.5,
+        shadowColor: Colors.indigo.withValues(alpha: 0.18),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: IntrinsicHeight(
@@ -1937,14 +2169,35 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                     ),
                   ),
                 ),
-                // 本週 N/M
+                // 本週 N/M 膠囊
                 Center(
-                  child: Text(
-                    '本週 ${widget.weeklyCount}/${widget.weeklyTarget}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: done ? Colors.green.shade600 : Colors.indigo.shade400,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: done
+                          ? Colors.green.shade100
+                          : Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          done ? Icons.check_rounded : Icons.flag_rounded,
+                          size: 11,
+                          color: done ? Colors.green.shade700 : Colors.indigo.shade400,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${widget.weeklyCount}/${widget.weeklyTarget}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: done ? Colors.green.shade700 : Colors.indigo.shade500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
