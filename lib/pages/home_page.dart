@@ -1806,7 +1806,7 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                             done ? TextDecoration.lineThrough : TextDecoration.none,
                         color: done ? Colors.grey.shade400 : Colors.black87,
                       ),
-                      child: Text(name),
+                      child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
                     ),
                     subtitle: widget.isLinked
                         ? Padding(
@@ -1873,44 +1873,46 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                 // ⊖ n ⊕ 計數區（取代 checkbox）
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _weeklyBtn(
-                        icon: Icons.remove_rounded,
-                        onTap: todayCount > 0
-                            ? () { widget.onDecrement?.call(); }
-                            : null,
-                      ),
-                      const SizedBox(width: 4),
-                      ScaleTransition(
-                        scale: _scale,
-                        child: SizedBox(
-                          width: 24,
-                          child: Text(
-                            '$todayCount',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: todayCount > 0
-                                  ? Colors.indigo.shade700
-                                  : Colors.grey.shade400,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _weeklyBtn(
+                          icon: Icons.remove_rounded,
+                          onTap: todayCount > 0
+                              ? () { widget.onDecrement?.call(); }
+                              : null,
+                        ),
+                        const SizedBox(width: 4),
+                        ScaleTransition(
+                          scale: _scale,
+                          child: SizedBox(
+                            width: 24,
+                            child: Text(
+                              '$todayCount',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: todayCount > 0
+                                    ? Colors.indigo.shade700
+                                    : Colors.grey.shade400,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      _weeklyBtn(
-                        icon: Icons.add_rounded,
-                        onTap: widget.weeklyCount < 20
-                            ? () {
-                                _ctrl.forward(from: 0);
-                                widget.onToggle();
-                              }
-                            : null,
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        _weeklyBtn(
+                          icon: Icons.add_rounded,
+                          onTap: widget.weeklyCount < 20
+                              ? () {
+                                  _ctrl.forward(from: 0);
+                                  widget.onToggle();
+                                }
+                              : null,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 // 習慣名稱
@@ -1926,7 +1928,7 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                             done ? TextDecoration.lineThrough : TextDecoration.none,
                         color: done ? Colors.grey.shade400 : Colors.black87,
                       ),
-                      child: Text(name),
+                      child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ),
