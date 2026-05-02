@@ -1760,7 +1760,9 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: IntrinsicHeight(
-            child: Row(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 66),
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 AnimatedContainer(
@@ -1843,6 +1845,7 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -1861,7 +1864,9 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: IntrinsicHeight(
-            child: Row(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 66),
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 左邊條
@@ -1962,6 +1967,7 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
           ),
         ),
       ),
+    ),
     );
   }
 }
