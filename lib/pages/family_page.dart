@@ -1821,27 +1821,49 @@ class _HabitTabState extends State<_HabitTab> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final dailyHabits = _habits.where((h) => h.frequency == 'daily').toList();
+    final weeklyHabits = _habits.where((h) => h.frequency == 'weekly').toList();
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // ── 習慣區塊 ──
-          _sectionHeader(Icons.check_circle_outline, '今日習慣', Colors.orange),
-          const SizedBox(height: 8),
           if (_habits.isEmpty)
             _emptyHint('尚無習慣，請家長至家長管理新增')
           else ...[
-            _habitProgressBar(_habits),
-            const SizedBox(height: 10),
-            ..._habits.map(
-              (habit) => _HabitItem(
-                habit: habit,
-                doneToday: _isDoneToday(habit),
-                onCheckIn: () => _checkIn(habit),
-                onUndo: () => _undoCheckIn(habit),
+            // 每日習慣
+            if (dailyHabits.isNotEmpty) ...[
+              _sectionHeader(Icons.check_circle_outline, '每日習慣', Colors.orange),
+              const SizedBox(height: 8),
+              _habitProgressBar(dailyHabits),
+              const SizedBox(height: 10),
+              ...dailyHabits.map(
+                (habit) => _HabitItem(
+                  habit: habit,
+                  doneToday: _isDoneToday(habit),
+                  onCheckIn: () => _checkIn(habit),
+                  onUndo: () => _undoCheckIn(habit),
+                ),
               ),
-            ),
+            ],
+            // 每週習慣
+            if (weeklyHabits.isNotEmpty) ...[
+              if (dailyHabits.isNotEmpty) const SizedBox(height: 20),
+              _sectionHeader(Icons.repeat_rounded, '每週習慣', Colors.indigo),
+              const SizedBox(height: 8),
+              _weeklyProgressBar(weeklyHabits),
+              const SizedBox(height: 10),
+              ...weeklyHabits.map(
+                (habit) => _HabitItem(
+                  habit: habit,
+                  doneToday: _isDoneToday(habit),
+                  onCheckIn: () => _checkIn(habit),
+                  onUndo: () => _undoCheckIn(habit),
+                ),
+              ),
+            ],
           ],
 
           const SizedBox(height: 24),
@@ -1941,6 +1963,63 @@ class _HabitTabState extends State<_HabitTab> {
             backgroundColor: Colors.grey.shade200,
             valueColor: AlwaysStoppedAnimation<Color>(
               allDone ? Colors.green.shade400 : Colors.orange.shade300,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _weeklyProgressBar(List<ChildHabit> habits) {
+    final metTarget = habits.where((h) => _weeklyCount(h) >= h.weeklyTarget).length;
+    final total = habits.length;
+    final allMet = metTarget == total;
+    final todayPts = habits
+        .where((h) => h.weeklyDates.contains(_todayStr()))
+        .fold<int>(0, (sum, h) => sum + h.points);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '$metTarget / $total 項達標',
+              style: TextStyle(
+                fontSize: 12,
+                color: allMet ? Colors.green.shade600 : Colors.grey.shade500,
+                fontWeight: allMet ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+            if (todayPts > 0)
+              Text(
+                '今日已獲得 +$todayPts 分',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            else if (allMet)
+              Text(
+                '本週全達標！',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.green.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: total > 0 ? metTarget / total : 0,
+            minHeight: 6,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              allMet ? Colors.green.shade400 : Colors.indigo.shade300,
             ),
           ),
         ),
