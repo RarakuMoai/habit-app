@@ -1722,36 +1722,33 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
     widget.onToggle();
   }
 
-  Widget _counterBtn(IconData icon, {VoidCallback? onTap}) {
+  Widget _weeklyBtn({required IconData icon, VoidCallback? onTap}) {
     final active = onTap != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 24,
-        height: 24,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
-          border: Border.all(
-            color: active ? Colors.indigo.shade200 : Colors.grey.shade200,
-            width: 1,
-          ),
         ),
-        child: Icon(icon, size: 13,
-            color: active ? Colors.indigo.shade600 : Colors.grey.shade400),
+        child: Icon(icon, size: 20,
+            color: active ? Colors.indigo.shade500 : Colors.grey.shade400),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isWeekly = widget.isWeekly;
-    final done = isWeekly
-        ? (widget.weeklyCount >= widget.weeklyTarget)
-        : (widget.habit['done'] as bool);
+    if (widget.isWeekly) return _buildWeeklyCard();
+    return _buildDailyCard();
+  }
+
+  Widget _buildDailyCard() {
+    final done = widget.habit['done'] as bool;
     final name = widget.habit['name'] as String;
-    final todayCount = widget.todayCount;
-    final checkboxFilled = done;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1780,7 +1777,7 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                     leading: GestureDetector(
-                      onTap: isWeekly ? null : _handleTap,
+                      onTap: _handleTap,
                       child: ScaleTransition(
                         scale: _scale,
                         child: AnimatedContainer(
@@ -1788,13 +1785,13 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: checkboxFilled ? Colors.green.shade400 : Colors.transparent,
-                            border: checkboxFilled
+                            color: done ? Colors.green.shade400 : Colors.transparent,
+                            border: done
                                 ? null
                                 : Border.all(color: Colors.grey.shade300, width: 2),
                             shape: BoxShape.circle,
                           ),
-                          child: checkboxFilled
+                          child: done
                               ? const Icon(Icons.check, color: Colors.white, size: 18)
                               : null,
                         ),
@@ -1811,97 +1808,187 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                       ),
                       child: Text(name),
                     ),
-                    subtitle: (isWeekly || widget.isLinked)
+                    subtitle: widget.isLinked
                         ? Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (isWeekly)
-                                  Text(
-                                    '本週 ${widget.weeklyCount}/${widget.weeklyTarget} 次'
-                                    '${todayCount > 0 ? "・今日 $todayCount 次" : ""}',
+                                Icon(Icons.link, size: 11, color: Colors.blue.shade400),
+                                const SizedBox(width: 3),
+                                Text('連動喝水頁面',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: done ? Colors.green.shade500 : Colors.orange.shade600,
-                                    ),
-                                  ),
-                                if (widget.isLinked)
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.link, size: 11, color: Colors.blue.shade400),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        '連動喝水頁面',
-                                        style: TextStyle(fontSize: 11, color: Colors.blue.shade500),
-                                      ),
-                                    ],
-                                  ),
+                                        fontSize: 11, color: Colors.blue.shade500)),
                               ],
                             ),
                           )
                         : null,
-                    trailing: isWeekly
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _counterBtn(Icons.remove,
-                                  onTap: todayCount > 0 ? () { widget.onDecrement?.call(); } : null),
-                              SizedBox(
-                                width: 26,
+                    trailing: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'edit', child: Text('編輯')),
+                        PopupMenuItem(
+                            value: 'delete',
+                            child: Text('刪除', style: TextStyle(color: Colors.red))),
+                      ],
+                      onSelected: (v) {
+                        if (v == 'edit') { widget.onEdit(); }
+                        else { widget.onDelete(); }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyCard() {
+    final done = widget.weeklyCount >= widget.weeklyTarget;
+    final name = widget.habit['name'] as String;
+    final todayCount = widget.todayCount;
+    final progress =
+        (widget.weeklyCount / widget.weeklyTarget.clamp(1, 99)).clamp(0.0, 1.0);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: done ? 0 : 2,
+        shadowColor: Colors.black12,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 5,
+                  color: done ? Colors.green.shade400 : Colors.indigo.shade300,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 4, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 名稱 + 選單
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 250),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: done
+                                      ? TextDecoration.lineThrough
+                                      : TextDecoration.none,
+                                  color: done
+                                      ? Colors.grey.shade400
+                                      : Colors.black87,
+                                ),
+                                child: Text(name),
+                              ),
+                            ),
+                            PopupMenuButton<String>(
+                              icon: Icon(Icons.more_vert,
+                                  size: 20, color: Colors.grey.shade400),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(value: 'edit', child: Text('編輯')),
+                                PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('刪除',
+                                        style: TextStyle(color: Colors.red))),
+                              ],
+                              onSelected: (v) {
+                                if (v == 'edit') { widget.onEdit(); }
+                                else { widget.onDelete(); }
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        // 本週進度
+                        Row(
+                          children: [
+                            Text(
+                              '本週 ${widget.weeklyCount} / ${widget.weeklyTarget} 次',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: done
+                                    ? Colors.green.shade600
+                                    : Colors.indigo.shade400,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 5,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    done
+                                        ? Colors.green.shade400
+                                        : Colors.indigo.shade300,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // 今日計數器
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _weeklyBtn(
+                              icon: Icons.remove_rounded,
+                              onTap: todayCount > 0
+                                  ? () { widget.onDecrement?.call(); }
+                                  : null,
+                            ),
+                            const SizedBox(width: 16),
+                            ScaleTransition(
+                              scale: _scale,
+                              child: SizedBox(
+                                width: 88,
                                 child: Text(
-                                  '$todayCount',
+                                  '今日 $todayCount 次',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
                                     color: todayCount > 0
                                         ? Colors.indigo.shade700
                                         : Colors.grey.shade400,
                                   ),
                                 ),
                               ),
-                              _counterBtn(Icons.add,
-                                  onTap: widget.weeklyCount < 20
-                                      ? () { _ctrl.forward(from: 0); widget.onToggle(); }
-                                      : null),
-                              PopupMenuButton<String>(
-                                icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade400),
-                                padding: EdgeInsets.zero,
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(value: 'edit', child: Text('編輯')),
-                                  PopupMenuItem(value: 'delete',
-                                      child: Text('刪除', style: TextStyle(color: Colors.red))),
-                                ],
-                                onSelected: (action) {
-                                  if (action == 'edit') {
-                                    widget.onEdit();
-                                  } else {
-                                    widget.onDelete();
-                                  }
-                                },
-                              ),
-                            ],
-                          )
-                        : PopupMenuButton<String>(
-                            icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'edit', child: Text('編輯')),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text('刪除', style: TextStyle(color: Colors.red)),
-                              ),
-                            ],
-                            onSelected: (action) {
-                              if (action == 'edit') {
-                                widget.onEdit();
-                              } else {
-                                widget.onDelete();
-                              }
-                            },
-                          ),
+                            ),
+                            const SizedBox(width: 16),
+                            _weeklyBtn(
+                              icon: Icons.add_rounded,
+                              onTap: widget.weeklyCount < 20
+                                  ? () {
+                                      _ctrl.forward(from: 0);
+                                      widget.onToggle();
+                                    }
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
