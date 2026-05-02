@@ -1922,8 +1922,8 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
                 ),
                 // 習慣名稱
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
                     child: AnimatedDefaultTextStyle(
                       duration: const Duration(milliseconds: 250),
                       style: TextStyle(
