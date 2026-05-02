@@ -235,6 +235,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     saveHabits();
   }
 
+  List<Map<String, dynamic>> get _dailyHabits =>
+      habits.where((h) => (h['frequency'] ?? 'daily') != 'weekly').toList();
+
+  List<Map<String, dynamic>> get _weeklyHabits =>
+      habits.where((h) => (h['frequency'] ?? 'daily') == 'weekly').toList();
+
+  int get dailyDoneCount => _dailyHabits.where((h) => h['done'] == true).length;
+  int get weeklyMetCount => _weeklyHabits.where((h) => h['done'] == true).length;
+
   int get doneCount {
     final weekSet = _currentWeekStrings().toSet();
     return habits.where((h) {
@@ -247,11 +256,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }).length;
   }
 
-  bool get allDone0 => habits.isNotEmpty && doneCount == habits.length;
+  // 只有每日習慣全完成才算「全部完成」，每週習慣不影響
+  bool get allDone0 => _dailyHabits.isNotEmpty
+      ? dailyDoneCount == _dailyHabits.length
+      : habits.isNotEmpty && weeklyMetCount == _weeklyHabits.length;
 
   String get _mascotEmoji {
     if (habits.isEmpty) return '👾';
-    final ratio = doneCount / habits.length;
+    final ref = _dailyHabits.isNotEmpty ? _dailyHabits : _weeklyHabits;
+    final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
+    final ratio = done / ref.length;
     if (ratio == 1.0) return '🥳';
     if (ratio >= 0.5) return '😊';
     if (ratio > 0) return '😐';
@@ -260,7 +274,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   String get _mascotMessage {
     if (habits.isEmpty) return '新增一個習慣，我們一起努力！';
-    final ratio = doneCount / habits.length;
+    final ref = _dailyHabits.isNotEmpty ? _dailyHabits : _weeklyHabits;
+    final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
+    final ratio = done / ref.length;
     if (ratio == 1.0) return '太厲害了！今天全部完成！🎉';
     if (ratio >= 0.5) return '已經完成一半了！繼續加油！💪';
     if (ratio > 0) return '好的開始！繼續保持！🌟';
@@ -1405,7 +1421,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildHeader() {
-    final progress = habits.isEmpty ? 0.0 : doneCount / habits.length;
+    final dl = _dailyHabits;
+    final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
+    final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
+    final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
     return ScaleTransition(
       scale: _celebScale,
       child: AnimatedContainer(
@@ -1471,7 +1490,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   Column(
                     children: [
                       Text(
-                        '$doneCount',
+                        '$displayDone',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -1480,7 +1499,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ),
                       ),
                       Text(
-                        '/ ${habits.length}',
+                        '/ $displayTotal',
                         style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
@@ -1537,39 +1556,79 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         child: Text('還沒有習慣，新增一個吧！', style: TextStyle(color: Colors.grey)),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: habits.length,
-      itemBuilder: (context, index) {
-        final habit = habits[index];
-        final name = habit['name'] as String;
-        final alreadyShown = _animatedIn.contains(name);
-        _animatedIn.add(name);
 
-        return TweenAnimationBuilder<double>(
-          key: ValueKey('anim_$name'),
-          tween: Tween(begin: alreadyShown ? 1.0 : 0.0, end: 1.0),
-          duration: Duration(milliseconds: alreadyShown ? 0 : 220 + index * 55),
-          curve: Curves.easeOut,
-          builder: (_, v, child) => Opacity(
-            opacity: v,
-            child: Transform.translate(offset: Offset(0, 16 * (1 - v)), child: child),
+    final dailyEntries = habits.asMap().entries
+        .where((e) => (e.value['frequency'] ?? 'daily') != 'weekly')
+        .toList();
+    final weeklyEntries = habits.asMap().entries
+        .where((e) => (e.value['frequency'] ?? 'daily') == 'weekly')
+        .toList();
+
+    Widget buildCard(MapEntry<int, Map<String, dynamic>> entry) {
+      final index = entry.key;
+      final habit = entry.value;
+      final name = habit['name'] as String;
+      final alreadyShown = _animatedIn.contains(name);
+      _animatedIn.add(name);
+      return TweenAnimationBuilder<double>(
+        key: ValueKey('anim_$name'),
+        tween: Tween(begin: alreadyShown ? 1.0 : 0.0, end: 1.0),
+        duration: Duration(milliseconds: alreadyShown ? 0 : 220 + index * 55),
+        curve: Curves.easeOut,
+        builder: (_, v, child) => Opacity(
+          opacity: v,
+          child: Transform.translate(offset: Offset(0, 16 * (1 - v)), child: child),
+        ),
+        child: _HabitCard(
+          key: ValueKey(name),
+          habit: habit,
+          onToggle: () => toggleHabit(index),
+          onEdit: () => _editHabitSheet(index),
+          onDelete: () => _confirmDeleteHabit(index),
+          isWeekly: (habit['frequency'] ?? 'daily') == 'weekly',
+          weeklyCount: _weeklyCount(habit),
+          weeklyTarget: (habit['weeklyTarget'] as int?) ?? 3,
+          isTodayChecked: List<String>.from((habit['weeklyDates'] as List?) ?? []).contains(todayString()),
+          isLinked: _kHomePresets.any((p) =>
+              p.linkedSetting != null && habit['name'] == p.name),
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        if (dailyEntries.isNotEmpty) ...[
+          _habitSectionLabel('每日習慣', Icons.check_circle_outline, Colors.orange),
+          ...dailyEntries.map(buildCard),
+        ],
+        if (weeklyEntries.isNotEmpty) ...[
+          if (dailyEntries.isNotEmpty) const SizedBox(height: 12),
+          _habitSectionLabel('每週習慣', Icons.repeat_rounded, Colors.indigo),
+          ...weeklyEntries.map(buildCard),
+        ],
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _habitSectionLabel(String label, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
-          child: _HabitCard(
-            key: ValueKey(name),
-            habit: habit,
-            onToggle: () => toggleHabit(index),
-            onEdit: () => _editHabitSheet(index),
-            onDelete: () => _confirmDeleteHabit(index),
-            isWeekly: (habit['frequency'] ?? 'daily') == 'weekly',
-            weeklyCount: _weeklyCount(habit),
-            weeklyTarget: (habit['weeklyTarget'] as int?) ?? 3,
-            isTodayChecked: List<String>.from((habit['weeklyDates'] as List?) ?? []).contains(todayString()),
-            isLinked: _kHomePresets.any((p) =>
-                p.linkedSetting != null && habit['name'] == p.name),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
