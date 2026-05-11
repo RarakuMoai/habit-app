@@ -57,7 +57,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   DateTime? onboardingDate;
 
   late AnimationController _pulseCtrl;
-  late Animation<double> _pulseAnim;
+  late Animation<double> _bobAnim; // 上下浮動（取代縮放呼吸）
 
   late AnimationController _celebCtrl;
   late Animation<double> _celebScale;
@@ -69,9 +69,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.initState();
     _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 2800),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.08).animate(
+    // 上下浮動 0 → -6px，像兔咪在坐墊上輕輕飄
+    _bobAnim = Tween<double>(begin: 0, end: -6).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
 
@@ -1444,32 +1445,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final colors = _sceneColors;
+    final isNight = DateTime.now().hour >= 22 || DateTime.now().hour < 6;
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF6F1),
-      extendBodyBehindAppBar: false,
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFFF7043), Color(0xFFFF8A50)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        title: const Text(
+        title: Text(
           '我的習慣',
           style: TextStyle(
-            fontWeight: FontWeight.w700,
+            color: colors.accent,
+            fontWeight: FontWeight.w800,
             letterSpacing: 1.2,
           ),
         ),
         centerTitle: true,
+        iconTheme: IconThemeData(color: colors.accent),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            icon: Icon(Icons.settings_outlined, color: colors.accent),
             tooltip: '設定',
             onPressed: () async {
               await Navigator.of(context).push(
@@ -1488,24 +1484,190 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 600),
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFFAF6F1), Color(0xFFF3EDE5)],
+            colors: [colors.top, colors.bottom],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
-        child: Column(
+        child: Stack(
           children: [
-            _buildHeader(),
-            const SizedBox(height: 14),
-            _buildAddButton(),
-            const SizedBox(height: 12),
-            Expanded(child: _buildHabitList()),
+            // 整個畫面的場景裝飾（窗戶、植物等）
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _RoomScenePainter(
+                  accent: colors.accent,
+                  isNight: isNight,
+                ),
+              ),
+            ),
+            // 內容
+            SafeArea(child: _buildMascotScene()),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildMascotScene() {
+    final colors = _sceneColors;
+    final dl = _dailyHabits;
+    final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
+    final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
+    final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
+    final now = DateTime.now();
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
+    final isNight = now.hour >= 22 || now.hour < 6;
+    final speech = _transientSpeech ?? _mascotMessage;
+
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        // 頂部狀態列
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _pill(
+                icon: isNight ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                label: dateStr,
+                color: colors.accent,
+              ),
+              if (streak > 0)
+                _pill(
+                  icon: Icons.local_fire_department_rounded,
+                  label: '$streak 天',
+                  color: Colors.orange.shade600,
+                ),
+            ],
+          ),
+        ),
+        // 兔咪 + 對話泡泡（上半部）
+        Expanded(
+          flex: 5,
+          child: ScaleTransition(
+            scale: _celebScale,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 對話泡泡（上方）
+                Positioned(
+                  top: 4, left: 28, right: 28,
+                  child: _speechBubble(speech, colors.accent),
+                ),
+                // 兔咪
+                Align(
+                  alignment: const Alignment(0, 0.4),
+                  child: GestureDetector(
+                    onTap: _onMascotTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedBuilder(
+                      animation: _bobAnim,
+                      builder: (_, child) => Transform.translate(
+                        offset: Offset(0, _bobAnim.value),
+                        child: child,
+                      ),
+                      child: SizedBox(
+                        width: 240, height: 240,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          transitionBuilder: (child, anim) => FadeTransition(
+                            opacity: anim,
+                            child: ScaleTransition(
+                              scale: Tween(begin: 0.88, end: 1.0).animate(anim),
+                              child: child,
+                            ),
+                          ),
+                          child: Image.asset(
+                            _mascotAsset,
+                            key: ValueKey(_mascotAsset),
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // 習慣清單卡片（下半部，圓角白卡）
+        Expanded(
+          flex: 6,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.96),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.accent.withValues(alpha: 0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // 拖把指示器
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // 底部進度條（細緻）
+                if (habits.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.0, end: progress),
+                            duration: const Duration(milliseconds: 700),
+                            curve: Curves.easeOut,
+                            builder: (_, value, _) => ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: value,
+                                minHeight: 6,
+                                backgroundColor: Colors.grey.shade200,
+                                valueColor: AlwaysStoppedAnimation(colors.accent),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '$displayDone / $displayTotal',
+                          style: TextStyle(
+                            color: colors.accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                _buildAddButton(),
+                const SizedBox(height: 10),
+                Expanded(child: _buildHabitList()),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1531,151 +1693,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       top: const Color(0xFFFFF4E0),
       bottom: const Color(0xFFFFE5C7),
       accent: const Color(0xFFFF8A50),
-    );
-  }
-
-  Widget _buildHeader() {
-    final dl = _dailyHabits;
-    final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
-    final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
-    final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
-    final now = DateTime.now();
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
-    final colors = _sceneColors;
-    final isNight = DateTime.now().hour >= 22 || DateTime.now().hour < 6;
-    final speech = _transientSpeech ?? _mascotMessage;
-
-    return ScaleTransition(
-      scale: _celebScale,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        height: 340,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [colors.top, colors.bottom],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: colors.accent.withValues(alpha: 0.20),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: Stack(
-            children: [
-              // 場景背景元素
-              CustomPaint(
-                size: Size.infinite,
-                painter: _RoomScenePainter(
-                  accent: colors.accent,
-                  isNight: isNight,
-                ),
-              ),
-
-              // 頂部狀態列：日期 + streak
-              Positioned(
-                top: 14, left: 16, right: 16,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _pill(
-                      icon: isNight ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-                      label: dateStr,
-                      color: colors.accent,
-                    ),
-                    if (streak > 0)
-                      _pill(
-                        icon: Icons.local_fire_department_rounded,
-                        label: '$streak 天',
-                        color: Colors.orange.shade600,
-                      ),
-                  ],
-                ),
-              ),
-
-              // 對話泡泡
-              Positioned(
-                top: 56, left: 24, right: 24,
-                child: _speechBubble(speech, colors.accent),
-              ),
-
-              // 兔咪（主角，置中、大）
-              Positioned(
-                bottom: 28, left: 0, right: 0,
-                child: GestureDetector(
-                  onTap: _onMascotTap,
-                  behavior: HitTestBehavior.opaque,
-                  child: Center(
-                    child: ScaleTransition(
-                      scale: _pulseAnim,
-                      child: SizedBox(
-                        width: 200, height: 200,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 400),
-                          transitionBuilder: (child, anim) => FadeTransition(
-                            opacity: anim,
-                            child: ScaleTransition(
-                              scale: Tween(begin: 0.88, end: 1.0).animate(anim),
-                              child: child,
-                            ),
-                          ),
-                          child: Image.asset(
-                            _mascotAsset,
-                            key: ValueKey(_mascotAsset),
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // 底部進度條 + 計數
-              if (habits.isNotEmpty)
-                Positioned(
-                  bottom: 10, left: 18, right: 18,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0.0, end: progress),
-                          duration: const Duration(milliseconds: 700),
-                          curve: Curves.easeOut,
-                          builder: (_, value, _) => ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: LinearProgressIndicator(
-                              value: value,
-                              minHeight: 6,
-                              backgroundColor: Colors.white.withValues(alpha: 0.65),
-                              valueColor: AlwaysStoppedAnimation(colors.accent),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '$displayDone / $displayTotal',
-                        style: TextStyle(
-                          color: colors.accent,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
