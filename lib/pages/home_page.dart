@@ -56,8 +56,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool yesterdayAllDone = false;
   DateTime? onboardingDate;
 
-  late AnimationController _pulseCtrl;
-  late Animation<double> _bobAnim; // 上下浮動（取代縮放呼吸）
+  // 兔咪保持靜止 — idle 動畫拿掉（用戶反饋：上下浮動沒有意義）
+  // 之後若有 spritesheet/Rive 動畫再正式整合
 
   late AnimationController _celebCtrl;
   late Animation<double> _celebScale;
@@ -67,15 +67,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    )..repeat(reverse: true);
-    // 上下浮動 0 → -6px，像兔咪在坐墊上輕輕飄
-    _bobAnim = Tween<double>(begin: 0, end: -6).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
-
     _celebCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -90,7 +81,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _pulseCtrl.dispose();
     _celebCtrl.dispose();
     super.dispose();
   }
@@ -288,8 +278,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _onMascotTap() {
-    _pulseCtrl.stop();
-    _celebCtrl.forward(from: 0).whenComplete(() => _pulseCtrl.repeat(reverse: true));
+    _celebCtrl.forward(from: 0);
     final reactions = List<String>.from(_kTapReactions)..shuffle();
     setState(() => _transientSpeech = reactions.first);
     Future.delayed(const Duration(seconds: 3), () {
@@ -1560,34 +1549,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   top: 4, left: 28, right: 28,
                   child: _speechBubble(speech, colors.accent),
                 ),
-                // 兔咪
+                // 兔咪（靜止；點擊由 _celebCtrl 觸發短暫彈跳）
                 Align(
                   alignment: const Alignment(0, 0.4),
                   child: GestureDetector(
                     onTap: _onMascotTap,
                     behavior: HitTestBehavior.opaque,
-                    child: AnimatedBuilder(
-                      animation: _bobAnim,
-                      builder: (_, child) => Transform.translate(
-                        offset: Offset(0, _bobAnim.value),
-                        child: child,
-                      ),
-                      child: SizedBox(
-                        width: 240, height: 240,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 400),
-                          transitionBuilder: (child, anim) => FadeTransition(
-                            opacity: anim,
-                            child: ScaleTransition(
-                              scale: Tween(begin: 0.88, end: 1.0).animate(anim),
-                              child: child,
-                            ),
+                    child: SizedBox(
+                      width: 240, height: 240,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 400),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: ScaleTransition(
+                            scale: Tween(begin: 0.88, end: 1.0).animate(anim),
+                            child: child,
                           ),
-                          child: Image.asset(
-                            _mascotAsset,
-                            key: ValueKey(_mascotAsset),
-                            fit: BoxFit.contain,
-                          ),
+                        ),
+                        child: Image.asset(
+                          _mascotAsset,
+                          key: ValueKey(_mascotAsset),
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
@@ -1614,21 +1596,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             child: Column(
               children: [
-                // 拖把指示器
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 4),
-                  child: Container(
-                    width: 36, height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
                 // 底部進度條（細緻）
                 if (habits.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
                     child: Row(
                       children: [
                         Expanded(
@@ -2457,6 +2428,8 @@ class _FreqChip extends StatelessWidget {
 }
 
 // ── 兔咪場景背景 painter（窗戶、地板線、植物） ──
+// ── 兔咪的家：完整房間場景 painter ──
+// 包含：窗戶（避開頂部日期 pill）、畫框、書架、植物、地板分隔、坐墊
 class _RoomScenePainter extends CustomPainter {
   final Color accent;
   final bool isNight;
@@ -2467,75 +2440,245 @@ class _RoomScenePainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // 地板分隔線（淡淡的）
-    final floorY = h * 0.72;
+    // 場景區域大約佔上半部 ~55%（下方被白色習慣卡覆蓋）
+    final floorY = h * 0.52;
+
+    // 1. 地板顏色帶（淡淡的木頭色調）
     final floorPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.5)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(Offset(0, floorY), Offset(w, floorY), floorPaint);
-
-    // 兔咪坐墊（橢圓）
-    final cushionPaint = Paint()
-      ..color = accent.withValues(alpha: 0.18)
-      ..style = PaintingStyle.fill;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w / 2, h - 38),
-        width: 180,
-        height: 32,
-      ),
-      cushionPaint,
-    );
-
-    // 左上窗戶（圓角矩形 + 日/月）
-    final windowRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(20, 18, 56, 56),
-      const Radius.circular(12),
-    );
-    final windowFillPaint = Paint()
       ..color = isNight
-          ? const Color(0xFF3F51B5).withValues(alpha: 0.18)
-          : const Color(0xFFFFE082).withValues(alpha: 0.35);
-    canvas.drawRRect(windowRect, windowFillPaint);
+          ? const Color(0xFF6D4C41).withValues(alpha: 0.10)
+          : const Color(0xFFBCAAA4).withValues(alpha: 0.18);
+    canvas.drawRect(Rect.fromLTWH(0, floorY, w, h - floorY), floorPaint);
 
-    // 窗戶分隔十字
-    final winLinePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.7)
+    // 地板與牆的分隔線
+    final lineP = Paint()
+      ..color = Colors.white.withValues(alpha: 0.55)
+      ..strokeWidth = 1.2;
+    canvas.drawLine(Offset(0, floorY), Offset(w, floorY), lineP);
+
+    // 2. 窗戶（右側，避開左邊的日期 pill）
+    _paintWindow(canvas, Rect.fromLTWH(w - 92, 116, 74, 64));
+
+    // 3. 牆上畫框（左側，明確在日期 pill 下方）
+    _paintPictureFrame(canvas, Rect.fromLTWH(28, 168, 52, 44));
+
+    // 4. 書架（右側，畫框對應位置）
+    _paintShelf(canvas, Rect.fromLTWH(w - 88, 208, 66, 18));
+
+    // 5. 兔咪坐墊（中央地板上）
+    _paintCushion(canvas, Offset(w / 2, floorY - 4));
+
+    // 6. 盆栽（左下角地板）
+    _paintPlant(canvas, Offset(34, floorY - 8));
+
+    // 7. 小檯燈（右下角地板）
+    _paintLamp(canvas, Offset(w - 38, floorY - 22));
+  }
+
+  void _paintWindow(Canvas canvas, Rect rect) {
+    final r = RRect.fromRectAndRadius(rect, const Radius.circular(8));
+
+    // 窗框外緣
+    canvas.drawRRect(
+      r,
+      Paint()..color = const Color(0xFF8D6E63).withValues(alpha: 0.55),
+    );
+    // 窗內天空
+    final innerR = RRect.fromRectAndRadius(
+      rect.deflate(3),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(
+      innerR,
+      Paint()
+        ..color = isNight
+            ? const Color(0xFF1A237E).withValues(alpha: 0.35)
+            : const Color(0xFF81D4FA).withValues(alpha: 0.55),
+    );
+    // 窗格十字
+    final cross = Paint()
+      ..color = const Color(0xFF8D6E63).withValues(alpha: 0.6)
       ..strokeWidth = 2;
-    canvas.drawLine(Offset(48, 18), Offset(48, 74), winLinePaint);
-    canvas.drawLine(Offset(20, 46), Offset(76, 46), winLinePaint);
+    canvas.drawLine(
+      Offset(rect.center.dx, rect.top + 3),
+      Offset(rect.center.dx, rect.bottom - 3),
+      cross,
+    );
+    canvas.drawLine(
+      Offset(rect.left + 3, rect.center.dy),
+      Offset(rect.right - 3, rect.center.dy),
+      cross,
+    );
 
-    // 日/月圖示在窗內
+    // 日/月
+    final celestialCx = rect.center.dx - 12;
+    final celestialCy = rect.center.dy - 10;
     if (isNight) {
-      // 月亮
-      final moonPaint = Paint()..color = const Color(0xFFFFD54F);
-      canvas.drawCircle(Offset(36, 34), 6, moonPaint);
-      // 小星星
-      final starPaint = Paint()..color = const Color(0xFFFFEB3B);
-      canvas.drawCircle(Offset(62, 30), 1.5, starPaint);
-      canvas.drawCircle(Offset(56, 60), 1.5, starPaint);
+      canvas.drawCircle(
+        Offset(celestialCx, celestialCy),
+        7,
+        Paint()..color = const Color(0xFFFFD54F),
+      );
+      final star = Paint()..color = const Color(0xFFFFEB3B);
+      canvas.drawCircle(Offset(rect.right - 10, rect.top + 10), 1.5, star);
+      canvas.drawCircle(Offset(rect.left + 10, rect.bottom - 12), 1.5, star);
     } else {
-      // 太陽
-      final sunPaint = Paint()..color = const Color(0xFFFFB74D);
-      canvas.drawCircle(Offset(36, 34), 7, sunPaint);
+      canvas.drawCircle(
+        Offset(celestialCx, celestialCy),
+        8,
+        Paint()..color = const Color(0xFFFFB74D),
+      );
     }
 
-    // 右下小植物（簡單的圓 + 三片葉子）
-    final potX = w - 38;
-    final potY = h - 50;
-    final potPaint = Paint()..color = accent.withValues(alpha: 0.35);
+    // 窗簾（左右各一條，溫馨感）
+    final curtain = Paint()..color = const Color(0xFFEF9A9A).withValues(alpha: 0.55);
+    final curtainW = 8.0;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(potX - 12, potY, 24, 14),
+        Rect.fromLTWH(rect.left - 4, rect.top - 2, curtainW, rect.height + 4),
         const Radius.circular(3),
       ),
-      potPaint,
+      curtain,
     );
-    final leafPaint = Paint()..color = const Color(0xFF66BB6A).withValues(alpha: 0.55);
-    canvas.drawCircle(Offset(potX - 6, potY - 5), 6, leafPaint);
-    canvas.drawCircle(Offset(potX + 6, potY - 5), 6, leafPaint);
-    canvas.drawCircle(Offset(potX, potY - 11), 7, leafPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(rect.right - 4, rect.top - 2, curtainW, rect.height + 4),
+        const Radius.circular(3),
+      ),
+      curtain,
+    );
+  }
+
+  void _paintPictureFrame(Canvas canvas, Rect rect) {
+    final outer = RRect.fromRectAndRadius(rect, const Radius.circular(3));
+    canvas.drawRRect(
+      outer,
+      Paint()..color = const Color(0xFF8D6E63).withValues(alpha: 0.6),
+    );
+    final inner = RRect.fromRectAndRadius(
+      rect.deflate(3),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(
+      inner,
+      Paint()..color = const Color(0xFFFFE0B2).withValues(alpha: 0.85),
+    );
+    // 畫框內：愛心
+    final heartCenter = rect.center;
+    final heartPaint = Paint()
+      ..color = const Color(0xFFE57373).withValues(alpha: 0.85);
+    final r = 4.0;
+    canvas.drawCircle(Offset(heartCenter.dx - r * 0.8, heartCenter.dy - 1), r, heartPaint);
+    canvas.drawCircle(Offset(heartCenter.dx + r * 0.8, heartCenter.dy - 1), r, heartPaint);
+    final path = Path()
+      ..moveTo(heartCenter.dx - r * 1.6, heartCenter.dy + 1)
+      ..lineTo(heartCenter.dx, heartCenter.dy + r * 1.8)
+      ..lineTo(heartCenter.dx + r * 1.6, heartCenter.dy + 1)
+      ..close();
+    canvas.drawPath(path, heartPaint);
+  }
+
+  void _paintShelf(Canvas canvas, Rect rect) {
+    // 木板
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+      Paint()..color = const Color(0xFF8D6E63).withValues(alpha: 0.55),
+    );
+    // 三本書
+    final colors = [
+      const Color(0xFFE57373),
+      const Color(0xFF81D4FA),
+      const Color(0xFFAED581),
+    ];
+    final bookW = rect.width / 4;
+    for (var i = 0; i < 3; i++) {
+      final bx = rect.left + 6 + i * (bookW + 1);
+      final by = rect.top - 16;
+      canvas.drawRect(
+        Rect.fromLTWH(bx, by, bookW, 16),
+        Paint()..color = colors[i].withValues(alpha: 0.85),
+      );
+    }
+  }
+
+  void _paintCushion(Canvas canvas, Offset center) {
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: 180, height: 30),
+      Paint()..color = accent.withValues(alpha: 0.22),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: 160, height: 22),
+      Paint()..color = accent.withValues(alpha: 0.35),
+    );
+  }
+
+  void _paintPlant(Canvas canvas, Offset base) {
+    // 花盆
+    final potRect = Rect.fromCenter(
+      center: Offset(base.dx, base.dy + 8),
+      width: 26, height: 18,
+    );
+    canvas.drawRRect(
+      RRect.fromLTRBAndCorners(
+        potRect.left, potRect.top, potRect.right, potRect.bottom,
+        bottomLeft: const Radius.circular(2),
+        bottomRight: const Radius.circular(2),
+        topLeft: const Radius.circular(1),
+        topRight: const Radius.circular(1),
+      ),
+      Paint()..color = const Color(0xFFA1887F).withValues(alpha: 0.85),
+    );
+    // 葉子（三片，由小到大）
+    final leaf = Paint()..color = const Color(0xFF66BB6A).withValues(alpha: 0.78);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(base.dx - 8, base.dy - 4), width: 14, height: 18),
+      leaf,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(base.dx + 8, base.dy - 4), width: 14, height: 18),
+      leaf,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(base.dx, base.dy - 12), width: 16, height: 20),
+      Paint()..color = const Color(0xFF81C784).withValues(alpha: 0.85),
+    );
+  }
+
+  void _paintLamp(Canvas canvas, Offset base) {
+    // 燈座
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset(base.dx, base.dy + 12), width: 16, height: 6),
+      Paint()..color = const Color(0xFF6D4C41).withValues(alpha: 0.65),
+    );
+    // 燈柱
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset(base.dx, base.dy), width: 2, height: 22),
+      Paint()..color = const Color(0xFF6D4C41).withValues(alpha: 0.65),
+    );
+    // 燈罩（梯形樣）
+    final shadePath = Path()
+      ..moveTo(base.dx - 12, base.dy - 12)
+      ..lineTo(base.dx + 12, base.dy - 12)
+      ..lineTo(base.dx + 8, base.dy - 24)
+      ..lineTo(base.dx - 8, base.dy - 24)
+      ..close();
+    canvas.drawPath(
+      shadePath,
+      Paint()
+        ..color = isNight
+            ? const Color(0xFFFFE082).withValues(alpha: 0.85)
+            : const Color(0xFF90CAF9).withValues(alpha: 0.55),
+    );
+    // 燈光暈（夜間更明顯）
+    if (isNight) {
+      canvas.drawCircle(
+        Offset(base.dx, base.dy - 18),
+        18,
+        Paint()
+          ..color = const Color(0xFFFFD54F).withValues(alpha: 0.25)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+      );
+    }
   }
 
   @override
