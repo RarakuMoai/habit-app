@@ -263,11 +263,36 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // 兔咪短暫情緒：撤銷打卡後 2 秒顯示 sad
   String? _transientMascot;
+  // 對話泡泡內的文字（點兔咪時暫時覆蓋）
+  String? _transientSpeech;
+
+  static const List<String> _kTapReactions = [
+    '嗨～歡迎回來！',
+    '嘿嘿，癢癢的～',
+    '想我了嗎？',
+    '今天也要加油喔！',
+    '我喜歡你～',
+    '點我做什麼呢？',
+    '我們一起努力吧！',
+    '謝謝你來看我～',
+    '嗯嗯，我在這裡！',
+    '別忘了打卡喔～',
+  ];
 
   void _showTransientMascot(String name, {Duration duration = const Duration(seconds: 2)}) {
     setState(() => _transientMascot = name);
     Future.delayed(duration, () {
       if (mounted) setState(() => _transientMascot = null);
+    });
+  }
+
+  void _onMascotTap() {
+    _pulseCtrl.stop();
+    _celebCtrl.forward(from: 0).whenComplete(() => _pulseCtrl.repeat(reverse: true));
+    final reactions = List<String>.from(_kTapReactions)..shuffle();
+    setState(() => _transientSpeech = reactions.first);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _transientSpeech = null);
     });
   }
 
@@ -1484,251 +1509,232 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  // 場景配色：依據狀態切換（白天/夜晚/全完成）
+  ({Color top, Color bottom, Color accent}) get _sceneColors {
+    final hour = DateTime.now().hour;
+    final isNight = hour >= 22 || hour < 6;
+    if (allDone0 && habits.isNotEmpty) {
+      return (
+        top: const Color(0xFFE8F8E5),
+        bottom: const Color(0xFFCDEFCD),
+        accent: const Color(0xFF66BB6A),
+      );
+    }
+    if (isNight) {
+      return (
+        top: const Color(0xFFE8EAF6),
+        bottom: const Color(0xFFC5CAE9),
+        accent: const Color(0xFF7986CB),
+      );
+    }
+    return (
+      top: const Color(0xFFFFF4E0),
+      bottom: const Color(0xFFFFE5C7),
+      accent: const Color(0xFFFF8A50),
+    );
+  }
+
   Widget _buildHeader() {
     final dl = _dailyHabits;
     final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
     final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
-    final percent = (progress * 100).round();
     final now = DateTime.now();
     const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
     final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
-    final primary = allDone0 ? const Color(0xFF43A047) : const Color(0xFFFF7043);
-    final secondary = allDone0 ? const Color(0xFF7CB342) : const Color(0xFFFFB74D);
+    final colors = _sceneColors;
+    final isNight = DateTime.now().hour >= 22 || DateTime.now().hour < 6;
+    final speech = _transientSpeech ?? _mascotMessage;
 
     return ScaleTransition(
       scale: _celebScale,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        height: 340,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [primary, secondary],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            colors: [colors.top, colors.bottom],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: primary.withValues(alpha: 0.32),
-              blurRadius: 22,
+              color: colors.accent.withValues(alpha: 0.20),
+              blurRadius: 24,
               offset: const Offset(0, 10),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(28),
           child: Stack(
             children: [
-              // 裝飾光暈
-              Positioned(
-                top: -32, right: -28,
-                child: Container(
-                  width: 120, height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.10),
-                  ),
+              // 場景背景元素
+              CustomPaint(
+                size: Size.infinite,
+                painter: _RoomScenePainter(
+                  accent: colors.accent,
+                  isNight: isNight,
                 ),
               ),
+
+              // 頂部狀態列：日期 + streak
               Positioned(
-                bottom: -24, left: -18,
-                child: Container(
-                  width: 80, height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                top: 14, left: 16, right: 16,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // 日期 pill
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.22),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.calendar_today_rounded,
-                                  size: 11, color: Colors.white),
-                              const SizedBox(width: 5),
-                              Text(
-                                dateStr,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (streak > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.22),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('🔥', style: TextStyle(fontSize: 12)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '連續 $streak 天',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
+                    _pill(
+                      icon: isNight ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                      label: dateStr,
+                      color: colors.accent,
                     ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        // 吉祥物兔咪（變主角，更大）
-                        ScaleTransition(
-                          scale: _pulseAnim,
-                          child: Container(
-                            width: 100, height: 100,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.22),
-                            ),
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.all(4),
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 400),
-                              transitionBuilder: (child, anim) => FadeTransition(
-                                opacity: anim,
-                                child: ScaleTransition(
-                                  scale: Tween(begin: 0.85, end: 1.0).animate(anim),
-                                  child: child,
-                                ),
-                              ),
-                              child: Image.asset(
-                                _mascotAsset,
-                                key: ValueKey(_mascotAsset),
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                '今日進度',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                child: Text(
-                                  _mascotMessage,
-                                  key: ValueKey(_mascotMessage),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.3,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (habits.isNotEmpty) ...[
-                          const SizedBox(width: 10),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '$displayDone',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 38,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.0,
-                                  letterSpacing: -1,
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: Text(
-                                  '/$displayTotal',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (habits.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TweenAnimationBuilder<double>(
-                              tween: Tween(begin: 0.0, end: progress),
-                              duration: const Duration(milliseconds: 700),
-                              curve: Curves.easeOut,
-                              builder: (_, value, _) => ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: LinearProgressIndicator(
-                                  value: value,
-                                  minHeight: 9,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.25),
-                                  valueColor: const AlwaysStoppedAnimation(Colors.white),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            '$percent%',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                    if (streak > 0)
+                      _pill(
+                        icon: Icons.local_fire_department_rounded,
+                        label: '$streak 天',
+                        color: Colors.orange.shade600,
                       ),
-                    ],
                   ],
                 ),
               ),
+
+              // 對話泡泡
+              Positioned(
+                top: 56, left: 24, right: 24,
+                child: _speechBubble(speech, colors.accent),
+              ),
+
+              // 兔咪（主角，置中、大）
+              Positioned(
+                bottom: 28, left: 0, right: 0,
+                child: GestureDetector(
+                  onTap: _onMascotTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Center(
+                    child: ScaleTransition(
+                      scale: _pulseAnim,
+                      child: SizedBox(
+                        width: 200, height: 200,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          transitionBuilder: (child, anim) => FadeTransition(
+                            opacity: anim,
+                            child: ScaleTransition(
+                              scale: Tween(begin: 0.88, end: 1.0).animate(anim),
+                              child: child,
+                            ),
+                          ),
+                          child: Image.asset(
+                            _mascotAsset,
+                            key: ValueKey(_mascotAsset),
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // 底部進度條 + 計數
+              if (habits.isNotEmpty)
+                Positioned(
+                  bottom: 10, left: 18, right: 18,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0.0, end: progress),
+                          duration: const Duration(milliseconds: 700),
+                          curve: Curves.easeOut,
+                          builder: (_, value, _) => ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: value,
+                              minHeight: 6,
+                              backgroundColor: Colors.white.withValues(alpha: 0.65),
+                              valueColor: AlwaysStoppedAnimation(colors.accent),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '$displayDone / $displayTotal',
+                        style: TextStyle(
+                          color: colors.accent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pill({required IconData icon, required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.15),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _speechBubble(String text, Color accent) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 280),
+        child: CustomPaint(
+          painter: _SpeechBubblePainter(color: Colors.white, borderColor: accent.withValues(alpha: 0.25)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Text(
+                text,
+                key: ValueKey(text),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade800,
+                  height: 1.35,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -2431,4 +2437,135 @@ class _FreqChip extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── 兔咪場景背景 painter（窗戶、地板線、植物） ──
+class _RoomScenePainter extends CustomPainter {
+  final Color accent;
+  final bool isNight;
+  _RoomScenePainter({required this.accent, required this.isNight});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // 地板分隔線（淡淡的）
+    final floorY = h * 0.72;
+    final floorPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.5)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(Offset(0, floorY), Offset(w, floorY), floorPaint);
+
+    // 兔咪坐墊（橢圓）
+    final cushionPaint = Paint()
+      ..color = accent.withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill;
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w / 2, h - 38),
+        width: 180,
+        height: 32,
+      ),
+      cushionPaint,
+    );
+
+    // 左上窗戶（圓角矩形 + 日/月）
+    final windowRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(20, 18, 56, 56),
+      const Radius.circular(12),
+    );
+    final windowFillPaint = Paint()
+      ..color = isNight
+          ? const Color(0xFF3F51B5).withValues(alpha: 0.18)
+          : const Color(0xFFFFE082).withValues(alpha: 0.35);
+    canvas.drawRRect(windowRect, windowFillPaint);
+
+    // 窗戶分隔十字
+    final winLinePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.7)
+      ..strokeWidth = 2;
+    canvas.drawLine(Offset(48, 18), Offset(48, 74), winLinePaint);
+    canvas.drawLine(Offset(20, 46), Offset(76, 46), winLinePaint);
+
+    // 日/月圖示在窗內
+    if (isNight) {
+      // 月亮
+      final moonPaint = Paint()..color = const Color(0xFFFFD54F);
+      canvas.drawCircle(Offset(36, 34), 6, moonPaint);
+      // 小星星
+      final starPaint = Paint()..color = const Color(0xFFFFEB3B);
+      canvas.drawCircle(Offset(62, 30), 1.5, starPaint);
+      canvas.drawCircle(Offset(56, 60), 1.5, starPaint);
+    } else {
+      // 太陽
+      final sunPaint = Paint()..color = const Color(0xFFFFB74D);
+      canvas.drawCircle(Offset(36, 34), 7, sunPaint);
+    }
+
+    // 右下小植物（簡單的圓 + 三片葉子）
+    final potX = w - 38;
+    final potY = h - 50;
+    final potPaint = Paint()..color = accent.withValues(alpha: 0.35);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(potX - 12, potY, 24, 14),
+        const Radius.circular(3),
+      ),
+      potPaint,
+    );
+    final leafPaint = Paint()..color = const Color(0xFF66BB6A).withValues(alpha: 0.55);
+    canvas.drawCircle(Offset(potX - 6, potY - 5), 6, leafPaint);
+    canvas.drawCircle(Offset(potX + 6, potY - 5), 6, leafPaint);
+    canvas.drawCircle(Offset(potX, potY - 11), 7, leafPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoomScenePainter old) =>
+      old.accent != accent || old.isNight != isNight;
+}
+
+// ── 對話泡泡 painter ──
+class _SpeechBubblePainter extends CustomPainter {
+  final Color color;
+  final Color borderColor;
+  _SpeechBubblePainter({required this.color, required this.borderColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bodyRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height - 8),
+      const Radius.circular(16),
+    );
+    final fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.08)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    canvas.drawRRect(bodyRect.shift(const Offset(0, 2)), shadowPaint);
+    canvas.drawRRect(bodyRect, fillPaint);
+
+    // 邊框
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawRRect(bodyRect, borderPaint);
+
+    // 下方小三角尾巴
+    final tailPath = Path()
+      ..moveTo(size.width / 2 - 8, size.height - 8)
+      ..lineTo(size.width / 2, size.height)
+      ..lineTo(size.width / 2 + 8, size.height - 8)
+      ..close();
+    canvas.drawPath(tailPath, fillPaint);
+    canvas.drawPath(tailPath, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpeechBubblePainter old) =>
+      old.color != color || old.borderColor != borderColor;
 }
