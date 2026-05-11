@@ -261,15 +261,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ? dailyDoneCount == _dailyHabits.length
       : habits.isNotEmpty && weeklyMetCount == _weeklyHabits.length;
 
-  String get _mascotEmoji {
-    if (habits.isEmpty) return '👾';
+  // 兔咪短暫情緒：撤銷打卡後 2 秒顯示 sad
+  String? _transientMascot;
+
+  void _showTransientMascot(String name, {Duration duration = const Duration(seconds: 2)}) {
+    setState(() => _transientMascot = name);
+    Future.delayed(duration, () {
+      if (mounted) setState(() => _transientMascot = null);
+    });
+  }
+
+  // 兔咪圖選擇器（按進度、時間、streak 決定）
+  String get _mascotAsset {
+    if (_transientMascot != null) {
+      return 'assets/images/mascot/tumi_$_transientMascot.png';
+    }
+    if (habits.isEmpty) {
+      return 'assets/images/mascot/tumi_neutral_front.png';
+    }
     final ref = _dailyHabits.isNotEmpty ? _dailyHabits : _weeklyHabits;
     final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final ratio = done / ref.length;
-    if (ratio == 1.0) return '🥳';
-    if (ratio >= 0.5) return '😊';
-    if (ratio > 0) return '😐';
-    return '😴';
+
+    if (ratio == 1.0) {
+      if (streak >= 7) return 'assets/images/mascot/tumi_streak.png';
+      return 'assets/images/mascot/tumi_happy.png';
+    }
+    if (ratio >= 0.5) return 'assets/images/mascot/tumi_smile.png';
+    if (ratio > 0) return 'assets/images/mascot/tumi_expect.png';
+
+    final hour = DateTime.now().hour;
+    if (hour >= 22 || hour < 6) return 'assets/images/mascot/tumi_night.png';
+    return 'assets/images/mascot/tumi_sleep.png';
   }
 
   String get _mascotMessage {
@@ -298,9 +321,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         habit['done'] = dates.where(weekSet.contains).length >= target;
       });
     } else {
+      final wasDone = habit['done'] as bool;
       setState(() {
-        habit['done'] = !(habit['done'] as bool);
+        habit['done'] = !wasDone;
       });
+      if (wasDone) _showTransientMascot('sad');
     }
     saveHabits();
     if (!wasAllDone && allDone0) {
@@ -325,6 +350,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       habit['done'] = dates.where(weekSet.contains).length >= target;
     });
     saveHabits();
+    _showTransientMascot('sad');
   }
 
   void deleteHabit(int index) {
@@ -1575,18 +1601,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        // 吉祥物
+                        // 吉祥物兔咪（變主角，更大）
                         ScaleTransition(
                           scale: _pulseAnim,
                           child: Container(
-                            width: 64, height: 64,
+                            width: 100, height: 100,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.18),
+                              color: Colors.white.withValues(alpha: 0.22),
                             ),
                             alignment: Alignment.center,
-                            child: Text(_mascotEmoji,
-                                style: const TextStyle(fontSize: 38)),
+                            padding: const EdgeInsets.all(4),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 400),
+                              transitionBuilder: (child, anim) => FadeTransition(
+                                opacity: anim,
+                                child: ScaleTransition(
+                                  scale: Tween(begin: 0.85, end: 1.0).animate(anim),
+                                  child: child,
+                                ),
+                              ),
+                              child: Image.asset(
+                                _mascotAsset,
+                                key: ValueKey(_mascotAsset),
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -2292,12 +2332,15 @@ class _GreetingBannerState extends State<_GreetingBanner>
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
-                        color: Colors.orange.shade200, shape: BoxShape.circle),
-                    child:
-                        const Center(child: Text('🐰', style: TextStyle(fontSize: 26))),
+                        color: Colors.orange.shade100, shape: BoxShape.circle),
+                    padding: const EdgeInsets.all(3),
+                    child: Image.asset(
+                      'assets/images/mascot/tumi_cheer.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
