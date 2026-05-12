@@ -229,17 +229,25 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  // 吉祥物頭像
-  Widget _mascot({double size = 80}) {
-    return Container(
+  // 吉祥物頭像（PNG，依情境切換情緒）
+  Widget _mascot({double size = 80, String emotion = 'neutral_front'}) {
+    return SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: Colors.orange.shade200,
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Text('🐰', style: TextStyle(fontSize: size * 0.55)),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 350),
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(
+            scale: Tween(begin: 0.9, end: 1.0).animate(anim),
+            child: child,
+          ),
+        ),
+        child: Image.asset(
+          'assets/images/mascot/tumi_$emotion.png',
+          key: ValueKey(emotion),
+          fit: BoxFit.contain,
+        ),
       ),
     );
   }
@@ -274,6 +282,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面1：吉祥物甦醒 ──
   Widget _buildPage1() {
+    // 依打字進度切換情緒：第1句剛醒(sleep) → 自我介紹(neutral) → 陪伴宣告(smile)
+    final wakeEmotion = _page1Done
+        ? 'smile'
+        : (_lineIndex == 0
+            ? 'sleep'
+            : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
@@ -286,7 +300,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             curve: Curves.elasticOut,
             builder: (context, val, child) =>
                 Transform.scale(scale: val, child: child),
-            child: _mascot(size: 120),
+            child: _mascot(size: 160, emotion: wakeEmotion),
           ),
           const SizedBox(height: 32),
           _speechBubble(_displayText, fontSize: 18),
@@ -325,7 +339,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _mascot(),
+          _mascot(size: 120, emotion: 'smile'),
           const SizedBox(height: 20),
           _speechBubble('對了，你可以幫我取個名字！'),
           const SizedBox(height: 32),
@@ -384,7 +398,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _mascot(),
+          _mascot(size: 120, emotion: 'expect'),
           const SizedBox(height: 20),
           _speechBubble('$_mascotName：那…你呢？\n我以後要怎麼叫你？'),
           const SizedBox(height: 8),
@@ -449,7 +463,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _mascot(),
+          _mascot(size: 120, emotion: 'neutral_front'),
           const SizedBox(height: 20),
           if (_waterStep == 0) ...[
             _speechBubble('$_nickname！好名字～\n對了，你平常有在注意喝水嗎？'),
@@ -497,7 +511,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _mascot(),
+          _mascot(size: 120, emotion: 'neutral_front'),
           const SizedBox(height: 20),
           if (_timerStep == 0) ...[
             _speechBubble('你平常工作或唸書的時候，\n容易分心嗎？'),
@@ -544,7 +558,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _mascot(),
+          _mascot(size: 120, emotion: 'neutral_front'),
           const SizedBox(height: 20),
           if (_familyStep == 0) ...[
             _speechBubble('對了，家裡有小朋友嗎？🐣'),
@@ -584,7 +598,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         children: [
           const SizedBox(height: 40),
-          _mascot(),
+          _mascot(size: 120, emotion: 'smile'),
           const SizedBox(height: 20),
           _speechBubble('想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～'),
           const SizedBox(height: 8),
@@ -765,7 +779,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             builder: (context, val, child) =>
                 Transform.scale(scale: val, child: child),
             onEnd: () => setState(() {}), // 觸發重建讓動畫循環
-            child: _mascot(size: 120),
+            child: _mascot(size: 160, emotion: 'cheer'),
           ),
           const SizedBox(height: 28),
           _speechBubble('好了！$_nickname，我們準備好了！\n有我陪著你，一定可以的 🐰✨', fontSize: 18),
