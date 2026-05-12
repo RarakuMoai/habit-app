@@ -1549,7 +1549,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   top: 4, left: 28, right: 28,
                   child: _speechBubble(speech, colors.accent),
                 ),
-                // 兔咪（靜止；點擊由 _celebCtrl 觸發短暫彈跳）
+                // 兔咪 + 坐墊（同一 SizedBox 內，永遠連動）
                 Align(
                   alignment: const Alignment(0, 0.4),
                   child: GestureDetector(
@@ -1557,20 +1557,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     behavior: HitTestBehavior.opaque,
                     child: SizedBox(
                       width: 240, height: 240,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 400),
-                        transitionBuilder: (child, anim) => FadeTransition(
-                          opacity: anim,
-                          child: ScaleTransition(
-                            scale: Tween(begin: 0.88, end: 1.0).animate(anim),
-                            child: child,
+                      child: Stack(
+                        children: [
+                          // 坐墊（位於兔咪腳底，緊貼 SizedBox 底部）
+                          Positioned(
+                            left: 30, right: 30, bottom: 8,
+                            child: CustomPaint(
+                              size: const Size(180, 30),
+                              painter: _CushionPainter(accent: colors.accent),
+                            ),
                           ),
-                        ),
-                        child: Image.asset(
-                          _mascotAsset,
-                          key: ValueKey(_mascotAsset),
-                          fit: BoxFit.contain,
-                        ),
+                          // 兔咪 PNG（覆蓋在坐墊上方，腳會自然落在坐墊上）
+                          Positioned.fill(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 400),
+                              transitionBuilder: (child, anim) =>
+                                  FadeTransition(
+                                opacity: anim,
+                                child: ScaleTransition(
+                                  scale: Tween(begin: 0.88, end: 1.0)
+                                      .animate(anim),
+                                  child: child,
+                                ),
+                              ),
+                              child: Image.asset(
+                                _mascotAsset,
+                                key: ValueKey(_mascotAsset),
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2465,8 +2482,7 @@ class _RoomScenePainter extends CustomPainter {
     // 4. 書架（右側，畫框對應位置）
     _paintShelf(canvas, Rect.fromLTWH(w - 88, 208, 66, 18));
 
-    // 5. 兔咪坐墊（中央地板上）
-    _paintCushion(canvas, Offset(w / 2, floorY - 4));
+    // 5. 兔咪坐墊已移至前景兔咪 SizedBox 內（_CushionPainter），確保與兔咪連動
 
     // 6. 盆栽（左下角地板）
     _paintPlant(canvas, Offset(34, floorY - 8));
@@ -2601,17 +2617,6 @@ class _RoomScenePainter extends CustomPainter {
     }
   }
 
-  void _paintCushion(Canvas canvas, Offset center) {
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: 180, height: 30),
-      Paint()..color = accent.withValues(alpha: 0.22),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: 160, height: 22),
-      Paint()..color = accent.withValues(alpha: 0.35),
-    );
-  }
-
   void _paintPlant(Canvas canvas, Offset base) {
     // 花盆
     final potRect = Rect.fromCenter(
@@ -2684,6 +2689,33 @@ class _RoomScenePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RoomScenePainter old) =>
       old.accent != accent || old.isNight != isNight;
+}
+
+// ── 坐墊 painter（兩層橢圓：外圍像影子、內層較深像墊面）──
+// 抽出獨立 painter 是為了讓坐墊跟兔咪在同一個 SizedBox 內定位，永遠連動
+class _CushionPainter extends CustomPainter {
+  final Color accent;
+  _CushionPainter({required this.accent});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: size.width, height: size.height),
+      Paint()..color = accent.withValues(alpha: 0.22),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center,
+        width: size.width * 0.89,
+        height: size.height * 0.73,
+      ),
+      Paint()..color = accent.withValues(alpha: 0.35),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CushionPainter old) => old.accent != accent;
 }
 
 // ── 對話泡泡 painter ──
