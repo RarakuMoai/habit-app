@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -592,125 +593,136 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   // ── 畫面7：身體資訊（可跳過）──
+  // 結構：頂部兔咪+對話 + 可滾動欄位區 + 底部固定按鈕（避免下次再說被擠到 fold 下方）
   Widget _buildPage6() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 16, 32, 16),
       child: Column(
         children: [
-          const SizedBox(height: 40),
-          _mascot(size: 120, emotion: 'smile'),
-          const SizedBox(height: 20),
-          _speechBubble('想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～'),
           const SizedBox(height: 8),
+          _mascot(size: 96, emotion: 'smile'),
+          const SizedBox(height: 14),
+          _speechBubble('想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～'),
+          const SizedBox(height: 6),
           Text(
             '不想說也完全沒關係！',
             style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
           ),
-          const SizedBox(height: 28),
-          // 性別選擇
-          Row(
-            children: [
-              Text(
-                '性別',
-                style: TextStyle(
-                  color: Colors.orange.shade800,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 16),
-              _genderChip('男'),
-              const SizedBox(width: 8),
-              _genderChip('女'),
-              const SizedBox(width: 8),
-              _genderChip('不透露'),
-            ],
-          ),
           const SizedBox(height: 16),
-          // 身高
-          TextField(
-            controller: _heightController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: '身高（cm）',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
+          // 可滾動欄位區（佔據中段空間）
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // 性別選擇
+                  Row(
+                    children: [
+                      Text(
+                        '性別',
+                        style: TextStyle(
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      _genderChip('男'),
+                      const SizedBox(width: 8),
+                      _genderChip('女'),
+                      const SizedBox(width: 8),
+                      _genderChip('不透露'),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // 身高
+                  TextField(
+                    controller: _heightController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: '身高（cm）',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.orange.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.orange),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // 體重
+                  TextField(
+                    controller: _weightController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: '體重（kg）',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.orange.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.orange),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // 生日（選填，點擊開啟日期選擇器）
+                  InkWell(
+                    onTap: () async {
+                      final now = DateTime.now();
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _birthday ?? DateTime(now.year - 20),
+                        firstDate: DateTime(1900),
+                        lastDate: now,
+                      );
+                      if (picked != null) setState(() => _birthday = picked);
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: '生日',
+                        suffixIcon: const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 18,
+                          color: Colors.orange,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Colors.orange.shade200),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.orange),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                      ),
+                      isEmpty: _birthday == null,
+                      child: Text(
+                        _birthday == null
+                            ? ''
+                            : '${_birthday!.year} 年 ${_birthday!.month} 月 ${_birthday!.day} 日',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          // 體重
-          TextField(
-            controller: _weightController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: '體重（kg）',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // 生日（選填，點擊開啟日期選擇器）
-          InkWell(
-            onTap: () async {
-              final now = DateTime.now();
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _birthday ?? DateTime(now.year - 20),
-                firstDate: DateTime(1900),
-                lastDate: now,
-              );
-              if (picked != null) setState(() => _birthday = picked);
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: InputDecorator(
-              decoration: InputDecoration(
-                labelText: '生日',
-                suffixIcon: const Icon(
-                  Icons.calendar_today_outlined,
-                  size: 18,
-                  color: Colors.orange,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.orange.shade200),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.orange),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-              // isEmpty=true 時 label 停在中間（未選狀態）
-              isEmpty: _birthday == null,
-              child: Text(
-                _birthday == null
-                    ? ''
-                    : '${_birthday!.year} 年 ${_birthday!.month} 月 ${_birthday!.day} 日',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
+          // 底部固定按鈕（永遠可見）
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -729,7 +741,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
           TextButton(
             onPressed: _nextPage,
             child: Text('下次再說', style: TextStyle(color: Colors.grey.shade500)),
@@ -860,6 +871,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ),
       body: Stack(
         children: [
+          // 背景裝飾泡泡（柔和暖色，所有頁面共用）
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(painter: _OnboardingBgPainter()),
+            ),
+          ),
           // 隱形預渲染所有打字文字，讓字形提前載入 GPU 圖集，避免首次顯示亂碼
           Offstage(
             child: Text(
@@ -886,4 +903,119 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ),
     );
   }
+}
+
+// 引導頁背景裝飾：柔和暖色泡泡 + 角落葉子，營造溫暖陪伴感
+class _OnboardingBgPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..style = PaintingStyle.fill;
+    final w = size.width;
+    final h = size.height;
+
+    // 左上 — 大圓
+    p.color = const Color(0xFFFFE0B2).withValues(alpha: 0.55);
+    canvas.drawCircle(Offset(w * 0.12, h * 0.08), 110, p);
+    // 右上 — 中圓
+    p.color = const Color(0xFFFFD0A0).withValues(alpha: 0.40);
+    canvas.drawCircle(Offset(w * 0.95, h * 0.14), 75, p);
+    // 左中 — 小裝飾
+    p.color = const Color(0xFFFFCB8A).withValues(alpha: 0.20);
+    canvas.drawCircle(Offset(w * 0.02, h * 0.42), 38, p);
+    // 右中 — 小裝飾
+    p.color = const Color(0xFFFFCB8A).withValues(alpha: 0.22);
+    canvas.drawCircle(Offset(w * 0.98, h * 0.48), 32, p);
+    // 左下 — 大泡泡
+    p.color = const Color(0xFFFFE8C0).withValues(alpha: 0.45);
+    canvas.drawCircle(Offset(w * 0.05, h * 0.92), 95, p);
+    // 右下 — 中泡泡
+    p.color = const Color(0xFFFFD8A0).withValues(alpha: 0.40);
+    canvas.drawCircle(Offset(w * 0.90, h * 0.95), 85, p);
+
+    // 左上小葉子
+    _drawLeaf(
+      canvas,
+      Offset(w * 0.22, h * 0.06),
+      18,
+      const Color(0xFFA8D5A2).withValues(alpha: 0.35),
+      rotation: -0.5,
+    );
+    // 右上小葉子
+    _drawLeaf(
+      canvas,
+      Offset(w * 0.82, h * 0.05),
+      14,
+      const Color(0xFFB8DFB0).withValues(alpha: 0.35),
+      rotation: 0.7,
+    );
+    // 左下葉子
+    _drawLeaf(
+      canvas,
+      Offset(w * 0.18, h * 0.78),
+      16,
+      const Color(0xFFA8D5A2).withValues(alpha: 0.30),
+      rotation: 1.2,
+    );
+
+    // 右上小星星
+    _drawStar(
+      canvas,
+      Offset(w * 0.70, h * 0.10),
+      6,
+      const Color(0xFFFFC658).withValues(alpha: 0.55),
+    );
+    // 左中小星星
+    _drawStar(
+      canvas,
+      Offset(w * 0.12, h * 0.25),
+      4,
+      const Color(0xFFFFC658).withValues(alpha: 0.45),
+    );
+    // 右中小星星
+    _drawStar(
+      canvas,
+      Offset(w * 0.90, h * 0.30),
+      5,
+      const Color(0xFFFFC658).withValues(alpha: 0.50),
+    );
+  }
+
+  void _drawLeaf(
+    Canvas canvas,
+    Offset c,
+    double r,
+    Color color, {
+    double rotation = 0,
+  }) {
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(rotation);
+    final path = Path()
+      ..moveTo(0, -r)
+      ..quadraticBezierTo(r * 0.9, -r * 0.2, 0, r)
+      ..quadraticBezierTo(-r * 0.9, -r * 0.2, 0, -r)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+    canvas.restore();
+  }
+
+  void _drawStar(Canvas canvas, Offset c, double r, Color color) {
+    final path = Path();
+    for (int i = 0; i < 10; i++) {
+      final angle = -math.pi / 2 + i * math.pi / 5;
+      final radius = i.isEven ? r : r * 0.45;
+      final x = c.dx + radius * math.cos(angle);
+      final y = c.dy + radius * math.sin(angle);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
