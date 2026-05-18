@@ -119,10 +119,22 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
+  // 數值範圍檢查：空字串或合法值回傳 null，否則回傳錯誤訊息（供 errorText 用）
+  String? _rangeError(String text, num min, num max) {
+    final t = text.trim();
+    if (t.isEmpty) return null;
+    final v = double.tryParse(t);
+    if (v == null) return '請輸入數字';
+    if (v < min || v > max) return '請輸入 $min–$max 之間的數字';
+    return null;
+  }
+
   bool get _bodyInfoFilled =>
       _gender.isNotEmpty &&
       double.tryParse(_heightController.text.trim()) != null &&
+      _rangeError(_heightController.text, 1, 300) == null &&
       double.tryParse(_weightController.text.trim()) != null &&
+      _rangeError(_weightController.text, 1, 500) == null &&
       _birthday != null;
 
   // 回上一步：畫面4/5/6 若在追問子步驟，先退回初始選項；否則回上一畫面
@@ -171,9 +183,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
     // 身體資訊
     if (_gender.isNotEmpty) await prefs.setString('user_gender', _gender);
     final heightVal = double.tryParse(_heightController.text);
-    if (heightVal != null) await prefs.setDouble('user_height', heightVal);
+    if (heightVal != null && heightVal >= 1 && heightVal <= 300) {
+      await prefs.setDouble('user_height', heightVal);
+    }
     final weightVal = double.tryParse(_weightController.text);
-    if (weightVal != null) {
+    if (weightVal != null && weightVal >= 1 && weightVal <= 500) {
       await prefs.setDouble('user_weight', weightVal);
       await prefs.setBool('weight_tracking_enabled', true);
       // 自動新增體重紀錄習慣
@@ -361,8 +375,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 controller: _mascotController,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 18),
+                maxLength: 10,
                 decoration: InputDecoration(
                   hintText: '幫我取個名字',
+                  counterText: '',
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -425,8 +441,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 controller: _nicknameController,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 18),
+                maxLength: 10,
                 decoration: InputDecoration(
                   hintText: '輸入你的暱稱',
+                  counterText: '',
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -652,6 +670,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: '身高（cm）',
+                      errorText: _rangeError(_heightController.text, 1, 300),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
@@ -671,6 +690,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: '體重（kg）',
+                      errorText: _rangeError(_weightController.text, 1, 500),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
@@ -846,20 +866,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8F0),
-      appBar: showBack
-          ? AppBar(
-              backgroundColor: const Color(0xFFFFF8F0),
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: Colors.orange,
-                ),
-                onPressed: _handleBack,
-                tooltip: '回上一步',
-              ),
-            )
-          : null,
       // 進度點指示器
       bottomNavigationBar: Container(
         height: 48,
@@ -911,6 +917,21 @@ class _OnboardingPageState extends State<OnboardingPage> {
               _buildPage7(),
             ],
           ),
+          // 返回按鈕：浮在主畫面上層，不佔排版空間，避免內容下移
+          if (showBack)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.orange,
+                  ),
+                  onPressed: _handleBack,
+                  tooltip: '回上一步',
+                ),
+              ),
+            ),
         ],
       ),
     );

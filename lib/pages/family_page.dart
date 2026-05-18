@@ -674,7 +674,7 @@ Future<String?> _showPinDialog(
           obscureText: obscure,
           maxLength: digits,
           autofocus: true,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
           decoration: InputDecoration(
             hintText: '請輸入 $digits 位數字密碼',
             counterText: '',
@@ -1393,6 +1393,7 @@ class _HabitTabState extends State<_HabitTab> {
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
                                         FilteringTextInputFormatter.digitsOnly,
+                                        LengthLimitingTextInputFormatter(4),
                                       ],
                                       decoration: InputDecoration(
                                         labelText: dialogLabel,
@@ -1741,7 +1742,7 @@ class _HabitTabState extends State<_HabitTab> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                       decoration: InputDecoration(
                         labelText: isAdd ? '自訂加分數' : '自訂扣分數',
                         filled: true,
@@ -3554,6 +3555,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
                                         FilteringTextInputFormatter.digitsOnly,
+                                        LengthLimitingTextInputFormatter(4),
                                       ],
                                       decoration: InputDecoration(
                                         labelText: dialogLabel,
@@ -3696,6 +3698,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         content: TextField(
           controller: ctrl,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(4),
+          ],
           autofocus: true,
           decoration: InputDecoration(
             suffixText: '分鐘',
@@ -4061,8 +4067,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                             controller: ctrl,
                                             keyboardType: TextInputType.number,
                                             inputFormatters: [
-                                              FilteringTextInputFormatter
-                                                  .digitsOnly
+                                              FilteringTextInputFormatter.digitsOnly,
+                                              LengthLimitingTextInputFormatter(4),
                                             ],
                                             decoration: const InputDecoration(
                                                 labelText: '完成可得積分'),
@@ -4335,7 +4341,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                             controller: ctrl,
                                             keyboardType: TextInputType.number,
                                             inputFormatters: [
-                                              FilteringTextInputFormatter.digitsOnly
+                                              FilteringTextInputFormatter.digitsOnly,
+                                              LengthLimitingTextInputFormatter(4),
                                             ],
                                             decoration: const InputDecoration(
                                                 labelText: '所需積分'),
@@ -4721,7 +4728,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             controller: pointCtrl,
                             onChanged: (_) => setS(() {}),
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                             decoration: InputDecoration(
                               hintText: '完成可得分數',
                               filled: true,
@@ -4989,7 +4996,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   TextField(
                     controller: pointCtrl,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                     onChanged: (_) => setS(() {}),
                     decoration: InputDecoration(
                       labelText: '完成可得分數',
@@ -5400,7 +5407,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                       decoration: InputDecoration(
                         labelText: '自訂扣分數',
                         filled: true,
@@ -5549,7 +5556,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 TextField(
                   controller: pointCtrl,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
                     labelText: '扣幾分',
@@ -5799,7 +5806,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                       decoration: InputDecoration(
                         labelText: '所需積分',
                         filled: true,
@@ -5973,7 +5980,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   TextField(
                     controller: pointCtrl,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                     onChanged: (_) => setS(() {}),
                     decoration: InputDecoration(
                       labelText: '所需積分',

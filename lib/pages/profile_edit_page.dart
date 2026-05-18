@@ -22,8 +22,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   @override
   void initState() {
     super.initState();
-    // 暱稱變動時重繪，驅動儲存按鈕的 disabled/enabled 狀態
+    // 欄位變動時重繪，驅動儲存按鈕狀態與範圍錯誤提示
     _nicknameCtrl.addListener(() => setState(() {}));
+    _heightCtrl.addListener(() => setState(() {}));
+    _weightCtrl.addListener(() => setState(() {}));
+    _targetWeightCtrl.addListener(() => setState(() {}));
     _load();
   }
 
@@ -90,8 +93,22 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     if (mounted) Navigator.pop(context);
   }
 
-  // 暱稱是否有效（非空）
-  bool get _canSave => _nicknameCtrl.text.trim().isNotEmpty;
+  // 數值範圍檢查：空字串或合法值回傳 null，否則回傳錯誤訊息（供 errorText 用）
+  String? _rangeError(String text, num min, num max) {
+    final t = text.trim();
+    if (t.isEmpty) return null;
+    final v = double.tryParse(t);
+    if (v == null) return '請輸入數字';
+    if (v < min || v > max) return '請輸入 $min–$max 之間的數字';
+    return null;
+  }
+
+  // 暱稱非空，且身高體重在合理範圍內才可儲存
+  bool get _canSave =>
+      _nicknameCtrl.text.trim().isNotEmpty &&
+      _rangeError(_heightCtrl.text, 1, 300) == null &&
+      _rangeError(_weightCtrl.text, 1, 500) == null &&
+      _rangeError(_targetWeightCtrl.text, 1, 500) == null;
 
   // 性別選擇 Chip
   Widget _genderChip(String label) {
@@ -125,15 +142,20 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     TextInputType keyboardType = TextInputType.text,
     String? suffix,
     bool required = false,
+    String? errorText,
+    int? maxLength,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        maxLength: maxLength,
         decoration: InputDecoration(
           labelText: required ? '$label *' : label,
           suffixText: suffix,
+          errorText: errorText,
+          counterText: '',
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
@@ -221,6 +243,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         label: '暱稱',
                         controller: _nicknameCtrl,
                         required: true,
+                        maxLength: 10,
                       ),
                       // 暱稱為空時顯示提示
                       if (!_canSave)
@@ -236,6 +259,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       _inputField(
                         label: '吉祥物名字',
                         controller: _mascotCtrl,
+                        maxLength: 10,
                       ),
 
                       // 性別選擇
@@ -268,6 +292,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _heightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         suffix: 'cm',
+                        errorText: _rangeError(_heightCtrl.text, 1, 300),
                       ),
 
                       // 體重
@@ -276,6 +301,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _weightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         suffix: 'kg',
+                        errorText: _rangeError(_weightCtrl.text, 1, 500),
                       ),
 
                       // 目標體重（選填）
@@ -284,6 +310,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _targetWeightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         suffix: 'kg',
+                        errorText: _rangeError(_targetWeightCtrl.text, 1, 500),
                       ),
 
                       // 生日（選填，點擊開啟日期選擇器）
