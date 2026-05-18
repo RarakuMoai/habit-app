@@ -243,7 +243,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         label: '暱稱',
                         controller: _nicknameCtrl,
                         required: true,
-                        maxLength: 10,
+                        maxLength: 12,
                       ),
                       // 暱稱為空時顯示提示
                       if (!_canSave)
@@ -259,7 +259,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       _inputField(
                         label: '吉祥物名字',
                         controller: _mascotCtrl,
-                        maxLength: 10,
+                        maxLength: 12,
                       ),
 
                       // 性別選擇

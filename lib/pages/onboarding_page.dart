@@ -375,7 +375,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 controller: _mascotController,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 18),
-                maxLength: 10,
+                maxLength: 12,
                 decoration: InputDecoration(
                   hintText: '幫我取個名字',
                   counterText: '',
@@ -441,7 +441,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 controller: _nicknameController,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 18),
-                maxLength: 10,
+                maxLength: 12,
                 decoration: InputDecoration(
                   hintText: '輸入你的暱稱',
                   counterText: '',
