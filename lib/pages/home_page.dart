@@ -135,6 +135,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     }
 
+    // 跨頁籤切換時首頁會整頁重建，didUpdateWidget 不會觸發，
+    // 因此在這裡依喝水頁達標狀態同步「喝足夠的水」習慣的勾選狀態
+    final waterIdx = habits.indexWhere((h) => h['name'] == '喝足夠的水');
+    if (waterIdx != -1 &&
+        habits[waterIdx]['done'] != widget.waterHabitAutoComplete) {
+      habits[waterIdx]['done'] = widget.waterHabitAutoComplete;
+      await prefs.setString('habits', jsonEncode(habits));
+    }
+
     final bool isFirstOpenToday = lastOpen != today;
     await prefs.setString('last_open_date', today);
     setState(() => isLoading = false);

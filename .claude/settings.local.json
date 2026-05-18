@@ -8,7 +8,19 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter doctor *)",
+      "Bash(flutter emulators *)",
+      "Bash(xcrun simctl *)",
+      "Bash(open -a Simulator)",
+      "Bash(echo 'alias habitrun=\"cd ~/habit-app && flutter run\"' >> ~/.zshrc && echo \"Done\")",
+      "Bash(mkdir -p /Users/yayoi991331/habit-app/assets/animations /Users/yayoi991331/habit-app/assets/sounds && echo \"Done\")",
+      "WebSearch"
+    ],
+    "additionalDirectories": [
+      "/Users/yayoi991331",
+      "/Users/yayoi991331/habit-app/assets"
     ]
   }
 }

@@ -282,6 +282,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   // ── 畫面1：吉祥物甦醒 ──
+  // 引導頁外框：空間足夠時置中，鍵盤彈出或螢幕較小時可捲動，避免 RenderFlex 溢出
+  Widget _scrollableCenter(Widget child) => Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: child,
+          ),
+        ),
+      );
+
   Widget _buildPage1() {
     // 依打字進度切換情緒：第1句剛醒(sleep) → 自我介紹(neutral) → 陪伴宣告(smile)
     final wakeEmotion = _page1Done
@@ -289,10 +299,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
         : (_lineIndex == 0
             ? 'sleep'
             : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return _scrollableCenter(
+      Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // 吉祥物跳動動畫
           TweenAnimationBuilder<double>(
@@ -335,134 +344,138 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面2：幫吉祥物命名 ──
   Widget _buildPage2() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _mascot(size: 120, emotion: 'smile'),
-          const SizedBox(height: 20),
-          _speechBubble('對了，你可以幫我取個名字！'),
-          const SizedBox(height: 32),
-          TextField(
-            controller: _mascotController,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18),
-            decoration: InputDecoration(
-              hintText: '幫我取個名字',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                setState(
-                  () => _mascotName = _mascotController.text.trim().isEmpty
-                      ? '兔咪'
-                      : _mascotController.text.trim(),
-                );
-                _nextPage();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _mascot(size: 120, emotion: 'smile'),
+              const SizedBox(height: 20),
+              _speechBubble('對了，你可以幫我取個名字！'),
+              const SizedBox(height: 32),
+              TextField(
+                controller: _mascotController,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18),
+                decoration: InputDecoration(
+                  hintText: '幫我取個名字',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: Colors.orange.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Colors.orange),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text(
-                '下一步',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(
+                      () => _mascotName =
+                          _mascotController.text.trim().isEmpty
+                          ? '兔咪'
+                          : _mascotController.text.trim(),
+                    );
+                    _nextPage();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    '下一步',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   // ── 畫面3：用戶暱稱 ──
   Widget _buildPage3() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _mascot(size: 120, emotion: 'expect'),
-          const SizedBox(height: 20),
-          _speechBubble('$_mascotName：那…你呢？\n我以後要怎麼叫你？'),
-          const SizedBox(height: 8),
-          Text(
-            '暱稱就好，不用本名 😊',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          TextField(
-            controller: _nicknameController,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18),
-            decoration: InputDecoration(
-              hintText: '輸入你的暱稱',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _nicknameController.text.trim().isEmpty
-                  ? null
-                  : () {
-                      setState(
-                        () => _nickname = _nicknameController.text.trim(),
-                      );
-                      _nextPage();
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                disabledBackgroundColor: Colors.grey.shade300,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _mascot(size: 120, emotion: 'expect'),
+              const SizedBox(height: 20),
+              _speechBubble('$_mascotName：那…你呢？\n我以後要怎麼叫你？'),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _nicknameController,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18),
+                decoration: InputDecoration(
+                  hintText: '輸入你的暱稱',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: Colors.orange.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Colors.orange),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text(
-                '下一步',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _nicknameController.text.trim().isEmpty
+                      ? null
+                      : () {
+                          setState(
+                            () => _nickname =
+                                _nicknameController.text.trim(),
+                          );
+                          _nextPage();
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    '下一步',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   // ── 畫面4：喝水功能引導 ──
   Widget _buildPage4() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return _scrollableCenter(
+      Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _mascot(size: 120, emotion: 'neutral_front'),
           const SizedBox(height: 20),
@@ -507,10 +520,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面5：番茄鐘功能引導 ──
   Widget _buildPage5() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return _scrollableCenter(
+      Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _mascot(size: 120, emotion: 'neutral_front'),
           const SizedBox(height: 20),
@@ -554,10 +566,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面6（新）：家庭功能引導 ──
   Widget _buildFamilyPage() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return _scrollableCenter(
+      Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _mascot(size: 120, emotion: 'neutral_front'),
           const SizedBox(height: 20),
@@ -777,10 +788,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面7：收尾 ──
   Widget _buildPage7() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return _scrollableCenter(
+      Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // 吉祥物跳動動畫
           TweenAnimationBuilder<double>(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'profile_edit_page.dart';
+import 'feature_settings_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -11,9 +12,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _timerEnabled = true;
-  bool _weightTrackingEnabled = false;
-  bool _familyEnabled = false;
   bool _loaded = false;
 
   // PIN 相關狀態
@@ -31,17 +29,10 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     setState(() {
-      _timerEnabled = _prefs!.getBool('timer_enabled') ?? true;
-      _weightTrackingEnabled = _prefs!.getBool('weight_tracking_enabled') ?? false;
-      _familyEnabled = _prefs!.getBool('family_enabled') ?? false;
       _parentPin = _prefs!.getString('parent_pin');
       _pinDigits = _prefs!.getInt('pin_digits') ?? 4;
       _loaded = true;
     });
-  }
-
-  Future<void> _saveBool(String key, bool value) async {
-    await _prefs?.setBool(key, value);
   }
 
   Future<void> _clearHabits() async {
@@ -111,43 +102,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // 功能開關列
-  Widget _toggleTile({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: SwitchListTile(
-        secondary: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: iconColor, size: 20),
-        ),
-        title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-        value: value,
-        activeThumbColor: Colors.orange,
-        activeTrackColor: Colors.orange.shade200,
-        onChanged: onChanged,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -245,46 +199,35 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 const Divider(height: 32, thickness: 1),
 
-                // ── 區塊2：功能開關 ──
+                // ── 區塊2：功能開關（進入獨立子頁面）──
                 _sectionTitle('功能開關', Icons.tune_outlined),
 
-                // 番茄鐘開關
-                _toggleTile(
-                  icon: Icons.timer_outlined,
-                  iconColor: Colors.red.shade400,
-                  title: '番茄鐘',
-                  subtitle: '顯示底部番茄鐘頁籤',
-                  value: _timerEnabled,
-                  onChanged: (v) async {
-                    setState(() => _timerEnabled = v);
-                    await _saveBool('timer_enabled', v);
-                  },
-                ),
-
-                // 體重紀錄開關
-                _toggleTile(
-                  icon: Icons.monitor_weight_outlined,
-                  iconColor: Colors.green.shade600,
-                  title: '體重紀錄習慣',
-                  subtitle: '在習慣清單顯示體重紀錄項目',
-                  value: _weightTrackingEnabled,
-                  onChanged: (v) async {
-                    setState(() => _weightTrackingEnabled = v);
-                    await _saveBool('weight_tracking_enabled', v);
-                  },
-                ),
-
-                // 家庭模式開關
-                _toggleTile(
-                  icon: Icons.family_restroom,
-                  iconColor: Colors.purple,
-                  title: '家庭模式',
-                  subtitle: '顯示底部家庭頁籤',
-                  value: _familyEnabled,
-                  onChanged: (v) async {
-                    setState(() => _familyEnabled = v);
-                    await _saveBool('family_enabled', v);
-                  },
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: ListTile(
+                    leading: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.tune_outlined, color: Colors.teal, size: 20),
+                    ),
+                    title: const Text('功能開關', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    subtitle: Text('番茄鐘、喝水、體重、家庭模式…', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const FeatureSettingsPage()),
+                      );
+                    },
+                  ),
                 ),
 
                 const Divider(height: 32, thickness: 1),

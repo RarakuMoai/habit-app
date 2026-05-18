@@ -527,6 +527,13 @@ Future<void> _saveHabits(
   );
 }
 
+// 新增小孩時自動帶入的預設習慣（3 個最基本，讓使用者有起點，可再自行調整）
+List<ChildHabit> _defaultHabitsForChild(String childId) => [
+  ChildHabit(id: _genId(), childId: childId, name: '刷牙', points: 5),
+  ChildHabit(id: _genId(), childId: childId, name: '寫作業', points: 10),
+  ChildHabit(id: _genId(), childId: childId, name: '整理房間', points: 10),
+];
+
 Future<List<DeductionItem>> _loadDeductions(SharedPreferences prefs) async {
   final raw = prefs.getString('deduction_items');
   if (raw == null) return [];
@@ -881,12 +888,16 @@ class _FamilyPageState extends State<FamilyPage> {
     final inputs = await _showAddChildrenSheet(context);
     if (inputs == null || inputs.isEmpty || !mounted) return;
     final prefs = await SharedPreferences.getInstance();
+    final habits = await _loadHabits(prefs);
     for (final inp in inputs) {
-      _children.add(ChildData(
-          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0));
+      final child = ChildData(
+          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0);
+      _children.add(child);
+      habits.addAll(_defaultHabitsForChild(child.id));
     }
     await prefs.setString(
         'children', jsonEncode(_children.map((c) => c.toJson()).toList()));
+    await _saveHabits(prefs, habits);
     setState(() {});
   }
 
@@ -3219,12 +3230,17 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _addChild() async {
     final inputs = await _showAddChildrenSheet(context);
     if (inputs == null || inputs.isEmpty || !mounted) return;
+    final prefs = _prefs!;
+    final habits = await _loadHabits(prefs);
     for (final inp in inputs) {
-      _children.add(ChildData(
-          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0));
+      final child = ChildData(
+          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0);
+      _children.add(child);
+      habits.addAll(_defaultHabitsForChild(child.id));
     }
     await _saveChildren();
-    setState(() {});
+    await _saveHabits(prefs, habits);
+    await _loadAll();
   }
 
   // 刪除小孩（含二次確認，同步刪除習慣、扣分項目、積分紀錄）
