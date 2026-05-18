@@ -108,6 +108,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _nextPage() {
+    // 換頁前先收起鍵盤，避免下一頁殘留鍵盤
+    FocusScope.of(context).unfocus();
     if (_currentPage < 7) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 350),
