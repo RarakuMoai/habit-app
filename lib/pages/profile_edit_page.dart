@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileEditPage extends StatefulWidget {
@@ -17,7 +18,16 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   String _gender = '';
   DateTime? _birthday; // 生日（選填）
+  String _activityLevel = ''; // 活動量（久坐/輕度/中度/高度），用於計算 TDEE
   bool _loaded = false;
+
+  // 活動量等級與說明
+  static const Map<String, String> _activityDesc = {
+    '久坐': '幾乎不運動',
+    '輕度': '每週運動 1–3 天',
+    '中度': '每週運動 3–5 天',
+    '高度': '每週運動 6–7 天',
+  };
 
   @override
   void initState() {
@@ -55,6 +65,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _nicknameCtrl.text = prefs.getString('user_nickname') ?? '';
       _mascotCtrl.text = prefs.getString('mascot_name') ?? '兔咪';
       _gender = prefs.getString('user_gender') ?? '';
+      _activityLevel = prefs.getString('user_activity_level') ?? '';
       if (h != null) _heightCtrl.text = _formatDouble(h);
       if (w != null) _weightCtrl.text = _formatDouble(w);
       if (tw != null) _targetWeightCtrl.text = _formatDouble(tw);
@@ -73,6 +84,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _mascotCtrl.text.trim().isEmpty ? '兔咪' : _mascotCtrl.text.trim(),
     );
     if (_gender.isNotEmpty) await prefs.setString('user_gender', _gender);
+    if (_activityLevel.isNotEmpty) {
+      await prefs.setString('user_activity_level', _activityLevel);
+    }
     final h = double.tryParse(_heightCtrl.text.trim());
     if (h != null) await prefs.setDouble('user_height', h);
     final w = double.tryParse(_weightCtrl.text.trim());
@@ -93,22 +107,29 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     if (mounted) Navigator.pop(context);
   }
 
-  // 數值範圍檢查：空字串或合法值回傳 null，否則回傳錯誤訊息（供 errorText 用）
-  String? _rangeError(String text, num min, num max) {
-    final t = text.trim();
-    if (t.isEmpty) return null;
-    final v = double.tryParse(t);
-    if (v == null) return '請輸入數字';
-    if (v < min || v > max) return '請輸入 $min–$max 之間的數字';
-    return null;
+  // 身高/體重欄位格式化：最多 3 位整數 + 1 位小數，且輸入超過上限時自動壓回上限
+  TextInputFormatter _maxValueFormatter(int max) {
+    final pattern = RegExp(r'^\d{0,3}(\.\d?)?$');
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      final text = newValue.text;
+      if (text.isEmpty) return newValue;
+      // 格式不符（多個小數點、超過 1 位小數、整數超過 3 位）→ 維持原值
+      if (!pattern.hasMatch(text)) return oldValue;
+      // 數值超過上限 → 壓回上限
+      final v = double.tryParse(text);
+      if (v != null && v > max) {
+        final t = max.toString();
+        return TextEditingValue(
+          text: t,
+          selection: TextSelection.collapsed(offset: t.length),
+        );
+      }
+      return newValue;
+    });
   }
 
-  // 暱稱非空，且身高體重在合理範圍內才可儲存
-  bool get _canSave =>
-      _nicknameCtrl.text.trim().isNotEmpty &&
-      _rangeError(_heightCtrl.text, 1, 300) == null &&
-      _rangeError(_weightCtrl.text, 1, 500) == null &&
-      _rangeError(_targetWeightCtrl.text, 1, 500) == null;
+  // 暱稱非空才可儲存
+  bool get _canSave => _nicknameCtrl.text.trim().isNotEmpty;
 
   // 性別選擇 Chip
   Widget _genderChip(String label) {
@@ -135,6 +156,60 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     );
   }
 
+  // 活動量選擇 Chip
+  Widget _activityChip(String label) {
+    final selected = _activityLevel == label;
+    return GestureDetector(
+      onTap: () => setState(() => _activityLevel = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.orange : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.orange : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 活動量選擇區（用於計算每日總消耗 TDEE）
+  Widget _activitySelector() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '活動量',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _activityDesc.keys.map(_activityChip).toList(),
+          ),
+          if (_activityLevel.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              _activityDesc[_activityLevel]!,
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   // 通用輸入欄位
   Widget _inputField({
     required String label,
@@ -142,8 +217,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     TextInputType keyboardType = TextInputType.text,
     String? suffix,
     bool required = false,
-    String? errorText,
     int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -151,10 +226,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         controller: controller,
         keyboardType: keyboardType,
         maxLength: maxLength,
+        inputFormatters: inputFormatters,
         decoration: InputDecoration(
           labelText: required ? '$label *' : label,
           suffixText: suffix,
-          errorText: errorText,
           counterText: '',
           filled: true,
           fillColor: Colors.white,
@@ -168,6 +243,52 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
+      ),
+    );
+  }
+
+  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
+  // 需先填身高才顯示；點「建議」可一鍵套用
+  Widget _targetWeightHint() {
+    final h = double.tryParse(_heightCtrl.text.trim());
+    if (h == null || h < 1 || h > 300) return const SizedBox.shrink();
+    final hM = h / 100;
+    final low = (18.5 * hM * hM).round();
+    final high = (24 * hM * hM).round();
+    final suggest = (22 * hM * hM).round();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Icon(Icons.favorite_outline, size: 14, color: Colors.orange.shade400),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              '健康體重約 $low–$high kg',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ),
+          GestureDetector(
+            onTap: () =>
+                setState(() => _targetWeightCtrl.text = suggest.toString()),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(
+                '建議 $suggest kg',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -292,7 +413,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _heightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         suffix: 'cm',
-                        errorText: _rangeError(_heightCtrl.text, 1, 300),
+                        inputFormatters: [_maxValueFormatter(999)],
                       ),
 
                       // 體重
@@ -301,7 +422,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _weightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         suffix: 'kg',
-                        errorText: _rangeError(_weightCtrl.text, 1, 500),
+                        inputFormatters: [_maxValueFormatter(999)],
                       ),
 
                       // 目標體重（選填）
@@ -310,11 +431,17 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _targetWeightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         suffix: 'kg',
-                        errorText: _rangeError(_targetWeightCtrl.text, 1, 500),
+                        inputFormatters: [_maxValueFormatter(999)],
                       ),
+
+                      // 目標體重建議（依身高的健康範圍）
+                      _targetWeightHint(),
 
                       // 生日（選填，點擊開啟日期選擇器）
                       _birthdayField(),
+
+                      // 活動量（用於計算每日總消耗 TDEE）
+                      _activitySelector(),
                     ],
                   ),
                 ),

@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+
+// 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
+// freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
+const List<({String emoji, String name, bool freq})> _kOnboardingHabits = [
+  (emoji: '🦷', name: '刷牙', freq: false),
+  (emoji: '🧹', name: '整理環境', freq: false),
+  (emoji: '📖', name: '閱讀', freq: true),
+  (emoji: '🌅', name: '早起', freq: false),
+  (emoji: '🏃', name: '運動', freq: true),
+  (emoji: '🧘', name: '冥想', freq: true),
+  (emoji: '🌙', name: '早睡', freq: false),
+];
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -49,10 +62,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
   String _gender = '';
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
+  final TextEditingController _targetWeightController = TextEditingController();
   DateTime? _birthday; // 生日（選填）
 
   // 用戶暱稱（畫面3填完後存起來）
   String _nickname = '';
+
+  // 習慣選擇頁：使用者勾選的習慣名稱
+  final Set<String> _selectedHabits = {};
+  // 習慣選擇頁：設為「每週」的習慣 → 名稱對應每週次數；未列入者為每日
+  final Map<String, int> _weeklyTimes = {};
 
   @override
   void initState() {
@@ -74,6 +93,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _nicknameController.dispose();
     _heightController.dispose();
     _weightController.dispose();
+    _targetWeightController.dispose();
     super.dispose();
   }
 
@@ -110,7 +130,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void _nextPage() {
     // 換頁前先收起鍵盤，避免下一頁殘留鍵盤
     FocusScope.of(context).unfocus();
-    if (_currentPage < 7) {
+    if (_currentPage < 8) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeInOut,
@@ -119,26 +139,82 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
-  // 數值範圍檢查：空字串或合法值回傳 null，否則回傳錯誤訊息（供 errorText 用）
-  String? _rangeError(String text, num min, num max) {
-    final t = text.trim();
-    if (t.isEmpty) return null;
-    final v = double.tryParse(t);
-    if (v == null) return '請輸入數字';
-    if (v < min || v > max) return '請輸入 $min–$max 之間的數字';
-    return null;
+  // 身高/體重欄位格式化：最多 3 位整數 + 1 位小數，且輸入超過上限時自動壓回上限
+  TextInputFormatter _maxValueFormatter(int max) {
+    final pattern = RegExp(r'^\d{0,3}(\.\d?)?$');
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      final text = newValue.text;
+      if (text.isEmpty) return newValue;
+      // 格式不符（多個小數點、超過 1 位小數、整數超過 3 位）→ 維持原值
+      if (!pattern.hasMatch(text)) return oldValue;
+      // 數值超過上限 → 壓回上限
+      final v = double.tryParse(text);
+      if (v != null && v > max) {
+        final t = max.toString();
+        return TextEditingValue(
+          text: t,
+          selection: TextSelection.collapsed(offset: t.length),
+        );
+      }
+      return newValue;
+    });
+  }
+
+  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
+  Widget _targetWeightHint() {
+    final h = double.tryParse(_heightController.text.trim());
+    if (h == null || h < 1 || h > 999) return const SizedBox.shrink();
+    final hM = h / 100;
+    final low = (18.5 * hM * hM).round();
+    final high = (24 * hM * hM).round();
+    final suggest = (22 * hM * hM).round();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(Icons.favorite_outline, size: 14, color: Colors.orange.shade400),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              '健康體重約 $low–$high kg',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(
+                () => _targetWeightController.text = suggest.toString()),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(
+                '建議 $suggest kg',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   bool get _bodyInfoFilled =>
       _gender.isNotEmpty &&
       double.tryParse(_heightController.text.trim()) != null &&
-      _rangeError(_heightController.text, 1, 300) == null &&
       double.tryParse(_weightController.text.trim()) != null &&
-      _rangeError(_weightController.text, 1, 500) == null &&
       _birthday != null;
 
   // 回上一步：畫面4/5/6 若在追問子步驟，先退回初始選項；否則回上一畫面
   void _handleBack() {
+    // 換頁前先收起鍵盤，與 _nextPage 一致
+    FocusScope.of(context).unfocus();
     if (_currentPage == 3 && _waterStep == 1) {
       setState(() => _waterStep = 0);
       return;
@@ -183,16 +259,25 @@ class _OnboardingPageState extends State<OnboardingPage> {
     // 身體資訊
     if (_gender.isNotEmpty) await prefs.setString('user_gender', _gender);
     final heightVal = double.tryParse(_heightController.text);
-    if (heightVal != null && heightVal >= 1 && heightVal <= 300) {
+    if (heightVal != null && heightVal >= 1 && heightVal <= 999) {
       await prefs.setDouble('user_height', heightVal);
     }
     final weightVal = double.tryParse(_weightController.text);
-    if (weightVal != null && weightVal >= 1 && weightVal <= 500) {
+    if (weightVal != null && weightVal >= 1 && weightVal <= 999) {
       await prefs.setDouble('user_weight', weightVal);
       await prefs.setBool('weight_tracking_enabled', true);
       // 自動新增體重紀錄習慣
       await _addWeightHabit(prefs);
     }
+    final targetVal = double.tryParse(_targetWeightController.text);
+    if (targetVal != null && targetVal >= 1 && targetVal <= 999) {
+      await prefs.setDouble('target_weight', targetVal);
+    }
+    // 選了喝水功能 → 自動加入「喝足夠的水」習慣
+    if (_waterEnabled == true) _selectedHabits.add('喝足夠的水');
+    // 引導頁「習慣選擇頁」勾選的習慣
+    await _addPickedHabits(prefs);
+
     // 生日（選填），以 yyyy-MM-dd 格式儲存
     if (_birthday != null) {
       final b = _birthday!;
@@ -224,6 +309,33 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
+  // 將習慣選擇頁勾選的習慣寫入習慣清單
+  Future<void> _addPickedHabits(SharedPreferences prefs) async {
+    if (_selectedHabits.isEmpty) return;
+    final String? habitsJson = prefs.getString('habits');
+    List<Map<String, dynamic>> habits = [];
+    if (habitsJson != null) {
+      final List<dynamic> decoded = jsonDecode(habitsJson);
+      habits = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    for (final name in _selectedHabits) {
+      if (habits.any((h) => h['name'] == name)) continue;
+      final weeklyTimes = _weeklyTimes[name];
+      if (weeklyTimes != null) {
+        habits.add({
+          'name': name,
+          'done': false,
+          'frequency': 'weekly',
+          'weeklyTarget': weeklyTimes,
+          'weeklyDates': <String>[],
+        });
+      } else {
+        habits.add({'name': name, 'done': false});
+      }
+    }
+    await prefs.setString('habits', jsonEncode(habits));
+  }
+
   // 通用對話氣泡樣式
   Widget _speechBubble(String text, {double fontSize = 16}) {
     return Container(
@@ -253,12 +365,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
       height: size,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 350),
+        // 只淡入、不縮放——避免兔咪在動畫中看起來忽大忽小
         transitionBuilder: (child, anim) => FadeTransition(
           opacity: anim,
-          child: ScaleTransition(
-            scale: Tween(begin: 0.9, end: 1.0).animate(anim),
-            child: child,
-          ),
+          child: child,
         ),
         child: Image.asset(
           'assets/images/mascot/tumi_$emotion.png',
@@ -298,15 +408,32 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   // ── 畫面1：吉祥物甦醒 ──
-  // 引導頁外框：空間足夠時置中，鍵盤彈出或螢幕較小時可捲動，避免 RenderFlex 溢出
-  Widget _scrollableCenter(Widget child) => Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: child,
+  // 引導頁版型：兔咪固定在上方，內容在下方區域置中（可捲動）。
+  // 兔咪位置不受內容多寡影響，換頁時保持一致。
+  Widget _mascotPage({required String emotion, required Widget content}) {
+    return GestureDetector(
+      // 點空白處收起鍵盤
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _mascot(size: 200, emotion: emotion),
+                  const SizedBox(height: 16),
+                  content,
+                ],
+              ),
+            ),
           ),
         ),
-      );
+      ),
+    );
+  }
 
   Widget _buildPage1() {
     // 依打字進度切換情緒：第1句剛醒(sleep) → 自我介紹(neutral) → 陪伴宣告(smile)
@@ -315,20 +442,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
         : (_lineIndex == 0
             ? 'sleep'
             : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
-    return _scrollableCenter(
-      Column(
+    return _mascotPage(
+      emotion: wakeEmotion,
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 吉祥物跳動動畫
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.elasticOut,
-            builder: (context, val, child) =>
-                Transform.scale(scale: val, child: child),
-            child: _mascot(size: 160, emotion: wakeEmotion),
-          ),
-          const SizedBox(height: 32),
           _speechBubble(_displayText, fontSize: 18),
           const SizedBox(height: 40),
           // 打字完成後才出現「繼續」按鈕
@@ -360,165 +478,155 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面2：幫吉祥物命名 ──
   Widget _buildPage2() {
-    return Center(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _mascot(size: 120, emotion: 'smile'),
-              const SizedBox(height: 20),
-              _speechBubble('對了，你可以幫我取個名字！'),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _mascotController,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18),
-                maxLength: 12,
-                decoration: InputDecoration(
-                  hintText: '幫我取個名字',
-                  counterText: '',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.orange.shade200),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Colors.orange),
-                  ),
-                ),
+    return _mascotPage(
+      emotion: 'smile',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _speechBubble('對了，你可以幫我取個名字！'),
+          const SizedBox(height: 32),
+          TextField(
+            controller: _mascotController,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 18),
+            maxLength: 12,
+            decoration: InputDecoration(
+              hintText: '幫我取個名字',
+              counterText: '',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.orange.shade200),
               ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(
-                      () => _mascotName =
-                          _mascotController.text.trim().isEmpty
-                          ? '兔咪'
-                          : _mascotController.text.trim(),
-                    );
-                    _nextPage();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text(
-                    '下一步',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.orange),
               ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                setState(
+                  () => _mascotName = _mascotController.text.trim().isEmpty
+                      ? '兔咪'
+                      : _mascotController.text.trim(),
+                );
+                _nextPage();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text(
+                '下一步',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   // ── 畫面3：用戶暱稱 ──
   Widget _buildPage3() {
-    return Center(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _mascot(size: 120, emotion: 'expect'),
-              const SizedBox(height: 20),
-              _speechBubble('$_mascotName：那…你呢？\n我以後要怎麼叫你？'),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _nicknameController,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18),
-                maxLength: 12,
-                decoration: InputDecoration(
-                  hintText: '輸入你的暱稱',
-                  counterText: '',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.orange.shade200),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Colors.orange),
-                  ),
-                ),
+    return _mascotPage(
+      emotion: 'expect',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _speechBubble('$_mascotName：那…你呢？\n我以後要怎麼叫你？'),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _nicknameController,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 18),
+            maxLength: 12,
+            decoration: InputDecoration(
+              hintText: '輸入你的暱稱',
+              counterText: '',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.orange.shade200),
               ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _nicknameController.text.trim().isEmpty
-                      ? null
-                      : () {
-                          setState(
-                            () => _nickname =
-                                _nicknameController.text.trim(),
-                          );
-                          _nextPage();
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    disabledBackgroundColor: Colors.grey.shade300,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text(
-                    '下一步',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.orange),
               ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _nicknameController.text.trim().isEmpty
+                  ? null
+                  : () {
+                      setState(
+                        () => _nickname = _nicknameController.text.trim(),
+                      );
+                      _nextPage();
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                disabledBackgroundColor: Colors.grey.shade300,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text(
+                '下一步',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   // ── 畫面4：喝水功能引導 ──
   Widget _buildPage4() {
-    return _scrollableCenter(
-      Column(
+    return _mascotPage(
+      emotion: 'neutral_front',
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _mascot(size: 120, emotion: 'neutral_front'),
-          const SizedBox(height: 20),
           if (_waterStep == 0) ...[
             _speechBubble('$_nickname！好名字～\n對了，你平常有在注意喝水嗎？'),
             const SizedBox(height: 32),
             _optionButton('有，但常常忘記', () {
               setState(() {
                 _waterStep = 1;
-                _waterFollowup = '要不要讓我幫你記錄喝水呢？💧';
+                _waterFollowup = '常常忘記很正常～\n讓我幫你記錄、提醒你喝水好嗎？💧';
               });
             }),
             _optionButton('有在注意', () {
               setState(() {
                 _waterStep = 1;
-                _waterFollowup = '哇，很棒！要不要讓我一起幫你記錄？';
+                _waterFollowup = '哇，很棒！\n那我們一起記錄，看杯數增加更有成就感！💧';
               });
             }),
             _optionButton('沒特別想到', () {
               setState(() {
                 _waterStep = 1;
-                _waterFollowup = '要不要讓我幫你記錄喝水呢？💧';
+                _waterFollowup = '那就從今天開始吧～\n要不要我幫你記錄每天喝幾杯水？💧';
               });
+            }),
+            // 已養成習慣、不需記錄 → 不追問，直接下一步
+            _optionButton('我自己會注意，不用記錄', () {
+              setState(() => _waterEnabled = false);
+              _nextPage();
             }),
           ] else ...[
             _speechBubble(_waterFollowup),
@@ -540,12 +648,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面5：番茄鐘功能引導 ──
   Widget _buildPage5() {
-    return _scrollableCenter(
-      Column(
+    return _mascotPage(
+      emotion: 'neutral_front',
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _mascot(size: 120, emotion: 'neutral_front'),
-          const SizedBox(height: 20),
           if (_timerStep == 0) ...[
             _speechBubble('你平常工作或唸書的時候，\n容易分心嗎？'),
             const SizedBox(height: 32),
@@ -586,12 +693,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面6（新）：家庭功能引導 ──
   Widget _buildFamilyPage() {
-    return _scrollableCenter(
-      Column(
+    return _mascotPage(
+      emotion: 'neutral_front',
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _mascot(size: 120, emotion: 'neutral_front'),
-          const SizedBox(height: 20),
           if (_familyStep == 0) ...[
             _speechBubble('對了，家裡有小朋友嗎？🐣'),
             const SizedBox(height: 32),
@@ -625,137 +731,362 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面7：身體資訊（可跳過）──
   // 結構：頂部兔咪+對話 + 可滾動欄位區 + 底部固定按鈕（避免下次再說被擠到 fold 下方）
-  Widget _buildPage6() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 16, 32, 16),
-      child: Column(
+  // 習慣選擇頁：勾選想養成的習慣，完成後寫入習慣清單
+  Widget _buildHabitPickerPage() {
+    return _mascotPage(
+      emotion: 'smile',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 8),
-          _mascot(size: 96, emotion: 'smile'),
-          const SizedBox(height: 14),
+          _speechBubble('要不要先挑幾個習慣開始？\n之後都能再增減喔！'),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: _kOnboardingHabits
+                .map((h) => _habitChip(h.name, h.emoji, h.freq))
+                .toList(),
+          ),
+          _freqSection(),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _nextPage,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text(
+                '下一步',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 已選取且適合頻率的習慣 → 顯示每日/每週切換
+  Widget _freqSection() {
+    final rows = _kOnboardingHabits
+        .where((h) => h.freq && _selectedHabits.contains(h.name))
+        .toList();
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.repeat_rounded, size: 15, color: Colors.orange.shade700),
+            const SizedBox(width: 6),
+            Text(
+              '想多久做一次？',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.orange.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...rows.map((h) => _freqRow(h.emoji, h.name)),
+      ],
+    );
+  }
+
+  Widget _freqRow(String emoji, String name) {
+    final times = _weeklyTimes[name]; // null = 每日
+    final isWeekly = times != null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text('$emoji $name', style: const TextStyle(fontSize: 14)),
+          ),
+          // 每週（主要，可調次數）
+          if (isWeekly)
+            _weeklyStepper(name, times)
+          else
+            GestureDetector(
+              onTap: () => setState(() => _weeklyTimes[name] = 3),
+              child: _freqPill('每週', false),
+            ),
+          const SizedBox(width: 6),
+          // 每日（次要，靠右）
+          GestureDetector(
+            onTap: () => setState(() => _weeklyTimes.remove(name)),
+            child: _freqPill('每日', !isWeekly),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 每週次數調整器：−／＋ 改每週次數（1~7）
+  Widget _weeklyStepper(String name, int times) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.orange,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              '每週',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          _stepBtn(Icons.remove, () {
+            setState(() => _weeklyTimes[name] = (times - 1).clamp(1, 7));
+          }),
+          SizedBox(
+            width: 34,
+            child: Text(
+              '$times 次',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          _stepBtn(Icons.add, () {
+            setState(() => _weeklyTimes[name] = (times + 1).clamp(1, 7));
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: const BoxDecoration(
+          color: Colors.white24,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 19, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _freqPill(String label, bool selected) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: selected ? Colors.orange : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: selected ? Colors.orange : Colors.grey.shade300,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          color: selected ? Colors.white : Colors.grey.shade600,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  // 習慣選擇 Chip（可多選）
+  Widget _habitChip(String name, String emoji, bool freq) {
+    final selected = _selectedHabits.contains(name);
+    return GestureDetector(
+      onTap: () => setState(() {
+        if (selected) {
+          _selectedHabits.remove(name);
+          _weeklyTimes.remove(name);
+        } else {
+          _selectedHabits.add(name);
+          // 適合頻率的習慣預設為每週 3 次
+          if (freq) _weeklyTimes[name] = 3;
+        }
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.orange : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? Colors.orange : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          '$emoji $name',
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.grey.shade700,
+            fontSize: 14,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPage6() {
+    return _mascotPage(
+      emotion: 'smile',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           _speechBubble('想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～'),
           const SizedBox(height: 6),
           Text(
             '不想說也完全沒關係！',
             style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
           ),
-          const SizedBox(height: 16),
-          // 可滾動欄位區（佔據中段空間）
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // 性別選擇
-                  Row(
-                    children: [
-                      Text(
-                        '性別',
-                        style: TextStyle(
-                          color: Colors.orange.shade800,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      _genderChip('男'),
-                      const SizedBox(width: 8),
-                      _genderChip('女'),
-                      const SizedBox(width: 8),
-                      _genderChip('不透露'),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  // 身高
-                  TextField(
-                    controller: _heightController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: '身高（cm）',
-                      errorText: _rangeError(_heightController.text, 1, 300),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.orange.shade200),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.orange),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // 體重
-                  TextField(
-                    controller: _weightController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: '體重（kg）',
-                      errorText: _rangeError(_weightController.text, 1, 500),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.orange.shade200),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.orange),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // 生日（選填，點擊開啟日期選擇器）
-                  InkWell(
-                    onTap: () async {
-                      final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _birthday ?? DateTime(now.year - 20),
-                        firstDate: DateTime(1900),
-                        lastDate: now,
-                      );
-                      if (picked != null) setState(() => _birthday = picked);
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: '生日',
-                        suffixIcon: const Icon(
-                          Icons.calendar_today_outlined,
-                          size: 18,
-                          color: Colors.orange,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: Colors.orange.shade200),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.orange),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                      ),
-                      isEmpty: _birthday == null,
-                      child: Text(
-                        _birthday == null
-                            ? ''
-                            : '${_birthday!.year} 年 ${_birthday!.month} 月 ${_birthday!.day} 日',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+          const SizedBox(height: 20),
+          // 性別選擇
+          Row(
+            children: [
+              Text(
+                '性別',
+                style: TextStyle(
+                  color: Colors.orange.shade800,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 16),
+              _genderChip('男'),
+              const SizedBox(width: 8),
+              _genderChip('女'),
+              const SizedBox(width: 8),
+              _genderChip('不透露'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // 身高
+          TextField(
+            controller: _heightController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [_maxValueFormatter(999)],
+            decoration: InputDecoration(
+              labelText: '身高（cm）',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.orange),
               ),
             ),
           ),
-          // 底部固定按鈕（永遠可見）
+          const SizedBox(height: 10),
+          // 體重
+          TextField(
+            controller: _weightController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [_maxValueFormatter(999)],
+            decoration: InputDecoration(
+              labelText: '體重（kg）',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // 目標體重（選填）
+          TextField(
+            controller: _targetWeightController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [_maxValueFormatter(999)],
+            decoration: InputDecoration(
+              labelText: '目標體重（kg，選填）',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
+            ),
+          ),
+          _targetWeightHint(),
+          const SizedBox(height: 10),
+          // 生日（選填，點擊開啟日期選擇器）
+          InkWell(
+            onTap: () async {
+              final now = DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _birthday ?? DateTime(now.year - 20),
+                firstDate: DateTime(1900),
+                lastDate: now,
+              );
+              if (picked != null) setState(() => _birthday = picked);
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: '生日',
+                suffixIcon: const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 18,
+                  color: Colors.orange,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.orange.shade200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.orange),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+              isEmpty: _birthday == null,
+              child: Text(
+                _birthday == null
+                    ? ''
+                    : '${_birthday!.year} 年 ${_birthday!.month} 月 ${_birthday!.day} 日',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -810,21 +1141,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面7：收尾 ──
   Widget _buildPage7() {
-    return _scrollableCenter(
-      Column(
+    return _mascotPage(
+      emotion: 'cheer',
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 吉祥物跳動動畫
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.9, end: 1.1),
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.easeInOut,
-            builder: (context, val, child) =>
-                Transform.scale(scale: val, child: child),
-            onEnd: () => setState(() {}), // 觸發重建讓動畫循環
-            child: _mascot(size: 160, emotion: 'cheer'),
-          ),
-          const SizedBox(height: 28),
           _speechBubble('好了！$_nickname，我們準備好了！\n有我陪著你，一定可以的 🐰✨', fontSize: 18),
           const SizedBox(height: 48),
           SizedBox(
@@ -872,7 +1193,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         color: const Color(0xFFFFF8F0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(8, (i) {
+          children: List.generate(9, (i) {
             final active = i == _currentPage;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
@@ -913,6 +1234,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               _buildPage4(),
               _buildPage5(),
               _buildFamilyPage(),
+              _buildHabitPickerPage(),
               _buildPage6(),
               _buildPage7(),
             ],

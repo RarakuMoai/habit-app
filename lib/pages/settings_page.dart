@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -55,6 +56,100 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (confirm == true) {
       await _prefs?.remove('habits');
+    }
+  }
+
+  // 驗證數字密碼（危險操作前的把關），通過回傳 true
+  Future<bool> _verifyPin() async {
+    final ctrl = TextEditingController();
+    bool obscure = true;
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('請輸入數字密碼'),
+          content: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            obscureText: obscure,
+            maxLength: _pinDigits,
+            autofocus: true,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              hintText: '請輸入 $_pinDigits 位數字',
+              counterText: '',
+              suffixIcon: IconButton(
+                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setS(() => obscure = !obscure),
+              ),
+            ),
+            onChanged: (v) {
+              if (v.length == _pinDigits) Navigator.pop(dialogCtx, v);
+            },
+            onSubmitted: (v) => Navigator.pop(dialogCtx, v),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (entered == null) return false;
+    if (entered == _parentPin) return true;
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('密碼錯誤')));
+    }
+    return false;
+  }
+
+  // 刪除所有體重紀錄（其他資料保留）
+  Future<void> _clearWeightRecords() async {
+    // 計算目前筆數
+    final json = _prefs?.getString('weight_records');
+    int count = 0;
+    if (json != null) {
+      final decoded = jsonDecode(json);
+      if (decoded is List) count = decoded.length;
+    }
+    if (count == 0) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('目前沒有體重紀錄')));
+      return;
+    }
+
+    // 有設定數字密碼時先驗證
+    if (_parentPin?.isNotEmpty ?? false) {
+      final ok = await _verifyPin();
+      if (!ok || !mounted) return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('刪除所有體重紀錄'),
+        content: Text('確定要刪除全部 $count 筆體重紀錄嗎？此操作無法復原。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('確定刪除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _prefs?.remove('weight_records');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('已刪除所有體重紀錄')));
+      }
     }
   }
 
@@ -276,6 +371,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: Icons.delete_outline,
                   color: Colors.orange,
                   onTap: _clearHabits,
+                ),
+
+                const SizedBox(height: 12),
+
+                // 刪除所有體重紀錄（保留其他設定，有密碼時需驗證）
+                _dangerButton(
+                  label: '刪除所有體重紀錄',
+                  icon: Icons.monitor_weight_outlined,
+                  color: Colors.orange,
+                  onTap: _clearWeightRecords,
                 ),
 
                 const SizedBox(height: 12),

@@ -17,6 +17,7 @@ class _WeightPageState extends State<WeightPage> {
   double? _userHeight; // 身高（公分）
   String _gender = '';
   DateTime? _birthday;
+  String _activityLevel = ''; // 活動量（久坐/輕度/中度/高度）
   // 控制 BottomSheet 是否顯示體脂欄位
   bool _weightTrackingEnabled = false;
   // 目標體重（從設定讀取）
@@ -25,10 +26,21 @@ class _WeightPageState extends State<WeightPage> {
   int _chartRangeIndex = 0;
   bool _loaded = false;
 
+  // 新增/編輯 BottomSheet 共用的輸入控制器（頁面層級，避免 sheet 關閉時的釋放競態）
+  final TextEditingController _weightCtrl = TextEditingController();
+  final TextEditingController _fatCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _weightCtrl.dispose();
+    _fatCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -48,6 +60,7 @@ class _WeightPageState extends State<WeightPage> {
       _records = records;
       _userHeight = prefs.getDouble('user_height');
       _gender = prefs.getString('user_gender') ?? '';
+      _activityLevel = prefs.getString('user_activity_level') ?? '';
       if (bday != null) _birthday = DateTime.tryParse(bday);
       _weightTrackingEnabled = prefs.getBool('weight_tracking_enabled') ?? false;
       _targetWeight = prefs.getDouble('target_weight');
@@ -97,6 +110,37 @@ class _WeightPageState extends State<WeightPage> {
     if (_gender == '男') return 10 * weight + 6.25 * _userHeight! - 5 * age + 5;
     if (_gender == '女') return 10 * weight + 6.25 * _userHeight! - 5 * age - 161;
     return null;
+  }
+
+  // 活動量係數（Harris-Benedict）
+  double? _activityMultiplier() {
+    switch (_activityLevel) {
+      case '久坐':
+        return 1.2;
+      case '輕度':
+        return 1.375;
+      case '中度':
+        return 1.55;
+      case '高度':
+        return 1.725;
+    }
+    return null;
+  }
+
+  // TDEE（每日總消耗）= BMR × 活動量係數
+  double? _calcTDEE(double weight) {
+    final bmr = _calcBMR(weight);
+    final m = _activityMultiplier();
+    if (bmr == null || m == null) return null;
+    return bmr * m;
+  }
+
+  // BMI 分類（衛福部標準）：過輕／正常／過重／肥胖
+  (String, Color) _bmiCategory(double bmi) {
+    if (bmi < 18.5) return ('過輕', Colors.blue.shade400);
+    if (bmi < 24) return ('正常', Colors.green.shade500);
+    if (bmi < 27) return ('過重', Colors.orange.shade600);
+    return ('肥胖', Colors.red.shade400);
   }
 
   // 本週週一到週日的 DateTime 列表（x=0~6 對應週一~週日）
@@ -288,16 +332,12 @@ class _WeightPageState extends State<WeightPage> {
     DateTime selectedDate = existing != null
         ? (DateTime.tryParse(existing['date'] as String) ?? DateTime.now())
         : DateTime.now();
-    final weightCtrl = TextEditingController(
-      text: existing != null
-          ? _fmt((existing['weight'] as num).toDouble())
-          : '',
-    );
-    final fatCtrl = TextEditingController(
-      text: existing != null && existing['body_fat'] != null
-          ? _fmt((existing['body_fat'] as num).toDouble())
-          : '',
-    );
+    _weightCtrl.text = existing != null
+        ? _fmt((existing['weight'] as num).toDouble())
+        : '';
+    _fatCtrl.text = existing != null && existing['body_fat'] != null
+        ? _fmt((existing['body_fat'] as num).toDouble())
+        : '';
 
     showModalBottomSheet<void>(
       context: context,
@@ -390,7 +430,8 @@ class _WeightPageState extends State<WeightPage> {
 
                     // 體重（必填）
                     TextField(
-                      controller: weightCtrl,
+                      controller: _weightCtrl,
+                      autofocus: true,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -413,7 +454,7 @@ class _WeightPageState extends State<WeightPage> {
                     if (_weightTrackingEnabled) ...[
                       const SizedBox(height: 12),
                       TextField(
-                        controller: fatCtrl,
+                        controller: _fatCtrl,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -441,9 +482,9 @@ class _WeightPageState extends State<WeightPage> {
                       child: ElevatedButton(
                         onPressed: () {
                           final weight =
-                              double.tryParse(weightCtrl.text.trim());
+                              double.tryParse(_weightCtrl.text.trim());
                           if (weight == null) return;
-                          final fat = double.tryParse(fatCtrl.text.trim());
+                          final fat = double.tryParse(_fatCtrl.text.trim());
                           final now = DateTime.now();
                           final time =
                               '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
@@ -481,11 +522,7 @@ class _WeightPageState extends State<WeightPage> {
           },
         );
       },
-    ).whenComplete(() {
-      // BottomSheet 關閉後釋放控制器
-      weightCtrl.dispose();
-      fatCtrl.dispose();
-    });
+    );
   }
 
   // 顯示紀錄操作選單（長按或左滑呼叫）
@@ -895,15 +932,25 @@ class _WeightPageState extends State<WeightPage> {
         rec['body_fat'] != null ? (rec['body_fat'] as num).toDouble() : null;
     final bmi = _calcBMI(weight);
     final bmr = _calcBMR(weight);
+    final tdee = _calcTDEE(weight);
     // 任一計算值缺失時顯示補充資料提示
-    final needsHint = bmi == null || bmr == null;
+    final needsHint = bmi == null || bmr == null || tdee == null;
+    final bmiCat = bmi == null ? null : _bmiCategory(bmi);
 
     final items = <_StatItem>[
       _StatItem(label: '體重', value: '${_fmt(weight)} kg'),
       if (fat != null) _StatItem(label: '體脂率', value: '${_fmt(fat)} %'),
-      if (bmi != null) _StatItem(label: 'BMI', value: _fmt(bmi)),
+      if (bmi != null)
+        _StatItem(
+          label: 'BMI',
+          value: _fmt(bmi),
+          sub: bmiCat!.$1,
+          subColor: bmiCat.$2,
+        ),
       if (bmr != null)
         _StatItem(label: 'BMR', value: '${_fmt(bmr, decimal: 0)} kcal'),
+      if (tdee != null)
+        _StatItem(label: 'TDEE', value: '${_fmt(tdee, decimal: 0)} kcal'),
     ];
 
     return Column(
@@ -936,12 +983,30 @@ class _WeightPageState extends State<WeightPage> {
                           color: Colors.orange.shade600,
                         ),
                       ),
-                      Text(
-                        item.value,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              item.value,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (item.sub != null) ...[
+                            const SizedBox(width: 5),
+                            Text(
+                              item.sub!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: item.subColor,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -958,7 +1023,7 @@ class _WeightPageState extends State<WeightPage> {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  '請至設定補充個人資料以計算 BMI / BMR',
+                  '請至設定補充個人資料以計算 BMI / BMR / TDEE',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
                 ),
               ),
@@ -1090,5 +1155,12 @@ class _ChartData {
 class _StatItem {
   final String label;
   final String value;
-  const _StatItem({required this.label, required this.value});
+  final String? sub; // 數值旁的小標籤（例：BMI 分類）
+  final Color? subColor;
+  const _StatItem({
+    required this.label,
+    required this.value,
+    this.sub,
+    this.subColor,
+  });
 }

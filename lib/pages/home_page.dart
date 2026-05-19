@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'settings_page.dart';
@@ -1451,6 +1452,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        // 習慣頁背景固定淺色，狀態列圖示用深色才看得清楚
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         title: Text(
           '我的習慣',
           style: TextStyle(
