@@ -111708,7 +111708,7 @@ A.Wf.prototype={
 H(a){var s=null,r=A.b26(B.b8,s,s,B.tB),q=A.b8D().$0().d,p=A.a_(16),o=A.b1E(B.tB,s,s,0,B.h,B.pu,A.b8D().$3$color$fontSize$fontWeight(B.h,20,B.V)),n=A.b3p(new A.bJ(4,A.a_(12),B.m),s,B.ca,s,B.aR,!0)
 n=A.yJ(o,s,new A.rh(s,B.h,B.u2,s,2,s,new A.br(p,B.m)),r,new A.wu(A.ed(s,s,s,s,s,s,s,s,s,s,s,s,B.b1,s,new A.br(A.a_(12),B.m),s,s,s,s,s)),q,n,B.QE,!0)
 r=this.c?"/home":"/onboarding"
-return new A.Eu(A.aJ(["/onboarding",new A.aom(),"/home",new A.aon()],t.N,t.Ab),r,"\u7fd2\u6163\u990a\u6210",n,B.pN,B.a3u,B.Zw,!1,s)}}
+return new A.Eu(A.aJ(["/onboarding",new A.aom(),"/home",new A.aon()],t.N,t.Ab),r,"\u5154\u54aa\u597d\u7fd2\u6163",n,B.pN,B.a3u,B.Zw,!1,s)}}
 A.aom.prototype={
 $1(a){return B.a8I},
 $S:604}
