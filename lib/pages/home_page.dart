@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'settings_page.dart';
+import 'dart:math' as math;
+import '../widgets/mascot_app_bar.dart';
+import '../widgets/mascot_page_shell.dart';
+import '../widgets/mascot_scene.dart';
 
 class _PresetConfig {
   int minutes;
   String frequency;
   int weeklyTarget;
-  _PresetConfig({required this.minutes, this.frequency = 'daily', this.weeklyTarget = 3});
+  _PresetConfig({
+    required this.minutes,
+    this.frequency = 'daily',
+    this.weeklyTarget = 3,
+  });
 }
 
 class _HomePreset {
@@ -18,8 +24,14 @@ class _HomePreset {
   final String? linkedLabel;
   final int? defaultMinutes;
   final bool supportsFrequency;
-  const _HomePreset(this.name, this.emoji,
-      [this.linkedSetting, this.linkedLabel, this.defaultMinutes, this.supportsFrequency = false]);
+  const _HomePreset(
+    this.name,
+    this.emoji, [
+    this.linkedSetting,
+    this.linkedLabel,
+    this.defaultMinutes,
+    this.supportsFrequency = false,
+  ]);
 }
 
 const List<_HomePreset> _kHomePresets = [
@@ -57,8 +69,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool yesterdayAllDone = false;
   DateTime? onboardingDate;
 
-  // 兔咪保持靜止 — idle 動畫拿掉（用戶反饋：上下浮動沒有意義）
-  // 之後若有 spritesheet/Rive 動畫再正式整合
+  // 兔咪近期採 CG/PNG 差分 + Flutter 輕量演出，不以 Rive 作為近期主線。
 
   late AnimationController _celebCtrl;
   late Animation<double> _celebScale;
@@ -99,7 +110,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       onboardingDate = DateTime.tryParse(obDateStr);
     } else {
       onboardingDate = DateTime.now();
-      await prefs.setString('onboarding_date', onboardingDate!.toIso8601String());
+      await prefs.setString(
+        'onboarding_date',
+        onboardingDate!.toIso8601String(),
+      );
     }
 
     final String? habitsJson = prefs.getString('habits');
@@ -109,8 +123,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     if (lastOpen != null && lastOpen != today) {
-      final dailyHabits = habits.where((h) => (h['frequency'] ?? 'daily') != 'weekly').toList();
-      final bool allDailyDone = dailyHabits.isNotEmpty && dailyHabits.every((h) => h['done'] == true);
+      final dailyHabits = habits
+          .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
+          .toList();
+      final bool allDailyDone =
+          dailyHabits.isNotEmpty && dailyHabits.every((h) => h['done'] == true);
       yesterdayAllDone = allDailyDone;
       if (dailyHabits.isNotEmpty) {
         if (allDailyDone) {
@@ -165,8 +182,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final parts = lastOpen.split('-');
       if (parts.length == 3) {
         final lastDate = DateTime.tryParse(
-            '${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}');
-        if (lastDate != null && DateTime.now().difference(lastDate).inDays >= 2) {
+          '${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}',
+        );
+        if (lastDate != null &&
+            DateTime.now().difference(lastDate).inDays >= 2) {
           return '你回來了！我好想你 🐰';
         }
       }
@@ -196,18 +215,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
-  String todayString() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month}-${now.day}';
+  String _fmtDate(DateTime d) {
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '${d.year}-$m-$day';
   }
+
+  String todayString() => _fmtDate(DateTime.now());
 
   List<String> _currentWeekStrings() {
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
-    return List.generate(7, (i) {
-      final d = monday.add(Duration(days: i));
-      return '${d.year}-${d.month}-${d.day}';
-    });
+    return List.generate(7, (i) => _fmtDate(monday.add(Duration(days: i))));
   }
 
   int _weeklyCount(Map<String, dynamic> habit) {
@@ -243,7 +262,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       habits.where((h) => (h['frequency'] ?? 'daily') == 'weekly').toList();
 
   int get dailyDoneCount => _dailyHabits.where((h) => h['done'] == true).length;
-  int get weeklyMetCount => _weeklyHabits.where((h) => h['done'] == true).length;
+  int get weeklyMetCount =>
+      _weeklyHabits.where((h) => h['done'] == true).length;
 
   int get doneCount {
     final weekSet = _currentWeekStrings().toSet();
@@ -266,22 +286,82 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String? _transientMascot;
   // 對話泡泡內的文字（點兔咪時暫時覆蓋）
   String? _transientSpeech;
+  int _mascotReactionTick = 0;
 
   static const List<String> _kTapReactions = [
-    '嗨～歡迎回來！',
-    '嘿嘿，癢癢的～',
-    '想我了嗎？',
-    '今天也要加油喔！',
-    '我喜歡你～',
-    '點我做什麼呢？',
-    '我們一起努力吧！',
-    '謝謝你來看我～',
-    '嗯嗯，我在這裡！',
-    '別忘了打卡喔～',
+    '嗯...你來了。',
+    '我在這裡。',
+    '今天也慢慢來。',
+    '先做一點點也可以。',
+    '我有醒著喔。',
+    '你回來了，真好。',
+    '要先碰一下嗎？',
+    '我陪你。',
   ];
 
-  void _showTransientMascot(String name, {Duration duration = const Duration(seconds: 2)}) {
-    setState(() => _transientMascot = name);
+  static const List<String> _kEmptyHabitLines = [
+    '先放一個小習慣吧。',
+    '一點點也可以開始。',
+    '新增一格，我陪你慢慢來。',
+  ];
+
+  static const List<String> _kNotStartedLines = [
+    '嗯...今天也從一點點開始？',
+    '我在等你，不急。',
+    '先碰一下也可以。',
+    '今天可以很小步。',
+  ];
+
+  static const List<String> _kStartedLines = [
+    '做到了，我有看到。',
+    '這一格亮起來了。',
+    '小小一步，收好。',
+    '嗯，今天有留下痕跡。',
+  ];
+
+  static const List<String> _kHalfwayLines = [
+    '已經一半了耶。',
+    '你慢慢在前進。',
+    '我開始精神了。',
+    '再一點點就很棒。',
+  ];
+
+  static const List<String> _kAllDoneLines = [
+    '全部完成了。',
+    '今天的你，好認真。',
+    '我替你收好了。',
+    '這一天亮亮的。',
+  ];
+
+  static const List<String> _kStreakLines = [
+    '我們連起來了！',
+    '兔咪精神來了。',
+    '這不是一點點了耶。',
+    '你看，真的長出來了。',
+  ];
+
+  static const List<String> _kSadLines = [
+    '沒關係，我還在。',
+    '今天比較難，對吧。',
+    '我們可以重新放一格。',
+    '不是壞掉，只是停了一下。',
+  ];
+
+  static const List<String> _kNightLines = [
+    '很晚了，聲音小一點。',
+    '今天辛苦了。',
+    '如果累了，也可以休息。',
+    '明天我還會在這裡。',
+  ];
+
+  void _showTransientMascot(
+    String name, {
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    setState(() {
+      _transientMascot = name;
+      _mascotReactionTick++;
+    });
     Future.delayed(duration, () {
       if (mounted) setState(() => _transientMascot = null);
     });
@@ -290,7 +370,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _onMascotTap() {
     _celebCtrl.forward(from: 0);
     final reactions = List<String>.from(_kTapReactions)..shuffle();
-    setState(() => _transientSpeech = reactions.first);
+    setState(() {
+      _transientSpeech = reactions.first;
+      _mascotReactionTick++;
+    });
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) setState(() => _transientSpeech = null);
     });
@@ -321,14 +404,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   String get _mascotMessage {
-    if (habits.isEmpty) return '新增一個習慣，我們一起努力！';
+    if (_transientMascot == 'sad') {
+      return _pickMascotLine(_kSadLines, salt: _mascotReactionTick);
+    }
+    if (habits.isEmpty) return _pickMascotLine(_kEmptyHabitLines);
     final ref = _dailyHabits.isNotEmpty ? _dailyHabits : _weeklyHabits;
     final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final ratio = done / ref.length;
-    if (ratio == 1.0) return '太厲害了！今天全部完成！🎉';
-    if (ratio >= 0.5) return '已經完成一半了！繼續加油！💪';
-    if (ratio > 0) return '好的開始！繼續保持！🌟';
-    return '今天要開始了嗎？我在等你！';
+    if (ratio == 1.0) {
+      return _pickMascotLine(streak >= 7 ? _kStreakLines : _kAllDoneLines);
+    }
+    if (ratio >= 0.5) return _pickMascotLine(_kHalfwayLines);
+    if (ratio > 0) return _pickMascotLine(_kStartedLines);
+
+    final hour = DateTime.now().hour;
+    if (hour >= 22 || hour < 6) return _pickMascotLine(_kNightLines);
+    return _pickMascotLine(_kNotStartedLines);
+  }
+
+  String _pickMascotLine(List<String> lines, {int salt = 0}) {
+    final key =
+        '${todayString()}-$dailyDoneCount-$weeklyMetCount-$streak-$salt';
+    final sum = key.codeUnits.fold<int>(0, (total, code) => total + code);
+    return lines[sum % lines.length];
   }
 
   void toggleHabit(int index) {
@@ -355,6 +453,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     saveHabits();
     if (!wasAllDone && allDone0) {
       _celebCtrl.forward(from: 0);
+      setState(() => _mascotReactionTick++);
+    } else if (habits[index]['done'] == true) {
+      setState(() => _mascotReactionTick++);
     }
     if (habits[index]['name'] == '喝足夠的水') {
       widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
@@ -474,7 +575,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               Padding(
                 padding: const EdgeInsets.only(top: 12, bottom: 4),
                 child: Container(
-                  width: 36, height: 4,
+                  width: 36,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2),
@@ -485,15 +587,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.auto_awesome, size: 18, color: Colors.orange),
+                    const Icon(
+                      Icons.auto_awesome,
+                      size: 18,
+                      color: Colors.orange,
+                    ),
                     const SizedBox(width: 8),
                     const Expanded(
-                      child: Text('常用習慣',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        '常用習慣',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     if (tempSelected.isNotEmpty)
-                      Text('${tempSelected.length} 項已選',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      Text(
+                        '${tempSelected.length} 項已選',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -528,49 +644,82 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               }
                             }),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
                               child: Row(
                                 children: [
-                                  Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                                  Text(
+                                    p.emoji,
+                                    style: const TextStyle(fontSize: 22),
+                                  ),
                                   const SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           p.name,
                                           style: TextStyle(
                                             fontSize: 15,
-                                            fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
-                                            color: sel ? Colors.orange.shade800 : Colors.black87,
+                                            fontWeight: sel
+                                                ? FontWeight.w600
+                                                : FontWeight.normal,
+                                            color: sel
+                                                ? Colors.orange.shade800
+                                                : Colors.black87,
                                           ),
                                         ),
                                         if (p.linkedSetting != null)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 2),
+                                            padding: const EdgeInsets.only(
+                                              top: 2,
+                                            ),
                                             child: Row(
                                               children: [
-                                                Icon(Icons.link, size: 11, color: Colors.blue.shade400),
+                                                Icon(
+                                                  Icons.link,
+                                                  size: 11,
+                                                  color: Colors.blue.shade400,
+                                                ),
                                                 const SizedBox(width: 3),
-                                                Text(p.linkedLabel!,
-                                                    style: TextStyle(fontSize: 11, color: Colors.blue.shade500)),
+                                                Text(
+                                                  p.linkedLabel!,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.blue.shade500,
+                                                  ),
+                                                ),
                                               ],
                                             ),
                                           ),
                                         if (!sel && hasCustom)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 3),
+                                            padding: const EdgeInsets.only(
+                                              top: 3,
+                                            ),
                                             child: Text(
                                               '可自訂時間${p.supportsFrequency ? "・可設頻率" : ""}',
-                                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey.shade500,
+                                              ),
                                             ),
                                           ),
                                         if (sel && hasCustom)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 3),
+                                            padding: const EdgeInsets.only(
+                                              top: 3,
+                                            ),
                                             child: Text(
                                               '${config!.minutes > 0 ? "${config.minutes} 分鐘" : "未設時間"}${config.frequency == "weekly" ? "・每週 ${config.weeklyTarget} 次" : "・每日"}',
-                                              style: TextStyle(fontSize: 11, color: Colors.orange.shade600, fontWeight: FontWeight.w500),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.orange.shade600,
+                                                fontWeight: FontWeight.w500,
+                                              ),
                                             ),
                                           ),
                                       ],
@@ -578,17 +727,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   ),
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 150),
-                                    width: 24, height: 24,
+                                    width: 24,
+                                    height: 24,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: sel ? Colors.orange : Colors.transparent,
+                                      color: sel
+                                          ? Colors.orange
+                                          : Colors.transparent,
                                       border: Border.all(
-                                        color: sel ? Colors.orange : Colors.grey.shade300,
+                                        color: sel
+                                            ? Colors.orange
+                                            : Colors.grey.shade300,
                                         width: 2,
                                       ),
                                     ),
                                     child: sel
-                                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                        ? const Icon(
+                                            Icons.check,
+                                            size: 14,
+                                            color: Colors.white,
+                                          )
                                         : null,
                                   ),
                                 ],
@@ -596,10 +754,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                           ),
                           AnimatedCrossFade(
-                            firstChild: const SizedBox(width: double.infinity, height: 0),
+                            firstChild: const SizedBox(
+                              width: double.infinity,
+                              height: 0,
+                            ),
                             secondChild: sel && hasCustom && config != null
                                 ? _buildPresetCustomization(p, config, setS)
-                                : const SizedBox(width: double.infinity, height: 0),
+                                : const SizedBox(
+                                    width: double.infinity,
+                                    height: 0,
+                                  ),
                             crossFadeState: (sel && hasCustom)
                                 ? CrossFadeState.showSecond
                                 : CrossFadeState.showFirst,
@@ -612,19 +776,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               ),
               Padding(
-                padding: EdgeInsets.fromLTRB(20, 12, 20,
-                    MediaQuery.of(ctx).viewInsets.bottom + 20),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 20,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(ctx, tempSelected),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
-                      tempSelected.isEmpty ? '確認（未選取）' : '確認選取 (${tempSelected.length} 項)',
+                      tempSelected.isEmpty
+                          ? '確認（未選取）'
+                          : '確認選取 (${tempSelected.length} 項)',
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -651,7 +823,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           decoration: InputDecoration(
             suffixText: '分鐘',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
           ),
           onSubmitted: (v) {
             final n = int.tryParse(v.trim());
@@ -675,7 +850,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildPresetCustomization(_HomePreset p, _PresetConfig config, StateSetter setS) {
+  Widget _buildPresetCustomization(
+    _HomePreset p,
+    _PresetConfig config,
+    StateSetter setS,
+  ) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -690,13 +869,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.timer_outlined, size: 15, color: Colors.orange.shade500),
+              Icon(
+                Icons.timer_outlined,
+                size: 15,
+                color: Colors.orange.shade500,
+              ),
               const SizedBox(width: 10),
               _AdjustBtn(
                 icon: Icons.remove,
                 enabled: config.minutes > 0,
-                onTap: () => setS(() =>
-                    config.minutes = config.minutes <= 5 ? 0 : config.minutes - 5),
+                onTap: () => setS(
+                  () => config.minutes = config.minutes <= 5
+                      ? 0
+                      : config.minutes - 5,
+                ),
               ),
               const SizedBox(width: 14),
               GestureDetector(
@@ -706,10 +892,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 },
                 child: Container(
                   constraints: const BoxConstraints(minWidth: 44),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: Colors.orange.shade300, width: 1.5),
+                      bottom: BorderSide(
+                        color: Colors.orange.shade300,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                   child: Text(
@@ -718,18 +910,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: config.minutes > 0 ? Colors.black87 : Colors.grey.shade400,
+                      color: config.minutes > 0
+                          ? Colors.black87
+                          : Colors.grey.shade400,
                     ),
                   ),
                 ),
               ),
-              Text('分鐘', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              Text(
+                '分鐘',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
               const SizedBox(width: 14),
               _AdjustBtn(
                 icon: Icons.add,
                 enabled: config.minutes < 999,
-                onTap: () => setS(() =>
-                    config.minutes = config.minutes == 0 ? 5 : (config.minutes + 5).clamp(5, 999)),
+                onTap: () => setS(
+                  () => config.minutes = config.minutes == 0
+                      ? 5
+                      : (config.minutes + 5).clamp(5, 999),
+                ),
               ),
             ],
           ),
@@ -764,7 +964,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('每週目標', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(
+                      '每週目標',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     _AdjustBtn(
                       icon: Icons.remove,
@@ -777,10 +983,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       child: Text(
                         '${config.weeklyTarget}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    Text('次', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                    Text(
+                      '次',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     _AdjustBtn(
                       icon: Icons.add,
@@ -802,7 +1017,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     final minuteMatch = RegExp(r'^(.*)\s+(\d+)\s+分鐘$').firstMatch(fullName);
     final initBase = minuteMatch != null ? minuteMatch.group(1)! : fullName;
-    final initMinutes = minuteMatch != null ? int.parse(minuteMatch.group(2)!) : 0;
+    final initMinutes = minuteMatch != null
+        ? int.parse(minuteMatch.group(2)!)
+        : 0;
     final initFreq = (habit['frequency'] ?? 'daily') as String;
     final initWeekly = (habit['weeklyTarget'] as int?) ?? 3;
 
@@ -822,14 +1039,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           final baseName = nameCtrl.text.trim();
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
-                    width: 36, height: 4,
+                    width: 36,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
@@ -837,8 +1059,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('編輯習慣',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text(
+                  '編輯習慣',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameCtrl,
@@ -860,16 +1084,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide(color: Colors.orange.shade400),
                     ),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text('頻率',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                        fontWeight: FontWeight.w500)),
+                Text(
+                  '頻率',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -892,12 +1121,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         onTap: () => setS(() => weeklyTarget--),
                       ),
                       const SizedBox(width: 8),
-                      Text('$weeklyTarget',
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text('  次',
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade600)),
+                      Text(
+                        '$weeklyTarget',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '  次',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       _AdjustBtn(
                         icon: Icons.add,
@@ -908,11 +1145,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text('持續時間（選填）',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                        fontWeight: FontWeight.w500)),
+                Text(
+                  '持續時間（選填）',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -931,23 +1171,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     children: [
                       GestureDetector(
                         onTap: minutes > 0
-                            ? () => setS(() =>
-                                minutes = minutes <= 5 ? 0 : minutes - 5)
+                            ? () => setS(
+                                () => minutes = minutes <= 5 ? 0 : minutes - 5,
+                              )
                             : null,
                         child: Container(
-                          width: 44, height: 44,
+                          width: 44,
+                          height: 44,
                           alignment: Alignment.center,
-                          child: Icon(Icons.remove, size: 18,
-                              color: minutes > 0
-                                  ? Colors.orange.shade700
-                                  : Colors.grey.shade300),
+                          child: Icon(
+                            Icons.remove,
+                            size: 18,
+                            color: minutes > 0
+                                ? Colors.orange.shade700
+                                : Colors.grey.shade300,
+                          ),
                         ),
                       ),
                       Container(
-                          width: 1, height: 28,
-                          color: minutes > 0
-                              ? Colors.orange.shade200
-                              : Colors.grey.shade200),
+                        width: 1,
+                        height: 28,
+                        color: minutes > 0
+                            ? Colors.orange.shade200
+                            : Colors.grey.shade200,
+                      ),
                       GestureDetector(
                         onTap: () async {
                           final result = await _showMinutesDialog(minutes);
@@ -955,7 +1202,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 10),
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -972,36 +1221,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Text('分鐘',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: minutes > 0
-                                        ? Colors.grey.shade600
-                                        : Colors.grey.shade400,
-                                  )),
+                              Text(
+                                '分鐘',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: minutes > 0
+                                      ? Colors.grey.shade600
+                                      : Colors.grey.shade400,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       ),
                       Container(
-                          width: 1, height: 28,
-                          color: minutes > 0
-                              ? Colors.orange.shade200
-                              : Colors.grey.shade200),
+                        width: 1,
+                        height: 28,
+                        color: minutes > 0
+                            ? Colors.orange.shade200
+                            : Colors.grey.shade200,
+                      ),
                       GestureDetector(
                         onTap: minutes < 999
-                            ? () => setS(() =>
-                                minutes = minutes == 0
+                            ? () => setS(
+                                () => minutes = minutes == 0
                                     ? 5
-                                    : (minutes + 5).clamp(5, 999))
+                                    : (minutes + 5).clamp(5, 999),
+                              )
                             : null,
                         child: Container(
-                          width: 44, height: 44,
+                          width: 44,
+                          height: 44,
                           alignment: Alignment.center,
-                          child: Icon(Icons.add, size: 18,
-                              color: minutes < 999
-                                  ? Colors.orange.shade700
-                                  : Colors.grey.shade300),
+                          child: Icon(
+                            Icons.add,
+                            size: 18,
+                            color: minutes < 999
+                                ? Colors.orange.shade700
+                                : Colors.grey.shade300,
+                          ),
                         ),
                       ),
                     ],
@@ -1024,7 +1282,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               if (freq == 'weekly') {
                                 habits[index]['weeklyTarget'] = weeklyTarget;
                                 habits[index].putIfAbsent(
-                                    'weeklyDates', () => <String>[]);
+                                  'weeklyDates',
+                                  () => <String>[],
+                                );
                               } else {
                                 habits[index].remove('weeklyTarget');
                                 habits[index].remove('weeklyDates');
@@ -1037,11 +1297,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       backgroundColor: Colors.orange,
                       disabledBackgroundColor: Colors.grey.shade200,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text('儲存',
-                        style: TextStyle(color: Colors.white)),
+                    child: const Text(
+                      '儲存',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],
@@ -1079,7 +1342,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           final total = (customName.isNotEmpty ? 1 : 0) + selected.length;
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1095,14 +1362,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('新增習慣',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text(
+                  '新增習慣',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 12),
                 // 常用習慣選取
                 if (available.isNotEmpty)
                   InkWell(
                     onTap: () async {
-                      final result = await _showHabitPresetSheet(available, selected);
+                      final result = await _showHabitPresetSheet(
+                        available,
+                        selected,
+                      );
                       if (result != null) {
                         setS(() {
                           selected.clear();
@@ -1113,32 +1385,52 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(12),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
-                        color: selected.isEmpty ? Colors.grey.shade50 : Colors.orange.shade50,
+                        color: selected.isEmpty
+                            ? Colors.grey.shade50
+                            : Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: selected.isEmpty ? Colors.grey.shade300 : Colors.orange.shade300,
+                          color: selected.isEmpty
+                              ? Colors.grey.shade300
+                              : Colors.orange.shade300,
                         ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.auto_awesome, size: 18,
-                              color: selected.isEmpty ? Colors.grey.shade500 : Colors.orange),
+                          Icon(
+                            Icons.auto_awesome,
+                            size: 18,
+                            color: selected.isEmpty
+                                ? Colors.grey.shade500
+                                : Colors.orange,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              selected.isEmpty ? '從常用習慣選取' : '已選 ${selected.length} 個常用習慣',
+                              selected.isEmpty
+                                  ? '從常用習慣選取'
+                                  : '已選 ${selected.length} 個常用習慣',
                               style: TextStyle(
-                                color: selected.isEmpty ? Colors.grey.shade600 : Colors.orange.shade700,
+                                color: selected.isEmpty
+                                    ? Colors.grey.shade600
+                                    : Colors.orange.shade700,
                                 fontSize: 14,
                               ),
                             ),
                           ),
                           Icon(
-                            selected.isEmpty ? Icons.chevron_right : Icons.check_circle,
+                            selected.isEmpty
+                                ? Icons.chevron_right
+                                : Icons.check_circle,
                             size: 20,
-                            color: selected.isEmpty ? Colors.grey.shade400 : Colors.orange.shade600,
+                            color: selected.isEmpty
+                                ? Colors.grey.shade400
+                                : Colors.orange.shade600,
                           ),
                         ],
                       ),
@@ -1151,24 +1443,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(12),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: customExpanded
-                          ? (customName.isNotEmpty ? Colors.deepOrange.shade50 : Colors.grey.shade100)
+                          ? (customName.isNotEmpty
+                                ? Colors.deepOrange.shade50
+                                : Colors.grey.shade100)
                           : Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: customExpanded
-                            ? (customName.isNotEmpty ? Colors.deepOrange.shade300 : Colors.grey.shade300)
+                            ? (customName.isNotEmpty
+                                  ? Colors.deepOrange.shade300
+                                  : Colors.grey.shade300)
                             : Colors.grey.shade300,
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.edit_note, size: 18,
-                            color: customName.isNotEmpty
-                                ? Colors.deepOrange.shade500
-                                : Colors.grey.shade500),
+                        Icon(
+                          Icons.edit_note,
+                          size: 18,
+                          color: customName.isNotEmpty
+                              ? Colors.deepOrange.shade500
+                              : Colors.grey.shade500,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -1182,7 +1484,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                         ),
                         Icon(
-                          customExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          customExpanded
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
                           size: 20,
                           color: Colors.grey.shade400,
                         ),
@@ -1214,22 +1518,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             fillColor: Colors.white,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: Colors.grey.shade200),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: Colors.grey.shade200),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: Colors.orange.shade400),
+                              borderSide: BorderSide(
+                                color: Colors.orange.shade400,
+                              ),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text('頻率',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                        Text(
+                          '頻率',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         Row(
                           children: [
@@ -1252,9 +1571,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 onTap: () => setS(() => weeklyTarget--),
                               ),
                               const SizedBox(width: 8),
-                              Text('$weeklyTarget',
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              Text('  次', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                              Text(
+                                '$weeklyTarget',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '  次',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
                               const SizedBox(width: 8),
                               _AdjustBtn(
                                 icon: Icons.add,
@@ -1265,54 +1595,84 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Text('持續時間（選填）',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                        Text(
+                          '持續時間（選填）',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(28),
                             border: Border.all(
-                              color: customMinutes > 0 ? Colors.orange.shade300 : Colors.grey.shade300,
+                              color: customMinutes > 0
+                                  ? Colors.orange.shade300
+                                  : Colors.grey.shade300,
                               width: 1.5,
                             ),
-                            color: customMinutes > 0 ? Colors.orange.shade50 : Colors.white,
+                            color: customMinutes > 0
+                                ? Colors.orange.shade50
+                                : Colors.white,
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               GestureDetector(
                                 onTap: customMinutes > 0
-                                    ? () => setS(() =>
-                                        customMinutes = customMinutes <= 5 ? 0 : customMinutes - 5)
+                                    ? () => setS(
+                                        () => customMinutes = customMinutes <= 5
+                                            ? 0
+                                            : customMinutes - 5,
+                                      )
                                     : null,
                                 child: Container(
-                                  width: 44, height: 44,
+                                  width: 44,
+                                  height: 44,
                                   alignment: Alignment.center,
-                                  child: Icon(Icons.remove, size: 18,
-                                      color: customMinutes > 0
-                                          ? Colors.orange.shade700
-                                          : Colors.grey.shade300),
+                                  child: Icon(
+                                    Icons.remove,
+                                    size: 18,
+                                    color: customMinutes > 0
+                                        ? Colors.orange.shade700
+                                        : Colors.grey.shade300,
+                                  ),
                                 ),
                               ),
-                              Container(width: 1, height: 28,
-                                  color: customMinutes > 0
-                                      ? Colors.orange.shade200
-                                      : Colors.grey.shade200),
+                              Container(
+                                width: 1,
+                                height: 28,
+                                color: customMinutes > 0
+                                    ? Colors.orange.shade200
+                                    : Colors.grey.shade200,
+                              ),
                               GestureDetector(
                                 onTap: () async {
-                                  final result = await _showMinutesDialog(customMinutes);
-                                  if (result != null) setS(() => customMinutes = result);
+                                  final result = await _showMinutesDialog(
+                                    customMinutes,
+                                  );
+                                  if (result != null) {
+                                    setS(() => customMinutes = result);
+                                  }
                                 },
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.baseline,
                                     textBaseline: TextBaseline.alphabetic,
                                     children: [
                                       Text(
-                                        customMinutes > 0 ? '$customMinutes' : '--',
+                                        customMinutes > 0
+                                            ? '$customMinutes'
+                                            : '--',
                                         style: TextStyle(
                                           fontSize: 22,
                                           fontWeight: FontWeight.bold,
@@ -1322,35 +1682,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      Text('分鐘',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: customMinutes > 0
-                                                ? Colors.grey.shade600
-                                                : Colors.grey.shade400,
-                                          )),
+                                      Text(
+                                        '分鐘',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: customMinutes > 0
+                                              ? Colors.grey.shade600
+                                              : Colors.grey.shade400,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
                               ),
-                              Container(width: 1, height: 28,
-                                  color: customMinutes > 0
-                                      ? Colors.orange.shade200
-                                      : Colors.grey.shade200),
+                              Container(
+                                width: 1,
+                                height: 28,
+                                color: customMinutes > 0
+                                    ? Colors.orange.shade200
+                                    : Colors.grey.shade200,
+                              ),
                               GestureDetector(
                                 onTap: customMinutes < 999
-                                    ? () => setS(() =>
-                                        customMinutes = customMinutes == 0
+                                    ? () => setS(
+                                        () => customMinutes = customMinutes == 0
                                             ? 5
-                                            : (customMinutes + 5).clamp(5, 999))
+                                            : (customMinutes + 5).clamp(5, 999),
+                                      )
                                     : null,
                                 child: Container(
-                                  width: 44, height: 44,
+                                  width: 44,
+                                  height: 44,
                                   alignment: Alignment.center,
-                                  child: Icon(Icons.add, size: 18,
-                                      color: customMinutes < 999
-                                          ? Colors.orange.shade700
-                                          : Colors.grey.shade300),
+                                  child: Icon(
+                                    Icons.add,
+                                    size: 18,
+                                    color: customMinutes < 999
+                                        ? Colors.orange.shade700
+                                        : Colors.grey.shade300,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1359,7 +1729,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
-                  crossFadeState: customExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                  crossFadeState: customExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
                   duration: const Duration(milliseconds: 200),
                 ),
                 const SizedBox(height: 20),
@@ -1373,16 +1745,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             bool settingsChanged = false;
                             final prefs = await SharedPreferences.getInstance();
                             for (final name in selected.keys) {
-                              final idx = available.indexWhere((p) => p.name == name);
-                              if (idx != -1 && available[idx].linkedSetting != null) {
-                                final already = prefs.getBool(available[idx].linkedSetting!) ?? false;
+                              final idx = available.indexWhere(
+                                (p) => p.name == name,
+                              );
+                              if (idx != -1 &&
+                                  available[idx].linkedSetting != null) {
+                                final already =
+                                    prefs.getBool(
+                                      available[idx].linkedSetting!,
+                                    ) ??
+                                    false;
                                 if (!already) {
-                                  await prefs.setBool(available[idx].linkedSetting!, true);
+                                  await prefs.setBool(
+                                    available[idx].linkedSetting!,
+                                    true,
+                                  );
                                   settingsChanged = true;
                                 }
                               }
                             }
-                            if (settingsChanged) widget.onSettingsChanged?.call();
+                            if (settingsChanged) {
+                              widget.onSettingsChanged?.call();
+                            }
                             setState(() {
                               if (customName.isNotEmpty) {
                                 final fullName = customMinutes > 0
@@ -1400,9 +1784,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 habits.add(map);
                               }
                               for (final entry in selected.entries) {
-                                final p = available.firstWhere((p) => p.name == entry.key);
+                                final p = available.firstWhere(
+                                  (p) => p.name == entry.key,
+                                );
                                 final cfg = entry.value;
-                                final habitName = (p.defaultMinutes != null && cfg.minutes > 0)
+                                final habitName =
+                                    (p.defaultMinutes != null &&
+                                        cfg.minutes > 0)
                                     ? '${p.name} ${cfg.minutes} 分鐘'
                                     : p.name;
                                 final map = <String, dynamic>{
@@ -1422,7 +1810,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       disabledBackgroundColor: Colors.grey.shade200,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
@@ -1445,44 +1835,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final colors = _sceneColors;
-    final isNight = DateTime.now().hour >= 22 || DateTime.now().hour < 6;
+    final now = DateTime.now();
+    final isNight = now.hour >= 22 || now.hour < 6;
+    final sceneProgress = habits.isEmpty ? 0.0 : doneCount / habits.length;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        // 習慣頁背景固定淺色，狀態列圖示用深色才看得清楚
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-        title: Text(
-          '我的習慣',
-          style: TextStyle(
-            color: colors.accent,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-          ),
-        ),
-        centerTitle: true,
-        iconTheme: IconThemeData(color: colors.accent),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings_outlined, color: colors.accent),
-            tooltip: '設定',
-            onPressed: () async {
-              await Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (_, animation, _) => const SettingsPage(),
-                  transitionsBuilder: (_, animation, _, child) => SlideTransition(
-                    position: Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
-                        .chain(CurveTween(curve: Curves.easeInOut))
-                        .animate(animation),
-                    child: child,
-                  ),
+      appBar: MascotAppBar(
+        accent: colors.accent,
+        onSettingsReturn: () => widget.onSettingsChanged?.call(),
+        extraActions: [
+          if (streak > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Center(
+                child: MascotPill(
+                  icon: Icons.local_fire_department_rounded,
+                  label: '$streak 天',
+                  color: Colors.orange.shade600,
                 ),
-              );
-              widget.onSettingsChanged?.call();
-            },
-          ),
+              ),
+            ),
         ],
       ),
       body: AnimatedContainer(
@@ -1496,12 +1869,54 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
         child: Stack(
           children: [
-            // 整個畫面的場景裝飾（窗戶、植物等）
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MediaQuery.of(context).size.height * 0.56,
+              child: ClipRect(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Image.asset(
+                    'assets/images/room/tumi_room_stage_bg.png',
+                    height: double.infinity,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MediaQuery.of(context).size.height * 0.56,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 600),
+                color:
+                    (isNight
+                            ? const Color(0xFF3F456B)
+                            : allDone0 && habits.isNotEmpty
+                            ? const Color(0xFFFFF3C4)
+                            : Colors.transparent)
+                        .withValues(
+                          alpha: isNight
+                              ? 0.12
+                              : allDone0 && habits.isNotEmpty
+                              ? 0.10
+                              : 0,
+                        ),
+              ),
+            ),
+            // 互動狀態效果（完成星光、連續天數獎盃）
             Positioned.fill(
               child: CustomPaint(
-                painter: _RoomScenePainter(
+                painter: _RoomSceneEffectsPainter(
                   accent: colors.accent,
-                  isNight: isNight,
+                  progress: sceneProgress.clamp(0.0, 1.0),
+                  allDone: allDone0 && habits.isNotEmpty,
+                  streak: streak,
                 ),
               ),
             ),
@@ -1519,154 +1934,74 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
     final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
-    final now = DateTime.now();
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
-    final isNight = now.hour >= 22 || now.hour < 6;
     final speech = _transientSpeech ?? _mascotMessage;
 
+    return MascotPageShell(
+      accent: colors.accent,
+      scene: ScaleTransition(
+        scale: _celebScale,
+        child: MascotScene(
+          asset: _mascotAsset,
+          accent: colors.accent,
+          speech: speech,
+          reactionTick: _mascotReactionTick,
+          onTap: _onMascotTap,
+        ),
+      ),
+      child: _habitCardContent(
+        progress: progress,
+        displayDone: displayDone,
+        displayTotal: displayTotal,
+        accent: colors.accent,
+      ),
+    );
+  }
+
+  Widget _habitCardContent({
+    required double progress,
+    required int displayDone,
+    required int displayTotal,
+    required Color accent,
+  }) {
     return Column(
       children: [
-        const SizedBox(height: 8),
-        // 頂部狀態列
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _pill(
-                icon: isNight ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-                label: dateStr,
-                color: colors.accent,
-              ),
-              if (streak > 0)
-                _pill(
-                  icon: Icons.local_fire_department_rounded,
-                  label: '$streak 天',
-                  color: Colors.orange.shade600,
-                ),
-            ],
-          ),
-        ),
-        // 兔咪 + 對話泡泡（上半部）
-        Expanded(
-          flex: 5,
-          child: ScaleTransition(
-            scale: _celebScale,
-            child: Stack(
-              alignment: Alignment.center,
+        if (habits.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            child: Row(
               children: [
-                // 對話泡泡（上方）
-                Positioned(
-                  top: 4, left: 28, right: 28,
-                  child: _speechBubble(speech, colors.accent),
-                ),
-                // 兔咪 + 坐墊（同一 SizedBox 內，永遠連動）
-                Align(
-                  alignment: const Alignment(0, 0.4),
-                  child: GestureDetector(
-                    onTap: _onMascotTap,
-                    behavior: HitTestBehavior.opaque,
-                    child: SizedBox(
-                      width: 240, height: 240,
-                      child: Stack(
-                        children: [
-                          // 坐墊（位於兔咪腳底，緊貼 SizedBox 底部）
-                          Positioned(
-                            left: 30, right: 30, bottom: 8,
-                            child: CustomPaint(
-                              size: const Size(180, 30),
-                              painter: _CushionPainter(accent: colors.accent),
-                            ),
-                          ),
-                          // 兔咪 PNG（覆蓋在坐墊上方，腳會自然落在坐墊上）
-                          Positioned.fill(
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 400),
-                              transitionBuilder: (child, anim) =>
-                                  FadeTransition(
-                                opacity: anim,
-                                child: ScaleTransition(
-                                  scale: Tween(begin: 0.88, end: 1.0)
-                                      .animate(anim),
-                                  child: child,
-                                ),
-                              ),
-                              child: Image.asset(
-                                _mascotAsset,
-                                key: ValueKey(_mascotAsset),
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        ],
+                Expanded(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: progress),
+                    duration: const Duration(milliseconds: 700),
+                    curve: Curves.easeOut,
+                    builder: (_, value, _) => ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: value,
+                        minHeight: 6,
+                        backgroundColor: Colors.grey.shade200,
+                        valueColor: AlwaysStoppedAnimation(accent),
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-        // 習慣清單卡片（下半部，圓角白卡）
-        Expanded(
-          flex: 6,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.96),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.accent.withValues(alpha: 0.18),
-                  blurRadius: 18,
-                  offset: const Offset(0, -4),
+                const SizedBox(width: 10),
+                Text(
+                  '$displayDone / $displayTotal',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
-            child: Column(
-              children: [
-                // 底部進度條（細緻）
-                if (habits.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween(begin: 0.0, end: progress),
-                            duration: const Duration(milliseconds: 700),
-                            curve: Curves.easeOut,
-                            builder: (_, value, _) => ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: LinearProgressIndicator(
-                                value: value,
-                                minHeight: 6,
-                                backgroundColor: Colors.grey.shade200,
-                                valueColor: AlwaysStoppedAnimation(colors.accent),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          '$displayDone / $displayTotal',
-                          style: TextStyle(
-                            color: colors.accent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                _buildAddButton(),
-                const SizedBox(height: 10),
-                Expanded(child: _buildHabitList()),
-              ],
-            ),
           ),
-        ),
+        const SizedBox(height: 8),
+        _buildAddButton(),
+        const SizedBox(height: 10),
+        Expanded(child: _buildHabitList()),
       ],
     );
   }
@@ -1696,67 +2031,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _pill({required IconData icon, required String label, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _speechBubble(String text, Color accent) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 280),
-        child: CustomPaint(
-          painter: _SpeechBubblePainter(color: Colors.white, borderColor: accent.withValues(alpha: 0.25)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Text(
-                text,
-                key: ValueKey(text),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildAddButton() {
     return Padding(
@@ -1783,7 +2057,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 22, height: 22,
+                  width: 22,
+                  height: 22,
                   decoration: BoxDecoration(
                     color: Colors.orange.shade400,
                     shape: BoxShape.circle,
@@ -1815,10 +2090,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
     }
 
-    final dailyEntries = habits.asMap().entries
+    final dailyEntries = habits
+        .asMap()
+        .entries
         .where((e) => (e.value['frequency'] ?? 'daily') != 'weekly')
         .toList();
-    final weeklyEntries = habits.asMap().entries
+    final weeklyEntries = habits
+        .asMap()
+        .entries
         .where((e) => (e.value['frequency'] ?? 'daily') == 'weekly')
         .toList();
 
@@ -1835,7 +2114,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         curve: Curves.easeOut,
         builder: (_, v, child) => Opacity(
           opacity: v,
-          child: Transform.translate(offset: Offset(0, 16 * (1 - v)), child: child),
+          child: Transform.translate(
+            offset: Offset(0, 16 * (1 - v)),
+            child: child,
+          ),
         ),
         child: _HabitCard(
           key: ValueKey(name),
@@ -1846,13 +2128,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           isWeekly: (habit['frequency'] ?? 'daily') == 'weekly',
           weeklyCount: _weeklyCount(habit),
           weeklyTarget: (habit['weeklyTarget'] as int?) ?? 3,
-          todayCount: List<String>.from((habit['weeklyDates'] as List?) ?? [])
-              .where((d) => d == todayString()).length,
+          todayCount: List<String>.from(
+            (habit['weeklyDates'] as List?) ?? [],
+          ).where((d) => d == todayString()).length,
           onDecrement: (habit['frequency'] ?? 'daily') == 'weekly'
               ? () => decrementWeeklyHabit(index)
               : null,
-          isLinked: _kHomePresets.any((p) =>
-              p.linkedSetting != null && habit['name'] == p.name),
+          isLinked: _kHomePresets.any(
+            (p) => p.linkedSetting != null && habit['name'] == p.name,
+          ),
         ),
       );
     }
@@ -1886,15 +2170,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _habitSectionLabel(String label, IconData icon, Color color,
-      {required int done, required int total}) {
+  Widget _habitSectionLabel(
+    String label,
+    IconData icon,
+    Color color, {
+    required int done,
+    required int total,
+  }) {
     final allDone = total > 0 && done == total;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, top: 6, left: 2),
       child: Row(
         children: [
           Container(
-            width: 26, height: 26,
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
@@ -1915,7 +2205,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: allDone ? Colors.green.shade50 : color.withValues(alpha: 0.10),
+              color: allDone
+                  ? Colors.green.shade50
+                  : color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -1929,13 +2221,151 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           if (allDone) ...[
             const SizedBox(width: 6),
-            Icon(Icons.check_circle_rounded, size: 14, color: Colors.green.shade400),
+            Icon(
+              Icons.check_circle_rounded,
+              size: 14,
+              color: Colors.green.shade400,
+            ),
           ],
         ],
       ),
     );
   }
 }
+
+// ── 生成背景上方的互動效果層：保留狀態回饋，不再重畫整個房間 ──
+class _RoomSceneEffectsPainter extends CustomPainter {
+  final Color accent;
+  final double progress;
+  final bool allDone;
+  final int streak;
+
+  _RoomSceneEffectsPainter({
+    required this.accent,
+    required this.progress,
+    required this.allDone,
+    required this.streak,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final floorY = size.height * 0.52;
+    if (streak >= 3) {
+      _paintTrophy(canvas, Offset(size.width - 60, 202));
+    }
+    if (allDone) {
+      _paintCompletionSparkles(canvas, size, floorY);
+    }
+  }
+
+  void _paintTrophy(Canvas canvas, Offset base) {
+    final gold = Paint()
+      ..color = const Color(0xFFFFC857).withValues(alpha: 0.86);
+    final darkGold = Paint()
+      ..color = const Color(0xFFE0A928).withValues(alpha: 0.82);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(base.dx, base.dy - 17),
+          width: 22,
+          height: 20,
+        ),
+        const Radius.circular(4),
+      ),
+      gold,
+    );
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(base.dx - 13, base.dy - 18),
+        width: 16,
+        height: 14,
+      ),
+      math.pi / 2,
+      math.pi,
+      false,
+      darkGold
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(base.dx + 13, base.dy - 18),
+        width: 16,
+        height: 14,
+      ),
+      -math.pi / 2,
+      math.pi,
+      false,
+      darkGold
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: Offset(base.dx, base.dy - 2),
+        width: 5,
+        height: 12,
+      ),
+      darkGold..style = PaintingStyle.fill,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(base.dx, base.dy + 6),
+          width: 26,
+          height: 7,
+        ),
+        const Radius.circular(2),
+      ),
+      Paint()..color = const Color(0xFF8D6E63).withValues(alpha: 0.64),
+    );
+  }
+
+  void _paintCompletionSparkles(Canvas canvas, Size size, double floorY) {
+    final sparklePaint = Paint()
+      ..color = const Color(
+        0xFFFFD54F,
+      ).withValues(alpha: 0.48 + progress * 0.22)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    final points = [
+      Offset(size.width * 0.22, floorY - 84),
+      Offset(size.width * 0.39, floorY - 132),
+      Offset(size.width * 0.62, floorY - 116),
+      Offset(size.width * 0.78, floorY - 74),
+      Offset(size.width * 0.52, floorY - 46),
+    ];
+    for (var i = 0; i < points.length; i++) {
+      _drawTinySparkle(canvas, points[i], 4.0 + i % 2 * 1.5, sparklePaint);
+    }
+  }
+
+  void _drawTinySparkle(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Paint paint,
+  ) {
+    canvas.drawLine(
+      Offset(center.dx - radius, center.dy),
+      Offset(center.dx + radius, center.dy),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - radius),
+      Offset(center.dx, center.dy + radius),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoomSceneEffectsPainter old) =>
+      old.accent != accent ||
+      old.progress != progress ||
+      old.allDone != allDone ||
+      old.streak != streak;
+}
+
 
 // ── 習慣卡片（含彈跳動畫）──
 
@@ -1969,7 +2399,8 @@ class _HabitCard extends StatefulWidget {
   State<_HabitCard> createState() => _HabitCardState();
 }
 
-class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMixin {
+class _HabitCardState extends State<_HabitCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _scale;
 
@@ -1998,7 +2429,11 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
     widget.onToggle();
   }
 
-  Widget _weeklyBtn({required IconData icon, VoidCallback? onTap, double size = 30}) {
+  Widget _weeklyBtn({
+    required IconData icon,
+    VoidCallback? onTap,
+    double size = 30,
+  }) {
     final active = onTap != null;
     return GestureDetector(
       onTap: onTap,
@@ -2010,8 +2445,11 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
           shape: BoxShape.circle,
           color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
         ),
-        child: Icon(icon, size: size * 0.53,
-            color: active ? Colors.indigo.shade500 : Colors.grey.shade400),
+        child: Icon(
+          icon,
+          size: size * 0.53,
+          color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+        ),
       ),
     );
   }
@@ -2039,103 +2477,143 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 66),
               child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 5,
-                  color: done
-                      ? Colors.green.shade400
-                      : widget.isLinked
-                          ? Colors.blue.shade400
-                          : Colors.orange.shade400,
-                ),
-                Expanded(
-                  child: ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                    leading: GestureDetector(
-                      onTap: _handleTap,
-                      child: ScaleTransition(
-                        scale: _scale,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            gradient: done
-                                ? LinearGradient(
-                                    colors: [Colors.green.shade400, Colors.green.shade500],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 5,
+                    color: done
+                        ? Colors.green.shade400
+                        : widget.isLinked
+                        ? Colors.blue.shade400
+                        : Colors.orange.shade400,
+                  ),
+                  Expanded(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 2,
+                      ),
+                      leading: GestureDetector(
+                        onTap: _handleTap,
+                        child: ScaleTransition(
+                          scale: _scale,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              gradient: done
+                                  ? LinearGradient(
+                                      colors: [
+                                        Colors.green.shade400,
+                                        Colors.green.shade500,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
+                              color: done ? null : Colors.grey.shade50,
+                              border: done
+                                  ? null
+                                  : Border.all(
+                                      color: Colors.grey.shade300,
+                                      width: 1.8,
+                                    ),
+                              shape: BoxShape.circle,
+                              boxShadow: done
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.green.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: done
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 20,
                                   )
                                 : null,
-                            color: done ? null : Colors.grey.shade50,
-                            border: done
-                                ? null
-                                : Border.all(color: Colors.grey.shade300, width: 1.8),
-                            shape: BoxShape.circle,
-                            boxShadow: done
-                                ? [BoxShadow(
-                                    color: Colors.green.withValues(alpha: 0.3),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  )]
-                                : null,
                           ),
-                          child: done
-                              ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
-                              : null,
                         ),
                       ),
-                    ),
-                    title: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 250),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        decoration:
-                            done ? TextDecoration.lineThrough : TextDecoration.none,
-                        color: done ? Colors.grey.shade400 : Colors.black87,
+                      title: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          decoration: done
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: done ? Colors.grey.shade400 : Colors.black87,
+                        ),
+                        child: Text(
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
-                    ),
-                    subtitle: widget.isLinked
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.link, size: 11, color: Colors.blue.shade400),
-                                const SizedBox(width: 3),
-                                Text('連動喝水頁面',
+                      subtitle: widget.isLinked
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.link,
+                                    size: 11,
+                                    color: Colors.blue.shade400,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '連動喝水頁面',
                                     style: TextStyle(
-                                        fontSize: 11, color: Colors.blue.shade500)),
-                              ],
-                            ),
-                          )
-                        : null,
-                    trailing: PopupMenuButton<String>(
-                      icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'edit', child: Text('編輯')),
-                        PopupMenuItem(
+                                      fontSize: 11,
+                                      color: Colors.blue.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : null,
+                      trailing: PopupMenuButton<String>(
+                        icon: Icon(
+                          Icons.more_vert,
+                          size: 20,
+                          color: Colors.grey.shade400,
+                        ),
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'edit', child: Text('編輯')),
+                          PopupMenuItem(
                             value: 'delete',
-                            child: Text('刪除', style: TextStyle(color: Colors.red))),
-                      ],
-                      onSelected: (v) {
-                        if (v == 'edit') { widget.onEdit(); }
-                        else { widget.onDelete(); }
-                      },
+                            child: Text(
+                              '刪除',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                        onSelected: (v) {
+                          if (v == 'edit') {
+                            widget.onEdit();
+                          } else {
+                            widget.onDelete();
+                          }
+                        },
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -2151,8 +2629,8 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
         color: done
             ? const Color(0xFFF1F8E9)
             : inProgress
-                ? const Color(0xFFF3F2FB)
-                : Colors.white,
+            ? const Color(0xFFF3F2FB)
+            : Colors.white,
         borderRadius: BorderRadius.circular(16),
         elevation: done ? 0 : 1.5,
         shadowColor: Colors.indigo.withValues(alpha: 0.18),
@@ -2162,128 +2640,152 @@ class _HabitCardState extends State<_HabitCard> with SingleTickerProviderStateMi
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 66),
               child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 左邊條
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 5,
-                  color: done ? Colors.green.shade400 : Colors.indigo.shade300,
-                ),
-                // ⊖ n ⊕ 計數區（取代 checkbox）
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _weeklyBtn(
-                          icon: Icons.remove_rounded,
-                          onTap: todayCount > 0
-                              ? () { widget.onDecrement?.call(); }
-                              : null,
-                        ),
-                        const SizedBox(width: 4),
-                        ScaleTransition(
-                          scale: _scale,
-                          child: SizedBox(
-                            width: 24,
-                            child: Text(
-                              '$todayCount',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: todayCount > 0
-                                    ? Colors.indigo.shade700
-                                    : Colors.grey.shade400,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 左邊條
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 5,
+                    color: done
+                        ? Colors.green.shade400
+                        : Colors.indigo.shade300,
+                  ),
+                  // ⊖ n ⊕ 計數區（取代 checkbox）
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _weeklyBtn(
+                            icon: Icons.remove_rounded,
+                            onTap: todayCount > 0
+                                ? () {
+                                    widget.onDecrement?.call();
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(width: 4),
+                          ScaleTransition(
+                            scale: _scale,
+                            child: SizedBox(
+                              width: 24,
+                              child: Text(
+                                '$todayCount',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: todayCount > 0
+                                      ? Colors.indigo.shade700
+                                      : Colors.grey.shade400,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        _weeklyBtn(
-                          icon: Icons.add_rounded,
-                          onTap: widget.weeklyCount < 20
-                              ? () {
-                                  _ctrl.forward(from: 0);
-                                  widget.onToggle();
-                                }
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // 習慣名稱
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 250),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        decoration:
-                            done ? TextDecoration.lineThrough : TextDecoration.none,
-                        color: done ? Colors.grey.shade400 : Colors.black87,
-                      ),
-                      child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
-                    ),
-                  ),
-                ),
-                // 本週 N/M 膠囊
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: done
-                          ? Colors.green.shade100
-                          : Colors.indigo.shade50,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          done ? Icons.check_rounded : Icons.flag_rounded,
-                          size: 11,
-                          color: done ? Colors.green.shade700 : Colors.indigo.shade400,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${widget.weeklyCount}/${widget.weeklyTarget}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: done ? Colors.green.shade700 : Colors.indigo.shade500,
+                          const SizedBox(width: 4),
+                          _weeklyBtn(
+                            icon: Icons.add_rounded,
+                            onTap: widget.weeklyCount < 20
+                                ? () {
+                                    _ctrl.forward(from: 0);
+                                    widget.onToggle();
+                                  }
+                                : null,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                // 選單
-                PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('編輯')),
-                    PopupMenuItem(
+                  // 習慣名稱
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          decoration: done
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: done ? Colors.grey.shade400 : Colors.black87,
+                        ),
+                        child: Text(
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 本週 N/M 膠囊
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: done
+                            ? Colors.green.shade100
+                            : Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            done ? Icons.check_rounded : Icons.flag_rounded,
+                            size: 11,
+                            color: done
+                                ? Colors.green.shade700
+                                : Colors.indigo.shade400,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${widget.weeklyCount}/${widget.weeklyTarget}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: done
+                                  ? Colors.green.shade700
+                                  : Colors.indigo.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 選單
+                  PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      size: 20,
+                      color: Colors.grey.shade400,
+                    ),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('編輯')),
+                      PopupMenuItem(
                         value: 'delete',
-                        child: Text('刪除', style: TextStyle(color: Colors.red))),
-                  ],
-                  onSelected: (v) {
-                    if (v == 'edit') { widget.onEdit(); }
-                    else { widget.onDelete(); }
-                  },
-                ),
-              ],
+                        child: Text('刪除', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                    onSelected: (v) {
+                      if (v == 'edit') {
+                        widget.onEdit();
+                      } else {
+                        widget.onDelete();
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }
@@ -2314,9 +2816,13 @@ class _GreetingBannerState extends State<_GreetingBanner>
   void initState() {
     super.initState();
     anim = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 350));
-    slide = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: anim, curve: Curves.easeOut));
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    slide = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut));
     anim.forward();
   }
 
@@ -2358,7 +2864,9 @@ class _GreetingBannerState extends State<_GreetingBanner>
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                        color: Colors.orange.shade100, shape: BoxShape.circle),
+                      color: Colors.orange.shade100,
+                      shape: BoxShape.circle,
+                    ),
                     padding: const EdgeInsets.all(3),
                     child: Image.asset(
                       'assets/images/mascot/tumi_cheer.png',
@@ -2391,7 +2899,11 @@ class _AdjustBtn extends StatelessWidget {
   final IconData icon;
   final bool enabled;
   final VoidCallback onTap;
-  const _AdjustBtn({required this.icon, required this.enabled, required this.onTap});
+  const _AdjustBtn({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2399,7 +2911,8 @@ class _AdjustBtn extends StatelessWidget {
       onTap: enabled ? onTap : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        width: 32, height: 32,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: enabled ? Colors.white : Colors.grey.shade100,
@@ -2408,11 +2921,20 @@ class _AdjustBtn extends StatelessWidget {
             width: 1.5,
           ),
           boxShadow: enabled
-              ? [BoxShadow(color: Colors.orange.withValues(alpha: 0.15), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
-        child: Icon(icon, size: 16,
-            color: enabled ? Colors.orange.shade700 : Colors.grey.shade400),
+        child: Icon(
+          icon,
+          size: 16,
+          color: enabled ? Colors.orange.shade700 : Colors.grey.shade400,
+        ),
       ),
     );
   }
@@ -2423,7 +2945,11 @@ class _FreqChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _FreqChip({required this.label, required this.selected, required this.onTap});
+  const _FreqChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2440,7 +2966,13 @@ class _FreqChip extends StatelessWidget {
             width: 1.5,
           ),
           boxShadow: selected
-              ? [BoxShadow(color: Colors.orange.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                    color: Colors.orange.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
         child: Text(
@@ -2459,10 +2991,20 @@ class _FreqChip extends StatelessWidget {
 // ── 兔咪場景背景 painter（窗戶、地板線、植物） ──
 // ── 兔咪的家：完整房間場景 painter ──
 // 包含：窗戶（避開頂部日期 pill）、畫框、書架、植物、地板分隔、坐墊
+// ignore: unused_element
 class _RoomScenePainter extends CustomPainter {
   final Color accent;
   final bool isNight;
-  _RoomScenePainter({required this.accent, required this.isNight});
+  final double progress;
+  final bool allDone;
+  final int streak;
+  _RoomScenePainter({
+    required this.accent,
+    required this.isNight,
+    required this.progress,
+    required this.allDone,
+    required this.streak,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2472,12 +3014,23 @@ class _RoomScenePainter extends CustomPainter {
     // 場景區域大約佔上半部 ~55%（下方被白色習慣卡覆蓋）
     final floorY = h * 0.52;
 
+    _paintWallTexture(canvas, size, floorY);
+
     // 1. 地板顏色帶（淡淡的木頭色調）
     final floorPaint = Paint()
       ..color = isNight
           ? const Color(0xFF6D4C41).withValues(alpha: 0.10)
           : const Color(0xFFBCAAA4).withValues(alpha: 0.18);
     canvas.drawRect(Rect.fromLTWH(0, floorY, w, h - floorY), floorPaint);
+    _paintFloorBoards(canvas, size, floorY);
+    _paintRug(
+      canvas,
+      Rect.fromCenter(
+        center: Offset(w / 2, floorY + 42),
+        width: math.min(260, w * 0.68),
+        height: 74,
+      ),
+    );
 
     // 地板與牆的分隔線
     final lineP = Paint()
@@ -2486,13 +3039,19 @@ class _RoomScenePainter extends CustomPainter {
     canvas.drawLine(Offset(0, floorY), Offset(w, floorY), lineP);
 
     // 2. 窗戶（右側，避開左邊的日期 pill）
-    _paintWindow(canvas, Rect.fromLTWH(w - 92, 116, 74, 64));
+    final windowRect = Rect.fromLTWH(w - 96, 112, 78, 68);
+    _paintWindowGlow(canvas, windowRect);
+    _paintWindow(canvas, windowRect);
 
     // 3. 牆上畫框（左側，明確在日期 pill 下方）
     _paintPictureFrame(canvas, Rect.fromLTWH(28, 168, 52, 44));
 
     // 4. 書架（右側，畫框對應位置）
     _paintShelf(canvas, Rect.fromLTWH(w - 88, 208, 66, 18));
+
+    if (streak >= 3) {
+      _paintTrophy(canvas, Offset(w - 60, 202));
+    }
 
     // 5. 兔咪坐墊已移至前景兔咪 SizedBox 內（_CushionPainter），確保與兔咪連動
 
@@ -2501,6 +3060,68 @@ class _RoomScenePainter extends CustomPainter {
 
     // 7. 小檯燈（右下角地板）
     _paintLamp(canvas, Offset(w - 38, floorY - 22));
+
+    if (allDone) {
+      _paintCompletionSparkles(canvas, size, floorY);
+    }
+  }
+
+  void _paintWallTexture(Canvas canvas, Size size, double floorY) {
+    final dotPaint = Paint()
+      ..color = Colors.white.withValues(alpha: isNight ? 0.12 : 0.22);
+    for (var y = 88.0; y < floorY - 22; y += 34) {
+      for (var x = 18.0; x < size.width; x += 42) {
+        final offset = ((y / 34).round().isEven ? 0 : 18).toDouble();
+        canvas.drawCircle(Offset(x + offset, y), 1.2, dotPaint);
+      }
+    }
+  }
+
+  void _paintFloorBoards(Canvas canvas, Size size, double floorY) {
+    final boardPaint = Paint()
+      ..color = Colors.white.withValues(alpha: isNight ? 0.10 : 0.18)
+      ..strokeWidth = 1;
+    for (var y = floorY + 24; y < size.height; y += 28) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), boardPaint);
+    }
+    for (var x = 28.0; x < size.width; x += 76) {
+      canvas.drawLine(
+        Offset(x, floorY + 8),
+        Offset(x + 22, size.height),
+        Paint()
+          ..color = Colors.white.withValues(alpha: isNight ? 0.05 : 0.10)
+          ..strokeWidth = 0.8,
+      );
+    }
+  }
+
+  void _paintRug(Canvas canvas, Rect rect) {
+    final base = Paint()
+      ..color = accent.withValues(alpha: isNight ? 0.18 : 0.24);
+    canvas.drawOval(rect, base);
+    canvas.drawOval(
+      rect.deflate(9),
+      Paint()..color = Colors.white.withValues(alpha: isNight ? 0.11 : 0.20),
+    );
+    canvas.drawOval(
+      rect.deflate(18),
+      Paint()..color = accent.withValues(alpha: isNight ? 0.13 : 0.20),
+    );
+  }
+
+  void _paintWindowGlow(Canvas canvas, Rect rect) {
+    final glowRect = Rect.fromCenter(
+      center: Offset(rect.center.dx - 20, rect.center.dy + 52),
+      width: 170,
+      height: 118,
+    );
+    canvas.drawOval(
+      glowRect,
+      Paint()
+        ..color = (isNight ? const Color(0xFFFFF3C4) : const Color(0xFFFFF8E1))
+            .withValues(alpha: isNight ? 0.13 : 0.26)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+    );
   }
 
   void _paintWindow(Canvas canvas, Rect rect) {
@@ -2559,7 +3180,8 @@ class _RoomScenePainter extends CustomPainter {
     }
 
     // 窗簾（左右各一條，溫馨感）
-    final curtain = Paint()..color = const Color(0xFFEF9A9A).withValues(alpha: 0.55);
+    final curtain = Paint()
+      ..color = const Color(0xFFEF9A9A).withValues(alpha: 0.55);
     final curtainW = 8.0;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -2596,8 +3218,16 @@ class _RoomScenePainter extends CustomPainter {
     final heartPaint = Paint()
       ..color = const Color(0xFFE57373).withValues(alpha: 0.85);
     final r = 4.0;
-    canvas.drawCircle(Offset(heartCenter.dx - r * 0.8, heartCenter.dy - 1), r, heartPaint);
-    canvas.drawCircle(Offset(heartCenter.dx + r * 0.8, heartCenter.dy - 1), r, heartPaint);
+    canvas.drawCircle(
+      Offset(heartCenter.dx - r * 0.8, heartCenter.dy - 1),
+      r,
+      heartPaint,
+    );
+    canvas.drawCircle(
+      Offset(heartCenter.dx + r * 0.8, heartCenter.dy - 1),
+      r,
+      heartPaint,
+    );
     final path = Path()
       ..moveTo(heartCenter.dx - r * 1.6, heartCenter.dy + 1)
       ..lineTo(heartCenter.dx, heartCenter.dy + r * 1.8)
@@ -2629,15 +3259,119 @@ class _RoomScenePainter extends CustomPainter {
     }
   }
 
+  void _paintTrophy(Canvas canvas, Offset base) {
+    final gold = Paint()
+      ..color = const Color(0xFFFFC857).withValues(alpha: 0.86);
+    final darkGold = Paint()
+      ..color = const Color(0xFFE0A928).withValues(alpha: 0.82);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(base.dx, base.dy - 17),
+          width: 22,
+          height: 20,
+        ),
+        const Radius.circular(4),
+      ),
+      gold,
+    );
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(base.dx - 13, base.dy - 18),
+        width: 16,
+        height: 14,
+      ),
+      math.pi / 2,
+      math.pi,
+      false,
+      darkGold
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(base.dx + 13, base.dy - 18),
+        width: 16,
+        height: 14,
+      ),
+      -math.pi / 2,
+      math.pi,
+      false,
+      darkGold
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: Offset(base.dx, base.dy - 2),
+        width: 5,
+        height: 12,
+      ),
+      darkGold..style = PaintingStyle.fill,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(base.dx, base.dy + 6),
+          width: 26,
+          height: 7,
+        ),
+        const Radius.circular(2),
+      ),
+      Paint()..color = const Color(0xFF8D6E63).withValues(alpha: 0.64),
+    );
+  }
+
+  void _paintCompletionSparkles(Canvas canvas, Size size, double floorY) {
+    final sparklePaint = Paint()
+      ..color = const Color(
+        0xFFFFD54F,
+      ).withValues(alpha: 0.48 + progress * 0.22);
+    final points = [
+      Offset(size.width * 0.22, floorY - 84),
+      Offset(size.width * 0.39, floorY - 132),
+      Offset(size.width * 0.62, floorY - 116),
+      Offset(size.width * 0.78, floorY - 74),
+      Offset(size.width * 0.52, floorY - 46),
+    ];
+    for (var i = 0; i < points.length; i++) {
+      _drawTinySparkle(canvas, points[i], 4.0 + i % 2 * 1.5, sparklePaint);
+    }
+  }
+
+  void _drawTinySparkle(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Paint paint,
+  ) {
+    canvas.drawLine(
+      Offset(center.dx - radius, center.dy),
+      Offset(center.dx + radius, center.dy),
+      paint
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - radius),
+      Offset(center.dx, center.dy + radius),
+      paint,
+    );
+  }
+
   void _paintPlant(Canvas canvas, Offset base) {
     // 花盆
     final potRect = Rect.fromCenter(
       center: Offset(base.dx, base.dy + 8),
-      width: 26, height: 18,
+      width: 26,
+      height: 18,
     );
     canvas.drawRRect(
       RRect.fromLTRBAndCorners(
-        potRect.left, potRect.top, potRect.right, potRect.bottom,
+        potRect.left,
+        potRect.top,
+        potRect.right,
+        potRect.bottom,
         bottomLeft: const Radius.circular(2),
         bottomRight: const Radius.circular(2),
         topLeft: const Radius.circular(1),
@@ -2646,17 +3380,30 @@ class _RoomScenePainter extends CustomPainter {
       Paint()..color = const Color(0xFFA1887F).withValues(alpha: 0.85),
     );
     // 葉子（三片，由小到大）
-    final leaf = Paint()..color = const Color(0xFF66BB6A).withValues(alpha: 0.78);
+    final leaf = Paint()
+      ..color = const Color(0xFF66BB6A).withValues(alpha: 0.78);
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(base.dx - 8, base.dy - 4), width: 14, height: 18),
+      Rect.fromCenter(
+        center: Offset(base.dx - 8, base.dy - 4),
+        width: 14,
+        height: 18,
+      ),
       leaf,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(base.dx + 8, base.dy - 4), width: 14, height: 18),
+      Rect.fromCenter(
+        center: Offset(base.dx + 8, base.dy - 4),
+        width: 14,
+        height: 18,
+      ),
       leaf,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(base.dx, base.dy - 12), width: 16, height: 20),
+      Rect.fromCenter(
+        center: Offset(base.dx, base.dy - 12),
+        width: 16,
+        height: 20,
+      ),
       Paint()..color = const Color(0xFF81C784).withValues(alpha: 0.85),
     );
   }
@@ -2664,7 +3411,11 @@ class _RoomScenePainter extends CustomPainter {
   void _paintLamp(Canvas canvas, Offset base) {
     // 燈座
     canvas.drawRect(
-      Rect.fromCenter(center: Offset(base.dx, base.dy + 12), width: 16, height: 6),
+      Rect.fromCenter(
+        center: Offset(base.dx, base.dy + 12),
+        width: 16,
+        height: 6,
+      ),
       Paint()..color = const Color(0xFF6D4C41).withValues(alpha: 0.65),
     );
     // 燈柱
@@ -2700,76 +3451,10 @@ class _RoomScenePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RoomScenePainter old) =>
-      old.accent != accent || old.isNight != isNight;
+      old.accent != accent ||
+      old.isNight != isNight ||
+      old.progress != progress ||
+      old.allDone != allDone ||
+      old.streak != streak;
 }
 
-// ── 坐墊 painter（兩層橢圓：外圍像影子、內層較深像墊面）──
-// 抽出獨立 painter 是為了讓坐墊跟兔咪在同一個 SizedBox 內定位，永遠連動
-class _CushionPainter extends CustomPainter {
-  final Color accent;
-  _CushionPainter({required this.accent});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: size.width, height: size.height),
-      Paint()..color = accent.withValues(alpha: 0.22),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: center,
-        width: size.width * 0.89,
-        height: size.height * 0.73,
-      ),
-      Paint()..color = accent.withValues(alpha: 0.35),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _CushionPainter old) => old.accent != accent;
-}
-
-// ── 對話泡泡 painter ──
-class _SpeechBubblePainter extends CustomPainter {
-  final Color color;
-  final Color borderColor;
-  _SpeechBubblePainter({required this.color, required this.borderColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bodyRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.width, size.height - 8),
-      const Radius.circular(16),
-    );
-    final fillPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.08)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-
-    canvas.drawRRect(bodyRect.shift(const Offset(0, 2)), shadowPaint);
-    canvas.drawRRect(bodyRect, fillPaint);
-
-    // 邊框
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawRRect(bodyRect, borderPaint);
-
-    // 下方小三角尾巴
-    final tailPath = Path()
-      ..moveTo(size.width / 2 - 8, size.height - 8)
-      ..lineTo(size.width / 2, size.height)
-      ..lineTo(size.width / 2 + 8, size.height - 8)
-      ..close();
-    canvas.drawPath(tailPath, fillPaint);
-    canvas.drawPath(tailPath, borderPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SpeechBubblePainter old) =>
-      old.color != color || old.borderColor != borderColor;
-}

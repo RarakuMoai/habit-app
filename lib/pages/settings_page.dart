@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/units.dart';
 import 'profile_edit_page.dart';
 import 'feature_settings_page.dart';
 
@@ -19,6 +20,9 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _parentPin;   // null 表示尚未設定
   int _pinDigits = 4;   // 4 或 6 位
 
+  // 公制 / 英制
+  UnitSystem _unitSystem = UnitSystem.metric;
+
   SharedPreferences? _prefs;
 
   @override
@@ -32,8 +36,15 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _parentPin = _prefs!.getString('parent_pin');
       _pinDigits = _prefs!.getInt('pin_digits') ?? 4;
+      _unitSystem = UnitSystem.load(_prefs!);
       _loaded = true;
     });
+  }
+
+  Future<void> _setUnitSystem(UnitSystem v) async {
+    if (v == _unitSystem) return;
+    setState(() => _unitSystem = v);
+    if (_prefs != null) await UnitSystem.save(_prefs!, v);
   }
 
   Future<void> _clearHabits() async {
@@ -289,6 +300,59 @@ class _SettingsPageState extends State<SettingsPage> {
                         MaterialPageRoute(builder: (_) => const ProfileEditPage()),
                       );
                     },
+                  ),
+                ),
+
+                const Divider(height: 32, thickness: 1),
+
+                // ── 區塊：單位（公制／英制）──
+                _sectionTitle('單位', Icons.straighten_outlined),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '身高、體重、容量的顯示方式',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SegmentedButton<UnitSystem>(
+                        segments: const [
+                          ButtonSegment(
+                            value: UnitSystem.metric,
+                            label: Text('公制'),
+                            icon: Icon(Icons.straighten),
+                          ),
+                          ButtonSegment(
+                            value: UnitSystem.imperial,
+                            label: Text('英制'),
+                            icon: Icon(Icons.square_foot),
+                          ),
+                        ],
+                        selected: {_unitSystem},
+                        onSelectionChanged: (sel) =>
+                            _setUnitSystem(sel.first),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _unitSystem == UnitSystem.metric
+                            ? 'cm · kg · ml' // units-ok
+                            : 'ft / in · lb · fl oz', // units-ok
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 

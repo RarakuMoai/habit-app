@@ -5,6 +5,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/mascot.dart';
+import '../widgets/mascot_app_bar.dart';
+import '../widgets/mascot_page_shell.dart';
+import '../widgets/mascot_scene.dart';
 import 'settings_page.dart';
 
 // ── 家長 Session（全域）──
@@ -811,44 +815,32 @@ class _FamilyPageState extends State<FamilyPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('家庭'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: '設定',
-            onPressed: () async {
-              await Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      const SettingsPage(),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                        const begin = Offset(1.0, 0.0);
-                        const end = Offset.zero;
-                        final tween = Tween(
-                          begin: begin,
-                          end: end,
-                        ).chain(CurveTween(curve: Curves.easeInOut));
-                        return SlideTransition(
-                          position: animation.drive(tween),
-                          child: child,
-                        );
-                      },
-                ),
-              );
-              widget.onSettingsChanged?.call();
-              _loadChildren();
-            },
-          ),
-        ],
+      extendBodyBehindAppBar: true,
+      appBar: MascotAppBar(
+        accent: Theme.of(context).colorScheme.primary,
+        onSettingsReturn: () {
+          widget.onSettingsChanged?.call();
+          _loadChildren();
+        },
       ),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
-          : _children.isEmpty
-          ? _buildEmpty()
-          : _buildChildList(),
+          : SafeArea(
+              child: MascotPageShell(
+                accent: Theme.of(context).colorScheme.primary,
+                scene: MascotScene(
+                  asset: MascotLines
+                      .emotionFor(MascotContext.openApp)
+                      .assetPath,
+                  accent: Theme.of(context).colorScheme.primary,
+                  speech: MascotLines.lineFor(
+                    MascotContext.openApp,
+                    seed: _children.length,
+                  ),
+                ),
+                child: _children.isEmpty ? _buildEmpty() : _buildChildList(),
+              ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _enterParentManagement,
         icon: const Icon(Icons.lock_outline),

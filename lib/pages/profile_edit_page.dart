@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/units.dart';
+import '../utils/user_validators.dart';
+
 class ProfileEditPage extends StatefulWidget {
   const ProfileEditPage({super.key});
 
@@ -12,13 +15,17 @@ class ProfileEditPage extends StatefulWidget {
 class _ProfileEditPageState extends State<ProfileEditPage> {
   final TextEditingController _nicknameCtrl = TextEditingController();
   final TextEditingController _mascotCtrl = TextEditingController();
+  // 身高：metric 時是 cm；imperial 時是 ft（搭配 _heightInCtrl 的 in）
   final TextEditingController _heightCtrl = TextEditingController();
+  final TextEditingController _heightInCtrl = TextEditingController();
+  // 體重 / 目標體重：依當下單位是 kg 或 lb
   final TextEditingController _weightCtrl = TextEditingController();
   final TextEditingController _targetWeightCtrl = TextEditingController();
 
   String _gender = '';
   DateTime? _birthday; // 生日（選填）
   String _activityLevel = ''; // 活動量（久坐/輕度/中度/高度），用於計算 TDEE
+  UnitSystem _unit = UnitSystem.metric;
   bool _loaded = false;
 
   // 活動量等級與說明
@@ -35,6 +42,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     // 欄位變動時重繪，驅動儲存按鈕狀態與範圍錯誤提示
     _nicknameCtrl.addListener(() => setState(() {}));
     _heightCtrl.addListener(() => setState(() {}));
+    _heightInCtrl.addListener(() => setState(() {}));
     _weightCtrl.addListener(() => setState(() {}));
     _targetWeightCtrl.addListener(() => setState(() {}));
     _load();
@@ -45,6 +53,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     _nicknameCtrl.dispose();
     _mascotCtrl.dispose();
     _heightCtrl.dispose();
+    _heightInCtrl.dispose();
     _weightCtrl.dispose();
     _targetWeightCtrl.dispose();
     super.dispose();
@@ -57,22 +66,59 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    final unit = UnitSystem.load(prefs);
     final double? h = prefs.getDouble('user_height');
     final double? w = prefs.getDouble('user_weight');
     final double? tw = prefs.getDouble('target_weight');
     final String? bday = prefs.getString('user_birthday');
     setState(() {
+      _unit = unit;
       _nicknameCtrl.text = prefs.getString('user_nickname') ?? '';
       _mascotCtrl.text = prefs.getString('mascot_name') ?? '兔咪';
       _gender = prefs.getString('user_gender') ?? '';
       _activityLevel = prefs.getString('user_activity_level') ?? '';
-      if (h != null) _heightCtrl.text = _formatDouble(h);
-      if (w != null) _weightCtrl.text = _formatDouble(w);
-      if (tw != null) _targetWeightCtrl.text = _formatDouble(tw);
+      if (h != null) {
+        if (unit == UnitSystem.imperial) {
+          final (ft, inches) = UnitConvert.cmToFtIn(h);
+          _heightCtrl.text = ft.toString();
+          _heightInCtrl.text = inches.toString();
+        } else {
+          _heightCtrl.text = _formatDouble(h);
+        }
+      }
+      if (w != null) {
+        _weightCtrl.text = unit == UnitSystem.imperial
+            ? UnitConvert.kgToLb(w).round().toString()
+            : _formatDouble(w);
+      }
+      if (tw != null) {
+        _targetWeightCtrl.text = unit == UnitSystem.imperial
+            ? UnitConvert.kgToLb(tw).round().toString()
+            : _formatDouble(tw);
+      }
       // 從 yyyy-MM-dd 字串還原 DateTime
       if (bday != null) _birthday = DateTime.tryParse(bday);
       _loaded = true;
     });
+  }
+
+  // 取得目前單位下身高的公制值（cm）；無法解析回 null。
+  double? _heightCmFromInputs() {
+    if (_unit == UnitSystem.imperial) {
+      final ft = int.tryParse(_heightCtrl.text.trim());
+      final inches = int.tryParse(_heightInCtrl.text.trim());
+      if (ft == null && inches == null) return null;
+      return UnitConvert.ftInToCm(ft ?? 0, inches ?? 0);
+    }
+    return double.tryParse(_heightCtrl.text.trim());
+  }
+
+  // 取得目前單位下體重的公制值（kg）；無法解析回 null。
+  double? _weightKgFromInput(TextEditingController c) {
+    final v = double.tryParse(c.text.trim());
+    if (v == null) return null;
+    if (_unit == UnitSystem.imperial) return UnitConvert.lbToKg(v);
+    return v;
   }
 
   // 按下「儲存」時一次寫入所有欄位，然後返回
@@ -87,13 +133,25 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     if (_activityLevel.isNotEmpty) {
       await prefs.setString('user_activity_level', _activityLevel);
     }
-    final h = double.tryParse(_heightCtrl.text.trim());
-    if (h != null) await prefs.setDouble('user_height', h);
-    final w = double.tryParse(_weightCtrl.text.trim());
-    if (w != null) await prefs.setDouble('user_weight', w);
+    final hCm = _heightCmFromInputs();
+    if (hCm != null &&
+        hCm >= UserRanges.heightMinCm &&
+        hCm <= UserRanges.heightMaxCm) {
+      await prefs.setDouble('user_height', hCm);
+    }
+    final wKg = _weightKgFromInput(_weightCtrl);
+    if (wKg != null &&
+        wKg >= UserRanges.weightMinKg &&
+        wKg <= UserRanges.weightMaxKg) {
+      await prefs.setDouble('user_weight', wKg);
+    }
     // 目標體重（選填）
-    final tw = double.tryParse(_targetWeightCtrl.text.trim());
-    if (tw != null) await prefs.setDouble('target_weight', tw);
+    final twKg = _weightKgFromInput(_targetWeightCtrl);
+    if (twKg != null &&
+        twKg >= UserRanges.targetWeightMinKg &&
+        twKg <= UserRanges.targetWeightMaxKg) {
+      await prefs.setDouble('target_weight', twKg);
+    }
     // 生日（選填），以 yyyy-MM-dd 格式儲存
     if (_birthday != null) {
       final b = _birthday!;
@@ -128,8 +186,45 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     });
   }
 
-  // 暱稱非空才可儲存
-  bool get _canSave => _nicknameCtrl.text.trim().isNotEmpty;
+  // 取得目前單位下顯示用的錯誤訊息（null 表示沒問題）
+  String? get _heightError {
+    if (_unit == UnitSystem.imperial) {
+      final ft = _heightCtrl.text.trim();
+      final inches = _heightInCtrl.text.trim();
+      if (ft.isEmpty && inches.isEmpty) return null;
+      return UserValidators.heightCm(_heightCmFromInputs());
+    }
+    return UserValidators.height(_heightCtrl.text);
+  }
+
+  String? get _weightError =>
+      UserValidators.weightIn(_weightCtrl.text, _unit);
+
+  String? get _targetWeightError =>
+      UserValidators.targetWeightIn(_targetWeightCtrl.text, _unit);
+
+  // BMI 比例檢查（用公制換算後判斷）
+  String? get _bmiError {
+    final cm = _heightCmFromInputs();
+    final kg = _weightKgFromInput(_weightCtrl);
+    if (cm == null || kg == null) return null;
+    if (cm <= 0) return null;
+    final hM = cm / 100;
+    final bmi = kg / (hM * hM);
+    if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) {
+      return '身高與體重的比例怪怪的，請再確認';
+    }
+    return null;
+  }
+
+  // 暱稱非空才可儲存，並且填寫的身體資訊必須在合理範圍內
+  bool get _canSave =>
+      _nicknameCtrl.text.trim().isNotEmpty &&
+      _heightError == null &&
+      _weightError == null &&
+      _targetWeightError == null &&
+      UserValidators.birthday(_birthday) == null &&
+      _bmiError == null;
 
   // 性別選擇 Chip
   Widget _genderChip(String label) {
@@ -210,6 +305,91 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     );
   }
 
+  // 身高 ft/in 兩格並排（imperial 模式專用）
+  Widget _ftInFieldRow({
+    required TextEditingController ftCtrl,
+    required TextEditingController inCtrl,
+    String? errorText,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: ftCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(2),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: '身高',
+                    suffixText: 'ft',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.orange),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: inCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(2),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: ' ',
+                    suffixText: 'in',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.orange),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (errorText != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text(
+                errorText,
+                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   // 通用輸入欄位
   Widget _inputField({
     required String label,
@@ -219,6 +399,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     bool required = false,
     int? maxLength,
     List<TextInputFormatter>? inputFormatters,
+    String? errorText,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -231,6 +412,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           labelText: required ? '$label *' : label,
           suffixText: suffix,
           counterText: '',
+          errorText: errorText,
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
@@ -250,12 +432,25 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
   // 需先填身高才顯示；點「建議」可一鍵套用
   Widget _targetWeightHint() {
-    final h = double.tryParse(_heightCtrl.text.trim());
-    if (h == null || h < 1 || h > 300) return const SizedBox.shrink();
-    final hM = h / 100;
-    final low = (18.5 * hM * hM).round();
-    final high = (24 * hM * hM).round();
-    final suggest = (22 * hM * hM).round();
+    final cm = _heightCmFromInputs();
+    if (cm == null || cm < 1 || cm > 300) return const SizedBox.shrink();
+    final hM = cm / 100;
+    final lowKg = (18.5 * hM * hM).round();
+    final highKg = (24 * hM * hM).round();
+    final suggestKg = (22 * hM * hM).round();
+
+    // 轉成當下單位顯示
+    final lowDisp = _unit == UnitSystem.imperial
+        ? '${UnitConvert.kgToLb(lowKg.toDouble()).round()}'
+        : '$lowKg';
+    final highDisp = _unit == UnitSystem.imperial
+        ? '${UnitConvert.kgToLb(highKg.toDouble()).round()}'
+        : '$highKg';
+    final suggestDisp = _unit == UnitSystem.imperial
+        ? UnitConvert.kgToLb(suggestKg.toDouble()).round()
+        : suggestKg;
+    final unitLabel = UnitFormat.weightLabel(_unit);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -264,13 +459,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           const SizedBox(width: 5),
           Expanded(
             child: Text(
-              '健康體重約 $low–$high kg',
+              '健康體重約 $lowDisp–$highDisp $unitLabel',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ),
           GestureDetector(
-            onTap: () =>
-                setState(() => _targetWeightCtrl.text = suggest.toString()),
+            onTap: () => setState(
+              () => _targetWeightCtrl.text = suggestDisp.toString(),
+            ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
@@ -279,7 +475,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 border: Border.all(color: Colors.orange.shade200),
               ),
               child: Text(
-                '建議 $suggest kg',
+                '建議 $suggestDisp $unitLabel',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.orange.shade700,
@@ -309,7 +505,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           final picked = await showDatePicker(
             context: context,
             initialDate: _birthday ?? DateTime(now.year - 20),
-            firstDate: DateTime(1900),
+            firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
             lastDate: now,
           );
           if (picked != null) setState(() => _birthday = picked);
@@ -407,22 +603,32 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         ),
                       ),
 
-                      // 身高
-                      _inputField(
-                        label: '身高',
-                        controller: _heightCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        suffix: 'cm',
-                        inputFormatters: [_maxValueFormatter(999)],
-                      ),
+                      // 身高（依單位顯示一格或兩格）
+                      if (_unit == UnitSystem.imperial)
+                        _ftInFieldRow(
+                          ftCtrl: _heightCtrl,
+                          inCtrl: _heightInCtrl,
+                          errorText: _heightError,
+                        )
+                      else
+                        _inputField(
+                          label: '身高',
+                          controller: _heightCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          suffix: 'cm',
+                          inputFormatters: [_maxValueFormatter(999)],
+                          errorText: _heightError,
+                        ),
 
                       // 體重
                       _inputField(
                         label: '體重',
                         controller: _weightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        suffix: 'kg',
+                        suffix: UnitFormat.weightLabel(_unit),
                         inputFormatters: [_maxValueFormatter(999)],
+                        // 個別範圍錯誤優先；都過了才顯示 BMI 比例錯誤
+                        errorText: _weightError ?? _bmiError,
                       ),
 
                       // 目標體重（選填）
@@ -430,8 +636,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         label: '目標體重',
                         controller: _targetWeightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        suffix: 'kg',
+                        suffix: UnitFormat.weightLabel(_unit),
                         inputFormatters: [_maxValueFormatter(999)],
+                        errorText: _targetWeightError,
                       ),
 
                       // 目標體重建議（依身高的健康範圍）

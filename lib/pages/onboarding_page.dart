@@ -5,6 +5,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import '../utils/units.dart';
+import '../utils/user_validators.dart';
+
 // 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
 const List<({String emoji, String name, bool freq})> _kOnboardingHabits = [
@@ -29,7 +32,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int _currentPage = 0;
 
   // 畫面1：打字動畫
-  final List<String> _lines = ['嗯…啊…（伸懶腰）我醒了！', '嗨！我是兔咪 🐰', '我會陪你一起養成好習慣！'];
+  final List<String> _lines = ['嗯...你來了。', '我是兔咪，平常有點愛睡。', '但你開始的時候，我會醒來陪你。'];
   int _lineIndex = 0;
   String _displayText = '';
   bool _page1Done = false;
@@ -60,9 +63,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // 畫面7：身體資訊
   String _gender = '';
+  // 身高（metric: cm；imperial: ft + 額外的 _heightInController 是 in）
   final TextEditingController _heightController = TextEditingController();
+  final TextEditingController _heightInController = TextEditingController();
+  // 體重 / 目標體重（依當下單位是 kg 或 lb）
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _targetWeightController = TextEditingController();
+  UnitSystem _unit = UnitSystem.metric;
   DateTime? _birthday; // 生日（選填）
 
   // 用戶暱稱（畫面3填完後存起來）
@@ -78,11 +85,20 @@ class _OnboardingPageState extends State<OnboardingPage> {
     super.initState();
     _nicknameController.addListener(() => setState(() {}));
     _heightController.addListener(() => setState(() {}));
+    _heightInController.addListener(() => setState(() {}));
     _weightController.addListener(() => setState(() {}));
+    _targetWeightController.addListener(() => setState(() {}));
+    _loadUnit();
     // 等第一幀渲染完成（Offstage 預熱字形後）再啟動打字動畫
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _startTyping();
     });
+  }
+
+  Future<void> _loadUnit() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _unit = UnitSystem.load(prefs));
   }
 
   @override
@@ -92,6 +108,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _mascotController.dispose();
     _nicknameController.dispose();
     _heightController.dispose();
+    _heightInController.dispose();
     _weightController.dispose();
     _targetWeightController.dispose();
     super.dispose();
@@ -160,14 +177,59 @@ class _OnboardingPageState extends State<OnboardingPage> {
     });
   }
 
+  // 從目前單位的輸入欄推回公制
+  double? _heightCm() {
+    if (_unit == UnitSystem.imperial) {
+      final ft = int.tryParse(_heightController.text.trim());
+      final inches = int.tryParse(_heightInController.text.trim());
+      if (ft == null && inches == null) return null;
+      return UnitConvert.ftInToCm(ft ?? 0, inches ?? 0);
+    }
+    return double.tryParse(_heightController.text.trim());
+  }
+
+  double? _weightKgFromCtrl(TextEditingController c) {
+    final v = double.tryParse(c.text.trim());
+    if (v == null) return null;
+    if (_unit == UnitSystem.imperial) return UnitConvert.lbToKg(v);
+    return v;
+  }
+
+  // 目前單位下顯示用的範圍錯誤
+  String? get _heightErrText {
+    if (_unit == UnitSystem.imperial) {
+      if (_heightController.text.trim().isEmpty &&
+          _heightInController.text.trim().isEmpty) {
+        return null;
+      }
+      return UserValidators.heightCm(_heightCm());
+    }
+    return UserValidators.height(_heightController.text);
+  }
+
+  String? get _weightErrText =>
+      UserValidators.weightIn(_weightController.text, _unit);
+  String? get _targetWeightErrText =>
+      UserValidators.targetWeightIn(_targetWeightController.text, _unit);
+
   // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
   Widget _targetWeightHint() {
-    final h = double.tryParse(_heightController.text.trim());
-    if (h == null || h < 1 || h > 999) return const SizedBox.shrink();
-    final hM = h / 100;
-    final low = (18.5 * hM * hM).round();
-    final high = (24 * hM * hM).round();
-    final suggest = (22 * hM * hM).round();
+    final cm = _heightCm();
+    if (cm == null || cm < 1 || cm > 999) return const SizedBox.shrink();
+    final hM = cm / 100;
+    final lowKg = (18.5 * hM * hM).round();
+    final highKg = (24 * hM * hM).round();
+    final suggestKg = (22 * hM * hM).round();
+    final lowDisp = _unit == UnitSystem.imperial
+        ? UnitConvert.kgToLb(lowKg.toDouble()).round()
+        : lowKg;
+    final highDisp = _unit == UnitSystem.imperial
+        ? UnitConvert.kgToLb(highKg.toDouble()).round()
+        : highKg;
+    final suggestDisp = _unit == UnitSystem.imperial
+        ? UnitConvert.kgToLb(suggestKg.toDouble()).round()
+        : suggestKg;
+    final unitLabel = UnitFormat.weightLabel(_unit);
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
@@ -176,13 +238,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
           const SizedBox(width: 5),
           Expanded(
             child: Text(
-              '健康體重約 $low–$high kg',
+              '健康體重約 $lowDisp–$highDisp $unitLabel',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ),
           GestureDetector(
             onTap: () => setState(
-                () => _targetWeightController.text = suggest.toString()),
+              () => _targetWeightController.text = suggestDisp.toString(),
+            ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
@@ -191,7 +254,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 border: Border.all(color: Colors.orange.shade200),
               ),
               child: Text(
-                '建議 $suggest kg',
+                '建議 $suggestDisp $unitLabel',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.orange.shade700,
@@ -205,11 +268,38 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  bool get _bodyInfoFilled =>
-      _gender.isNotEmpty &&
-      double.tryParse(_heightController.text.trim()) != null &&
-      double.tryParse(_weightController.text.trim()) != null &&
-      _birthday != null;
+  bool get _bodyInfoFilled {
+    final cm = _heightCm();
+    final kg = _weightKgFromCtrl(_weightController);
+    final hasHeight = _unit == UnitSystem.imperial
+        ? (_heightController.text.trim().isNotEmpty ||
+            _heightInController.text.trim().isNotEmpty)
+        : _heightController.text.trim().isNotEmpty;
+    if (!_gender.isNotEmpty) return false;
+    if (!hasHeight) return false;
+    if (_weightController.text.trim().isEmpty) return false;
+    if (_birthday == null) return false;
+    if (_heightErrText != null) return false;
+    if (_weightErrText != null) return false;
+    if (_targetWeightErrText != null) return false;
+    if (UserValidators.birthday(_birthday) != null) return false;
+    // BMI 比例檢查（用公制換算）
+    if (cm != null && kg != null && cm > 0) {
+      final hM = cm / 100;
+      final bmi = kg / (hM * hM);
+      if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) return false;
+    }
+    return true;
+  }
+
+  bool get _bmiOddOnboarding {
+    final cm = _heightCm();
+    final kg = _weightKgFromCtrl(_weightController);
+    if (cm == null || kg == null || cm <= 0) return false;
+    final hM = cm / 100;
+    final bmi = kg / (hM * hM);
+    return bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax;
+  }
 
   // 回上一步：畫面4/5/6 若在追問子步驟，先退回初始選項；否則回上一畫面
   void _handleBack() {
@@ -258,20 +348,26 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
     // 身體資訊
     if (_gender.isNotEmpty) await prefs.setString('user_gender', _gender);
-    final heightVal = double.tryParse(_heightController.text);
-    if (heightVal != null && heightVal >= 1 && heightVal <= 999) {
-      await prefs.setDouble('user_height', heightVal);
+    final heightCm = _heightCm();
+    if (heightCm != null &&
+        heightCm >= UserRanges.heightMinCm &&
+        heightCm <= UserRanges.heightMaxCm) {
+      await prefs.setDouble('user_height', heightCm);
     }
-    final weightVal = double.tryParse(_weightController.text);
-    if (weightVal != null && weightVal >= 1 && weightVal <= 999) {
-      await prefs.setDouble('user_weight', weightVal);
+    final weightKg = _weightKgFromCtrl(_weightController);
+    if (weightKg != null &&
+        weightKg >= UserRanges.weightMinKg &&
+        weightKg <= UserRanges.weightMaxKg) {
+      await prefs.setDouble('user_weight', weightKg);
       await prefs.setBool('weight_tracking_enabled', true);
       // 自動新增體重紀錄習慣
       await _addWeightHabit(prefs);
     }
-    final targetVal = double.tryParse(_targetWeightController.text);
-    if (targetVal != null && targetVal >= 1 && targetVal <= 999) {
-      await prefs.setDouble('target_weight', targetVal);
+    final targetKg = _weightKgFromCtrl(_targetWeightController);
+    if (targetKg != null &&
+        targetKg >= UserRanges.targetWeightMinKg &&
+        targetKg <= UserRanges.targetWeightMaxKg) {
+      await prefs.setDouble('target_weight', targetKg);
     }
     // 選了喝水功能 → 自動加入「喝足夠的水」習慣
     if (_waterEnabled == true) _selectedHabits.add('喝足夠的水');
@@ -366,10 +462,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 350),
         // 只淡入、不縮放——避免兔咪在動畫中看起來忽大忽小
-        transitionBuilder: (child, anim) => FadeTransition(
-          opacity: anim,
-          child: child,
-        ),
+        transitionBuilder: (child, anim) =>
+            FadeTransition(opacity: anim, child: child),
         child: Image.asset(
           'assets/images/mascot/tumi_$emotion.png',
           key: ValueKey(emotion),
@@ -440,8 +534,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final wakeEmotion = _page1Done
         ? 'smile'
         : (_lineIndex == 0
-            ? 'sleep'
-            : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
+              ? 'sleep'
+              : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
     return _mascotPage(
       emotion: wakeEmotion,
       content: Column(
@@ -948,13 +1042,104 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
+  // onboarding 用的單欄數字輸入（橘色風格）
+  Widget _onboardingNumField({
+    required TextEditingController controller,
+    required String label,
+    String? errorText,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [_maxValueFormatter(999)],
+      decoration: InputDecoration(
+        labelText: label,
+        errorText: errorText,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.orange.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.orange),
+        ),
+      ),
+    );
+  }
+
+  // imperial 模式的 ft/in 兩欄並排
+  Widget _onboardingFtInRow() {
+    InputDecoration deco(String label, String suffix) => InputDecoration(
+      labelText: label,
+      suffixText: suffix,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.orange.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.orange),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _heightController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                decoration: deco('身高', 'ft'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _heightInController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                decoration: deco(' ', 'in'),
+              ),
+            ),
+          ],
+        ),
+        if (_heightErrText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 4),
+            child: Text(
+              _heightErrText!,
+              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildPage6() {
+    final bmiOdd = _bmiOddOnboarding;
+    final emotion = bmiOdd ? 'sad' : 'smile';
+    final bubbleText = bmiOdd
+        ? '咦？身高跟體重的比例…\n好像怪怪的，再確認一下？'
+        : '想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～';
+
     return _mascotPage(
-      emotion: 'smile',
+      emotion: emotion,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～'),
+          _speechBubble(bubbleText),
           const SizedBox(height: 6),
           Text(
             '不想說也完全沒關係！',
@@ -980,64 +1165,28 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ],
           ),
           const SizedBox(height: 14),
-          // 身高
-          TextField(
-            controller: _heightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [_maxValueFormatter(999)],
-            decoration: InputDecoration(
-              labelText: '身高（cm）',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
+          // 身高（依單位顯示一格或兩格）
+          if (_unit == UnitSystem.imperial)
+            _onboardingFtInRow()
+          else
+            _onboardingNumField(
+              controller: _heightController,
+              label: '身高（cm）',
+              errorText: _heightErrText,
             ),
-          ),
           const SizedBox(height: 10),
           // 體重
-          TextField(
+          _onboardingNumField(
             controller: _weightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [_maxValueFormatter(999)],
-            decoration: InputDecoration(
-              labelText: '體重（kg）',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
+            label: '體重（${UnitFormat.weightLabel(_unit)}）',
+            errorText: _weightErrText,
           ),
           const SizedBox(height: 10),
           // 目標體重（選填）
-          TextField(
+          _onboardingNumField(
             controller: _targetWeightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [_maxValueFormatter(999)],
-            decoration: InputDecoration(
-              labelText: '目標體重（kg，選填）',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
+            label: '目標體重（${UnitFormat.weightLabel(_unit)}，選填）',
+            errorText: _targetWeightErrText,
           ),
           _targetWeightHint(),
           const SizedBox(height: 10),
@@ -1048,7 +1197,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               final picked = await showDatePicker(
                 context: context,
                 initialDate: _birthday ?? DateTime(now.year - 20),
-                firstDate: DateTime(1900),
+                firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
                 lastDate: now,
               );
               if (picked != null) setState(() => _birthday = picked);
@@ -1218,10 +1367,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
           // 隱形預渲染所有打字文字，讓字形提前載入 GPU 圖集，避免首次顯示亂碼
           Offstage(
-            child: Text(
-              _lines.join(),
-              style: const TextStyle(fontSize: 18),
-            ),
+            child: Text(_lines.join(), style: const TextStyle(fontSize: 18)),
           ),
           PageView(
             controller: _pageController,

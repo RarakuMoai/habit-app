@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'settings_page.dart';
+
+import '../utils/mascot.dart';
+import '../widgets/mascot_app_bar.dart';
+import '../widgets/mascot_page_shell.dart';
+import '../widgets/mascot_scene.dart';
 
 class TimerPage extends StatefulWidget {
   const TimerPage({super.key});
@@ -54,6 +58,10 @@ class _TimerPageState extends State<TimerPage> {
     });
   }
 
+  // 兔咪情境：上班 → openApp 鼓勵；休息 → completedOne 安慰。
+  MascotContext get _ctx =>
+      _isWork ? MascotContext.openApp : MascotContext.completedOne;
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -63,174 +71,154 @@ class _TimerPageState extends State<TimerPage> {
   @override
   Widget build(BuildContext context) {
     final color = _isWork ? Colors.orange : Colors.green;
+    final emotion = MascotLines.emotionFor(_ctx);
+    final speech = MascotLines.lineFor(_ctx, seed: _isWork ? 0 : 1);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFFFF8F0),
-      appBar: AppBar(
-        backgroundColor: color,
-        title: const Text('番茄鐘', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
-        actions: [
-          // 齒輪按鈕：進入設定頁
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.white),
-            tooltip: '設定',
-            onPressed: () async {
-              await Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      const SettingsPage(),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                    const begin = Offset(1.0, 0.0);
-                    const end = Offset.zero;
-                    final tween = Tween(begin: begin, end: end)
-                        .chain(CurveTween(curve: Curves.easeInOut));
-                    return SlideTransition(
-                      position: animation.drive(tween),
-                      child: child,
-                    );
-                  },
-                ),
-              );
-            },
+      appBar: MascotAppBar(accent: color),
+      body: SafeArea(
+        child: MascotPageShell(
+          accent: color,
+          scene: MascotScene(
+            asset: emotion.assetPath,
+            accent: color,
+            speech: speech,
           ),
-        ],
+          child: _buildTimerContent(color),
+        ),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 狀態標籤
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withValues(alpha: 0.3)),
-              ),
-              child: Text(
-                _isWork ? '🍅 專注時間' : '☕ 休息時間',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+    );
+  }
+
+  Widget _buildTimerContent(Color color) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // 狀態標籤
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              _isWork ? '🍅 專注時間' : '☕ 休息時間',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
             ),
+          ),
 
-            const SizedBox(height: 48),
+          const SizedBox(height: 24),
 
-            // 計時圓圈
-            Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.2),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
-                border: Border.all(color: color, width: 4),
-              ),
-              child: Center(
-                child: Text(
-                  _timeString,
-                  style: TextStyle(
-                    fontSize: 52,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 48),
-
-            // 按鈕
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 重置按鈕
-                GestureDetector(
-                  onTap: _reset,
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.refresh, color: Colors.grey.shade600),
-                  ),
-                ),
-
-                const SizedBox(width: 24),
-
-                // 開始/暫停按鈕
-                GestureDetector(
-                  onTap: _startPause,
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.4),
-                          blurRadius: 15,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _isRunning ? Icons.pause : Icons.play_arrow,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 24),
-
-                // 跳過按鈕
-                GestureDetector(
-                  onTap: () {
-                    _timer?.cancel();
-                    setState(() {
-                      _isWork = !_isWork;
-                      _secondsLeft =
-                          (_isWork ? _workMinutes : _breakMinutes) * 60;
-                      _isRunning = false;
-                    });
-                  },
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.skip_next, color: Colors.grey.shade600),
-                  ),
+          // 計時圓圈
+          Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.2),
+                  blurRadius: 30,
+                  spreadRadius: 5,
                 ),
               ],
+              border: Border.all(color: color, width: 4),
             ),
-
-            const SizedBox(height: 48),
-
-            // 說明文字
-            Text(
-              _isWork ? '專注 25 分鐘，休息 5 分鐘' : '好好休息，準備下一輪！',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+            child: Center(
+              child: Text(
+                _timeString,
+                style: TextStyle(
+                  fontSize: 46,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
             ),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // 按鈕
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: _reset,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.refresh, color: Colors.grey.shade600),
+                ),
+              ),
+              const SizedBox(width: 24),
+              GestureDetector(
+                onTap: _startPause,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.4),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    _isRunning ? Icons.pause : Icons.play_arrow,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 24),
+              GestureDetector(
+                onTap: () {
+                  _timer?.cancel();
+                  setState(() {
+                    _isWork = !_isWork;
+                    _secondsLeft =
+                        (_isWork ? _workMinutes : _breakMinutes) * 60;
+                    _isRunning = false;
+                  });
+                },
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.skip_next, color: Colors.grey.shade600),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Text(
+            _isWork ? '專注 25 分鐘，休息 5 分鐘' : '好好休息，準備下一輪！',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+          ),
+        ],
       ),
     );
   }

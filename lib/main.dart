@@ -8,11 +8,14 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/family_page.dart';
+import 'utils/mascot.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final bool onboardingDone = prefs.getBool('onboarding_done') ?? false;
+  // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
+  await MascotPanelPrefs.load();
   runApp(MyApp(startAtHome: onboardingDone));
 }
 
@@ -40,7 +43,9 @@ class MyApp extends StatelessWidget {
         cardTheme: CardThemeData(
           elevation: 2,
           shadowColor: Colors.black12,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           color: Colors.white,
         ),
         appBarTheme: AppBarTheme(
@@ -61,11 +66,16 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
@@ -104,7 +114,9 @@ class _MainPageState extends State<MainPage> {
 
   String _todayString() {
     final now = DateTime.now();
-    return '${now.year}-${now.month}-${now.day}';
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '${now.year}-$m-$d';
   }
 
   Future<void> _loadSettings() async {
@@ -112,7 +124,8 @@ class _MainPageState extends State<MainPage> {
     setState(() {
       _waterEnabled = prefs.getBool('water_enabled') ?? false;
       _timerEnabled = prefs.getBool('timer_enabled') ?? true;
-      _weightTrackingEnabled = prefs.getBool('weight_tracking_enabled') ?? false;
+      _weightTrackingEnabled =
+          prefs.getBool('weight_tracking_enabled') ?? false;
       _familyEnabled = prefs.getBool('family_enabled') ?? false;
       _waterGoalReached = prefs.getString('water_goal_date') == _todayString();
       _loaded = true;
@@ -130,8 +143,10 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> _handleWaterHabitToggle(bool checked) async {
-    const int waterGoal = 8;
     final prefs = await SharedPreferences.getInstance();
+    final cupMl = prefs.getInt('water_cup_ml') ?? 250;
+    final goalMl = prefs.getInt('water_goal_ml') ?? 2000;
+    final waterGoal = (goalMl / cupMl).ceil();
     final today = _todayString();
     final todayKey = 'water_$today';
     final savedKey = 'water_saved_$today';
@@ -164,24 +179,40 @@ class _MainPageState extends State<MainPage> {
       ),
     ];
     if (_timerEnabled) {
-      list.add(_TabItem(page: const TimerPage(), icon: Icons.timer, label: '番茄鐘'));
+      list.add(
+        _TabItem(page: const TimerPage(), icon: Icons.timer, label: '番茄鐘'),
+      );
     }
     if (_waterEnabled) {
-      list.add(_TabItem(
-        page: WaterPage(
-          onGoalStatusChanged: _handleWaterGoal,
-          reloadTrigger: _waterReloadTrigger,
+      list.add(
+        _TabItem(
+          page: WaterPage(
+            onGoalStatusChanged: _handleWaterGoal,
+            reloadTrigger: _waterReloadTrigger,
+          ),
+          icon: Icons.water_drop,
+          label: '喝水',
         ),
-        icon: Icons.water_drop,
-        label: '喝水',
-      ));
+      );
     }
     // 體重頁籤，依 weight_tracking_enabled 開關決定是否顯示
     if (_weightTrackingEnabled) {
-      list.add(_TabItem(page: const WeightPage(), icon: Icons.monitor_weight, label: '體重'));
+      list.add(
+        _TabItem(
+          page: const WeightPage(),
+          icon: Icons.monitor_weight,
+          label: '體重',
+        ),
+      );
     }
     if (_familyEnabled) {
-      list.add(_TabItem(page: FamilyPage(onSettingsChanged: _loadSettings), icon: Icons.family_restroom, label: '家庭'));
+      list.add(
+        _TabItem(
+          page: FamilyPage(onSettingsChanged: _loadSettings),
+          icon: Icons.family_restroom,
+          label: '家庭',
+        ),
+      );
     }
     return list;
   }
@@ -206,7 +237,9 @@ class _MainPageState extends State<MainPage> {
               onTap: (index) {
                 // 離開家庭頁籤時清除家長 Session，下次進入需重新驗證
                 final familyIdx = tabs.indexWhere((t) => t.label == '家庭');
-                if (familyIdx != -1 && _currentIndex == familyIdx && index != familyIdx) {
+                if (familyIdx != -1 &&
+                    _currentIndex == familyIdx &&
+                    index != familyIdx) {
                   parentSessionActive = false;
                 }
                 setState(() => _currentIndex = index);
@@ -216,7 +249,12 @@ class _MainPageState extends State<MainPage> {
               selectedItemColor: Theme.of(context).colorScheme.primary,
               unselectedItemColor: Colors.grey,
               items: tabs
-                  .map((t) => BottomNavigationBarItem(icon: Icon(t.icon), label: t.label))
+                  .map(
+                    (t) => BottomNavigationBarItem(
+                      icon: Icon(t.icon),
+                      label: t.label,
+                    ),
+                  )
                   .toList(),
             ),
     );

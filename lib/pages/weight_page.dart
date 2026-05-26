@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:convert';
-import 'settings_page.dart';
+import '../utils/mascot.dart';
+import '../utils/units.dart';
+import '../widgets/mascot_app_bar.dart';
+import '../widgets/mascot_page_shell.dart';
+import '../widgets/mascot_scene.dart';
 
 class WeightPage extends StatefulWidget {
   const WeightPage({super.key});
@@ -24,7 +28,18 @@ class _WeightPageState extends State<WeightPage> {
   double? _targetWeight;
   // 圖表顯示範圍：0=本週, 1=本月, 2=三個月
   int _chartRangeIndex = 0;
+  // 顯示用單位（公制 / 英制）
+  UnitSystem _unit = UnitSystem.metric;
   bool _loaded = false;
+
+  // 公制→當下單位的顯示值（kg → kg 或 lb）
+  double _wDisp(double kg) =>
+      _unit == UnitSystem.imperial ? UnitConvert.kgToLb(kg) : kg;
+  String get _wLabel => UnitFormat.weightLabel(_unit);
+  // 體重顯示成字串：英制四捨五入到 lb，公制走原本的 _fmt 邏輯
+  String _fmtWeight(double kg) => _unit == UnitSystem.imperial
+      ? UnitConvert.kgToLb(kg).round().toString()
+      : _fmt(kg);
 
   // 新增/編輯 BottomSheet 共用的輸入控制器（頁面層級，避免 sheet 關閉時的釋放競態）
   final TextEditingController _weightCtrl = TextEditingController();
@@ -64,6 +79,7 @@ class _WeightPageState extends State<WeightPage> {
       if (bday != null) _birthday = DateTime.tryParse(bday);
       _weightTrackingEnabled = prefs.getBool('weight_tracking_enabled') ?? false;
       _targetWeight = prefs.getDouble('target_weight');
+      _unit = UnitSystem.load(prefs);
       _loaded = true;
     });
   }
@@ -162,7 +178,12 @@ class _WeightPageState extends State<WeightPage> {
       final dayStr = _dateStr(weekDays[i]);
       final idx = _records.indexWhere((r) => r['date'] == dayStr);
       if (idx >= 0) {
-        spots.add(FlSpot(i.toDouble(), (_records[idx]['weight'] as num).toDouble()));
+        spots.add(
+          FlSpot(
+            i.toDouble(),
+            _wDisp((_records[idx]['weight'] as num).toDouble()),
+          ),
+        );
       }
     }
     return spots;
@@ -179,7 +200,9 @@ class _WeightPageState extends State<WeightPage> {
       if (date.startsWith(prefix)) {
         final day = int.tryParse(date.split('-')[2]);
         if (day != null) {
-          spots.add(FlSpot(day.toDouble(), (rec['weight'] as num).toDouble()));
+          spots.add(
+            FlSpot(day.toDouble(), _wDisp((rec['weight'] as num).toDouble())),
+          );
         }
       }
     }
@@ -190,15 +213,20 @@ class _WeightPageState extends State<WeightPage> {
   List<FlSpot> _threeMonthSpots() {
     final now = DateTime.now();
     // 起始日期：89 天前（含今天共 90 天）
-    final startDate = DateTime(now.year, now.month, now.day)
-        .subtract(const Duration(days: 89));
+    final startDate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(const Duration(days: 89));
     final List<FlSpot> spots = [];
     for (final rec in _records.reversed) {
       final date = DateTime.tryParse(rec['date'] as String);
       if (date == null) continue;
       final offset = date.difference(startDate).inDays;
       if (offset >= 0 && offset <= 89) {
-        spots.add(FlSpot(offset.toDouble(), (rec['weight'] as num).toDouble()));
+        spots.add(
+          FlSpot(offset.toDouble(), _wDisp((rec['weight'] as num).toDouble())),
+        );
       }
     }
     return spots;
@@ -333,7 +361,7 @@ class _WeightPageState extends State<WeightPage> {
         ? (DateTime.tryParse(existing['date'] as String) ?? DateTime.now())
         : DateTime.now();
     _weightCtrl.text = existing != null
-        ? _fmt((existing['weight'] as num).toDouble())
+        ? _fmtWeight((existing['weight'] as num).toDouble())
         : '';
     _fatCtrl.text = existing != null && existing['body_fat'] != null
         ? _fmt((existing['body_fat'] as num).toDouble())
@@ -437,7 +465,7 @@ class _WeightPageState extends State<WeightPage> {
                       ),
                       decoration: InputDecoration(
                         labelText: '體重 *',
-                        suffixText: 'kg',
+                        suffixText: _wLabel,
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(
@@ -481,9 +509,12 @@ class _WeightPageState extends State<WeightPage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          final weight =
-                              double.tryParse(_weightCtrl.text.trim());
-                          if (weight == null) return;
+                          // 輸入是當下單位（kg 或 lb），統一轉成 kg 存
+                          final raw = double.tryParse(_weightCtrl.text.trim());
+                          if (raw == null) return;
+                          final weightKg = _unit == UnitSystem.imperial
+                              ? UnitConvert.lbToKg(raw)
+                              : raw;
                           final fat = double.tryParse(_fatCtrl.text.trim());
                           final now = DateTime.now();
                           final time =
@@ -492,7 +523,7 @@ class _WeightPageState extends State<WeightPage> {
                             'date': _dateStr(selectedDate),
                             // 編輯模式保留原始時間；新增模式使用當前時間
                             'time': existing?['time'] ?? time,
-                            'weight': weight,
+                            'weight': weightKg,
                           };
                           if (fat != null) record['body_fat'] = fat;
                           _upsertRecord(record);
@@ -632,8 +663,8 @@ class _WeightPageState extends State<WeightPage> {
               Expanded(
                 child: Text(
                   isGoalReached
-                      ? '目標：${_fmt(target)} kg　已達成！'
-                      : '目標：${_fmt(target)} kg，還差 ${_fmt(diff)} kg',
+                      ? '目標：${_fmtWeight(target)} $_wLabel　已達成！'
+                      : '目標：${_fmtWeight(target)} $_wLabel，還差 ${_fmtWeight(diff)} $_wLabel',
                   style: const TextStyle(fontSize: 14, color: Colors.black87),
                 ),
               ),
@@ -656,11 +687,11 @@ class _WeightPageState extends State<WeightPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '起始 ${_fmt(initialWeight)} kg',
+                '起始 ${_fmtWeight(initialWeight)} $_wLabel',
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
               ),
               Text(
-                '目標 ${_fmt(target)} kg',
+                '目標 ${_fmtWeight(target)} $_wLabel',
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
               ),
             ],
@@ -687,47 +718,34 @@ class _WeightPageState extends State<WeightPage> {
     final targetProgressWidget = _buildTargetProgress();
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFFFF8F0),
-      appBar: AppBar(
-        backgroundColor: Colors.orange,
-        title: const Text('體重紀錄', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
-        actions: [
-          // 齒輪按鈕：進入設定頁，返回後重新載入體重相關設定
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.white),
-            tooltip: '設定',
-            onPressed: () async {
-              await Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      const SettingsPage(),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                    const begin = Offset(1.0, 0.0);
-                    const end = Offset.zero;
-                    final tween = Tween(begin: begin, end: end)
-                        .chain(CurveTween(curve: Curves.easeInOut));
-                    return SlideTransition(
-                      position: animation.drive(tween),
-                      child: child,
-                    );
-                  },
-                ),
-              );
-              _loadData();
-            },
-          ),
-        ],
-      ),
+      appBar: MascotAppBar(accent: Colors.orange, onSettingsReturn: _loadData),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openAddSheet(),
         backgroundColor: Colors.orange,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-        children: [
+      body: SafeArea(
+        child: MascotPageShell(
+          accent: Colors.orange,
+          scene: MascotScene(
+            asset: MascotLines.emotionFor(
+              todayRec != null
+                  ? MascotContext.completedOne
+                  : MascotContext.openApp,
+            ).assetPath,
+            accent: Colors.orange,
+            speech: MascotLines.lineFor(
+              todayRec != null
+                  ? MascotContext.completedOne
+                  : MascotContext.openApp,
+              seed: _records.length,
+            ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+            children: [
           // ── 折線圖卡片（含範圍切換按鈕） ──
           Container(
             padding: const EdgeInsets.all(16),
@@ -897,7 +915,9 @@ class _WeightPageState extends State<WeightPage> {
             )
           else
             ..._records.map((rec) => _buildHistoryTile(rec)),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -938,7 +958,7 @@ class _WeightPageState extends State<WeightPage> {
     final bmiCat = bmi == null ? null : _bmiCategory(bmi);
 
     final items = <_StatItem>[
-      _StatItem(label: '體重', value: '${_fmt(weight)} kg'),
+      _StatItem(label: '體重', value: '${_fmtWeight(weight)} $_wLabel'),
       if (fat != null) _StatItem(label: '體脂率', value: '${_fmt(fat)} %'),
       if (bmi != null)
         _StatItem(
@@ -1098,7 +1118,7 @@ class _WeightPageState extends State<WeightPage> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '${_fmt(weight)} kg',
+                    '${_fmtWeight(weight)} $_wLabel',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
