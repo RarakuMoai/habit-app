@@ -59,7 +59,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   bool get _goalReached => _totalMl >= _goalMl;
   double get _progress => (_totalMl / _goalMl).clamp(0.0, 1.0);
 
-  // 兔咪情境：依目前喝水進度切換。
+  // 兔咪情境：依目前喝水進度切換（互動時呼叫，用於 MascotPersona.interact）。
   MascotContext get _mascotCtx {
     if (_goalReached) return MascotContext.allDone;
     if (_cups == 0) return MascotContext.notStarted;
@@ -167,6 +167,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _cups++);
     await _saveCups(_cups);
     _notifyGoalStatus();
+    MascotPersona.interact(_mascotCtx);
   }
 
   Future<void> _removeCup() async {
@@ -174,6 +175,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _cups--);
     await _saveCups(_cups);
     _notifyGoalStatus();
+    MascotPersona.interact(_mascotCtx);
   }
 
   Future<void> _saveWaterSettings({
@@ -369,11 +371,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
           SafeArea(
             child: MascotPageShell(
               accent: _kInk,
-              scene: MascotScene(
-                asset: MascotLines.emotionFor(_mascotCtx).assetPath,
-                accent: _kInk,
-                speech: MascotLines.lineFor(_mascotCtx, seed: _cups),
-              ),
+              scene: const PersonaScene(accent: _kInk),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
                 child: Column(

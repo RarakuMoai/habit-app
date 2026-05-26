@@ -828,15 +828,8 @@ class _FamilyPageState extends State<FamilyPage> {
           : SafeArea(
               child: MascotPageShell(
                 accent: Theme.of(context).colorScheme.primary,
-                scene: MascotScene(
-                  asset: MascotLines
-                      .emotionFor(MascotContext.openApp)
-                      .assetPath,
+                scene: PersonaScene(
                   accent: Theme.of(context).colorScheme.primary,
-                  speech: MascotLines.lineFor(
-                    MascotContext.openApp,
-                    seed: _children.length,
-                  ),
                 ),
                 child: _children.isEmpty ? _buildEmpty() : _buildChildList(),
               ),
@@ -891,6 +884,7 @@ class _FamilyPageState extends State<FamilyPage> {
         'children', jsonEncode(_children.map((c) => c.toJson()).toList()));
     await _saveHabits(prefs, habits);
     setState(() {});
+    MascotPersona.interact(MascotContext.completedOne);
   }
 
   // 小孩卡片清單

@@ -240,6 +240,7 @@ class _WeightPageState extends State<WeightPage> {
       _records.sort((a, b) => b['date'].compareTo(a['date']));
     });
     _saveRecords();
+    MascotPersona.interact(MascotContext.completedOne);
   }
 
   // 刪除指定日期的紀錄
@@ -729,20 +730,7 @@ class _WeightPageState extends State<WeightPage> {
       body: SafeArea(
         child: MascotPageShell(
           accent: Colors.orange,
-          scene: MascotScene(
-            asset: MascotLines.emotionFor(
-              todayRec != null
-                  ? MascotContext.completedOne
-                  : MascotContext.openApp,
-            ).assetPath,
-            accent: Colors.orange,
-            speech: MascotLines.lineFor(
-              todayRec != null
-                  ? MascotContext.completedOne
-                  : MascotContext.openApp,
-              seed: _records.length,
-            ),
-          ),
+          scene: const PersonaScene(accent: Colors.orange),
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
             children: [

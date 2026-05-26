@@ -13,6 +13,37 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../utils/mascot.dart';
+
+/// 從 [MascotPersona.current] 自動讀情緒 + 台詞 的場景；
+/// 切頁不會重建兔咪狀態，只有互動會推新狀態。
+class PersonaScene extends StatelessWidget {
+  final Color accent;
+  final int reactionTick;
+  final VoidCallback? onTap;
+
+  const PersonaScene({
+    super.key,
+    required this.accent,
+    this.reactionTick = 0,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<MascotState>(
+      valueListenable: MascotPersona.current,
+      builder: (_, state, _) => MascotScene(
+        asset: state.assetPath,
+        accent: accent,
+        speech: state.speech,
+        reactionTick: reactionTick,
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
 class MascotScene extends StatelessWidget {
   /// 兔咪 PNG 路徑（一般用 [MascotEmotion.assetPath]）。
   final String asset;

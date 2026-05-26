@@ -33,6 +33,10 @@ class _TimerPageState extends State<TimerPage> {
       _timer?.cancel();
       setState(() => _isRunning = false);
     } else {
+      // 互動：開始計時 → 兔咪鼓勵
+      MascotPersona.interact(
+        _isWork ? MascotContext.openApp : MascotContext.halfDone,
+      );
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (_secondsLeft <= 0) {
           _timer?.cancel();
@@ -41,6 +45,10 @@ class _TimerPageState extends State<TimerPage> {
             _secondsLeft = (_isWork ? _workMinutes : _breakMinutes) * 60;
             _isRunning = false;
           });
+          // 互動：一輪結束自動切換 → 兔咪反應
+          MascotPersona.interact(
+            _isWork ? MascotContext.halfDone : MascotContext.completedOne,
+          );
         } else {
           setState(() => _secondsLeft--);
         }
@@ -56,11 +64,8 @@ class _TimerPageState extends State<TimerPage> {
       _isWork = true;
       _secondsLeft = _workMinutes * 60;
     });
+    MascotPersona.interact(MascotContext.notStarted);
   }
-
-  // 兔咪情境：上班 → openApp 鼓勵；休息 → completedOne 安慰。
-  MascotContext get _ctx =>
-      _isWork ? MascotContext.openApp : MascotContext.completedOne;
 
   @override
   void dispose() {
@@ -71,8 +76,6 @@ class _TimerPageState extends State<TimerPage> {
   @override
   Widget build(BuildContext context) {
     final color = _isWork ? Colors.orange : Colors.green;
-    final emotion = MascotLines.emotionFor(_ctx);
-    final speech = MascotLines.lineFor(_ctx, seed: _isWork ? 0 : 1);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -81,11 +84,7 @@ class _TimerPageState extends State<TimerPage> {
       body: SafeArea(
         child: MascotPageShell(
           accent: color,
-          scene: MascotScene(
-            asset: emotion.assetPath,
-            accent: color,
-            speech: speech,
-          ),
+          scene: PersonaScene(accent: color),
           child: _buildTimerContent(color),
         ),
       ),
@@ -198,6 +197,10 @@ class _TimerPageState extends State<TimerPage> {
                         (_isWork ? _workMinutes : _breakMinutes) * 60;
                     _isRunning = false;
                   });
+                  // 互動：跳過 → 兔咪換對應模式情緒
+                  MascotPersona.interact(
+                    _isWork ? MascotContext.openApp : MascotContext.completedOne,
+                  );
                 },
                 child: Container(
                   width: 56,

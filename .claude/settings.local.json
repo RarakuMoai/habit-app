@@ -57,7 +57,9 @@
       "Bash(awk 'NR<2484 || NR>2776' lib/pages/home_page.dart)",
       "Read(//tmp/**)",
       "Bash(cp /tmp/home_page_trimmed.dart lib/pages/home_page.dart && grep -n \"class _MascotStage\\\\|class _MascotMotion\\\\|_motionForAsset\\\\|class _MascotSparklePainter\\\\|_moodForAsset\" lib/pages/home_page.dart)",
-      "Bash(awk '/^      body: ListView\\\\\\(/{flag=1; depth=0} flag {for\\(i=1;i<=length\\($0\\);i++\\){c=substr\\($0,i,1\\); if\\(c==\"\\(\"\\) depth++; if\\(c==\"\\)\"\\) depth--; if\\(depth==0 && c==\"\\)\"\\){print NR\": \"$0; flag=0; exit}}}' lib/pages/weight_page.dart)"
+      "Bash(awk '/^      body: ListView\\\\\\(/{flag=1; depth=0} flag {for\\(i=1;i<=length\\($0\\);i++\\){c=substr\\($0,i,1\\); if\\(c==\"\\(\"\\) depth++; if\\(c==\"\\)\"\\) depth--; if\\(depth==0 && c==\"\\)\"\\){print NR\": \"$0; flag=0; exit}}}' lib/pages/weight_page.dart)",
+      "Bash(sips -g pixelWidth -g pixelHeight \"assets/icon/ChatGPT Image 2026年5月26日 上午09_49_21.png\")",
+      "Bash(sips -z 1024 1024 \"assets/icon/ChatGPT Image 2026年5月26日 上午09_49_21.png\" --out assets/icon/app_icon.png)"
     ],
     "additionalDirectories": [
       "/Users/yayoi991331",

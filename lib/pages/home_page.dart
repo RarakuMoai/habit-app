@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:math' as math;
+import '../utils/mascot.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -362,8 +363,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _transientMascot = name;
       _mascotReactionTick++;
     });
+    _syncMascotToPersona();
     Future.delayed(duration, () {
-      if (mounted) setState(() => _transientMascot = null);
+      if (mounted) {
+        setState(() => _transientMascot = null);
+        _syncMascotToPersona();
+      }
     });
   }
 
@@ -374,8 +379,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _transientSpeech = reactions.first;
       _mascotReactionTick++;
     });
+    _syncMascotToPersona();
     Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) setState(() => _transientSpeech = null);
+      if (mounted) {
+        setState(() => _transientSpeech = null);
+        _syncMascotToPersona();
+      }
     });
   }
 
@@ -460,6 +469,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (habits[index]['name'] == '喝足夠的水') {
       widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
     }
+    _syncMascotToPersona();
   }
 
   void decrementWeeklyHabit(int index) {
@@ -1934,16 +1944,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
     final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
-    final speech = _transientSpeech ?? _mascotMessage;
 
     return MascotPageShell(
       accent: colors.accent,
       scene: ScaleTransition(
         scale: _celebScale,
-        child: MascotScene(
-          asset: _mascotAsset,
+        child: PersonaScene(
           accent: colors.accent,
-          speech: speech,
           reactionTick: _mascotReactionTick,
           onTap: _onMascotTap,
         ),
@@ -1955,6 +1962,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         accent: colors.accent,
       ),
     );
+  }
+
+  /// 把首頁當下計算出的兔咪狀態同步到全域 [MascotPersona]。
+  /// 只在「使用者互動後」呼叫（toggleHabit / onMascotTap / showTransientMascot）。
+  void _syncMascotToPersona() {
+    MascotPersona.set(_mascotAsset, _transientSpeech ?? _mascotMessage);
   }
 
   Widget _habitCardContent({

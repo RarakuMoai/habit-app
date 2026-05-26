@@ -127,6 +127,58 @@ class MascotLines {
   }
 }
 
+// 兔咪當下表情 + 台詞 的全域狀態。
+//
+// 設計：兔咪是「一隻跟著你跑的角色」，切換頁面時情緒/台詞不該被重置；
+// 只有真的有互動（使用者點了、做了什麼）才會改變。
+//
+// 用法：
+//   - 每個頁面的場景透過 [MascotPersona.current] 讀（ValueListenableBuilder）
+//   - 互動時呼叫 [MascotPersona.interact] 推一個新情境
+//   - App 冷啟動會呼叫 [MascotPersona.resetToOpening]，從 openApp 抽一句問候
+class MascotState {
+  final String assetPath;
+  final String speech;
+  const MascotState(this.assetPath, this.speech);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MascotState &&
+          assetPath == other.assetPath &&
+          speech == other.speech;
+
+  @override
+  int get hashCode => Object.hash(assetPath, speech);
+}
+
+class MascotPersona {
+  static final ValueNotifier<MascotState> current = ValueNotifier<MascotState>(
+    const MascotState('assets/images/mascot/tumi_neutral_front.png', '嗯...你來了。'),
+  );
+
+  /// 互動：根據情境換情緒 + 隨機抽一句台詞。
+  static void interact(MascotContext ctx) {
+    current.value = MascotState(
+      MascotLines.emotionFor(ctx).assetPath,
+      MascotLines.randomLineFor(ctx),
+    );
+  }
+
+  /// 直接設定（呼叫端自己決定 asset + 台詞，給有複雜情緒邏輯的頁面用）。
+  static void set(String assetPath, String speech) {
+    current.value = MascotState(assetPath, speech);
+  }
+
+  /// App 冷啟動：從 openApp 池隨機抽一句問候（每次打開都有變化）。
+  static void resetToOpening() {
+    current.value = MascotState(
+      MascotLines.emotionFor(MascotContext.openApp).assetPath,
+      MascotLines.randomLineFor(MascotContext.openApp),
+    );
+  }
+}
+
 // 兔咪面板展開／收合偏好。
 //
 // 為了讓拖曳能即時跟隨手指（iOS bottom sheet 感），這裡用
