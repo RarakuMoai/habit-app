@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../pages/settings_page.dart';
+import '../utils/bgm_service.dart';
 
 class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// 影響日期 pill icon 顏色（其餘元素統一灰底白字）。
@@ -41,6 +42,8 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
       leadingWidth: 160,
       leading: Padding(
@@ -59,6 +62,34 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: const SizedBox.shrink(),
       actions: [
         ...extraActions,
+        // 聲音 toggle（全 app 共用，靜音狀態跟著 BgmService.muted）
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: BgmService.muted,
+            builder: (_, isMuted, _) => DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: Icon(
+                  isMuted ? Icons.volume_off : Icons.volume_up,
+                  color: Colors.grey.shade800,
+                ),
+                tooltip: isMuted ? '取消靜音' : '靜音',
+                onPressed: () => BgmService.instance.setMuted(!isMuted),
+              ),
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: DecoratedBox(

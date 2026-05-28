@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/bgm_service.dart';
 import '../utils/units.dart';
 import 'profile_edit_page.dart';
 import 'feature_settings_page.dart';
@@ -186,6 +187,9 @@ class _SettingsPageState extends State<SettingsPage> {
       // 在 async 操作前先取得 navigator，避免跨 async gap 使用 BuildContext
       final nav = Navigator.of(context);
       await _prefs?.clear();
+      // 切回引導 BGM（cross-fade）。BgmService.muted 也跟著 prefs 被清成預設值（false）
+      BgmService.muted.value = false;
+      BgmService.instance.play('sounds/bgm_onboarding.m4a');
       nav.pushNamedAndRemoveUntil('/onboarding', (_) => false);
     }
   }

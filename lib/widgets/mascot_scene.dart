@@ -9,6 +9,7 @@
 // 內部維持原本動作參數表（_motionForAsset）與星星 reaction painter
 // （_MascotSparklePainter）。
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -76,13 +77,13 @@ class MascotScene extends StatelessWidget {
       alignment: Alignment.center,
       children: [
         Positioned(
-          top: 30,
+          top: 50,
           left: 28,
           right: 28,
           child: MascotSpeechBubble(text: speech, accent: accent),
         ),
         Align(
-          alignment: const Alignment(0, 0.84),
+          alignment: const Alignment(0, 0.92),
           child: MascotStage(
             asset: asset,
             accent: accent,
@@ -95,41 +96,94 @@ class MascotScene extends StatelessWidget {
   }
 }
 
-class MascotSpeechBubble extends StatelessWidget {
+class MascotSpeechBubble extends StatefulWidget {
   final String text;
   final Color accent;
+
+  /// 顯示多久後開始淡出（換新台詞會重新計時）
+  final Duration visibleDuration;
+
+  /// 淡出動畫長度
+  final Duration fadeDuration;
 
   const MascotSpeechBubble({
     super.key,
     required this.text,
     required this.accent,
+    this.visibleDuration = const Duration(seconds: 7),
+    this.fadeDuration = const Duration(milliseconds: 600),
   });
 
   @override
+  State<MascotSpeechBubble> createState() => _MascotSpeechBubbleState();
+}
+
+class _MascotSpeechBubbleState extends State<MascotSpeechBubble> {
+  bool _visible = true;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleHide();
+  }
+
+  @override
+  void didUpdateWidget(covariant MascotSpeechBubble old) {
+    super.didUpdateWidget(old);
+    // 換新台詞 → 立刻可見 + 重新計時
+    if (old.text != widget.text) {
+      setState(() => _visible = true);
+      _scheduleHide();
+    }
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(widget.visibleDuration, () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 280),
-        child: CustomPaint(
-          painter: _SpeechBubblePainter(
-            color: Colors.white,
-            borderColor: accent.withValues(alpha: 0.25),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Text(
-                text,
-                key: ValueKey(text),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
-                  height: 1.35,
+    return IgnorePointer(
+      ignoring: !_visible,
+      child: AnimatedOpacity(
+        opacity: _visible ? 1.0 : 0.0,
+        duration: widget.fadeDuration,
+        curve: Curves.easeOut,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: CustomPaint(
+              painter: _SpeechBubblePainter(
+                color: Colors.white,
+                borderColor: widget.accent.withValues(alpha: 0.25),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Text(
+                    widget.text,
+                    key: ValueKey(widget.text),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade800,
+                      height: 1.35,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -160,7 +214,6 @@ class MascotStage extends StatefulWidget {
 
 class _MascotStageState extends State<MascotStage>
     with TickerProviderStateMixin {
-  late final AnimationController _idleCtrl;
   late final AnimationController _reactionCtrl;
   late final Animation<double> _reactionScale;
   late final Animation<double> _reactionLift;
@@ -168,10 +221,6 @@ class _MascotStageState extends State<MascotStage>
   @override
   void initState() {
     super.initState();
-    _idleCtrl = AnimationController(
-      vsync: this,
-      duration: _motionForAsset(widget.asset).duration,
-    )..repeat(reverse: true);
     _reactionCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 760),
@@ -181,24 +230,19 @@ class _MascotStageState extends State<MascotStage>
       curve: Curves.easeOutCubic,
     );
     _reactionScale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.96), weight: 16),
-      TweenSequenceItem(tween: Tween(begin: 0.96, end: 1.12), weight: 34),
-      TweenSequenceItem(tween: Tween(begin: 1.12, end: 1.0), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.98), weight: 16),
+      TweenSequenceItem(tween: Tween(begin: 0.98, end: 1.05), weight: 34),
+      TweenSequenceItem(tween: Tween(begin: 1.05, end: 1.0), weight: 50),
     ]).animate(curved);
     _reactionLift = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0, end: -18), weight: 38),
-      TweenSequenceItem(tween: Tween(begin: -18, end: 0), weight: 62),
+      TweenSequenceItem(tween: Tween(begin: 0, end: -6), weight: 38),
+      TweenSequenceItem(tween: Tween(begin: -6, end: 0), weight: 62),
     ]).animate(curved);
   }
 
   @override
   void didUpdateWidget(covariant MascotStage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.asset != widget.asset) {
-      _idleCtrl
-        ..duration = _motionForAsset(widget.asset).duration
-        ..repeat(reverse: true);
-    }
     if (oldWidget.reactionTick != widget.reactionTick) {
       _reactionCtrl.forward(from: 0);
     }
@@ -206,7 +250,6 @@ class _MascotStageState extends State<MascotStage>
 
   @override
   void dispose() {
-    _idleCtrl.dispose();
     _reactionCtrl.dispose();
     super.dispose();
   }
@@ -214,20 +257,18 @@ class _MascotStageState extends State<MascotStage>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: () {
+        // 按到就自動彈一下（每頁都有反應），再交給外面的 onTap 處理其他副作用
+        _reactionCtrl.forward(from: 0);
+        widget.onTap();
+      },
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 252,
         height: 252,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_idleCtrl, _reactionCtrl]),
+          animation: _reactionCtrl,
           builder: (context, child) {
-            final motion = _motionForAsset(widget.asset);
-            final idle = Curves.easeInOut.transform(_idleCtrl.value);
-            final breathe = motion.baseScale + idle * motion.breathe;
-            final sway = (idle - 0.5) * motion.sway;
-            final lift = motion.baseLift - motion.lift * idle;
-
             return Stack(
               alignment: Alignment.center,
               children: [
@@ -242,14 +283,11 @@ class _MascotStageState extends State<MascotStage>
                   ),
                 ),
                 Transform.translate(
-                  offset: Offset(0, lift + _reactionLift.value),
-                  child: Transform.rotate(
-                    angle: sway,
-                    child: Transform.scale(
-                      scaleX: _reactionScale.value,
-                      scaleY: breathe * _reactionScale.value,
-                      child: child,
-                    ),
+                  offset: Offset(0, _reactionLift.value),
+                  child: Transform.scale(
+                    scaleX: _reactionScale.value,
+                    scaleY: _reactionScale.value,
+                    child: child,
                   ),
                 ),
               ],
@@ -278,102 +316,6 @@ class _MascotStageState extends State<MascotStage>
   }
 }
 
-class _MascotMotion {
-  final Duration duration;
-  final double baseScale;
-  final double baseLift;
-  final double breathe;
-  final double sway;
-  final double lift;
-
-  const _MascotMotion({
-    required this.duration,
-    required this.baseScale,
-    required this.baseLift,
-    required this.breathe,
-    required this.sway,
-    required this.lift,
-  });
-}
-
-String _moodForAsset(String asset) {
-  if (asset.contains('sleep')) return 'sleep';
-  if (asset.contains('night')) return 'night';
-  if (asset.contains('expect')) return 'expect';
-  if (asset.contains('sad')) return 'sad';
-  if (asset.contains('streak')) return 'streak';
-  if (asset.contains('happy')) return 'happy';
-  if (asset.contains('smile')) return 'smile';
-  return 'neutral';
-}
-
-_MascotMotion _motionForAsset(String asset) {
-  switch (_moodForAsset(asset)) {
-    case 'sleep':
-      return const _MascotMotion(
-        duration: Duration(milliseconds: 4200),
-        baseScale: 0.99,
-        baseLift: 4,
-        breathe: 0.010,
-        sway: 0.016,
-        lift: 5.5,
-      );
-    case 'night':
-      return const _MascotMotion(
-        duration: Duration(milliseconds: 4600),
-        baseScale: 0.99,
-        baseLift: 3,
-        breathe: 0.008,
-        sway: 0.012,
-        lift: 3.5,
-      );
-    case 'expect':
-      return const _MascotMotion(
-        duration: Duration(milliseconds: 2200),
-        baseScale: 1.0,
-        baseLift: -1,
-        breathe: 0.016,
-        sway: 0.030,
-        lift: 3.8,
-      );
-    case 'sad':
-      return const _MascotMotion(
-        duration: Duration(milliseconds: 3600),
-        baseScale: 0.975,
-        baseLift: 5,
-        breathe: 0.006,
-        sway: 0.008,
-        lift: 1.8,
-      );
-    case 'happy':
-      return const _MascotMotion(
-        duration: Duration(milliseconds: 2100),
-        baseScale: 1.01,
-        baseLift: -2,
-        breathe: 0.020,
-        sway: 0.038,
-        lift: 4.5,
-      );
-    case 'streak':
-      return const _MascotMotion(
-        duration: Duration(milliseconds: 1800),
-        baseScale: 1.015,
-        baseLift: -3,
-        breathe: 0.022,
-        sway: 0.048,
-        lift: 5.0,
-      );
-    default:
-      return const _MascotMotion(
-        duration: Duration(milliseconds: 3000),
-        baseScale: 1.0,
-        baseLift: 0,
-        breathe: 0.014,
-        sway: 0.022,
-        lift: 2.8,
-      );
-  }
-}
 
 class _MascotSparklePainter extends CustomPainter {
   final double progress;

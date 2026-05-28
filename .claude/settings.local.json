@@ -59,7 +59,20 @@
       "Bash(cp /tmp/home_page_trimmed.dart lib/pages/home_page.dart && grep -n \"class _MascotStage\\\\|class _MascotMotion\\\\|_motionForAsset\\\\|class _MascotSparklePainter\\\\|_moodForAsset\" lib/pages/home_page.dart)",
       "Bash(awk '/^      body: ListView\\\\\\(/{flag=1; depth=0} flag {for\\(i=1;i<=length\\($0\\);i++\\){c=substr\\($0,i,1\\); if\\(c==\"\\(\"\\) depth++; if\\(c==\"\\)\"\\) depth--; if\\(depth==0 && c==\"\\)\"\\){print NR\": \"$0; flag=0; exit}}}' lib/pages/weight_page.dart)",
       "Bash(sips -g pixelWidth -g pixelHeight \"assets/icon/ChatGPT Image 2026年5月26日 上午09_49_21.png\")",
-      "Bash(sips -z 1024 1024 \"assets/icon/ChatGPT Image 2026年5月26日 上午09_49_21.png\" --out assets/icon/app_icon.png)"
+      "Bash(sips -z 1024 1024 \"assets/icon/ChatGPT Image 2026年5月26日 上午09_49_21.png\" --out assets/icon/app_icon.png)",
+      "WebFetch(domain:pub.dev)",
+      "Bash(sips -g pixelWidth -g pixelHeight assets/mascot/core/tumi_neutral_front.png)",
+      "Bash(sips -g hasAlpha -g format -g pixelWidth -g pixelHeight assets/mascot/core/tumi_neutral_front.png)",
+      "Bash(sips -z 1024 1024 assets/icon/app_icon.png --out assets/icon/app_icon.png)",
+      "Bash(afconvert -h)",
+      "Bash(afconvert -f m4af -d aac@44100 -b 128000 bgm_main.wav bgm_main.m4a)",
+      "Bash(afconvert -f m4af -d aac@44100 -b 128000 bgm_onboarding.wav bgm_onboarding.m4a)",
+      "Bash(mv assets/images/mascot/* assets/mascot/legacy/)",
+      "Bash(mv assets/images/room/* assets/scenes/home/)",
+      "Bash(mv assets/images/water/* assets/scenes/water/)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(git log *)",
+      "Bash(awk 'NR<319 || NR>414' lib/widgets/mascot_scene.dart)"
     ],
     "additionalDirectories": [
       "/Users/yayoi991331",

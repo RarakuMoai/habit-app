@@ -3,12 +3,16 @@
 // 設計參考 docs/tumi_character_guide.md。台詞庫直接由指南搬過來，
 // 之後人設更新只改這檔不必動 widget。
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 8 種情緒，對應 assets/images/mascot/tumi_*.png 的檔名。
+// 8 種情緒。
+//
+// 過渡期：已遷移到新 CG 風格的情緒走 `assets/mascot/core/tumi_<key>.png`，
+// 還沒遷移的暫時退回 `happy` 表情當佔位。使用者生好新 CG 後加進 [_migratedToCG]。
 enum MascotEmotion {
   neutralFront('neutral_front'),
   sleep('sleep'),
@@ -22,10 +26,25 @@ enum MascotEmotion {
   final String assetKey;
   const MascotEmotion(this.assetKey);
 
-  String get assetPath => 'assets/images/mascot/tumi_$assetKey.png';
+  // 已換成新 CG 風格的情緒（其他仍走舊圖避免 app 出現破圖）
+  static const Set<MascotEmotion> _migratedToCG = {
+    MascotEmotion.neutralFront,
+    MascotEmotion.sleep,
+    MascotEmotion.expect,
+    MascotEmotion.smile,
+    MascotEmotion.happy,
+    MascotEmotion.sad,
+    MascotEmotion.night,
+  };
+
+  String get assetPath => _migratedToCG.contains(this)
+      ? 'assets/mascot/core/tumi_$assetKey.png'
+      // 還沒生 CG 的情緒（目前只剩 streak），暫時用 happy 代替避免破圖
+      : 'assets/mascot/core/tumi_happy.png';
 }
 
-// 7 種陪伴情境（再加一個 night）。每個情境對應一組台詞與預設情緒。
+// 兔咪陪伴情境。每個情境對應一組台詞與預設情緒。
+// 之後想新增/修改台詞，只改下方 [_lines] 這個 map 就好。
 enum MascotContext {
   openApp,
   notStarted,
@@ -35,6 +54,10 @@ enum MascotContext {
   streak,
   undone,
   night,
+  // 點兔咪本身的隨機反應
+  tapReaction,
+  // 還沒有任何習慣時（空狀態）
+  emptyHabits,
 }
 
 // 各情境對應的預設情緒（呼叫端可以另外覆寫）。
@@ -47,57 +70,105 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.streak: MascotEmotion.streak,
   MascotContext.undone: MascotEmotion.sad,
   MascotContext.night: MascotEmotion.night,
+  MascotContext.tapReaction: MascotEmotion.neutralFront,
+  MascotContext.emptyHabits: MascotEmotion.neutralFront,
 };
 
-// 各情境台詞庫（搬自 docs/tumi_character_guide.md）。
+// ─────────────────────────────────────────────────────────────
+//  📝 兔咪台詞庫
+//  -----------------------------------------------------------
+//  全 app 唯一一份台詞來源。要新增 / 修改 / 刪除任何兔咪講的話，
+//  直接改下面這個 map 就好，不需要動其他檔案。
+//
+//  每個 key（MascotContext）對應一個台詞池，呼叫端拿其中一句使用。
+//  - lineFor(ctx, seed): 同 seed 拿固定一句（避免 build 時抖動）
+//  - randomLineFor(ctx): 隨機抽一句
+//
+//  人設參考 docs/tumi_character_guide.md。
+// ─────────────────────────────────────────────────────────────
 const Map<MascotContext, List<String>> _lines = {
+  // ── 打開 app / 一般招呼 ──
   MascotContext.openApp: [
     '嗯...你來了。',
     '我有醒著喔。',
     '今天也從一點點開始？',
     '要先做最小的那一步嗎？',
   ],
+
+  // ── 今天還沒開始做任何習慣 ──
   MascotContext.notStarted: [
+    '嗯...今天也從一點點開始？',
     '我在等你，不急。',
     '先碰一下也可以。',
     '今天可以很小步。',
     '嗯...要開始了嗎？',
   ],
+
+  // ── 完成了第一個 / 任一個習慣 ──
   MascotContext.completedOne: [
     '做到了，我有看到。',
     '這一格亮起來了。',
     '小小一步，收好。',
     '嗯，今天有留下痕跡。',
   ],
+
+  // ── 完成過一半 ──
   MascotContext.halfDone: [
     '已經一半了耶。',
     '你慢慢在前進。',
     '我開始精神了。',
     '再一點點就很棒。',
   ],
+
+  // ── 今天全部完成 ──
   MascotContext.allDone: [
     '全部完成了。',
     '今天的你，好認真。',
     '我替你收好了。',
     '這一天亮亮的。',
   ],
+
+  // ── 連續達標一段時間（streak >= 7） ──
   MascotContext.streak: [
     '我們連起來了！',
     '兔咪精神來了。',
     '這不是一點點了耶。',
     '你看，真的長出來了。',
   ],
+
+  // ── 取消已完成的習慣（撤銷感） ──
   MascotContext.undone: [
     '沒關係，我還在。',
     '今天比較難，對吧。',
     '我們可以重新放一格。',
     '不是壞掉，只是停了一下。',
   ],
+
+  // ── 夜晚（22:00 ~ 06:00） ──
   MascotContext.night: [
     '很晚了，聲音小一點。',
     '今天辛苦了。',
     '如果累了，也可以休息。',
     '明天我還會在這裡。',
+  ],
+
+  // ── 使用者點兔咪本身的隨機反應 ──
+  MascotContext.tapReaction: [
+    '嗯...你來了。',
+    '我在這裡。',
+    '今天也慢慢來。',
+    '先做一點點也可以。',
+    '我有醒著喔。',
+    '你回來了，真好。',
+    '要先碰一下嗎？',
+    '我陪你。',
+  ],
+
+  // ── 還沒新增任何習慣（空狀態） ──
+  MascotContext.emptyHabits: [
+    '先放一個小習慣吧。',
+    '一點點也可以開始。',
+    '新增一格，我陪你慢慢來。',
   ],
 };
 
@@ -154,28 +225,47 @@ class MascotState {
 
 class MascotPersona {
   static final ValueNotifier<MascotState> current = ValueNotifier<MascotState>(
-    const MascotState('assets/images/mascot/tumi_neutral_front.png', '嗯...你來了。'),
+    MascotState(MascotEmotion.neutralFront.assetPath, '嗯...你來了。'),
   );
 
-  /// 互動：根據情境換情緒 + 隨機抽一句台詞。
+  // 互動後過多久自動回到中性狀態（避免兔咪一直歡呼/難過）
+  static const Duration _revertAfter = Duration(seconds: 10);
+  static Timer? _revertTimer;
+
+  /// 互動：根據情境換情緒 + 隨機抽一句台詞。10 秒後自動回神。
   static void interact(MascotContext ctx) {
     current.value = MascotState(
       MascotLines.emotionFor(ctx).assetPath,
       MascotLines.randomLineFor(ctx),
     );
+    _scheduleRevert();
   }
 
-  /// 直接設定（呼叫端自己決定 asset + 台詞，給有複雜情緒邏輯的頁面用）。
+  /// 直接設定（呼叫端自己決定 asset + 台詞）。10 秒後自動回神。
   static void set(String assetPath, String speech) {
     current.value = MascotState(assetPath, speech);
+    _scheduleRevert();
   }
 
   /// App 冷啟動：從 openApp 池隨機抽一句問候（每次打開都有變化）。
+  /// 已經是中性狀態，不需要安排回神。
   static void resetToOpening() {
+    _revertTimer?.cancel();
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       MascotLines.randomLineFor(MascotContext.openApp),
     );
+  }
+
+  /// 安排 N 秒後回到中性狀態。新互動會 reset 計時。
+  static void _scheduleRevert() {
+    _revertTimer?.cancel();
+    _revertTimer = Timer(_revertAfter, () {
+      current.value = MascotState(
+        MascotLines.emotionFor(MascotContext.openApp).assetPath,
+        MascotLines.randomLineFor(MascotContext.openApp),
+      );
+    });
   }
 }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,17 +9,36 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/family_page.dart';
+import 'utils/bgm_service.dart';
 import 'utils/mascot.dart';
+import 'utils/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 鎖定只支援直向（防止橫向自動翻轉）
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
   final prefs = await SharedPreferences.getInstance();
   final bool onboardingDone = prefs.getBool('onboarding_done') ?? false;
   // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
   await MascotPanelPrefs.load();
+  // 初始化本機通知（番茄鐘倒數結束鈴用）；權限到第一次排通知才會跳 dialog
+  await NotificationService.init();
   // App 冷啟動：兔咪從 openApp 池隨機抽一句問候，每次打開都有變化
   MascotPersona.resetToOpening();
   runApp(MyApp(startAtHome: onboardingDone));
+  // BGM 初始化 + 播放放 runApp 之後，failed 也不會擋住 UI
+  () async {
+    try {
+      await BgmService.instance.init();
+      await BgmService.instance.play(
+        onboardingDone ? 'sounds/bgm_main.m4a' : 'sounds/bgm_onboarding.m4a',
+      );
+    } catch (e, st) {
+      debugPrint('BGM init/play failed: $e\n$st');
+    }
+  }();
 }
 
 class MyApp extends StatelessWidget {
@@ -232,8 +252,9 @@ class _MainPageState extends State<MainPage> {
     return Scaffold(
       body: tabs[_currentIndex].page,
       bottomNavigationBar: tabs.length == 1
-          // 只有習慣頁時不顯示底部列
-          ? null
+          // 只有習慣頁時，用裝飾條取代 bottom nav，
+          // 確保版面高度跟「有開其他功能」時一致，兔咪/對話框位置不會跑掉
+          ? const _DecorativeFloor()
           : BottomNavigationBar(
               currentIndex: _currentIndex,
               onTap: (index) {
@@ -269,4 +290,48 @@ class _TabItem {
   final IconData icon;
   final String label;
   const _TabItem({required this.page, required this.icon, required this.label});
+}
+
+// 「只有習慣頁」時的底部裝飾條。
+// 高度跟 BottomNavigationBar 一致，避免功能開關後版面跳動。
+// 視覺：warm 漸層 + 中央三顆淡色小裝飾，跟兔咪場景配色呼應。
+class _DecorativeFloor extends StatelessWidget {
+  const _DecorativeFloor();
+
+  @override
+  Widget build(BuildContext context) {
+    final hour = DateTime.now().hour;
+    final isNight = hour >= 22 || hour < 6;
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return Container(
+      height: kBottomNavigationBarHeight + bottomPad,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isNight
+              ? const [Color(0xFFD8DCEE), Color(0xFFB6BFE0)]
+              : const [Color(0xFFFFEDD3), Color(0xFFFFD9A8)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomPad),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(
+                  isNight ? Icons.nightlight_round : Icons.favorite,
+                  size: 11,
+                  color: Colors.white.withValues(alpha: 0.65),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
 }

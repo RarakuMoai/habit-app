@@ -767,7 +767,7 @@ class _SmallGhostButton extends StatelessWidget {
 
 // Single source of truth for bottle layout.
 //
-// `imageAspectRatio` matches `assets/images/water/bottle_overlay.png`
+// `imageAspectRatio` matches `assets/scenes/water/bottle_overlay.png`
 // (1024 × 1536). When the bottle widget uses the same aspect ratio,
 // `BoxFit.contain` does not letterbox the image, so the painter's
 // normalized 0–1 coordinates map 1:1 onto the bottle artwork.
@@ -922,12 +922,12 @@ class _WaterBottleState extends State<_WaterBottle>
                   ),
                 ),
                 Image.asset(
-                  'assets/images/water/bottle_back.png',
+                  'assets/scenes/water/bottle_back.png',
                   fit: BoxFit.contain,
                 ),
                 CustomPaint(painter: _WaterFillPainter(progress: value)),
                 Image.asset(
-                  'assets/images/water/bottle_front.png',
+                  'assets/scenes/water/bottle_front.png',
                   fit: BoxFit.contain,
                 ),
                 if (widget.reached)
@@ -1195,17 +1195,6 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
             const Text(
               '喝水設定',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),

@@ -40,7 +40,9 @@ dependencies:
   fl_chart: ^0.69.0
   google_fonts: ^6.2.1
   lottie: ^3.1.0
-  audioplayers: ^6.1.0
+  flutter_local_notifications: ^21.0.0
+  timezone: ^0.11.0
+  just_audio: ^0.10.5
 
 dev_dependencies:
   flutter_test:
@@ -75,9 +77,11 @@ flutter:
   assets:
     - assets/animations/
     - assets/sounds/
-    - assets/images/mascot/
-    - assets/images/room/
-    - assets/images/water/
+    - assets/mascot/core/
+    - assets/scenes/home/
+    - assets/scenes/timer/
+    - assets/scenes/water/
+    - assets/scenes/weight/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

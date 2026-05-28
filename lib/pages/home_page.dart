@@ -289,72 +289,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String? _transientSpeech;
   int _mascotReactionTick = 0;
 
-  static const List<String> _kTapReactions = [
-    '嗯...你來了。',
-    '我在這裡。',
-    '今天也慢慢來。',
-    '先做一點點也可以。',
-    '我有醒著喔。',
-    '你回來了，真好。',
-    '要先碰一下嗎？',
-    '我陪你。',
-  ];
-
-  static const List<String> _kEmptyHabitLines = [
-    '先放一個小習慣吧。',
-    '一點點也可以開始。',
-    '新增一格，我陪你慢慢來。',
-  ];
-
-  static const List<String> _kNotStartedLines = [
-    '嗯...今天也從一點點開始？',
-    '我在等你，不急。',
-    '先碰一下也可以。',
-    '今天可以很小步。',
-  ];
-
-  static const List<String> _kStartedLines = [
-    '做到了，我有看到。',
-    '這一格亮起來了。',
-    '小小一步，收好。',
-    '嗯，今天有留下痕跡。',
-  ];
-
-  static const List<String> _kHalfwayLines = [
-    '已經一半了耶。',
-    '你慢慢在前進。',
-    '我開始精神了。',
-    '再一點點就很棒。',
-  ];
-
-  static const List<String> _kAllDoneLines = [
-    '全部完成了。',
-    '今天的你，好認真。',
-    '我替你收好了。',
-    '這一天亮亮的。',
-  ];
-
-  static const List<String> _kStreakLines = [
-    '我們連起來了！',
-    '兔咪精神來了。',
-    '這不是一點點了耶。',
-    '你看，真的長出來了。',
-  ];
-
-  static const List<String> _kSadLines = [
-    '沒關係，我還在。',
-    '今天比較難，對吧。',
-    '我們可以重新放一格。',
-    '不是壞掉，只是停了一下。',
-  ];
-
-  static const List<String> _kNightLines = [
-    '很晚了，聲音小一點。',
-    '今天辛苦了。',
-    '如果累了，也可以休息。',
-    '明天我還會在這裡。',
-  ];
-
   void _showTransientMascot(
     String name, {
     Duration duration = const Duration(seconds: 2),
@@ -374,9 +308,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _onMascotTap() {
     _celebCtrl.forward(from: 0);
-    final reactions = List<String>.from(_kTapReactions)..shuffle();
     setState(() {
-      _transientSpeech = reactions.first;
+      _transientSpeech = MascotLines.randomLineFor(MascotContext.tapReaction);
       _mascotReactionTick++;
     });
     _syncMascotToPersona();
@@ -388,54 +321,63 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
-  // 兔咪圖選擇器（按進度、時間、streak 決定）
+  // 兔咪圖選擇器（按進度、時間、streak 決定）。
+  // 透過 [MascotEmotion.assetPath] 取，會自動走 _migratedToCG 的新/舊圖路由。
   String get _mascotAsset {
     if (_transientMascot != null) {
-      return 'assets/images/mascot/tumi_$_transientMascot.png';
+      final emo = MascotEmotion.values.firstWhere(
+        (e) => e.assetKey == _transientMascot,
+        orElse: () => MascotEmotion.neutralFront,
+      );
+      return emo.assetPath;
     }
-    if (habits.isEmpty) {
-      return 'assets/images/mascot/tumi_neutral_front.png';
-    }
+    if (habits.isEmpty) return MascotEmotion.neutralFront.assetPath;
+
     final ref = _dailyHabits.isNotEmpty ? _dailyHabits : _weeklyHabits;
     final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final ratio = done / ref.length;
 
     if (ratio == 1.0) {
-      if (streak >= 7) return 'assets/images/mascot/tumi_streak.png';
-      return 'assets/images/mascot/tumi_happy.png';
+      return streak >= 7
+          ? MascotEmotion.streak.assetPath
+          : MascotEmotion.happy.assetPath;
     }
-    if (ratio >= 0.5) return 'assets/images/mascot/tumi_smile.png';
-    if (ratio > 0) return 'assets/images/mascot/tumi_expect.png';
+    if (ratio >= 0.5) return MascotEmotion.smile.assetPath;
+    if (ratio > 0) return MascotEmotion.expect.assetPath;
 
     final hour = DateTime.now().hour;
-    if (hour >= 22 || hour < 6) return 'assets/images/mascot/tumi_night.png';
-    return 'assets/images/mascot/tumi_sleep.png';
+    return hour >= 22 || hour < 6
+        ? MascotEmotion.night.assetPath
+        : MascotEmotion.sleep.assetPath;
   }
 
+  // 兔咪台詞選擇器：根據進度 / 時間 / streak 決定情境，再從共用台詞庫
+  // [MascotLines] 抽一句。所有台詞都集中在 lib/utils/mascot.dart 的 _lines map。
   String get _mascotMessage {
     if (_transientMascot == 'sad') {
-      return _pickMascotLine(_kSadLines, salt: _mascotReactionTick);
+      return MascotLines.randomLineFor(MascotContext.undone);
     }
-    if (habits.isEmpty) return _pickMascotLine(_kEmptyHabitLines);
+    if (habits.isEmpty) {
+      return MascotLines.randomLineFor(MascotContext.emptyHabits);
+    }
     final ref = _dailyHabits.isNotEmpty ? _dailyHabits : _weeklyHabits;
     final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final ratio = done / ref.length;
     if (ratio == 1.0) {
-      return _pickMascotLine(streak >= 7 ? _kStreakLines : _kAllDoneLines);
+      return MascotLines.randomLineFor(
+        streak >= 7 ? MascotContext.streak : MascotContext.allDone,
+      );
     }
-    if (ratio >= 0.5) return _pickMascotLine(_kHalfwayLines);
-    if (ratio > 0) return _pickMascotLine(_kStartedLines);
+    if (ratio >= 0.5) return MascotLines.randomLineFor(MascotContext.halfDone);
+    if (ratio > 0) {
+      return MascotLines.randomLineFor(MascotContext.completedOne);
+    }
 
     final hour = DateTime.now().hour;
-    if (hour >= 22 || hour < 6) return _pickMascotLine(_kNightLines);
-    return _pickMascotLine(_kNotStartedLines);
-  }
-
-  String _pickMascotLine(List<String> lines, {int salt = 0}) {
-    final key =
-        '${todayString()}-$dailyDoneCount-$weeklyMetCount-$streak-$salt';
-    final sum = key.codeUnits.fold<int>(0, (total, code) => total + code);
-    return lines[sum % lines.length];
+    if (hour >= 22 || hour < 6) {
+      return MascotLines.randomLineFor(MascotContext.night);
+    }
+    return MascotLines.randomLineFor(MascotContext.notStarted);
   }
 
   void toggleHabit(int index) {
@@ -1888,7 +1830,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: Image.asset(
-                    'assets/images/room/tumi_room_stage_bg.png',
+                    'assets/scenes/home/tumi_room_stage_bg_v2.png',
                     height: double.infinity,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -2882,7 +2824,7 @@ class _GreetingBannerState extends State<_GreetingBanner>
                     ),
                     padding: const EdgeInsets.all(3),
                     child: Image.asset(
-                      'assets/images/mascot/tumi_cheer.png',
+                      MascotEmotion.happy.assetPath,
                       fit: BoxFit.contain,
                     ),
                   ),
@@ -3470,4 +3412,3 @@ class _RoomScenePainter extends CustomPainter {
       old.allDone != allDone ||
       old.streak != streak;
 }
-

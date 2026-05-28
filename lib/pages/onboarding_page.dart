@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import '../utils/bgm_service.dart';
+import '../utils/mascot.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 
@@ -386,6 +388,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
 
     if (!mounted) return;
+    // 切換 BGM 到主 app 曲目（cross-fade）
+    BgmService.instance.play('sounds/bgm_main.m4a');
     Navigator.of(context).pushReplacementNamed('/home');
   }
 
@@ -465,7 +469,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
         transitionBuilder: (child, anim) =>
             FadeTransition(opacity: anim, child: child),
         child: Image.asset(
-          'assets/images/mascot/tumi_$emotion.png',
+          // 透過 MascotEmotion 取，會自動走新 CG / 舊圖路由
+          MascotEmotion.values
+              .firstWhere(
+                (e) => e.assetKey == emotion,
+                orElse: () => MascotEmotion.neutralFront,
+              )
+              .assetPath,
           key: ValueKey(emotion),
           fit: BoxFit.contain,
         ),
