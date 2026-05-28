@@ -825,14 +825,30 @@ class _FamilyPageState extends State<FamilyPage> {
       ),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: MascotPageShell(
-                accent: Theme.of(context).colorScheme.primary,
-                scene: PersonaScene(
-                  accent: Theme.of(context).colorScheme.primary,
+          : Stack(
+              children: [
+                // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: MediaQuery.of(context).size.height * 0.56,
+                  child: const MascotSceneBackground(
+                    'assets/scenes/family/family_task_stage_bg_v3.png',
+                  ),
                 ),
-                child: _children.isEmpty ? _buildEmpty() : _buildChildList(),
-              ),
+                SafeArea(
+                  child: MascotPageShell(
+                    accent: Theme.of(context).colorScheme.primary,
+                    scene: PersonaScene(
+                      accent: Theme.of(context).colorScheme.primary,
+                    ),
+                    child: _children.isEmpty
+                        ? _buildEmpty()
+                        : _buildChildList(),
+                  ),
+                ),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _enterParentManagement,

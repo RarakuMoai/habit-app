@@ -727,11 +727,23 @@ class _WeightPageState extends State<WeightPage> {
         backgroundColor: Colors.orange,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: SafeArea(
-        child: MascotPageShell(
-          accent: Colors.orange,
-          scene: const PersonaScene(accent: Colors.orange),
-          child: ListView(
+      body: Stack(
+        children: [
+          // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).size.height * 0.56,
+            child: const MascotSceneBackground(
+              'assets/scenes/weight/weight_wellness_stage_bg_v3.png',
+            ),
+          ),
+          SafeArea(
+            child: MascotPageShell(
+              accent: Colors.orange,
+              scene: const PersonaScene(accent: Colors.orange),
+              child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
             children: [
           // ── 折線圖卡片（含範圍切換按鈕） ──
@@ -906,6 +918,8 @@ class _WeightPageState extends State<WeightPage> {
             ],
           ),
         ),
+      ),
+        ],
       ),
     );
   }

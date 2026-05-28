@@ -72,7 +72,10 @@
       "Bash(mv assets/images/water/* assets/scenes/water/)",
       "Bash(echo \"exit=$?\")",
       "Bash(git log *)",
-      "Bash(awk 'NR<319 || NR>414' lib/widgets/mascot_scene.dart)"
+      "Bash(awk 'NR<319 || NR>414' lib/widgets/mascot_scene.dart)",
+      "Bash(awk 'NR>=768 && NR<=778 { printf \"%d:[%s]\\\\n\", NR, $0 }' lib/pages/water_page.dart)",
+      "Bash(awk 'NR>=767 && NR<=778' lib/pages/water_page.dart)",
+      "Bash(grep -n \"body: Stack\\\\|body: SafeArea\\\\|^      \\),$\\\\|^      \\)$\" lib/pages/weight_page.dart)"
     ],
     "additionalDirectories": [
       "/Users/yayoi991331",

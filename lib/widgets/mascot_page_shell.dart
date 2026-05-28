@@ -22,7 +22,7 @@ import '../utils/mascot.dart';
 import 'mascot_panel.dart';
 
 class MascotPageShell extends StatelessWidget {
-  /// 上方兔咪場景（呼叫端負責背景 + 兔咪 + 對話框）。
+  /// 上方兔咪場景（兔咪本體 + 對話框）。
   final Widget scene;
 
   /// 下方卡片內容（不需自己包白底/圓角/陰影/把手，shell 會處理）。
@@ -78,6 +78,29 @@ class MascotPageShell extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// 場景背景圖 wrapper：BoxFit.cover + 從頂部對齊（兔咪會疊在中下方，
+/// 場景上方比較重要要露出來）。給 [MascotPageShell.sceneBackground] 用。
+class MascotSceneBackground extends StatelessWidget {
+  final String assetPath;
+  const MascotSceneBackground(this.assetPath, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Image.asset(
+          assetPath,
+          height: double.infinity,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+        ),
+      ),
     );
   }
 }

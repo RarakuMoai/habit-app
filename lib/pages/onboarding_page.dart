@@ -29,9 +29,14 @@ class OnboardingPage extends StatefulWidget {
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage> {
+class _OnboardingPageState extends State<OnboardingPage>
+    with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+
+  // 身體資訊頁專用 scroll controller：鍵盤彈出時自動捲到底，把按鈕推到鍵盤上緣
+  // （兔咪會被擠到畫面外，但這頁欄位/按鈕優先）
+  final ScrollController _bodyInfoScrollCtrl = ScrollController();
 
   // 畫面1：打字動畫
   final List<String> _lines = ['嗯...你來了。', '我是兔咪，平常有點愛睡。', '但你開始的時候，我會醒來陪你。'];
@@ -85,6 +90,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _nicknameController.addListener(() => setState(() {}));
     _heightController.addListener(() => setState(() {}));
     _heightInController.addListener(() => setState(() {}));
@@ -105,6 +111,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _typingTimer?.cancel();
     _pageController.dispose();
     _mascotController.dispose();
@@ -113,7 +120,26 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _heightInController.dispose();
     _weightController.dispose();
     _targetWeightController.dispose();
+    _bodyInfoScrollCtrl.dispose();
     super.dispose();
+  }
+
+  // 鍵盤狀態變化時，把身體資訊頁的 scroll view 跟著捲到底
+  // ─ iOS 鍵盤動畫期間 didChangeMetrics 會連發多次（viewport 漸縮）
+  // ─ 改用 jumpTo 每次同步跳到當前 maxScrollExtent，視覺上跟鍵盤同步上來
+  //   （比 animateTo 等鍵盤動畫跑完再起一段動畫快很多）
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_bodyInfoScrollCtrl.hasClients) return;
+      final kb = MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
+      if (kb > 0) {
+        _bodyInfoScrollCtrl.jumpTo(
+          _bodyInfoScrollCtrl.position.maxScrollExtent,
+        );
+      }
+    });
   }
 
   // 逐字打字效果
@@ -513,8 +539,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ── 畫面1：吉祥物甦醒 ──
   // 引導頁版型：兔咪固定在上方，內容在下方區域置中（可捲動）。
-  // 兔咪位置不受內容多寡影響，換頁時保持一致。
-  Widget _mascotPage({required String emotion, required Widget content}) {
+  // 鍵盤彈出時，有掛 scrollController 的頁面會自動捲到底（didChangeMetrics
+  // 觸發），讓底部按鈕浮到鍵盤上緣；兔咪/上半部欄位會被推出畫面上方，但
+  // 使用者可往上滑回去。沒掛 controller 的頁面走預設行為（內容置中）。
+  Widget _mascotPage({
+    required String emotion,
+    required Widget content,
+    ScrollController? scrollController,
+  }) {
     return GestureDetector(
       // 點空白處收起鍵盤
       onTap: () => FocusScope.of(context).unfocus(),
@@ -522,6 +554,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: SafeArea(
         child: Center(
           child: SingleChildScrollView(
+            controller: scrollController,
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
@@ -1053,6 +1086,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   // onboarding 用的單欄數字輸入（橘色風格）
+  // iOS 純數字鍵盤沒有「完成」鍵，但因為鍵盤彈出時 _mascotPage 會
+  // 把整層內容往上推（兔咪暫時被擠到畫面外），下方的「填寫完成 / 下次
+  // 再說」按鈕都能點到，所以不再額外塞 suffix icon
   Widget _onboardingNumField({
     required TextEditingController controller,
     required String label,
@@ -1146,6 +1182,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
     return _mascotPage(
       emotion: emotion,
+      scrollController: _bodyInfoScrollCtrl,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

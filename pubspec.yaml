@@ -39,7 +39,6 @@ dependencies:
   shared_preferences: ^2.5.5
   fl_chart: ^0.69.0
   google_fonts: ^6.2.1
-  lottie: ^3.1.0
   flutter_local_notifications: ^21.0.0
   timezone: ^0.11.0
   just_audio: ^0.10.5
@@ -75,13 +74,13 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/animations/
     - assets/sounds/
     - assets/mascot/core/
     - assets/scenes/home/
     - assets/scenes/timer/
     - assets/scenes/water/
     - assets/scenes/weight/
+    - assets/scenes/family/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

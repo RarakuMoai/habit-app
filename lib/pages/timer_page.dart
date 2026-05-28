@@ -152,12 +152,26 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFFFF8F0),
       appBar: MascotAppBar(accent: color),
-      body: SafeArea(
-        child: MascotPageShell(
-          accent: color,
-          scene: PersonaScene(accent: color),
-          child: _buildTimerContent(color),
-        ),
+      body: Stack(
+        children: [
+          // 場景背景：延伸到 AppBar 後面，跟首頁同樣 56% 高度
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).size.height * 0.56,
+            child: const MascotSceneBackground(
+              'assets/scenes/timer/timer_focus_stage_bg_v5.png',
+            ),
+          ),
+          SafeArea(
+            child: MascotPageShell(
+              accent: color,
+              scene: PersonaScene(accent: color),
+              child: _buildTimerContent(color),
+            ),
+          ),
+        ],
       ),
     );
   }
