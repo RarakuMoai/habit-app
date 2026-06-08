@@ -126,6 +126,12 @@ class BgmService with WidgetsBindingObserver {
       if (await _isPlaybackAdvancing()) return;
 
       debugPrint('BGM: playback did not advance, retry ${attempt + 1}');
+      if (attempt == _playStartRetries - 1) {
+        // 驗證在某些裝置上可能誤判；最後一次不要 stop 掉，避免救援流程
+        // 反而讓 BGM 留在停止狀態。
+        await _player.play();
+        return;
+      }
       await _player.stop();
       if (muted.value || _currentAsset != asset) return;
       await _loadAsset(asset);

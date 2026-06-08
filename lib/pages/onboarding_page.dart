@@ -499,21 +499,24 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
         ),
         Positioned(
-          bottom: -7,
-          left: 28,
+          top: -7,
+          left: 0,
+          right: 0,
           child: Transform.rotate(
             angle: math.pi / 4,
-            child: Container(
-              width: 15,
-              height: 15,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.88),
-                border: Border(
-                  right: BorderSide(
-                    color: Colors.orange.withValues(alpha: 0.16),
-                  ),
-                  bottom: BorderSide(
-                    color: Colors.orange.withValues(alpha: 0.16),
+            child: Center(
+              child: Container(
+                width: 15,
+                height: 15,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  border: Border(
+                    left: BorderSide(
+                      color: Colors.orange.withValues(alpha: 0.16),
+                    ),
+                    top: BorderSide(
+                      color: Colors.orange.withValues(alpha: 0.16),
+                    ),
                   ),
                 ),
               ),
@@ -1246,23 +1249,43 @@ class _OnboardingPageState extends State<OnboardingPage>
               fontSize: 14,
               fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
               children: [
                 Text('$emoji $name'),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  child: selected
-                      ? const Padding(
-                          padding: EdgeInsets.only(left: 6),
-                          child: Icon(
-                            Icons.check_rounded,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const SizedBox.shrink(),
+                Positioned(
+                  top: -12,
+                  right: -14,
+                  child: AnimatedScale(
+                    scale: selected ? 1 : 0.65,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutBack,
+                    child: AnimatedOpacity(
+                      opacity: selected ? 1 : 0,
+                      duration: const Duration(milliseconds: 140),
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withValues(alpha: 0.24),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.check_rounded,
+                          size: 14,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1667,11 +1690,11 @@ class _OnboardingBgPainter extends CustomPainter {
     p.color = const Color(0xFFFFD8A0).withValues(alpha: 0.40);
     canvas.drawCircle(Offset(w * 0.90, h * 0.95), 85, p);
 
-    // 很淡的窗光與地面弧線，讓第一眼有一點空間感。
+    // 淡淡的窗光與地面暖光，讓第一眼有空間感，但不搶兔咪。
     final light = Paint()
       ..shader = LinearGradient(
         colors: [
-          Colors.white.withValues(alpha: 0.34),
+          Colors.white.withValues(alpha: 0.46),
           Colors.white.withValues(alpha: 0.0),
         ],
         begin: Alignment.topCenter,
@@ -1685,10 +1708,33 @@ class _OnboardingBgPainter extends CustomPainter {
       ..close();
     canvas.drawPath(lightPath, light);
 
+    final floorGlow = Paint()
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFFFFC77A).withValues(alpha: 0.20),
+              const Color(0xFFFFC77A).withValues(alpha: 0.0),
+            ],
+          ).createShader(
+            Rect.fromCenter(
+              center: Offset(w * 0.50, h * 0.73),
+              width: w * 1.22,
+              height: h * 0.30,
+            ),
+          );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w * 0.50, h * 0.73),
+        width: w * 1.22,
+        height: h * 0.30,
+      ),
+      floorGlow,
+    );
+
     final floorPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..color = const Color(0xFFDFA45F).withValues(alpha: 0.14);
+      ..strokeWidth = 1.4
+      ..color = const Color(0xFFDFA45F).withValues(alpha: 0.20);
     final floorPath = Path()
       ..moveTo(w * -0.08, h * 0.72)
       ..quadraticBezierTo(w * 0.50, h * 0.66, w * 1.08, h * 0.72);
