@@ -72,6 +72,7 @@ class BgmService with WidgetsBindingObserver {
   /// 切換到指定 BGM 資產（路徑相對 `assets/`，例如 `sounds/bgm_main.m4a`）。
   /// 重複呼叫同一首會無操作；切換到不同首會 cross-fade。
   Future<void> play(String asset) async {
+    if (!_initialized) await init();
     if (_currentAsset == asset && _player.playing) return;
 
     // 不管之前狀態如何，先 fade out + stop 拿到乾淨狀態。
@@ -87,6 +88,32 @@ class BgmService with WidgetsBindingObserver {
     await _startPlaybackWithRecovery(asset);
 
     await _fadeTo(_targetVolume);
+  }
+
+  /// 確認指定 BGM 已載入並正在前進。
+  ///
+  /// 用在使用者互動後補救「player 顯示 playing 但沒有實際出聲」的裝置狀態。
+  /// 若 [unmute] 為 false，會尊重使用者已保存的靜音偏好。
+  Future<void> ensurePlaying(String asset, {bool unmute = false}) async {
+    if (!_initialized) await init();
+    if (unmute && muted.value) {
+      await setMuted(false);
+    }
+    if (muted.value) return;
+
+    if (_currentAsset != asset) {
+      await play(asset);
+      return;
+    }
+
+    if (_player.processingState == ProcessingState.idle) {
+      await _loadAsset(asset);
+    }
+    await _startPlaybackWithRecovery(asset);
+    if (muted.value || _currentAsset != asset) return;
+    if (_currentVolume < _targetVolume * 0.75) {
+      await _fadeTo(_targetVolume);
+    }
   }
 
   Future<void> _activateSession() async {

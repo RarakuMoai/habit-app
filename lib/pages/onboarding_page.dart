@@ -173,6 +173,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   void _nextPage() {
+    unawaited(_ensureOnboardingBgm());
     // 換頁前先收起鍵盤，避免下一頁殘留鍵盤
     FocusScope.of(context).unfocus();
     if (_currentPage < 8) {
@@ -203,6 +204,25 @@ class _OnboardingPageState extends State<OnboardingPage>
       }
       return newValue;
     });
+  }
+
+  Future<void> _ensureOnboardingBgm({bool unmute = false}) async {
+    try {
+      await BgmService.instance.ensurePlaying(
+        'sounds/bgm_onboarding.m4a',
+        unmute: unmute,
+      );
+    } catch (e, st) {
+      debugPrint('Onboarding BGM ensure failed: $e\n$st');
+    }
+  }
+
+  Future<void> _toggleOnboardingBgm(bool isMuted) async {
+    if (isMuted) {
+      await _ensureOnboardingBgm(unmute: true);
+    } else {
+      await BgmService.instance.setMuted(true);
+    }
   }
 
   // 從目前單位的輸入欄推回公制
@@ -576,7 +596,10 @@ class _OnboardingPageState extends State<OnboardingPage>
         shadowColor: accent.withValues(alpha: 0.22),
         elevation: 1.5,
         child: InkWell(
-          onTap: onTap,
+          onTap: () {
+            unawaited(_ensureOnboardingBgm());
+            onTap();
+          },
           borderRadius: BorderRadius.circular(16),
           splashColor: accent.withValues(alpha: 0.10),
           highlightColor: accent.withValues(alpha: 0.06),
@@ -1599,6 +1622,50 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
+  Widget _onboardingSoundButton() {
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6, right: 10),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: BgmService.muted,
+            builder: (_, isMuted, _) {
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.22),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.shade900.withValues(alpha: 0.12),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    isMuted
+                        ? Icons.volume_off_rounded
+                        : Icons.volume_up_rounded,
+                    color: isMuted
+                        ? Colors.grey.shade600
+                        : Colors.orange.shade700,
+                  ),
+                  tooltip: isMuted ? '開啟音樂' : '關閉音樂',
+                  onPressed: () => unawaited(_toggleOnboardingBgm(isMuted)),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 第1頁（畫面1）沒有返回按鈕；畫面4/5/6 在追問子步驟時也要顯示返回
@@ -1680,6 +1747,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               _buildPage7(),
             ],
           ),
+          _onboardingSoundButton(),
           // 返回按鈕：浮在主畫面上層，不佔排版空間，避免內容下移
           if (showBack)
             SafeArea(
