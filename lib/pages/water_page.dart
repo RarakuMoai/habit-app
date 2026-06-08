@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
+import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -191,9 +192,13 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   Future<void> _addCup() async {
     if (_cups >= _maxCups) return;
+    final wasReached = _goalReached;
     setState(() => _cups++);
     await _saveCups(_cups);
     _notifyGoalStatus();
+    SfxService.instance.play(
+      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+    );
     MascotPersona.interact(_mascotCtx);
   }
 
@@ -202,6 +207,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _cups--);
     await _saveCups(_cups);
     _notifyGoalStatus();
+    SfxService.instance.play(SfxCue.cancel);
     MascotPersona.interact(_mascotCtx);
   }
 
@@ -209,9 +215,13 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   Future<void> _addCustomMl(int ml) async {
     if (ml <= 0) return;
     final clamped = ml.clamp(1, _maxSingleAddMl);
+    final wasReached = _goalReached;
     setState(() => _extraMl += clamped);
     await _saveExtra(_extraMl);
     _notifyGoalStatus();
+    SfxService.instance.play(
+      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+    );
     MascotPersona.interact(_mascotCtx);
   }
 
@@ -220,8 +230,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          _CustomCupSheet(unit: _unit, maxMl: _maxSingleAddMl),
+      builder: (_) => _CustomCupSheet(unit: _unit, maxMl: _maxSingleAddMl),
     );
     if (result != null && result > 0) {
       await _addCustomMl(result);
@@ -352,9 +361,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     if (weight != null && weight >= 20 && weight <= 250) {
       base = weight * 35;
       final wDisp = UnitFormat.weight(weight, _unit);
-      reason = usingTracked
-          ? '依最新體重 $wDisp 估算'
-          : '依體重 $wDisp 估算';
+      reason = usingTracked ? '依最新體重 $wDisp 估算' : '依體重 $wDisp 估算';
     } else if (height != null && height >= 100 && height <= 230) {
       final h = height / 100;
       base = 22 * h * h * 35;
@@ -711,9 +718,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
           semanticsLabel: '少一杯',
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: _mainCupButton(atMax: atMax),
-        ),
+        Expanded(child: _mainCupButton(atMax: atMax)),
         const SizedBox(width: 12),
         _SmallGhostButton(
           icon: Icons.more_horiz_rounded,
@@ -726,68 +731,65 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   Widget _mainCupButton({required bool atMax}) {
     return Semantics(
-            button: true,
-            label: '我喝了一杯，每杯 ${_volStr(_cupMl)}',
-            child: Material(
-              color: _kInk,
-              borderRadius: BorderRadius.circular(22),
-              elevation: 6,
-              shadowColor: Colors.cyan.withValues(alpha: 0.35),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(22),
-                onTap: atMax ? _onAddCupPressed : _addCup,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 16,
+      button: true,
+      label: '我喝了一杯，每杯 ${_volStr(_cupMl)}',
+      child: Material(
+        color: _kInk,
+        borderRadius: BorderRadius.circular(22),
+        elevation: 6,
+        shadowColor: Colors.cyan.withValues(alpha: 0.35),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: atMax ? _onAddCupPressed : _addCup,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.local_drink_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '我喝了一杯',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              height: 1.1,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _volStr(_cupMl),
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  child: const Icon(
+                    Icons.local_drink_rounded,
+                    color: Colors.white,
+                    size: 20,
                   ),
                 ),
-              ),
+                const SizedBox(width: 14),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '我喝了一杯',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _volStr(_cupMl),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          );
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1254,8 +1256,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
     _goalCtrl.text = _initial(suggMl);
     setState(() {
       _goalErr = null;
-      _appliedHint =
-          '已套用建議 ${UnitFormat.volume(suggMl, widget.unit)}';
+      _appliedHint = '已套用建議 ${UnitFormat.volume(suggMl, widget.unit)}';
     });
   }
 
@@ -1263,9 +1264,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
     final cupMl = _parseMl(_cupCtrl.text);
     final goalMl = _parseMl(_goalCtrl.text);
     final cupErr =
-        (cupMl == null ||
-            cupMl < widget.minCupMl ||
-            cupMl > widget.maxCupMl)
+        (cupMl == null || cupMl < widget.minCupMl || cupMl > widget.maxCupMl)
         ? '請輸入 ${_displayRange(widget.minCupMl, widget.maxCupMl)}'
         : null;
     final goalErr =
@@ -1606,10 +1605,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
               }).toList(),
             ),
             const SizedBox(height: 18),
-            const Text(
-              '自訂',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+            const Text('自訂', style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1620,9 +1616,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: false,
                     ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
                       hintText: '輸入數字',
                       suffixText: label,

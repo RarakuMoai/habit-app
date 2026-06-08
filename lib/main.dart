@@ -12,13 +12,12 @@ import 'pages/family_page.dart';
 import 'utils/bgm_service.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
+import 'utils/sfx_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // 鎖定只支援直向（防止橫向自動翻轉）
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await SharedPreferences.getInstance();
   final bool onboardingDone = prefs.getBool('onboarding_done') ?? false;
   // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
@@ -35,6 +34,7 @@ void main() async {
       await BgmService.instance.play(
         onboardingDone ? 'sounds/bgm_main.m4a' : 'sounds/bgm_onboarding.m4a',
       );
+      await SfxService.instance.init();
     } catch (e, st) {
       debugPrint('BGM init/play failed: $e\n$st');
     }

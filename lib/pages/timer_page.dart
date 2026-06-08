@@ -3,6 +3,7 @@ import 'dart:async';
 
 import '../utils/mascot.dart';
 import '../utils/notification_service.dart';
+import '../utils/sfx_service.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -83,6 +84,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     MascotPersona.interact(
       _isWork ? MascotContext.halfDone : MascotContext.completedOne,
     );
+    SfxService.instance.play(SfxCue.complete);
   }
 
   Future<void> _scheduleEndNotification(DateTime when) async {
@@ -113,6 +115,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         _isRunning = false;
         _endTime = null;
       });
+      SfxService.instance.play(SfxCue.tap);
     } else {
       // 開始：算結束時刻、排通知、起 UI tick
       if (_secondsLeft <= 0) _secondsLeft = _phaseSeconds(_isWork);
@@ -129,6 +132,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       MascotPersona.interact(
         _isWork ? MascotContext.openApp : MascotContext.halfDone,
       );
+      SfxService.instance.play(SfxCue.tap);
     }
   }
 
@@ -142,6 +146,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _endTime = null;
     });
     MascotPersona.interact(MascotContext.notStarted);
+    SfxService.instance.play(SfxCue.cancel);
   }
 
   @override

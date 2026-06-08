@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:convert';
 import '../utils/mascot.dart';
+import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -77,7 +78,8 @@ class _WeightPageState extends State<WeightPage> {
       _gender = prefs.getString('user_gender') ?? '';
       _activityLevel = prefs.getString('user_activity_level') ?? '';
       if (bday != null) _birthday = DateTime.tryParse(bday);
-      _weightTrackingEnabled = prefs.getBool('weight_tracking_enabled') ?? false;
+      _weightTrackingEnabled =
+          prefs.getBool('weight_tracking_enabled') ?? false;
       _targetWeight = prefs.getDouble('target_weight');
       _unit = UnitSystem.load(prefs);
       _loaded = true;
@@ -124,7 +126,9 @@ class _WeightPageState extends State<WeightPage> {
     final age = _calcAge();
     if (age == null) return null;
     if (_gender == '男') return 10 * weight + 6.25 * _userHeight! - 5 * age + 5;
-    if (_gender == '女') return 10 * weight + 6.25 * _userHeight! - 5 * age - 161;
+    if (_gender == '女') {
+      return 10 * weight + 6.25 * _userHeight! - 5 * age - 161;
+    }
     return null;
   }
 
@@ -241,6 +245,7 @@ class _WeightPageState extends State<WeightPage> {
     });
     _saveRecords();
     MascotPersona.interact(MascotContext.completedOne);
+    SfxService.instance.play(SfxCue.success);
   }
 
   // 刪除指定日期的紀錄
@@ -272,7 +277,11 @@ class _WeightPageState extends State<WeightPage> {
           getBottomTitle: (value, meta) {
             final day = value.toInt();
             // 只顯示 1、8、15、22 及月底
-            if (day == 1 || day == 8 || day == 15 || day == 22 || day == daysInMonth) {
+            if (day == 1 ||
+                day == 8 ||
+                day == 15 ||
+                day == 22 ||
+                day == daysInMonth) {
               return Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
@@ -280,7 +289,9 @@ class _WeightPageState extends State<WeightPage> {
                   style: TextStyle(
                     fontSize: 10,
                     color: day == now.day ? Colors.orange : Colors.grey,
-                    fontWeight: day == now.day ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: day == now.day
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               );
@@ -292,8 +303,11 @@ class _WeightPageState extends State<WeightPage> {
       case 2: // 三個月：x = 距90天前的偏移天數
         final spots = _threeMonthSpots();
         final now = DateTime.now();
-        final startDate = DateTime(now.year, now.month, now.day)
-            .subtract(const Duration(days: 89));
+        final startDate = DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).subtract(const Duration(days: 89));
         return _ChartData(
           spots: spots,
           minX: 0,
@@ -309,7 +323,8 @@ class _WeightPageState extends State<WeightPage> {
                   '${d.month}/${d.day}',
                   style: TextStyle(
                     fontSize: 9,
-                    color: (d.year == now.year &&
+                    color:
+                        (d.year == now.year &&
                             d.month == now.month &&
                             d.day == now.day)
                         ? Colors.orange
@@ -336,9 +351,8 @@ class _WeightPageState extends State<WeightPage> {
             final idx = value.toInt();
             if (idx < 0 || idx > 6) return const SizedBox.shrink();
             final d = weekDays[idx];
-            final isToday = d.year == now.year &&
-                d.month == now.month &&
-                d.day == now.day;
+            final isToday =
+                d.year == now.year && d.month == now.month && d.day == now.day;
             return Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
@@ -711,8 +725,9 @@ class _WeightPageState extends State<WeightPage> {
     final today = _todayString();
     // 今天的紀錄（若有）
     final todayIdx = _records.indexWhere((r) => r['date'] == today);
-    final Map<String, dynamic>? todayRec =
-        todayIdx >= 0 ? _records[todayIdx] : null;
+    final Map<String, dynamic>? todayRec = todayIdx >= 0
+        ? _records[todayIdx]
+        : null;
 
     // 提前計算，避免 build() 中重複呼叫
     final chartData = _getChartData();
@@ -744,181 +759,199 @@ class _WeightPageState extends State<WeightPage> {
               accent: Colors.orange,
               scene: const PersonaScene(accent: Colors.orange),
               child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-            children: [
-          // ── 折線圖卡片（含範圍切換按鈕） ──
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.shade100),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 範圍切換按鈕列（本週 / 本月 / 三個月）
-                Row(
-                  children: [
-                    _chartRangeButton('本週', 0),
-                    const SizedBox(width: 8),
-                    _chartRangeButton('本月', 1),
-                    const SizedBox(width: 8),
-                    _chartRangeButton('三個月', 2),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // 無資料時顯示友善提示，否則顯示折線圖
-                chartData.spots.isEmpty
-                    ? const SizedBox(
-                        height: 100,
-                        child: Center(
-                          child: Text(
-                            '此區間沒有紀錄',
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
-                          ),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                children: [
+                  // ── 折線圖卡片（含範圍切換按鈕） ──
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.orange.shade100),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 範圍切換按鈕列（本週 / 本月 / 三個月）
+                        Row(
+                          children: [
+                            _chartRangeButton('本週', 0),
+                            const SizedBox(width: 8),
+                            _chartRangeButton('本月', 1),
+                            const SizedBox(width: 8),
+                            _chartRangeButton('三個月', 2),
+                          ],
                         ),
-                      )
-                    : SizedBox(
-                        height: 160,
-                        child: LineChart(
-                          LineChartData(
-                            minX: chartData.minX,
-                            maxX: chartData.maxX,
-                            // Y 軸範圍：最小值 -2，最大值 +2（讓線不貼邊）
-                            minY: chartData.spots
-                                    .map((s) => s.y)
-                                    .reduce((a, b) => a < b ? a : b) -
-                                2,
-                            maxY: chartData.spots
-                                    .map((s) => s.y)
-                                    .reduce((a, b) => a > b ? a : b) +
-                                2,
-                            lineBarsData: [
-                              LineChartBarData(
-                                spots: chartData.spots,
-                                isCurved: true,
-                                color: Colors.orange,
-                                barWidth: 2.5,
-                                dotData: const FlDotData(show: true),
-                                belowBarData: BarAreaData(
-                                  show: true,
-                                  color: Colors.orange.withValues(alpha: 0.08),
+                        const SizedBox(height: 12),
+                        // 無資料時顯示友善提示，否則顯示折線圖
+                        chartData.spots.isEmpty
+                            ? const SizedBox(
+                                height: 100,
+                                child: Center(
+                                  child: Text(
+                                    '此區間沒有紀錄',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ],
-                            gridData: const FlGridData(show: false),
-                            borderData: FlBorderData(show: false),
-                            titlesData: FlTitlesData(
-                              leftTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              topTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              // 右側顯示體重數值
-                              rightTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 44,
-                                  getTitlesWidget: (value, meta) => Padding(
-                                    padding: const EdgeInsets.only(left: 4),
-                                    child: Text(
-                                      value.toStringAsFixed(1),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey,
+                              )
+                            : SizedBox(
+                                height: 160,
+                                child: LineChart(
+                                  LineChartData(
+                                    minX: chartData.minX,
+                                    maxX: chartData.maxX,
+                                    // Y 軸範圍：最小值 -2，最大值 +2（讓線不貼邊）
+                                    minY:
+                                        chartData.spots
+                                            .map((s) => s.y)
+                                            .reduce((a, b) => a < b ? a : b) -
+                                        2,
+                                    maxY:
+                                        chartData.spots
+                                            .map((s) => s.y)
+                                            .reduce((a, b) => a > b ? a : b) +
+                                        2,
+                                    lineBarsData: [
+                                      LineChartBarData(
+                                        spots: chartData.spots,
+                                        isCurved: true,
+                                        color: Colors.orange,
+                                        barWidth: 2.5,
+                                        dotData: const FlDotData(show: true),
+                                        belowBarData: BarAreaData(
+                                          show: true,
+                                          color: Colors.orange.withValues(
+                                            alpha: 0.08,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    gridData: const FlGridData(show: false),
+                                    borderData: FlBorderData(show: false),
+                                    titlesData: FlTitlesData(
+                                      leftTitles: const AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                      topTitles: const AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                      // 右側顯示體重數值
+                                      rightTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: true,
+                                          reservedSize: 44,
+                                          getTitlesWidget: (value, meta) =>
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 4,
+                                                ),
+                                                child: Text(
+                                                  value.toStringAsFixed(1),
+                                                  style: const TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ),
+                                        ),
+                                      ),
+                                      // 底部標籤由各範圍自行提供
+                                      bottomTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: true,
+                                          reservedSize: 28,
+                                          getTitlesWidget:
+                                              chartData.getBottomTitle,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                              // 底部標籤由各範圍自行提供
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 28,
-                                  getTitlesWidget: chartData.getBottomTitle,
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── 今日數據卡片 ──
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.orange.shade100),
+                    ),
+                    child: todayRec != null
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '今日數據',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              _buildStatGrid(todayRec),
+                            ],
+                          )
+                        : const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Text(
+                                '今天還沒量體重喔',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 15,
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
+                  ),
 
-          // ── 今日數據卡片 ──
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.shade100),
-            ),
-            child: todayRec != null
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '今日數據',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildStatGrid(todayRec),
-                    ],
-                  )
-                : const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
-                        '今天還沒量體重喔',
-                        style: TextStyle(color: Colors.grey, fontSize: 15),
-                      ),
+                  // ── 目標體重進度條（有設定目標才顯示） ──
+                  if (targetProgressWidget != null) ...[
+                    const SizedBox(height: 12),
+                    targetProgressWidget,
+                  ],
+
+                  const SizedBox(height: 12),
+
+                  // ── 歷史紀錄列表 ──
+                  const Text(
+                    '歷史紀錄',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
                     ),
                   ),
-          ),
-
-          // ── 目標體重進度條（有設定目標才顯示） ──
-          if (targetProgressWidget != null) ...[
-            const SizedBox(height: 12),
-            targetProgressWidget,
-          ],
-
-          const SizedBox(height: 12),
-
-          // ── 歷史紀錄列表 ──
-          const Text(
-            '歷史紀錄',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Colors.orange,
+                  const SizedBox(height: 8),
+                  if (_records.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          '還沒有體重紀錄',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    ..._records.map((rec) => _buildHistoryTile(rec)),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          if (_records.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  '還沒有體重紀錄',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-            )
-          else
-            ..._records.map((rec) => _buildHistoryTile(rec)),
-            ],
-          ),
-        ),
-      ),
         ],
       ),
     );
@@ -950,8 +983,9 @@ class _WeightPageState extends State<WeightPage> {
   // 今日數據格子（BMI/BMR 缺資料時顯示友善提示）
   Widget _buildStatGrid(Map<String, dynamic> rec) {
     final weight = (rec['weight'] as num).toDouble();
-    final fat =
-        rec['body_fat'] != null ? (rec['body_fat'] as num).toDouble() : null;
+    final fat = rec['body_fat'] != null
+        ? (rec['body_fat'] as num).toDouble()
+        : null;
     final bmi = _calcBMI(weight);
     final bmr = _calcBMR(weight);
     final tdee = _calcTDEE(weight);
@@ -992,8 +1026,10 @@ class _WeightPageState extends State<WeightPage> {
                     color: Colors.orange.shade50,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1060,8 +1096,9 @@ class _WeightPageState extends State<WeightPage> {
   // 長按或向左滑動（endToStart）皆呼叫操作選單（編輯／刪除）
   Widget _buildHistoryTile(Map<String, dynamic> rec) {
     final weight = (rec['weight'] as num).toDouble();
-    final fat =
-        rec['body_fat'] != null ? (rec['body_fat'] as num).toDouble() : null;
+    final fat = rec['body_fat'] != null
+        ? (rec['body_fat'] as num).toDouble()
+        : null;
     final bmi = _calcBMI(weight);
     final date = rec['date'] as String;
     final time = rec['time'] as String;

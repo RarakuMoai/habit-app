@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import '../utils/mascot.dart';
+import '../utils/sfx_service.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -378,6 +379,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void toggleHabit(int index) {
     final wasAllDone = allDone0;
     final habit = habits[index];
+    final wasHabitDone = habit['done'] == true;
     if ((habit['frequency'] ?? 'daily') == 'weekly') {
       final today = todayString();
       final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
@@ -398,10 +400,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     saveHabits();
     if (!wasAllDone && allDone0) {
+      SfxService.instance.play(SfxCue.complete);
       _celebCtrl.forward(from: 0);
       setState(() => _mascotReactionTick++);
     } else if (habits[index]['done'] == true) {
+      if (!wasHabitDone) {
+        SfxService.instance.play(SfxCue.success);
+      } else {
+        SfxService.instance.play(SfxCue.tap);
+      }
       setState(() => _mascotReactionTick++);
+    } else {
+      SfxService.instance.play(SfxCue.cancel);
     }
     if (habits[index]['name'] == '喝足夠的水') {
       widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
@@ -423,6 +433,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       habit['done'] = dates.where(weekSet.contains).length >= target;
     });
     saveHabits();
+    SfxService.instance.play(SfxCue.cancel);
     _showTransientMascot('sad');
   }
 
