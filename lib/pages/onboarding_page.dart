@@ -260,9 +260,18 @@ class _OnboardingPageState extends State<OnboardingPage>
   String? get _targetWeightErrText =>
       UserValidators.targetWeightIn(_targetWeightController.text, _unit);
 
+  bool get _hasHeightInput {
+    if (_unit == UnitSystem.imperial) {
+      return _heightController.text.trim().isNotEmpty ||
+          _heightInController.text.trim().isNotEmpty;
+    }
+    return _heightController.text.trim().isNotEmpty;
+  }
+
   ({int low, int high, int suggest, String unit})? get _targetWeightSuggestion {
+    if (!_hasHeightInput || _heightErrText != null) return null;
     final cm = _heightCm();
-    if (cm == null || cm < 1 || cm > 999) return null;
+    if (cm == null) return null;
     final hM = cm / 100;
     final lowKg = (18.5 * hM * hM).round();
     final highKg = (24 * hM * hM).round();
