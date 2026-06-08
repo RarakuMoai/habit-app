@@ -191,8 +191,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         }
       }
     }
-    if (streak >= 7) return '我們連續一週了。\n這不是一點點了耶。';
-    if (yesterdayAllDone) return '昨天那一格，我替你收好了。';
+    if (streak >= 7) return '連續一週了。\n你一直有回來。';
+    if (yesterdayAllDone) return '昨天也完成了。\n兔咪有看到。';
     if (onboardingDate != null) {
       final daysSince = DateTime.now().difference(onboardingDate!).inDays + 1;
       if (daysSince <= 3) return '第$daysSince天。\n我們慢慢熟起來了。';

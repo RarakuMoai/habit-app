@@ -751,7 +751,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             _optionButton('有在注意', () {
               setState(() {
                 _waterStep = 1;
-                _waterFollowup = '嗯，我有看到你的習慣。\n要不要一起把它收起來？';
+                _waterFollowup = '那很好。\n要不要也讓我幫你記？';
               });
             }),
             _optionButton('沒特別想到', () {
