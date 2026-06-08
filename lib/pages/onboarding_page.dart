@@ -9,6 +9,7 @@ import '../utils/bgm_service.dart';
 import '../utils/mascot.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
+import '../widgets/audio_control_button.dart';
 
 // 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
@@ -214,14 +215,6 @@ class _OnboardingPageState extends State<OnboardingPage>
       );
     } catch (e, st) {
       debugPrint('Onboarding BGM ensure failed: $e\n$st');
-    }
-  }
-
-  Future<void> _toggleOnboardingBgm(bool isMuted) async {
-    if (isMuted) {
-      await _ensureOnboardingBgm(unmute: true);
-    } else {
-      await BgmService.instance.setMuted(true);
     }
   }
 
@@ -1637,41 +1630,10 @@ class _OnboardingPageState extends State<OnboardingPage>
     return SafeArea(
       child: Align(
         alignment: Alignment.topRight,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 6, right: 10),
-          child: ValueListenableBuilder<bool>(
-            valueListenable: BgmService.muted,
-            builder: (_, isMuted, _) {
-              return DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.82),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.22),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.orange.shade900.withValues(alpha: 0.12),
-                      blurRadius: 14,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon: Icon(
-                    isMuted
-                        ? Icons.volume_off_rounded
-                        : Icons.volume_up_rounded,
-                    color: isMuted
-                        ? Colors.grey.shade600
-                        : Colors.orange.shade700,
-                  ),
-                  tooltip: isMuted ? '開啟音樂' : '關閉音樂',
-                  onPressed: () => unawaited(_toggleOnboardingBgm(isMuted)),
-                ),
-              );
-            },
-          ),
+        child: AudioControlButton(
+          style: AudioControlStyle.onboarding,
+          accent: Colors.orange.shade700,
+          onMusicEnabled: () => unawaited(_ensureOnboardingBgm(unmute: true)),
         ),
       ),
     );

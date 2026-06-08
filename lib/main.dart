@@ -9,6 +9,7 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/family_page.dart';
+import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
@@ -22,6 +23,7 @@ void main() async {
   final bool onboardingDone = prefs.getBool('onboarding_done') ?? false;
   // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
   await MascotPanelPrefs.load();
+  await AudioSettingsService.instance.init();
   // 初始化本機通知（番茄鐘倒數結束鈴用）；權限到第一次排通知才會跳 dialog
   await NotificationService.init();
   // App 冷啟動：兔咪從 openApp 池隨機抽一句問候，每次打開都有變化

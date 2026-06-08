@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../pages/settings_page.dart';
-import '../utils/bgm_service.dart';
+import 'audio_control_button.dart';
 
 class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// 影響日期 pill icon 顏色（其餘元素統一灰底白字）。
@@ -51,9 +51,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: Align(
           alignment: Alignment.centerLeft,
           child: MascotPill(
-            icon: isNight
-                ? Icons.nightlight_round
-                : Icons.wb_sunny_rounded,
+            icon: isNight ? Icons.nightlight_round : Icons.wb_sunny_rounded,
             label: dateStr,
             color: accent,
           ),
@@ -62,34 +60,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: const SizedBox.shrink(),
       actions: [
         ...extraActions,
-        // 聲音 toggle（全 app 共用，靜音狀態跟著 BgmService.muted）
-        Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: ValueListenableBuilder<bool>(
-            valueListenable: BgmService.muted,
-            builder: (_, isMuted, _) => DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.88),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                icon: Icon(
-                  isMuted ? Icons.volume_off : Icons.volume_up,
-                  color: Colors.grey.shade800,
-                ),
-                tooltip: isMuted ? '取消靜音' : '靜音',
-                onPressed: () => BgmService.instance.setMuted(!isMuted),
-              ),
-            ),
-          ),
-        ),
+        AudioControlButton(style: AudioControlStyle.appBar, accent: accent),
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: DecoratedBox(
@@ -105,28 +76,19 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
               ],
             ),
             child: IconButton(
-              icon: Icon(
-                Icons.settings_outlined,
-                color: Colors.grey.shade800,
-              ),
+              icon: Icon(Icons.settings_outlined, color: Colors.grey.shade800),
               tooltip: '設定',
               onPressed: () async {
                 await Navigator.of(context).push(
                   PageRouteBuilder(
                     pageBuilder: (_, _, _) => const SettingsPage(),
-                    transitionsBuilder: (_, anim, _, child) =>
-                        SlideTransition(
-                          position:
-                              Tween(
-                                    begin: const Offset(1.0, 0.0),
-                                    end: Offset.zero,
-                                  )
-                                  .chain(
-                                    CurveTween(curve: Curves.easeInOut),
-                                  )
-                                  .animate(anim),
-                          child: child,
-                        ),
+                    transitionsBuilder: (_, anim, _, child) => SlideTransition(
+                      position:
+                          Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                              .chain(CurveTween(curve: Curves.easeInOut))
+                              .animate(anim),
+                      child: child,
+                    ),
                   ),
                 );
                 onSettingsReturn?.call();

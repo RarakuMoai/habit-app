@@ -7,7 +7,6 @@
 //   - [BgmService.instance.init]
 //   - [BgmService.instance.play]
 //   - [BgmService.instance.setMuted]
-//   - [BgmService.muted]（ValueListenable）
 //
 // 行為：
 //   - 單曲循環（LoopMode.one）→ 真正 gapless
@@ -19,16 +18,13 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'audio_settings_service.dart';
 
 class BgmService with WidgetsBindingObserver {
   BgmService._();
   static final BgmService instance = BgmService._();
 
-  // 靜音狀態（給 AppBar ValueListenableBuilder 用）
-  static final ValueNotifier<bool> muted = ValueNotifier(false);
-
-  static const String _prefKey = 'bgm_muted';
   static const double _targetVolume = 0.6;
   static const Duration _fadeDuration = Duration(milliseconds: 1200);
   static const Duration _fadeStep = Duration(milliseconds: 50);
@@ -38,6 +34,12 @@ class BgmService with WidgetsBindingObserver {
   static const Duration _aacPrimingTrim = Duration(milliseconds: 50);
 
   final AudioPlayer _player = AudioPlayer();
+  // "app 想要現在播這首" 的同步旗標，play()/ensurePlaying() 進來第一件事就設。
+  // 跟 _currentAsset 不同：_currentAsset 是「目前 native player 實際載入的」，
+  // 會在 fadeTo + stop 後才更新；_intendedAsset 立刻反映呼叫端的意圖，
+  // 解 race（例：_finish 呼 play('bgm_main') 後，舊的 ensurePlaying('bgm_onboarding')
+  // 看到 intent 已改就 bail，不會把曲目切回去）。
+  String? _intendedAsset;
   String? _currentAsset;
   double _currentVolume = 0;
   Timer? _fadeTimer;
@@ -50,8 +52,7 @@ class BgmService with WidgetsBindingObserver {
   Future<void> init() async {
     if (_initialized) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    muted.value = prefs.getBool(_prefKey) ?? false;
+    await AudioSettingsService.instance.init();
 
     // 顯式 configure + activate audio session（ambient = 跟其他 app 共存、響應靜音鈕）。
     // 不顯式設的話，iOS 在第一次 play() 時才幫忙設，會 race condition：
@@ -72,20 +73,26 @@ class BgmService with WidgetsBindingObserver {
   /// 切換到指定 BGM 資產（路徑相對 `assets/`，例如 `sounds/bgm_main.m4a`）。
   /// 重複呼叫同一首會無操作；切換到不同首會 cross-fade。
   Future<void> play(String asset) async {
+    // 同步聲明意圖，必須在任何 await 之前 — 解 race（見 _intendedAsset 註解）
+    _intendedAsset = asset;
     if (!_initialized) await init();
+    if (_intendedAsset != asset) return;
     if (_currentAsset == asset && _player.playing) return;
 
     // 不管之前狀態如何，先 fade out + stop 拿到乾淨狀態。
     // 首次呼叫（_currentAsset == null）也要 stop，避免冷啟動時 native player
     // 處於 stale 狀態導致 play() 看似成功但沒輸出。
     await _fadeTo(0);
+    if (_intendedAsset != asset) return;
     await _player.stop();
     _currentAsset = asset;
 
-    if (muted.value) return; // 靜音中只記錄當前曲目，不實際播放
+    if (AudioSettingsService.musicMuted.value) return; // 靜音中只記錄當前曲目，不實際播放
 
     await _loadAsset(asset);
+    if (_intendedAsset != asset) return;
     await _startPlaybackWithRecovery(asset);
+    if (_intendedAsset != asset) return;
 
     await _fadeTo(_targetVolume);
   }
@@ -94,12 +101,20 @@ class BgmService with WidgetsBindingObserver {
   ///
   /// 用在使用者互動後補救「player 顯示 playing 但沒有實際出聲」的裝置狀態。
   /// 若 [unmute] 為 false，會尊重使用者已保存的靜音偏好。
+  ///
+  /// 重要：如果 app 同時間已透過 [play] 切到別的曲目（例如 onboarding 結束
+  /// 切 bgm_main），這裡會直接 bail，不會把曲目硬切回去。
   Future<void> ensurePlaying(String asset, {bool unmute = false}) async {
     if (!_initialized) await init();
-    if (unmute && muted.value) {
+    // 別人已聲明不同 intent → 不要搶回去
+    if (_intendedAsset != null && _intendedAsset != asset) return;
+    _intendedAsset = asset;
+
+    if (unmute && AudioSettingsService.musicMuted.value) {
       await setMuted(false);
     }
-    if (muted.value) return;
+    if (_intendedAsset != asset) return;
+    if (AudioSettingsService.musicMuted.value) return;
 
     if (_currentAsset != asset) {
       await play(asset);
@@ -109,8 +124,11 @@ class BgmService with WidgetsBindingObserver {
     if (_player.processingState == ProcessingState.idle) {
       await _loadAsset(asset);
     }
+    if (_intendedAsset != asset) return;
     await _startPlaybackWithRecovery(asset);
-    if (muted.value || _currentAsset != asset) return;
+    if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
+      return;
+    }
     if (_currentVolume < _targetVolume * 0.75) {
       await _fadeTo(_targetVolume);
     }
@@ -145,7 +163,9 @@ class BgmService with WidgetsBindingObserver {
   // 前進的狀態。用 processingState + position 是否前進確認，比只看 playing 穩。
   Future<void> _startPlaybackWithRecovery(String asset) async {
     for (int attempt = 0; attempt < _playStartRetries; attempt++) {
-      if (muted.value || _currentAsset != asset) return;
+      if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
+        return;
+      }
 
       await _activateSession();
       await _player.play();
@@ -160,7 +180,9 @@ class BgmService with WidgetsBindingObserver {
         return;
       }
       await _player.stop();
-      if (muted.value || _currentAsset != asset) return;
+      if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
+        return;
+      }
       await _loadAsset(asset);
     }
   }
@@ -199,26 +221,23 @@ class BgmService with WidgetsBindingObserver {
   /// 瘋狂連按時：舊 fade 會被中止，每個 await 後重檢查 muted.value，
   /// 中途改變心意就放棄該分支，避免「該播時暫停」這種亂跳。
   Future<void> setMuted(bool value) async {
-    if (muted.value == value) return;
-    muted.value = value;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefKey, value);
+    if (AudioSettingsService.musicMuted.value == value) return;
+    await AudioSettingsService.instance.setMusicMuted(value);
 
     if (value) {
       await _fadeTo(0);
-      if (!muted.value) return; // 使用者已改回不靜音
+      if (!AudioSettingsService.musicMuted.value) return; // 使用者已改回不靜音
       await _player.pause();
     } else if (_currentAsset != null) {
       // 之前因靜音而沒實際播放 → 啟動；之前在播但被暫停 → 復原
       if (_player.processingState == ProcessingState.idle) {
         await _loadAsset(_currentAsset!);
       }
-      if (muted.value) return; // 使用者已改回靜音
+      if (AudioSettingsService.musicMuted.value) return; // 使用者已改回靜音
       await _startPlaybackWithRecovery(_currentAsset!);
       await _fadeTo(_targetVolume);
       // 淡入過程中又被靜音
-      if (muted.value) {
+      if (AudioSettingsService.musicMuted.value) {
         await _player.pause();
       }
     }
@@ -279,7 +298,8 @@ class BgmService with WidgetsBindingObserver {
         }
         break;
       case AppLifecycleState.resumed:
-        if (_wasPlayingBeforeBackground && !muted.value) {
+        if (_wasPlayingBeforeBackground &&
+            !AudioSettingsService.musicMuted.value) {
           _player.play();
           _fadeTo(_targetVolume);
         }

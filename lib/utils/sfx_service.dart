@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
-import 'bgm_service.dart';
+import 'audio_settings_service.dart';
 
 enum SfxCue {
   tap('assets/sounds/sfx_tap.wav', 0.28),
@@ -23,6 +23,7 @@ class SfxService {
 
   Future<void> init() async {
     if (_initialized) return;
+    await AudioSettingsService.instance.init();
     for (final cue in SfxCue.values) {
       final player = AudioPlayer();
       await player.setAudioSource(AudioSource.asset(cue.assetPath));
@@ -33,7 +34,7 @@ class SfxService {
   }
 
   Future<void> play(SfxCue cue) async {
-    if (BgmService.muted.value) return;
+    if (AudioSettingsService.sfxMuted.value) return;
     try {
       if (!_initialized) await init();
       final player = _players[cue];
