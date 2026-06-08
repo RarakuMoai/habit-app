@@ -611,9 +611,11 @@ class _OnboardingPageState extends State<OnboardingPage>
               border: Border.all(color: accent.withValues(alpha: 0.24)),
               gradient: LinearGradient(
                 colors: [
+                  Colors.white.withValues(alpha: 0.54),
                   accent.withValues(alpha: 0.10),
-                  Colors.white.withValues(alpha: 0.58),
+                  Colors.white.withValues(alpha: 0.54),
                 ],
+                stops: const [0.0, 0.50, 1.0],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ),
