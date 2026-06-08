@@ -464,23 +464,63 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 通用對話氣泡樣式
   Widget _speechBubble(String text, {double fontSize = 16}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-          bottomLeft: Radius.circular(4),
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.bottomCenter,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.88),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(22),
+              topRight: Radius.circular(22),
+              bottomRight: Radius.circular(22),
+              bottomLeft: Radius.circular(8),
+            ),
+            border: Border.all(color: Colors.orange.withValues(alpha: 0.22)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: fontSize,
+              height: 1.38,
+              color: Colors.orange.shade900,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
-        border: Border.all(color: Colors.orange.shade200),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(fontSize: fontSize, color: Colors.orange.shade900),
-        textAlign: TextAlign.center,
-      ),
+        Positioned(
+          bottom: -7,
+          left: 28,
+          child: Transform.rotate(
+            angle: math.pi / 4,
+            child: Container(
+              width: 15,
+              height: 15,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                border: Border(
+                  right: BorderSide(
+                    color: Colors.orange.withValues(alpha: 0.16),
+                  ),
+                  bottom: BorderSide(
+                    color: Colors.orange.withValues(alpha: 0.16),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -511,26 +551,46 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 選項按鈕
   Widget _optionButton(String label, VoidCallback onTap, {Color? color}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: (color ?? Colors.orange).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: (color ?? Colors.orange).withValues(alpha: 0.4),
-          ),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 15,
-            color: color ?? Colors.orange.shade800,
-            fontWeight: FontWeight.w600,
+    final accent = color ?? Colors.orange;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(16),
+        shadowColor: accent.withValues(alpha: 0.22),
+        elevation: 1.5,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: accent.withValues(alpha: 0.10),
+          highlightColor: accent.withValues(alpha: 0.06),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: accent.withValues(alpha: 0.24)),
+              gradient: LinearGradient(
+                colors: [
+                  accent.withValues(alpha: 0.10),
+                  Colors.white.withValues(alpha: 0.58),
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.2,
+                color: accent == Colors.orange
+                    ? Colors.orange.shade800
+                    : accent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
       ),
@@ -1166,7 +1226,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             color: selected ? Colors.orange : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected ? Colors.orange : Colors.grey.shade300,
+              color: selected ? Colors.orange : Colors.orange.shade100,
             ),
             boxShadow: selected
                 ? [
@@ -1186,7 +1246,26 @@ class _OnboardingPageState extends State<OnboardingPage>
               fontSize: 14,
               fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
             ),
-            child: Text('$emoji $name'),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$emoji $name'),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  child: selected
+                      ? const Padding(
+                          padding: EdgeInsets.only(left: 6),
+                          child: Icon(
+                            Icons.check_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1587,6 +1666,33 @@ class _OnboardingBgPainter extends CustomPainter {
     // 右下 — 中泡泡
     p.color = const Color(0xFFFFD8A0).withValues(alpha: 0.40);
     canvas.drawCircle(Offset(w * 0.90, h * 0.95), 85, p);
+
+    // 很淡的窗光與地面弧線，讓第一眼有一點空間感。
+    final light = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.34),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(w * 0.48, 0, w * 0.30, h * 0.58));
+    final lightPath = Path()
+      ..moveTo(w * 0.58, 0)
+      ..lineTo(w * 0.86, 0)
+      ..lineTo(w * 0.70, h * 0.54)
+      ..lineTo(w * 0.43, h * 0.54)
+      ..close();
+    canvas.drawPath(lightPath, light);
+
+    final floorPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = const Color(0xFFDFA45F).withValues(alpha: 0.14);
+    final floorPath = Path()
+      ..moveTo(w * -0.08, h * 0.72)
+      ..quadraticBezierTo(w * 0.50, h * 0.66, w * 1.08, h * 0.72);
+    canvas.drawPath(floorPath, floorPaint);
 
     // 左上小葉子
     _drawLeaf(
