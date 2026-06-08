@@ -308,17 +308,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _onMascotTap() {
     _celebCtrl.forward(from: 0);
+    final speech = MascotLines.randomLineFor(MascotContext.tapReaction);
     setState(() {
-      _transientSpeech = MascotLines.randomLineFor(MascotContext.tapReaction);
+      _transientSpeech = speech;
       _mascotReactionTick++;
     });
-    _syncMascotToPersona();
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() => _transientSpeech = null);
-        _syncMascotToPersona();
-      }
-    });
+    final accepted = _syncMascotToPersona();
+    if (accepted) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() => _transientSpeech = null);
+          _syncMascotToPersona();
+        }
+      });
+    } else {
+      setState(() => _transientSpeech = null);
+    }
   }
 
   // 兔咪圖選擇器（按進度、時間、streak 決定）。
@@ -351,33 +356,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         : MascotEmotion.sleep.assetPath;
   }
 
-  // 兔咪台詞選擇器：根據進度 / 時間 / streak 決定情境，再從共用台詞庫
-  // [MascotLines] 抽一句。所有台詞都集中在 lib/utils/mascot.dart 的 _lines map。
-  String get _mascotMessage {
-    if (_transientMascot == 'sad') {
-      return MascotLines.randomLineFor(MascotContext.undone);
-    }
-    if (habits.isEmpty) {
-      return MascotLines.randomLineFor(MascotContext.emptyHabits);
-    }
+  MascotContext get _mascotContext {
+    if (_transientMascot == 'sad') return MascotContext.undone;
+    if (_transientSpeech != null) return MascotContext.tapReaction;
+    if (habits.isEmpty) return MascotContext.emptyHabits;
+
     final ref = _dailyHabits.isNotEmpty ? _dailyHabits : _weeklyHabits;
     final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final ratio = done / ref.length;
     if (ratio == 1.0) {
-      return MascotLines.randomLineFor(
-        streak >= 7 ? MascotContext.streak : MascotContext.allDone,
-      );
+      return streak >= 7 ? MascotContext.streak : MascotContext.allDone;
     }
-    if (ratio >= 0.5) return MascotLines.randomLineFor(MascotContext.halfDone);
-    if (ratio > 0) {
-      return MascotLines.randomLineFor(MascotContext.completedOne);
-    }
+    if (ratio >= 0.5) return MascotContext.halfDone;
+    if (ratio > 0) return MascotContext.completedOne;
 
     final hour = DateTime.now().hour;
-    if (hour >= 22 || hour < 6) {
-      return MascotLines.randomLineFor(MascotContext.night);
-    }
-    return MascotLines.randomLineFor(MascotContext.notStarted);
+    if (hour >= 22 || hour < 6) return MascotContext.night;
+    return MascotContext.notStarted;
   }
 
   void toggleHabit(int index) {
@@ -1908,8 +1903,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   /// 把首頁當下計算出的兔咪狀態同步到全域 [MascotPersona]。
   /// 只在「使用者互動後」呼叫（toggleHabit / onMascotTap / showTransientMascot）。
-  void _syncMascotToPersona() {
-    MascotPersona.set(_mascotAsset, _transientSpeech ?? _mascotMessage);
+  bool _syncMascotToPersona() {
+    return MascotPersona.setForContext(
+      _mascotAsset,
+      _mascotContext,
+      speech: _transientSpeech,
+    );
   }
 
   Widget _habitCardContent({

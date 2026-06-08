@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -440,10 +441,14 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                     Expanded(
                       child: Center(
                         child: RepaintBoundary(
-                          child: _WaterBottle(
-                            progress: _progress,
-                            reached: _goalReached,
-                            bumpKey: _cups,
+                          child: ValueListenableBuilder<double>(
+                            valueListenable: MascotPanelPrefs.openValue,
+                            builder: (_, openValue, _) => _WaterBottle(
+                              progress: _progress,
+                              reached: _goalReached,
+                              bumpKey: _cups,
+                              panelOpenValue: openValue,
+                            ),
                           ),
                         ),
                       ),
@@ -909,11 +914,13 @@ class _WaterBottle extends StatefulWidget {
   final bool reached;
   // bumpKey changes (e.g. cup count) trigger a brief scale bounce.
   final int bumpKey;
+  final double panelOpenValue;
 
   const _WaterBottle({
     required this.progress,
     required this.reached,
     required this.bumpKey,
+    required this.panelOpenValue,
   });
 
   @override
@@ -964,6 +971,10 @@ class _WaterBottleState extends State<_WaterBottle>
       duration: const Duration(milliseconds: 700),
       curve: Curves.easeOutCubic,
       builder: (context, value, _) {
+        final compactReached = widget.reached
+            ? ((widget.panelOpenValue - 0.55) / 0.45).clamp(0.0, 1.0)
+            : 0.0;
+        final bottleOpacity = 1.0 - compactReached;
         // AspectRatio locks the box to the bottle artwork's aspect ratio.
         // Every layer below shares this single coordinate system, so the
         // painter's body coords always land on the same pixels as the PNG.
@@ -974,57 +985,89 @@ class _WaterBottleState extends State<_WaterBottle>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // soft halo behind the bottle (purely decorative,
-                // sits outside the bottle interior).
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 28, 0, 32),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.cyan.withValues(alpha: 0.16),
-                          Colors.cyan.withValues(alpha: 0.0),
-                        ],
+                Opacity(
+                  opacity: bottleOpacity,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // soft halo behind the bottle (purely decorative,
+                      // sits outside the bottle interior).
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 28, 0, 32),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                Colors.cyan.withValues(alpha: 0.16),
+                                Colors.cyan.withValues(alpha: 0.0),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      Image.asset(
+                        'assets/scenes/water/bottle_back.png',
+                        fit: BoxFit.contain,
+                      ),
+                      CustomPaint(painter: _WaterFillPainter(progress: value)),
+                      Image.asset(
+                        'assets/scenes/water/bottle_front.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ],
                   ),
-                ),
-                Image.asset(
-                  'assets/scenes/water/bottle_back.png',
-                  fit: BoxFit.contain,
-                ),
-                CustomPaint(painter: _WaterFillPainter(progress: value)),
-                Image.asset(
-                  'assets/scenes/water/bottle_front.png',
-                  fit: BoxFit.contain,
                 ),
                 if (widget.reached)
-                  Align(
-                    alignment: const Alignment(0.55, -0.72),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD54F),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFFFD54F,
-                            ).withValues(alpha: 0.35),
-                            blurRadius: 12,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        color: Colors.white,
-                        size: 25,
-                      ),
-                    ),
-                  ),
+                  _BottleGoalBadge(compactProgress: compactReached),
               ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BottleGoalBadge extends StatelessWidget {
+  final double compactProgress;
+
+  const _BottleGoalBadge({required this.compactProgress});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final smallSize = (constraints.maxWidth * 0.20).clamp(14.0, 36.0);
+        final largeSize = constraints.maxWidth * 0.86;
+        final badgeSize = ui.lerpDouble(smallSize, largeSize, compactProgress)!;
+        final iconSize = badgeSize * 0.70;
+        final blurRadius = (badgeSize * 0.33).clamp(5.0, 22.0);
+        final alignment = Alignment.lerp(
+          const Alignment(0.55, -0.72),
+          Alignment.center,
+          compactProgress,
+        )!;
+
+        return Align(
+          alignment: alignment,
+          child: Container(
+            width: badgeSize,
+            height: badgeSize,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD54F),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFD54F).withValues(alpha: 0.35),
+                  blurRadius: blurRadius,
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.check_rounded,
+              color: Colors.white,
+              size: iconSize,
             ),
           ),
         );

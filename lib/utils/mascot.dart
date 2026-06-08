@@ -88,12 +88,7 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
 // ─────────────────────────────────────────────────────────────
 const Map<MascotContext, List<String>> _lines = {
   // ── 打開 app / 一般招呼 ──
-  MascotContext.openApp: [
-    '嗯...你來了。',
-    '我有醒著喔。',
-    '今天也從一點點開始？',
-    '要先做最小的那一步嗎？',
-  ],
+  MascotContext.openApp: ['嗯...你來了。', '我有醒著喔。', '今天也從一點點開始？', '要先做最小的那一步嗎？'],
 
   // ── 今天還沒開始做任何習慣 ──
   MascotContext.notStarted: [
@@ -113,44 +108,19 @@ const Map<MascotContext, List<String>> _lines = {
   ],
 
   // ── 完成過一半 ──
-  MascotContext.halfDone: [
-    '已經一半了耶。',
-    '你慢慢在前進。',
-    '我開始精神了。',
-    '再一點點就很棒。',
-  ],
+  MascotContext.halfDone: ['已經一半了耶。', '你慢慢在前進。', '我開始精神了。', '再一點點就很棒。'],
 
   // ── 今天全部完成 ──
-  MascotContext.allDone: [
-    '全部完成了。',
-    '今天的你，好認真。',
-    '我替你收好了。',
-    '這一天亮亮的。',
-  ],
+  MascotContext.allDone: ['全部完成了。', '今天的你，好認真。', '我替你收好了。', '這一天亮亮的。'],
 
   // ── 連續達標一段時間（streak >= 7） ──
-  MascotContext.streak: [
-    '我們連起來了！',
-    '兔咪精神來了。',
-    '這不是一點點了耶。',
-    '你看，真的長出來了。',
-  ],
+  MascotContext.streak: ['我們連起來了！', '兔咪精神來了。', '這不是一點點了耶。', '你看，真的長出來了。'],
 
   // ── 取消已完成的習慣（撤銷感） ──
-  MascotContext.undone: [
-    '沒關係，我還在。',
-    '今天比較難，對吧。',
-    '我們可以重新放一格。',
-    '不是壞掉，只是停了一下。',
-  ],
+  MascotContext.undone: ['沒關係，我還在。', '今天比較難，對吧。', '我們可以重新放一格。', '不是壞掉，只是停了一下。'],
 
   // ── 夜晚（22:00 ~ 06:00） ──
-  MascotContext.night: [
-    '很晚了，聲音小一點。',
-    '今天辛苦了。',
-    '如果累了，也可以休息。',
-    '明天我還會在這裡。',
-  ],
+  MascotContext.night: ['很晚了，聲音小一點。', '今天辛苦了。', '如果累了，也可以休息。', '明天我還會在這裡。'],
 
   // ── 使用者點兔咪本身的隨機反應 ──
   MascotContext.tapReaction: [
@@ -165,11 +135,7 @@ const Map<MascotContext, List<String>> _lines = {
   ],
 
   // ── 還沒新增任何習慣（空狀態） ──
-  MascotContext.emptyHabits: [
-    '先放一個小習慣吧。',
-    '一點點也可以開始。',
-    '新增一格，我陪你慢慢來。',
-  ],
+  MascotContext.emptyHabits: ['先放一個小習慣吧。', '一點點也可以開始。', '新增一格，我陪你慢慢來。'],
 };
 
 class MascotLines {
@@ -230,27 +196,92 @@ class MascotPersona {
 
   // 互動後過多久自動回到中性狀態（避免兔咪一直歡呼/難過）
   static const Duration _revertAfter = Duration(seconds: 10);
+  // 一般互動至少停留一小段時間，避免連續打卡時每一下都換圖/換台詞。
+  static const Duration _holdDuration = Duration(seconds: 5);
   static Timer? _revertTimer;
+  static DateTime? _holdUntil;
+  static int _activePriority = 0;
 
   /// 互動：根據情境換情緒 + 隨機抽一句台詞。10 秒後自動回神。
-  static void interact(MascotContext ctx) {
-    current.value = MascotState(
-      MascotLines.emotionFor(ctx).assetPath,
-      MascotLines.randomLineFor(ctx),
+  ///
+  /// 回傳 false 代表兔咪目前正在停留一個狀態，這次普通互動被忽略。
+  static bool interact(MascotContext ctx, {bool force = false}) {
+    if (!_canApply(ctx, force: force)) return false;
+    _apply(
+      MascotState(
+        MascotLines.emotionFor(ctx).assetPath,
+        MascotLines.randomLineFor(ctx),
+      ),
+      ctx,
     );
-    _scheduleRevert();
+    return true;
   }
 
   /// 直接設定（呼叫端自己決定 asset + 台詞）。10 秒後自動回神。
-  static void set(String assetPath, String speech) {
-    current.value = MascotState(assetPath, speech);
+  static bool set(String assetPath, String speech, {bool force = false}) {
+    return setForContext(
+      assetPath,
+      MascotContext.tapReaction,
+      speech: speech,
+      force: force,
+    );
+  }
+
+  /// 用指定情境設定自訂 asset。台詞可交給情境台詞池抽，並套用同一套停留規則。
+  static bool setForContext(
+    String assetPath,
+    MascotContext ctx, {
+    String? speech,
+    bool force = false,
+  }) {
+    if (!_canApply(ctx, force: force)) return false;
+    _apply(
+      MascotState(assetPath, speech ?? MascotLines.randomLineFor(ctx)),
+      ctx,
+    );
+    return true;
+  }
+
+  static void _apply(MascotState state, MascotContext ctx) {
+    current.value = state;
+    _holdUntil = DateTime.now().add(_holdDuration);
+    _activePriority = _priorityOf(ctx);
     _scheduleRevert();
+  }
+
+  static bool _canApply(MascotContext ctx, {required bool force}) {
+    if (force) return true;
+    final until = _holdUntil;
+    if (until == null || DateTime.now().isAfter(until)) return true;
+    return _priorityOf(ctx) > _activePriority;
+  }
+
+  static int _priorityOf(MascotContext ctx) {
+    switch (ctx) {
+      case MascotContext.allDone:
+      case MascotContext.streak:
+        return 30;
+      case MascotContext.undone:
+        return 20;
+      case MascotContext.halfDone:
+        return 12;
+      case MascotContext.completedOne:
+        return 10;
+      case MascotContext.tapReaction:
+      case MascotContext.openApp:
+      case MascotContext.notStarted:
+      case MascotContext.night:
+      case MascotContext.emptyHabits:
+        return 5;
+    }
   }
 
   /// App 冷啟動：從 openApp 池隨機抽一句問候（每次打開都有變化）。
   /// 已經是中性狀態，不需要安排回神。
   static void resetToOpening() {
     _revertTimer?.cancel();
+    _holdUntil = null;
+    _activePriority = 0;
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       MascotLines.randomLineFor(MascotContext.openApp),
@@ -261,6 +292,8 @@ class MascotPersona {
   static void _scheduleRevert() {
     _revertTimer?.cancel();
     _revertTimer = Timer(_revertAfter, () {
+      _holdUntil = null;
+      _activePriority = 0;
       current.value = MascotState(
         MascotLines.emotionFor(MascotContext.openApp).assetPath,
         MascotLines.randomLineFor(MascotContext.openApp),
