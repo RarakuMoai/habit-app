@@ -240,10 +240,9 @@ class _OnboardingPageState extends State<OnboardingPage>
   String? get _targetWeightErrText =>
       UserValidators.targetWeightIn(_targetWeightController.text, _unit);
 
-  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
-  Widget _targetWeightHint() {
+  ({int low, int high, int suggest, String unit})? get _targetWeightSuggestion {
     final cm = _heightCm();
-    if (cm == null || cm < 1 || cm > 999) return const SizedBox.shrink();
+    if (cm == null || cm < 1 || cm > 999) return null;
     final hM = cm / 100;
     final lowKg = (18.5 * hM * hM).round();
     final highKg = (24 * hM * hM).round();
@@ -258,6 +257,18 @@ class _OnboardingPageState extends State<OnboardingPage>
         ? UnitConvert.kgToLb(suggestKg.toDouble()).round()
         : suggestKg;
     final unitLabel = UnitFormat.weightLabel(_unit);
+    return (
+      low: lowDisp,
+      high: highDisp,
+      suggest: suggestDisp,
+      unit: unitLabel,
+    );
+  }
+
+  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
+  Widget _targetWeightHint() {
+    final suggestion = _targetWeightSuggestion;
+    if (suggestion == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
@@ -266,32 +277,39 @@ class _OnboardingPageState extends State<OnboardingPage>
           const SizedBox(width: 5),
           Expanded(
             child: Text(
-              '健康體重約 $lowDisp–$highDisp $unitLabel',
+              '健康體重約 ${suggestion.low}–${suggestion.high} ${suggestion.unit}',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ),
-          GestureDetector(
-            onTap: () => setState(
-              () => _targetWeightController.text = suggestDisp.toString(),
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Text(
-                '建議 $suggestDisp $unitLabel',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.orange.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget? _targetWeightSuggestSuffix() {
+    final suggestion = _targetWeightSuggestion;
+    if (suggestion == null) return null;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: TextButton(
+        onPressed: () => setState(
+          () => _targetWeightController.text = suggestion.suggest.toString(),
+        ),
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.orange.shade800,
+          backgroundColor: Colors.orange.shade50,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.orange.shade200),
+          ),
+        ),
+        child: Text(
+          '建議 ${suggestion.suggest}${suggestion.unit}',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }
@@ -472,12 +490,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.88),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(22),
-              topRight: Radius.circular(22),
-              bottomRight: Radius.circular(22),
-              bottomLeft: Radius.circular(8),
-            ),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(color: Colors.orange.withValues(alpha: 0.22)),
             boxShadow: [
               BoxShadow(
@@ -1303,6 +1316,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     required TextEditingController controller,
     required String label,
     String? errorText,
+    Widget? suffixWidget,
   }) {
     return TextField(
       controller: controller,
@@ -1311,6 +1325,8 @@ class _OnboardingPageState extends State<OnboardingPage>
       decoration: InputDecoration(
         labelText: label,
         errorText: errorText,
+        suffixIcon: suffixWidget,
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
@@ -1444,6 +1460,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             controller: _targetWeightController,
             label: '目標體重（${UnitFormat.weightLabel(_unit)}，選填）',
             errorText: _targetWeightErrText,
+            suffixWidget: _targetWeightSuggestSuffix(),
           ),
           _targetWeightHint(),
           const SizedBox(height: 10),

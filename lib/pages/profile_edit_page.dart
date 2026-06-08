@@ -61,7 +61,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   // 整數不顯示小數點，否則保留一位
   String _formatDouble(double v) {
-    return v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+    return v == v.truncateToDouble()
+        ? v.toInt().toString()
+        : v.toStringAsFixed(1);
   }
 
   Future<void> _load() async {
@@ -158,8 +160,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       await prefs.setString(
         'user_birthday',
         '${b.year.toString().padLeft(4, '0')}-'
-        '${b.month.toString().padLeft(2, '0')}-'
-        '${b.day.toString().padLeft(2, '0')}',
+            '${b.month.toString().padLeft(2, '0')}-'
+            '${b.day.toString().padLeft(2, '0')}',
       );
     }
     if (mounted) Navigator.pop(context);
@@ -197,8 +199,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     return UserValidators.height(_heightCtrl.text);
   }
 
-  String? get _weightError =>
-      UserValidators.weightIn(_weightCtrl.text, _unit);
+  String? get _weightError => UserValidators.weightIn(_weightCtrl.text, _unit);
 
   String? get _targetWeightError =>
       UserValidators.targetWeightIn(_targetWeightCtrl.text, _unit);
@@ -400,6 +401,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     int? maxLength,
     List<TextInputFormatter>? inputFormatters,
     String? errorText,
+    Widget? suffixWidget,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -410,7 +412,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         inputFormatters: inputFormatters,
         decoration: InputDecoration(
           labelText: required ? '$label *' : label,
-          suffixText: suffix,
+          suffixText: suffixWidget == null ? suffix : null,
+          suffixIcon: suffixWidget,
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 0,
+            minHeight: 0,
+          ),
           counterText: '',
           errorText: errorText,
           filled: true,
@@ -423,17 +430,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.orange),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
       ),
     );
   }
 
-  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
-  // 需先填身高才顯示；點「建議」可一鍵套用
-  Widget _targetWeightHint() {
+  ({String low, String high, int suggest, String unit})?
+  get _targetWeightSuggestion {
     final cm = _heightCmFromInputs();
-    if (cm == null || cm < 1 || cm > 300) return const SizedBox.shrink();
+    if (cm == null || cm < 1 || cm > 300) return null;
     final hM = cm / 100;
     final lowKg = (18.5 * hM * hM).round();
     final highKg = (24 * hM * hM).round();
@@ -450,7 +459,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         ? UnitConvert.kgToLb(suggestKg.toDouble()).round()
         : suggestKg;
     final unitLabel = UnitFormat.weightLabel(_unit);
+    return (
+      low: lowDisp,
+      high: highDisp,
+      suggest: suggestDisp,
+      unit: unitLabel,
+    );
+  }
 
+  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
+  // 需先填身高才顯示；點欄位右側「建議」可一鍵套用
+  Widget _targetWeightHint() {
+    final suggestion = _targetWeightSuggestion;
+    if (suggestion == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -459,32 +480,39 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           const SizedBox(width: 5),
           Expanded(
             child: Text(
-              '健康體重約 $lowDisp–$highDisp $unitLabel',
+              '健康體重約 ${suggestion.low}–${suggestion.high} ${suggestion.unit}',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ),
-          GestureDetector(
-            onTap: () => setState(
-              () => _targetWeightCtrl.text = suggestDisp.toString(),
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Text(
-                '建議 $suggestDisp $unitLabel',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.orange.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget? _targetWeightSuggestSuffix() {
+    final suggestion = _targetWeightSuggestion;
+    if (suggestion == null) return null;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: TextButton(
+        onPressed: () => setState(
+          () => _targetWeightCtrl.text = suggestion.suggest.toString(),
+        ),
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.orange.shade800,
+          backgroundColor: Colors.orange.shade50,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.orange.shade200),
+          ),
+        ),
+        child: Text(
+          '建議 ${suggestion.suggest}${suggestion.unit}',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }
@@ -514,7 +542,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: '生日',
-            suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18, color: Colors.orange),
+            suffixIcon: const Icon(
+              Icons.calendar_today_outlined,
+              size: 18,
+              color: Colors.orange,
+            ),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
@@ -525,7 +557,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.orange),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
           // isEmpty=true 時 label 停在中間（未選狀態）
           isEmpty: _birthday == null,
@@ -568,7 +603,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           padding: const EdgeInsets.only(top: 0, bottom: 8),
                           child: Text(
                             '暱稱不能為空',
-                            style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+                            style: TextStyle(
+                              color: Colors.red.shade400,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
 
@@ -587,7 +625,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           children: [
                             Text(
                               '性別',
-                              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 13,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Row(
@@ -614,7 +655,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         _inputField(
                           label: '身高',
                           controller: _heightCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           suffix: 'cm',
                           inputFormatters: [_maxValueFormatter(999)],
                           errorText: _heightError,
@@ -624,7 +667,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       _inputField(
                         label: '體重',
                         controller: _weightCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         suffix: UnitFormat.weightLabel(_unit),
                         inputFormatters: [_maxValueFormatter(999)],
                         // 個別範圍錯誤優先；都過了才顯示 BMI 比例錯誤
@@ -635,8 +680,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       _inputField(
                         label: '目標體重',
                         controller: _targetWeightCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         suffix: UnitFormat.weightLabel(_unit),
+                        suffixWidget: _targetWeightSuggestSuffix(),
                         inputFormatters: [_maxValueFormatter(999)],
                         errorText: _targetWeightError,
                       ),
@@ -672,7 +720,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         ),
                         child: const Text(
                           '儲存',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
