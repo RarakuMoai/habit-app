@@ -286,8 +286,8 @@ class _MascotStageState extends State<MascotStage>
               children: [
                 // 腳下橢圓陰影（在 sparkle 跟兔咪本體下方）
                 Positioned(
-                  // 252 stage × (1 - 腳在畫布的 Y 比例 0.80) ≈ 50px 距離 stage 底
-                  bottom: 44,
+                  // 對齊兔咪 CG 的腳底：shadow painter 的接觸影中心約落在 stage y=216。
+                  bottom: 22,
                   left: 0,
                   right: 0,
                   child: Center(
