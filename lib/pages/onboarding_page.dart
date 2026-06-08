@@ -1633,10 +1633,31 @@ class _OnboardingPageState extends State<OnboardingPage>
       ),
       body: Stack(
         children: [
-          // 背景裝飾泡泡（柔和暖色，所有頁面共用）
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(painter: _OnboardingBgPainter()),
+              child: Image.asset(
+                'assets/scenes/onboarding/onboarding_bg_v3.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFFFFF8F0).withValues(alpha: 0.12),
+                      Colors.white.withValues(alpha: 0.10),
+                      const Color(0xFFFFF8F0).withValues(alpha: 0.34),
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
+                  ),
+                ),
+              ),
             ),
           ),
           // 隱形預渲染所有打字文字，讓字形提前載入 GPU 圖集，避免首次顯示亂碼
@@ -1678,169 +1699,4 @@ class _OnboardingPageState extends State<OnboardingPage>
       ),
     );
   }
-}
-
-// 引導頁背景裝飾：柔和暖色泡泡 + 角落葉子，營造溫暖陪伴感
-class _OnboardingBgPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..style = PaintingStyle.fill;
-    final w = size.width;
-    final h = size.height;
-
-    // 左上 — 大圓
-    p.color = const Color(0xFFFFE0B2).withValues(alpha: 0.55);
-    canvas.drawCircle(Offset(w * 0.12, h * 0.08), 110, p);
-    // 右上 — 中圓
-    p.color = const Color(0xFFFFD0A0).withValues(alpha: 0.40);
-    canvas.drawCircle(Offset(w * 0.95, h * 0.14), 75, p);
-    // 左中 — 小裝飾
-    p.color = const Color(0xFFFFCB8A).withValues(alpha: 0.20);
-    canvas.drawCircle(Offset(w * 0.02, h * 0.42), 38, p);
-    // 右中 — 小裝飾
-    p.color = const Color(0xFFFFCB8A).withValues(alpha: 0.22);
-    canvas.drawCircle(Offset(w * 0.98, h * 0.48), 32, p);
-    // 左下 — 大泡泡
-    p.color = const Color(0xFFFFE8C0).withValues(alpha: 0.45);
-    canvas.drawCircle(Offset(w * 0.05, h * 0.92), 95, p);
-    // 右下 — 中泡泡
-    p.color = const Color(0xFFFFD8A0).withValues(alpha: 0.40);
-    canvas.drawCircle(Offset(w * 0.90, h * 0.95), 85, p);
-
-    // 淡淡的窗光與地面暖光，讓第一眼有空間感，但不搶兔咪。
-    final light = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          Colors.white.withValues(alpha: 0.46),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(Rect.fromLTWH(w * 0.48, 0, w * 0.30, h * 0.58));
-    final lightPath = Path()
-      ..moveTo(w * 0.58, 0)
-      ..lineTo(w * 0.86, 0)
-      ..lineTo(w * 0.70, h * 0.54)
-      ..lineTo(w * 0.43, h * 0.54)
-      ..close();
-    canvas.drawPath(lightPath, light);
-
-    final floorGlow = Paint()
-      ..shader =
-          RadialGradient(
-            colors: [
-              const Color(0xFFFFC77A).withValues(alpha: 0.20),
-              const Color(0xFFFFC77A).withValues(alpha: 0.0),
-            ],
-          ).createShader(
-            Rect.fromCenter(
-              center: Offset(w * 0.50, h * 0.73),
-              width: w * 1.22,
-              height: h * 0.30,
-            ),
-          );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w * 0.50, h * 0.73),
-        width: w * 1.22,
-        height: h * 0.30,
-      ),
-      floorGlow,
-    );
-
-    final floorPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = const Color(0xFFDFA45F).withValues(alpha: 0.20);
-    final floorPath = Path()
-      ..moveTo(w * -0.08, h * 0.72)
-      ..quadraticBezierTo(w * 0.50, h * 0.66, w * 1.08, h * 0.72);
-    canvas.drawPath(floorPath, floorPaint);
-
-    // 左上小葉子
-    _drawLeaf(
-      canvas,
-      Offset(w * 0.22, h * 0.06),
-      18,
-      const Color(0xFFA8D5A2).withValues(alpha: 0.35),
-      rotation: -0.5,
-    );
-    // 右上小葉子
-    _drawLeaf(
-      canvas,
-      Offset(w * 0.82, h * 0.05),
-      14,
-      const Color(0xFFB8DFB0).withValues(alpha: 0.35),
-      rotation: 0.7,
-    );
-    // 左下葉子
-    _drawLeaf(
-      canvas,
-      Offset(w * 0.18, h * 0.78),
-      16,
-      const Color(0xFFA8D5A2).withValues(alpha: 0.30),
-      rotation: 1.2,
-    );
-
-    // 右上小星星
-    _drawStar(
-      canvas,
-      Offset(w * 0.70, h * 0.10),
-      6,
-      const Color(0xFFFFC658).withValues(alpha: 0.55),
-    );
-    // 左中小星星
-    _drawStar(
-      canvas,
-      Offset(w * 0.12, h * 0.25),
-      4,
-      const Color(0xFFFFC658).withValues(alpha: 0.45),
-    );
-    // 右中小星星
-    _drawStar(
-      canvas,
-      Offset(w * 0.90, h * 0.30),
-      5,
-      const Color(0xFFFFC658).withValues(alpha: 0.50),
-    );
-  }
-
-  void _drawLeaf(
-    Canvas canvas,
-    Offset c,
-    double r,
-    Color color, {
-    double rotation = 0,
-  }) {
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(rotation);
-    final path = Path()
-      ..moveTo(0, -r)
-      ..quadraticBezierTo(r * 0.9, -r * 0.2, 0, r)
-      ..quadraticBezierTo(-r * 0.9, -r * 0.2, 0, -r)
-      ..close();
-    canvas.drawPath(path, Paint()..color = color);
-    canvas.restore();
-  }
-
-  void _drawStar(Canvas canvas, Offset c, double r, Color color) {
-    final path = Path();
-    for (int i = 0; i < 10; i++) {
-      final angle = -math.pi / 2 + i * math.pi / 5;
-      final radius = i.isEven ? r : r * 0.45;
-      final x = c.dx + radius * math.cos(angle);
-      final y = c.dy + radius * math.sin(angle);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
