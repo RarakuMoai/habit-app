@@ -11,6 +11,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -272,30 +273,33 @@ class _MascotStageState extends State<MascotStage>
             // 地面陰影：依 _reactionLift 同步縮小變淡 → 「離開地面」的感覺
             // 位置 bottom 要對到兔咪 CG 圖裡腳的位置（1024×1024 畫布，腳在 ~80%）
             final lift = _reactionLift.value; // 0 ~ -6
-            final shadowScale = 1.0 + lift * 0.02;
-            final shadowAlpha = (0.30 + lift * 0.015).clamp(0.18, 0.34);
+            final liftProgress = (-lift / 6).clamp(0.0, 1.0);
+            final shadowScale = ui.lerpDouble(1, 0.88, liftProgress)!;
+            final shadowOpacity = ui.lerpDouble(0.24, 0.13, liftProgress)!;
+            final shadowColor = Color.lerp(
+              const Color(0xFF5B4436),
+              widget.accent,
+              0.12,
+            )!;
             return Stack(
               alignment: Alignment.center,
               children: [
                 // 腳下橢圓陰影（在 sparkle 跟兔咪本體下方）
                 Positioned(
                   // 252 stage × (1 - 腳在畫布的 Y 比例 0.80) ≈ 50px 距離 stage 底
-                  bottom: 50,
+                  bottom: 44,
                   left: 0,
                   right: 0,
                   child: Center(
                     child: Transform.scale(
                       scaleX: shadowScale,
-                      child: Container(
-                        width: 130,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [
-                              Colors.black.withValues(alpha: shadowAlpha),
-                              Colors.transparent,
-                            ],
-                            radius: 0.5,
+                      child: SizedBox(
+                        width: 158,
+                        height: 38,
+                        child: CustomPaint(
+                          painter: _MascotGroundShadowPainter(
+                            color: shadowColor,
+                            opacity: shadowOpacity,
                           ),
                         ),
                       ),
@@ -346,6 +350,48 @@ class _MascotStageState extends State<MascotStage>
   }
 }
 
+class _MascotGroundShadowPainter extends CustomPainter {
+  final Color color;
+  final double opacity;
+
+  const _MascotGroundShadowPainter({
+    required this.color,
+    required this.opacity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * 0.56);
+
+    final ambientPaint = Paint()
+      ..color = color.withValues(alpha: opacity * 0.38)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 14);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center,
+        width: size.width * 0.96,
+        height: size.height * 0.72,
+      ),
+      ambientPaint,
+    );
+
+    final contactPaint = Paint()
+      ..color = color.withValues(alpha: opacity)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center.translate(0, size.height * 0.08),
+        width: size.width * 0.66,
+        height: size.height * 0.34,
+      ),
+      contactPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MascotGroundShadowPainter old) =>
+      old.color != color || old.opacity != opacity;
+}
 
 class _MascotSparklePainter extends CustomPainter {
   final double progress;
