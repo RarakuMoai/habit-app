@@ -187,17 +187,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         );
         if (lastDate != null &&
             DateTime.now().difference(lastDate).inDays >= 2) {
-          return '你回來了！我好想你 🐰';
+          return '你回來了。\n我還在。';
         }
       }
     }
-    if (streak >= 7) return '連續一週了！你真的很厲害！🔥';
-    if (yesterdayAllDone) return '昨天表現超棒！今天繼續！⭐';
+    if (streak >= 7) return '我們連續一週了。\n這不是一點點了耶。';
+    if (yesterdayAllDone) return '昨天那一格，我替你收好了。';
     if (onboardingDate != null) {
       final daysSince = DateTime.now().difference(onboardingDate!).inDays + 1;
-      if (daysSince <= 3) return '第$daysSince天！我們越來越熟了～';
+      if (daysSince <= 3) return '第$daysSince天。\n我們慢慢熟起來了。';
     }
-    return '早安 $_nickname！今天也要加油喔 🌟';
+    return '早安，$_nickname。\n今天也從一點點開始？';
   }
 
   void showGreetingBanner(String message) {
@@ -1830,7 +1830,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: Image.asset(
-                    'assets/scenes/home/tumi_room_stage_bg_v2.png',
+                    'assets/scenes/home/home_bg.png',
                     height: double.infinity,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -1985,7 +1985,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       accent: const Color(0xFFFF8A50),
     );
   }
-
 
   Widget _buildAddButton() {
     return Padding(
@@ -2320,7 +2319,6 @@ class _RoomSceneEffectsPainter extends CustomPainter {
       old.allDone != allDone ||
       old.streak != streak;
 }
-
 
 // ── 習慣卡片（含彈跳動畫）──
 

@@ -39,7 +39,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   final ScrollController _bodyInfoScrollCtrl = ScrollController();
 
   // 畫面1：打字動畫
-  final List<String> _lines = ['嗯...你來了。', '我是兔咪，平常有點愛睡。', '但你開始的時候，我會醒來陪你。'];
+  final List<String> _lines = ['嗯...你來了。', '我是兔咪，平常有點愛睡。', '你想開始時，我會陪你。'];
   int _lineIndex = 0;
   String _displayText = '';
   bool _page1Done = false;
@@ -301,7 +301,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     final kg = _weightKgFromCtrl(_weightController);
     final hasHeight = _unit == UnitSystem.imperial
         ? (_heightController.text.trim().isNotEmpty ||
-            _heightInController.text.trim().isNotEmpty)
+              _heightInController.text.trim().isNotEmpty)
         : _heightController.text.trim().isNotEmpty;
     if (!_gender.isNotEmpty) return false;
     if (!hasHeight) return false;
@@ -620,7 +620,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('對了，你可以幫我取個名字！'),
+          _speechBubble('對了...\n你可以幫我取個名字。'),
           const SizedBox(height: 32),
           TextField(
             controller: _mascotController,
@@ -679,7 +679,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('$_mascotName：那…你呢？\n我以後要怎麼叫你？'),
+          _speechBubble('那...你呢？\n$_mascotName 以後要怎麼叫你？'),
           const SizedBox(height: 24),
           TextField(
             controller: _nicknameController,
@@ -740,24 +740,24 @@ class _OnboardingPageState extends State<OnboardingPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_waterStep == 0) ...[
-            _speechBubble('$_nickname！好名字～\n對了，你平常有在注意喝水嗎？'),
+            _speechBubble('$_nickname，這個名字很好。\n你平常會記得喝水嗎？'),
             const SizedBox(height: 32),
             _optionButton('有，但常常忘記', () {
               setState(() {
                 _waterStep = 1;
-                _waterFollowup = '常常忘記很正常～\n讓我幫你記錄、提醒你喝水好嗎？💧';
+                _waterFollowup = '忘記也很正常。\n要不要讓我幫你記一點？';
               });
             }),
             _optionButton('有在注意', () {
               setState(() {
                 _waterStep = 1;
-                _waterFollowup = '哇，很棒！\n那我們一起記錄，看杯數增加更有成就感！💧';
+                _waterFollowup = '嗯，我有看到你的習慣。\n要不要一起把它收起來？';
               });
             }),
             _optionButton('沒特別想到', () {
               setState(() {
                 _waterStep = 1;
-                _waterFollowup = '那就從今天開始吧～\n要不要我幫你記錄每天喝幾杯水？💧';
+                _waterFollowup = '那可以從今天一小杯開始。\n要不要我陪你記？';
               });
             }),
             // 已養成習慣、不需記錄 → 不追問，直接下一步
@@ -769,7 +769,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             _speechBubble(_waterFollowup),
             const SizedBox(height: 32),
             // 追問簡化為二選一
-            _optionButton('好啊，幫我記！💧', () {
+            _optionButton('好，幫我記', () {
               setState(() => _waterEnabled = true);
               _nextPage();
             }, color: Colors.blue),
@@ -791,18 +791,18 @@ class _OnboardingPageState extends State<OnboardingPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_timerStep == 0) ...[
-            _speechBubble('你平常工作或唸書的時候，\n容易分心嗎？'),
+            _speechBubble('工作或唸書的時候，\n你容易分心嗎？'),
             const SizedBox(height: 32),
-            _optionButton('超容易！', () {
+            _optionButton('很容易', () {
               setState(() {
                 _timerStep = 1;
-                _timerFollowup = '我有個秘密武器！\n要試試番茄鐘嗎？🍅';
+                _timerFollowup = '那我們可以試試番茄鐘。\n短短一段就好。';
               });
             }),
             _optionButton('還好', () {
               setState(() {
                 _timerStep = 1;
-                _timerFollowup = '有個番茄鐘可以讓你更穩定喔，\n要開啟嗎？';
+                _timerFollowup = '番茄鐘可以幫你留一段安靜時間。\n要先放著嗎？';
               });
             }),
             _optionButton('我很專注', () {
@@ -814,7 +814,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             _speechBubble(_timerFollowup),
             const SizedBox(height: 32),
             // 追問簡化為二選一
-            _optionButton('好啊，試試看！🍅', () {
+            _optionButton('好，試試看', () {
               setState(() => _timerEnabled = true);
               _nextPage();
             }, color: Colors.red.shade400),
@@ -836,9 +836,9 @@ class _OnboardingPageState extends State<OnboardingPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_familyStep == 0) ...[
-            _speechBubble('對了，家裡有小朋友嗎？🐣'),
+            _speechBubble('對了...\n家裡有小朋友嗎？'),
             const SizedBox(height: 32),
-            _optionButton('有！', () {
+            _optionButton('有', () {
               setState(() => _familyStep = 1);
             }),
             _optionButton('沒有', () {
@@ -850,9 +850,9 @@ class _OnboardingPageState extends State<OnboardingPage>
               _nextPage();
             }),
           ] else ...[
-            _speechBubble('可以用獎勵積分幫小朋友養成好習慣喔！\n要開啟家庭模式嗎？🏠'),
+            _speechBubble('如果需要，我也可以陪小朋友記小任務。\n要開啟家庭模式嗎？'),
             const SizedBox(height: 32),
-            _optionButton('好啊，聽起來不錯！', () {
+            _optionButton('好，先開著', () {
               setState(() => _familyEnabled = true);
               _nextPage();
             }, color: Colors.green),
@@ -875,7 +875,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('要不要先挑幾個習慣開始？\n之後都能再增減喔！'),
+          _speechBubble('要不要先放幾個小習慣？\n之後都可以再改。'),
           const SizedBox(height: 24),
           Wrap(
             spacing: 8,
@@ -914,28 +914,99 @@ class _OnboardingPageState extends State<OnboardingPage>
     final rows = _kOnboardingHabits
         .where((h) => h.freq && _selectedHabits.contains(h.name))
         .toList();
-    if (rows.isEmpty) return const SizedBox.shrink();
-    return Column(
-      children: [
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.repeat_rounded, size: 15, color: Colors.orange.shade700),
-            const SizedBox(width: 6),
-            Text(
-              '想多久做一次？',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.orange.shade700,
-                fontWeight: FontWeight.w600,
-              ),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          final offset = Tween<Offset>(
+            begin: const Offset(0, -0.08),
+            end: Offset.zero,
+          ).animate(animation);
+          final scale = Tween<double>(begin: 0.98, end: 1).animate(animation);
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: offset,
+              child: ScaleTransition(scale: scale, child: child),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ...rows.map((h) => _freqRow(h.emoji, h.name)),
-      ],
+          );
+        },
+        child: rows.isEmpty
+            ? const SizedBox.shrink(key: ValueKey('freq-empty'))
+            : Container(
+                key: const ValueKey('freq-panel'),
+                width: double.infinity,
+                margin: const EdgeInsets.only(top: 20),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.orange.shade100),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withValues(alpha: 0.10),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.repeat_rounded,
+                          size: 15,
+                          color: Colors.orange.shade700,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '想多久做一次？',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...rows.indexed.map(
+                      (entry) => _animatedFreqRow(
+                        entry.$1,
+                        entry.$2.emoji,
+                        entry.$2.name,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _animatedFreqRow(int index, String emoji, String name) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('freq-row-$name'),
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 260 + index * 45),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 8),
+            child: child,
+          ),
+        );
+      },
+      child: _freqRow(emoji, name),
     );
   }
 
@@ -950,13 +1021,29 @@ class _OnboardingPageState extends State<OnboardingPage>
             child: Text('$emoji $name', style: const TextStyle(fontSize: 14)),
           ),
           // 每週（主要，可調次數）
-          if (isWeekly)
-            _weeklyStepper(name, times)
-          else
-            GestureDetector(
-              onTap: () => setState(() => _weeklyTimes[name] = 3),
-              child: _freqPill('每週', false),
-            ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SizeTransition(
+                  sizeFactor: animation,
+                  axis: Axis.horizontal,
+                  axisAlignment: 1,
+                  child: child,
+                ),
+              );
+            },
+            child: isWeekly
+                ? _weeklyStepper(name, times)
+                : GestureDetector(
+                    key: ValueKey('weekly-pill-$name'),
+                    onTap: () => setState(() => _weeklyTimes[name] = 3),
+                    child: _freqPill('每週', false),
+                  ),
+          ),
           const SizedBox(width: 6),
           // 每日（次要，靠右）
           GestureDetector(
@@ -971,6 +1058,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 每週次數調整器：−／＋ 改每週次數（1~7）
   Widget _weeklyStepper(String name, int times) {
     return Container(
+      key: ValueKey('weekly-stepper-$name'),
       decoration: BoxDecoration(
         color: Colors.orange,
         borderRadius: BorderRadius.circular(14),
@@ -1030,7 +1118,9 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   Widget _freqPill(String label, bool selected) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
         color: selected ? Colors.orange : Colors.white,
@@ -1064,21 +1154,39 @@ class _OnboardingPageState extends State<OnboardingPage>
           if (freq) _weeklyTimes[name] = 3;
         }
       }),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected ? Colors.orange : Colors.grey.shade300,
+      child: AnimatedScale(
+        scale: selected ? 1.04 : 1,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutBack,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? Colors.orange : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected ? Colors.orange : Colors.grey.shade300,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: Colors.orange.withValues(alpha: 0.20),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : const [],
           ),
-        ),
-        child: Text(
-          '$emoji $name',
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.grey.shade700,
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.grey.shade700,
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            ),
+            child: Text('$emoji $name'),
           ),
         ),
       ),
@@ -1177,8 +1285,8 @@ class _OnboardingPageState extends State<OnboardingPage>
     final bmiOdd = _bmiOddOnboarding;
     final emotion = bmiOdd ? 'sad' : 'smile';
     final bubbleText = bmiOdd
-        ? '咦？身高跟體重的比例…\n好像怪怪的，再確認一下？'
-        : '想讓我更了解你嗎？\n如果你有減重或健康目標，\n可以告訴我身高體重～';
+        ? '嗯...這裡好像填錯了。\n我們再看一次？'
+        : '如果你願意，\n也可以告訴我身高體重。\n不填也沒關係。';
 
     return _mascotPage(
       emotion: emotion,
@@ -1342,7 +1450,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('好了！$_nickname，我們準備好了！\n有我陪著你，一定可以的 🐰✨', fontSize: 18),
+          _speechBubble('好了，$_nickname。\n我會在這裡陪你慢慢來。', fontSize: 18),
           const SizedBox(height: 48),
           SizedBox(
             width: double.infinity,
@@ -1358,7 +1466,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                 shadowColor: Colors.orange.withValues(alpha: 0.4),
               ),
               child: const Text(
-                '出發！🚀',
+                '開始',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,

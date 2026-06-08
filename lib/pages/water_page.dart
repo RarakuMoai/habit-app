@@ -424,7 +424,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
             right: 0,
             height: MediaQuery.of(context).size.height * 0.56,
             child: const MascotSceneBackground(
-              'assets/scenes/water/water_kitchen_stage_bg_v4.png',
+              'assets/scenes/water/water_bg.png',
             ),
           ),
           SafeArea(
@@ -836,8 +836,8 @@ class _SmallGhostButton extends StatelessWidget {
 
 // Single source of truth for bottle layout.
 //
-// `imageAspectRatio` matches `assets/scenes/water/bottle_overlay.png`
-// (1024 × 1536). When the bottle widget uses the same aspect ratio,
+// `imageAspectRatio` matches `assets/scenes/water/bottle_back.png` /
+// `bottle_front.png` (1024 × 1536). When the bottle widget uses the same aspect ratio,
 // `BoxFit.contain` does not letterbox the image, so the painter's
 // normalized 0–1 coordinates map 1:1 onto the bottle artwork.
 //

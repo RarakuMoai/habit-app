@@ -93,7 +93,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       when,
       id: _notifId,
       title: _isWork ? '🍅 專注時間結束' : '☕ 休息結束',
-      body: _isWork ? '休息一下，5 分鐘喘口氣。' : '回來專注 25 分鐘，繼續加油。',
+      body: _isWork ? '休息一下，5 分鐘喘口氣。' : '回來放一段安靜時間。',
     );
   }
 
@@ -101,10 +101,10 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     if (_isRunning) {
       // 暫停：留下當前剩餘秒數、取消排程通知
       final remaining = _endTime != null
-          ? _endTime!.difference(DateTime.now()).inSeconds.clamp(
-                0,
-                _phaseSeconds(_isWork),
-              )
+          ? _endTime!
+                .difference(DateTime.now())
+                .inSeconds
+                .clamp(0, _phaseSeconds(_isWork))
           : _secondsLeft;
       _timer?.cancel();
       NotificationService.cancel(_notifId);
@@ -161,7 +161,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
             right: 0,
             height: MediaQuery.of(context).size.height * 0.56,
             child: const MascotSceneBackground(
-              'assets/scenes/timer/timer_focus_stage_bg_v5.png',
+              'assets/scenes/timer/timer_bg.png',
             ),
           ),
           SafeArea(
@@ -285,7 +285,9 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
                   });
                   // 互動：跳過 → 兔咪換對應模式情緒
                   MascotPersona.interact(
-                    _isWork ? MascotContext.openApp : MascotContext.completedOne,
+                    _isWork
+                        ? MascotContext.openApp
+                        : MascotContext.completedOne,
                   );
                 },
                 child: Container(

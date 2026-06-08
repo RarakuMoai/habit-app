@@ -736,7 +736,7 @@ class _WeightPageState extends State<WeightPage> {
             right: 0,
             height: MediaQuery.of(context).size.height * 0.56,
             child: const MascotSceneBackground(
-              'assets/scenes/weight/weight_wellness_stage_bg_v3.png',
+              'assets/scenes/weight/weight_bg.png',
             ),
           ),
           SafeArea(

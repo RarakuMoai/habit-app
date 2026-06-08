@@ -834,7 +834,7 @@ class _FamilyPageState extends State<FamilyPage> {
                   right: 0,
                   height: MediaQuery.of(context).size.height * 0.56,
                   child: const MascotSceneBackground(
-                    'assets/scenes/family/family_task_stage_bg_v3.png',
+                    'assets/scenes/family/family_bg.png',
                   ),
                 ),
                 SafeArea(

@@ -16,6 +16,7 @@
 
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +32,7 @@ class BgmService with WidgetsBindingObserver {
   static const double _targetVolume = 0.6;
   static const Duration _fadeDuration = Duration(milliseconds: 1200);
   static const Duration _fadeStep = Duration(milliseconds: 50);
+  static const int _playStartRetries = 3;
 
   // 跳過 AAC encoder 在開頭塞的暖機靜音（~48ms），讓 LoopMode.one 接得更緊
   static const Duration _aacPrimingTrim = Duration(milliseconds: 50);
@@ -51,6 +53,14 @@ class BgmService with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     muted.value = prefs.getBool(_prefKey) ?? false;
 
+    // 顯式 configure + activate audio session（ambient = 跟其他 app 共存、響應靜音鈕）。
+    // 不顯式設的話，iOS 在第一次 play() 時才幫忙設，會 race condition：
+    // 冷啟動時 onboarding 那次 play() 看似成功但沒輸出，要到第二次 play()
+    // （onboarding 結束切 bgm_main）才實際發聲。
+    // 注意：ambient 預設就 mixWithOthers，再寫 mixWithOthers flag 會 assert，
+    // 所以這裡只給 category。setActive 強制 iOS 立刻把 session 真正 active 起來。
+    await _activateSession();
+
     await _player.setLoopMode(LoopMode.one); // gapless 單曲循環
     await _player.setVolume(0);
     _currentVolume = 0;
@@ -64,27 +74,33 @@ class BgmService with WidgetsBindingObserver {
   Future<void> play(String asset) async {
     if (_currentAsset == asset && _player.playing) return;
 
-    if (_currentAsset != null) {
-      await _fadeTo(0);
-      await _player.stop();
-    }
+    // 不管之前狀態如何，先 fade out + stop 拿到乾淨狀態。
+    // 首次呼叫（_currentAsset == null）也要 stop，避免冷啟動時 native player
+    // 處於 stale 狀態導致 play() 看似成功但沒輸出。
+    await _fadeTo(0);
+    await _player.stop();
     _currentAsset = asset;
 
     if (muted.value) return; // 靜音中只記錄當前曲目，不實際播放
 
     await _loadAsset(asset);
-    await _player.setLoopMode(LoopMode.one);
-    await _player.play();
-
-    // iOS audio session 第一次啟動有 race condition：play() 回傳成功但音訊沒輸出。
-    // 等一下看是不是真的在播，沒有就重試一次。
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (!_player.playing && !muted.value && _currentAsset == asset) {
-      debugPrint('BGM: play() did not actually start, retrying');
-      await _player.play();
-    }
+    await _startPlaybackWithRecovery(asset);
 
     await _fadeTo(_targetVolume);
+  }
+
+  Future<void> _activateSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(
+        const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.ambient,
+        ),
+      );
+      await session.setActive(true);
+    } catch (e) {
+      debugPrint('BGM: audio session configure/activate failed: $e');
+    }
   }
 
   // 載入 asset 並包進 ClippingAudioSource 跳過開頭 priming，循環會更緊密
@@ -95,6 +111,55 @@ class BgmService with WidgetsBindingObserver {
         child: AudioSource.asset('assets/$asset'),
       ),
     );
+    await _player.setLoopMode(LoopMode.one);
+  }
+
+  // iOS/just_audio 偶爾會出現 play() 已回傳、甚至 playing=true，但音源還沒真正
+  // 前進的狀態。用 processingState + position 是否前進確認，比只看 playing 穩。
+  Future<void> _startPlaybackWithRecovery(String asset) async {
+    for (int attempt = 0; attempt < _playStartRetries; attempt++) {
+      if (muted.value || _currentAsset != asset) return;
+
+      await _activateSession();
+      await _player.play();
+
+      if (await _isPlaybackAdvancing()) return;
+
+      debugPrint('BGM: playback did not advance, retry ${attempt + 1}');
+      await _player.stop();
+      if (muted.value || _currentAsset != asset) return;
+      await _loadAsset(asset);
+    }
+  }
+
+  Future<bool> _isPlaybackAdvancing() async {
+    try {
+      final ready = await _player.processingStateStream
+          .firstWhere(
+            (state) =>
+                state == ProcessingState.ready ||
+                state == ProcessingState.completed,
+          )
+          .timeout(
+            const Duration(milliseconds: 900),
+            onTimeout: () {
+              return _player.processingState;
+            },
+          );
+      if (ready != ProcessingState.ready &&
+          ready != ProcessingState.completed) {
+        return false;
+      }
+
+      final before = _player.position;
+      await Future.delayed(const Duration(milliseconds: 450));
+      final after = _player.position;
+      return _player.playing &&
+          after.inMilliseconds > before.inMilliseconds + 80;
+    } catch (e) {
+      debugPrint('BGM: playback verification failed: $e');
+      return false;
+    }
   }
 
   /// 切換靜音狀態，存到偏好。
@@ -115,10 +180,9 @@ class BgmService with WidgetsBindingObserver {
       // 之前因靜音而沒實際播放 → 啟動；之前在播但被暫停 → 復原
       if (_player.processingState == ProcessingState.idle) {
         await _loadAsset(_currentAsset!);
-        await _player.setLoopMode(LoopMode.one);
       }
       if (muted.value) return; // 使用者已改回靜音
-      await _player.play();
+      await _startPlaybackWithRecovery(_currentAsset!);
       await _fadeTo(_targetVolume);
       // 淡入過程中又被靜音
       if (muted.value) {
