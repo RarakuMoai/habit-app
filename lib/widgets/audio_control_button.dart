@@ -269,8 +269,7 @@ class _AudioSettingsPanel extends StatelessWidget {
                   delay: 0.12,
                   child: _AudioRow(
                     icon: Icons.music_note_rounded,
-                    title: '背景音樂',
-                    subtitle: '兔咪陪伴的環境音',
+                    title: '音樂',
                     accent: accent,
                     valueListenable: AudioSettingsService.musicMuted,
                     onChanged: (muted) async {
@@ -285,8 +284,7 @@ class _AudioSettingsPanel extends StatelessWidget {
                   delay: 0.24,
                   child: _AudioRow(
                     icon: Icons.touch_app_rounded,
-                    title: '操作音效',
-                    subtitle: '完成、點擊與取消回饋',
+                    title: '音效',
                     accent: accent,
                     valueListenable: AudioSettingsService.sfxMuted,
                     onChanged: (muted) async {
@@ -352,7 +350,6 @@ class _FlowReveal extends StatelessWidget {
 class _AudioRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
   final Color accent;
   final ValueNotifier<bool> valueListenable;
   final Future<void> Function(bool muted) onChanged;
@@ -360,7 +357,6 @@ class _AudioRow extends StatelessWidget {
   const _AudioRow({
     required this.icon,
     required this.title,
-    required this.subtitle,
     required this.accent,
     required this.valueListenable,
     required this.onChanged,
@@ -373,7 +369,7 @@ class _AudioRow extends StatelessWidget {
       builder: (_, muted, _) {
         final enabled = !muted;
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: enabled
                 ? accent.withValues(alpha: 0.08)
@@ -398,25 +394,12 @@ class _AudioRow extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
               Switch.adaptive(
