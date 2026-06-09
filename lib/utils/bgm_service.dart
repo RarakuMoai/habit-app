@@ -79,18 +79,28 @@ class BgmService with WidgetsBindingObserver {
     if (_intendedAsset != asset) return;
     if (_currentAsset == asset && _player.playing) return;
 
-    // 不管之前狀態如何，先 fade out + stop 拿到乾淨狀態。
-    // 首次呼叫（_currentAsset == null）也要 stop，避免冷啟動時 native player
-    // 處於 stale 狀態導致 play() 看似成功但沒輸出。
+    // iOS / release 下，不只冷啟動，切換到新的 AudioSource 後也可能出現
+    // player 狀態正常但沒有實際聲音輸出的情況。
+    final sourceWillChange = _currentAsset != asset;
+
+    // 只在「已有先前曲目」時才 stop（asset 切換要乾淨清掉舊 source）。
+    // 首次呼叫對 fresh player 做 stop+setAudioSource+play 在 iOS 上會 silently fail。
     await _fadeTo(0);
     if (_intendedAsset != asset) return;
-    await _player.stop();
+    if (_currentAsset != null) {
+      await _player.stop();
+    }
     _currentAsset = asset;
 
     if (AudioSettingsService.musicMuted.value) return; // 靜音中只記錄當前曲目，不實際播放
 
     await _loadAsset(asset);
     if (_intendedAsset != asset) return;
+
+    if (sourceWillChange) {
+      await _primePlaybackOutput(asset);
+    }
+
     await _startPlaybackWithRecovery(asset);
     if (_intendedAsset != asset) return;
 
@@ -157,6 +167,24 @@ class BgmService with WidgetsBindingObserver {
       ),
     );
     await _player.setLoopMode(LoopMode.one);
+  }
+
+  // iOS/just_audio workaround：新的 AudioSource 第一次 play() 有機率 silent fail。
+  // 手動「靜音→開啟」會修好，是因為它走了 pause→play；這裡在音量 0 時先做
+  // 一次 play→pause→seek(0)，讓真正播放時已經是同一個 source 的第二次 play。
+  Future<void> _primePlaybackOutput(String asset) async {
+    try {
+      await _activateSession();
+      await _player.setVolume(0);
+      _currentVolume = 0;
+      await _player.play();
+      await Future.delayed(const Duration(milliseconds: 80));
+      await _player.pause();
+      await _player.seek(Duration.zero);
+    } catch (e) {
+      debugPrint('BGM: playback output prime failed: $e');
+    }
+    if (_intendedAsset != asset) return;
   }
 
   // iOS/just_audio 偶爾會出現 play() 已回傳、甚至 playing=true，但音源還沒真正
