@@ -27,7 +27,6 @@ class AudioControlButton extends StatefulWidget {
 class _AudioControlButtonState extends State<AudioControlButton> {
   final GlobalKey _buttonKey = GlobalKey();
   OverlayEntry? _entry;
-  bool _expanded = false;
 
   @override
   void dispose() {
@@ -65,7 +64,6 @@ class _AudioControlButtonState extends State<AudioControlButton> {
         ? (buttonTopLeft.dy - panelHeight - 8).clamp(12.0, overlaySize.height)
         : below;
 
-    setState(() => _expanded = true);
     _entry = OverlayEntry(
       builder: (_) => _AudioPanelOverlay(
         top: top,
@@ -83,7 +81,6 @@ class _AudioControlButtonState extends State<AudioControlButton> {
   void _hidePanel({bool updateState = true}) {
     _entry?.remove();
     _entry = null;
-    if (updateState && mounted) setState(() => _expanded = false);
   }
 
   @override
@@ -107,7 +104,6 @@ class _AudioControlButtonState extends State<AudioControlButton> {
               key: _buttonKey,
               style: widget.style,
               accent: widget.accent,
-              expanded: _expanded,
               child: IconButton(
                 icon: Icon(icon, color: color),
                 tooltip: '聲音設定',
@@ -124,14 +120,12 @@ class _AudioControlButtonState extends State<AudioControlButton> {
 class _AudioCircle extends StatelessWidget {
   final AudioControlStyle style;
   final Color accent;
-  final bool expanded;
   final Widget child;
 
   const _AudioCircle({
     super.key,
     required this.style,
     required this.accent,
-    required this.expanded,
     required this.child,
   });
 
@@ -142,29 +136,29 @@ class _AudioCircle extends StatelessWidget {
       padding: onboarding
           ? const EdgeInsets.only(top: 6, right: 10)
           : const EdgeInsets.only(right: 4),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: expanded ? 4 : 0),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: onboarding ? 0.82 : 0.88),
-          borderRadius: BorderRadius.circular(expanded ? 16 : 999),
-          border: Border.all(
-            color: (onboarding ? accent : Colors.grey.shade700).withValues(
-              alpha: expanded ? 0.28 : (onboarding ? 0.22 : 0.0),
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: (onboarding ? accent : Colors.black).withValues(
-                alpha: expanded ? 0.16 : (onboarding ? 0.12 : 0.10),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: onboarding ? 0.82 : 0.88),
+            shape: BoxShape.circle,
+            border: onboarding
+                ? Border.all(color: accent.withValues(alpha: 0.22))
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: (onboarding ? accent : Colors.black).withValues(
+                  alpha: onboarding ? 0.12 : 0.10,
+                ),
+                blurRadius: onboarding ? 14 : 10,
+                offset: Offset(0, onboarding ? 5 : 3),
               ),
-              blurRadius: expanded ? 18 : (onboarding ? 14 : 10),
-              offset: Offset(0, expanded ? 6 : (onboarding ? 5 : 3)),
-            ),
-          ],
+            ],
+          ),
+          child: child,
         ),
-        child: child,
       ),
     );
   }
@@ -205,26 +199,28 @@ class _AudioPanelOverlay extends StatelessWidget {
           width: width,
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            builder: (_, t, child) {
+            duration: const Duration(milliseconds: 360),
+            curve: Curves.easeOutQuart,
+            builder: (_, t, _) {
+              final eased = Curves.easeOutCubic.transform(t);
               return Opacity(
-                opacity: t,
+                opacity: eased,
                 child: Transform.scale(
                   alignment: Alignment((arrowX / width) * 2 - 1, -1),
-                  scale: 0.88 + t * 0.12,
-                  child: child,
+                  scaleX: 0.18 + eased * 0.82,
+                  scaleY: 0.62 + eased * 0.38,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: _AudioSettingsPanel(
+                      accent: accent,
+                      arrowX: arrowX,
+                      flowProgress: t,
+                      onMusicEnabled: onMusicEnabled,
+                    ),
+                  ),
                 ),
               );
             },
-            child: Material(
-              color: Colors.transparent,
-              child: _AudioSettingsPanel(
-                accent: accent,
-                arrowX: arrowX,
-                onMusicEnabled: onMusicEnabled,
-              ),
-            ),
           ),
         ),
       ],
@@ -235,11 +231,13 @@ class _AudioPanelOverlay extends StatelessWidget {
 class _AudioSettingsPanel extends StatelessWidget {
   final Color accent;
   final double arrowX;
+  final double flowProgress;
   final VoidCallback? onMusicEnabled;
 
   const _AudioSettingsPanel({
     required this.accent,
     required this.arrowX,
+    required this.flowProgress,
     this.onMusicEnabled,
   });
 
@@ -266,30 +264,38 @@ class _AudioSettingsPanel extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _AudioRow(
-                  icon: Icons.music_note_rounded,
-                  title: '背景音樂',
-                  subtitle: '兔咪陪伴的環境音',
-                  accent: accent,
-                  valueListenable: AudioSettingsService.musicMuted,
-                  onChanged: (muted) async {
-                    await BgmService.instance.setMuted(muted);
-                    if (!muted) onMusicEnabled?.call();
-                  },
+                _FlowReveal(
+                  progress: flowProgress,
+                  delay: 0.12,
+                  child: _AudioRow(
+                    icon: Icons.music_note_rounded,
+                    title: '背景音樂',
+                    subtitle: '兔咪陪伴的環境音',
+                    accent: accent,
+                    valueListenable: AudioSettingsService.musicMuted,
+                    onChanged: (muted) async {
+                      await BgmService.instance.setMuted(muted);
+                      if (!muted) onMusicEnabled?.call();
+                    },
+                  ),
                 ),
                 const SizedBox(height: 8),
-                _AudioRow(
-                  icon: Icons.touch_app_rounded,
-                  title: '操作音效',
-                  subtitle: '完成、點擊與取消回饋',
-                  accent: accent,
-                  valueListenable: AudioSettingsService.sfxMuted,
-                  onChanged: (muted) async {
-                    await AudioSettingsService.instance.setSfxMuted(muted);
-                    if (!muted) {
-                      unawaited(SfxService.instance.play(SfxCue.success));
-                    }
-                  },
+                _FlowReveal(
+                  progress: flowProgress,
+                  delay: 0.24,
+                  child: _AudioRow(
+                    icon: Icons.touch_app_rounded,
+                    title: '操作音效',
+                    subtitle: '完成、點擊與取消回饋',
+                    accent: accent,
+                    valueListenable: AudioSettingsService.sfxMuted,
+                    onChanged: (muted) async {
+                      await AudioSettingsService.instance.setSfxMuted(muted);
+                      if (!muted) {
+                        unawaited(SfxService.instance.play(SfxCue.success));
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
@@ -314,6 +320,31 @@ class _AudioSettingsPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FlowReveal extends StatelessWidget {
+  final double progress;
+  final double delay;
+  final Widget child;
+
+  const _FlowReveal({
+    required this.progress,
+    required this.delay,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final local = ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
+    final eased = Curves.easeOutCubic.transform(local);
+    return Opacity(
+      opacity: eased,
+      child: Transform.translate(
+        offset: Offset(0, (1 - eased) * -8),
+        child: child,
+      ),
     );
   }
 }

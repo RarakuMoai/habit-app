@@ -63,36 +63,48 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
         AudioControlButton(style: AudioControlStyle.appBar, accent: accent),
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.88),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: IconButton(
-              icon: Icon(Icons.settings_outlined, color: Colors.grey.shade800),
-              tooltip: '設定',
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  PageRouteBuilder(
-                    pageBuilder: (_, _, _) => const SettingsPage(),
-                    transitionsBuilder: (_, anim, _, child) => SlideTransition(
-                      position:
-                          Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
-                              .chain(CurveTween(curve: Curves.easeInOut))
-                              .animate(anim),
-                      child: child,
-                    ),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
-                );
-                onSettingsReturn?.call();
-              },
+                ],
+              ),
+              child: IconButton(
+                icon: Icon(
+                  Icons.settings_outlined,
+                  color: Colors.grey.shade800,
+                ),
+                tooltip: '設定',
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    PageRouteBuilder(
+                      pageBuilder: (_, _, _) => const SettingsPage(),
+                      transitionsBuilder: (_, anim, _, child) =>
+                          SlideTransition(
+                            position:
+                                Tween(
+                                      begin: const Offset(1.0, 0.0),
+                                      end: Offset.zero,
+                                    )
+                                    .chain(CurveTween(curve: Curves.easeInOut))
+                                    .animate(anim),
+                            child: child,
+                          ),
+                    ),
+                  );
+                  onSettingsReturn?.call();
+                },
+              ),
             ),
           ),
         ),
