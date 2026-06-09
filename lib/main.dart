@@ -136,6 +136,17 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     _loadSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureMainBgm();
+    });
+  }
+
+  Future<void> _ensureMainBgm() async {
+    try {
+      await BgmService.instance.ensurePlaying('sounds/bgm_main.m4a');
+    } catch (e, st) {
+      debugPrint('Main BGM ensure failed: $e\n$st');
+    }
   }
 
   String _todayString() {
