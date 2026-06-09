@@ -51,8 +51,8 @@ class _AudioControlButtonState extends State<AudioControlButton> {
       ancestor: overlay,
     );
     final overlaySize = overlay.size;
-    final panelWidth = overlaySize.width < 214 ? overlaySize.width - 20 : 194.0;
-    const panelHeight = 116.0;
+    final panelWidth = overlaySize.width < 176 ? overlaySize.width - 20 : 156.0;
+    const panelHeight = 84.0;
     final buttonCenterX = buttonTopLeft.dx + buttonBox.size.width / 2;
     final left = (buttonCenterX - panelWidth / 2).clamp(
       10.0,
@@ -260,14 +260,14 @@ class _AudioSettingsPanel extends StatelessWidget {
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
+            padding: const EdgeInsets.all(7),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _FlowReveal(
                   progress: flowProgress,
                   delay: 0.12,
-                  child: _AudioRow(
+                  child: _AudioTile(
                     icon: Icons.music_note_rounded,
                     title: '音樂',
                     accent: accent,
@@ -278,11 +278,11 @@ class _AudioSettingsPanel extends StatelessWidget {
                     },
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(width: 6),
                 _FlowReveal(
                   progress: flowProgress,
                   delay: 0.24,
-                  child: _AudioRow(
+                  child: _AudioTile(
                     icon: Icons.touch_app_rounded,
                     title: '音效',
                     accent: accent,
@@ -347,14 +347,14 @@ class _FlowReveal extends StatelessWidget {
   }
 }
 
-class _AudioRow extends StatelessWidget {
+class _AudioTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final Color accent;
   final ValueNotifier<bool> valueListenable;
   final Future<void> Function(bool muted) onChanged;
 
-  const _AudioRow({
+  const _AudioTile({
     required this.icon,
     required this.title,
     required this.accent,
@@ -368,105 +368,86 @@ class _AudioRow extends StatelessWidget {
       valueListenable: valueListenable,
       builder: (_, muted, _) {
         final enabled = !muted;
-        return Container(
-          height: 42,
-          padding: const EdgeInsets.only(left: 9, right: 8),
-          decoration: BoxDecoration(
-            color: enabled
-                ? accent.withValues(alpha: 0.09)
-                : Colors.grey.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: enabled
-                  ? accent.withValues(alpha: 0.24)
-                  : Colors.grey.withValues(alpha: 0.18),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: enabled ? accent : Colors.grey.shade400,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: Colors.white, size: 16),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              _MiniAudioSwitch(
-                enabled: enabled,
-                accent: accent,
-                onTap: () => unawaited(onChanged(enabled)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _MiniAudioSwitch extends StatelessWidget {
-  final bool enabled;
-  final Color accent;
-  final VoidCallback onTap;
-
-  const _MiniAudioSwitch({
-    required this.enabled,
-    required this.accent,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      toggled: enabled,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          width: 38,
-          height: 22,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: enabled ? accent : Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: AnimatedAlign(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOutCubic,
-            alignment: enabled ? Alignment.centerRight : Alignment.centerLeft,
-            child: Container(
-              width: 18,
-              height: 18,
+        return Semantics(
+          button: true,
+          toggled: enabled,
+          label: title,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => unawaited(onChanged(enabled)),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 170),
+              curve: Curves.easeOutCubic,
+              width: 68,
+              height: 62,
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 6),
               decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.14),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
+                color: enabled
+                    ? accent.withValues(alpha: 0.11)
+                    : Colors.grey.withValues(alpha: 0.065),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: enabled
+                      ? accent.withValues(alpha: 0.26)
+                      : Colors.grey.withValues(alpha: 0.18),
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 170),
+                      curve: Curves.easeOutCubic,
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: enabled ? accent : Colors.grey.shade400,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 16),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 170),
+                      curve: Curves.easeOutCubic,
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: enabled
+                            ? accent.withValues(alpha: 0.16)
+                            : Colors.grey.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        enabled ? Icons.check_rounded : Icons.close_rounded,
+                        size: 12,
+                        color: enabled ? accent : Colors.grey.shade500,
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        color: enabled
+                            ? Colors.grey.shade900
+                            : Colors.grey.shade600,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
