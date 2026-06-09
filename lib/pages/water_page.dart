@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -485,105 +484,105 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
         ? UnitConvert.mlToFlOz(_totalMl.toDouble()).round().toString()
         : _totalMl.toString();
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.cyan.withValues(alpha: 0.10),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+    return Stack(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.86),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.cyan.withValues(alpha: 0.10),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '今日補水',
-            style: TextStyle(
-              color: _kInkSoft,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                totalDisp,
-                style: const TextStyle(
-                  color: _kInk,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w900,
-                  height: 1.0,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _volLabel,
+                '今日補水',
                 style: TextStyle(
                   color: _kInkSoft,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
                 ),
               ),
-              const Spacer(),
-              if (_goalReached)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+              const SizedBox(height: 4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    totalDisp,
+                    style: const TextStyle(
+                      color: _kInk,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '已達標',
+                  const SizedBox(width: 4),
+                  Text(
+                    _volLabel,
                     style: TextStyle(
-                      color: Colors.green.shade700,
-                      fontSize: 12,
+                      color: _kInkSoft,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: _kInkSoft,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _summaryChip(
+                    icon: Icons.local_drink_outlined,
+                    label: '每杯 ${_volStr(_cupMl)}',
+                    onTap: _openWaterSettings,
+                  ),
+                  const SizedBox(width: 8),
+                  _summaryChip(
+                    icon: Icons.auto_awesome_outlined,
+                    label: '建議目標',
+                    onTap: _openWaterSettings,
+                  ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: _kInkSoft,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+        ),
+        Positioned(
+          top: 14,
+          right: 14,
+          child: IgnorePointer(
+            child: AnimatedScale(
+              scale: _goalReached ? 1.0 : 0.72,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              child: AnimatedOpacity(
+                opacity: _goalReached ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 180),
+                child: const _SummaryGoalCheck(),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _summaryChip(
-                icon: Icons.local_drink_outlined,
-                label: '每杯 ${_volStr(_cupMl)}',
-                onTap: _openWaterSettings,
-              ),
-              const SizedBox(width: 8),
-              _summaryChip(
-                icon: Icons.auto_awesome_outlined,
-                label: '建議目標',
-                onTap: _openWaterSettings,
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -793,6 +792,31 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 }
 
+class _SummaryGoalCheck extends StatelessWidget {
+  const _SummaryGoalCheck();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: const Color(0xFF45C878),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF45C878).withValues(alpha: 0.24),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: const Icon(Icons.check_rounded, color: Colors.white, size: 18),
+    );
+  }
+}
+
 class _SmallGhostButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
@@ -973,13 +997,10 @@ class _WaterBottleState extends State<_WaterBottle>
       duration: const Duration(milliseconds: 700),
       curve: Curves.easeOutCubic,
       builder: (context, value, _) {
-        final compactReached = widget.reached
+        final compactProgress = widget.reached
             ? ((widget.panelOpenValue - 0.55) / 0.45).clamp(0.0, 1.0)
             : 0.0;
-        final bottleOpacity = 1.0 - compactReached;
-        // AspectRatio locks the box to the bottle artwork's aspect ratio.
-        // Every layer below shares this single coordinate system, so the
-        // painter's body coords always land on the same pixels as the PNG.
+        final bottleOpacity = widget.reached ? 1.0 - compactProgress : 1.0;
         return ScaleTransition(
           scale: _bump,
           child: AspectRatio(
@@ -1021,7 +1042,7 @@ class _WaterBottleState extends State<_WaterBottle>
                   ),
                 ),
                 if (widget.reached)
-                  _BottleGoalBadge(compactProgress: compactReached),
+                  _BottleGoalBadge(compactProgress: compactProgress),
               ],
             ),
           ),
@@ -1041,10 +1062,18 @@ class _BottleGoalBadge extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final smallSize = (constraints.maxWidth * 0.20).clamp(14.0, 36.0);
-        final largeSize = constraints.maxWidth * 0.86;
+        final largeSize = constraints.maxWidth * 0.88;
         final badgeSize = ui.lerpDouble(smallSize, largeSize, compactProgress)!;
-        final iconSize = badgeSize * 0.70;
-        final blurRadius = (badgeSize * 0.33).clamp(5.0, 22.0);
+        final iconSize = ui.lerpDouble(
+          smallSize * 0.64,
+          largeSize * 0.66,
+          compactProgress,
+        )!;
+        final blurRadius = ui.lerpDouble(
+          smallSize * 0.20,
+          largeSize * 0.16,
+          compactProgress,
+        )!;
         final alignment = Alignment.lerp(
           const Alignment(0.55, -0.72),
           Alignment.center,
@@ -1063,6 +1092,7 @@ class _BottleGoalBadge extends StatelessWidget {
                 BoxShadow(
                   color: const Color(0xFFFFD54F).withValues(alpha: 0.35),
                   blurRadius: blurRadius,
+                  spreadRadius: compactProgress * 2,
                 ),
               ],
             ),
