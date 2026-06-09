@@ -43,6 +43,7 @@ class BgmService with WidgetsBindingObserver {
   String? _currentAsset;
   double _currentVolume = 0;
   Timer? _fadeTimer;
+  Timer? _outputNudgeTimer;
   // 當前 fade 的 completer。下一個 fade 啟動時會把這個 complete 掉，
   // 避免「舊的 await _fadeTo」永遠 hang 在那裡。
   Completer<void>? _activeFadeCompleter;
@@ -105,6 +106,9 @@ class BgmService with WidgetsBindingObserver {
     if (_intendedAsset != asset) return;
 
     await _fadeTo(_targetVolume);
+    if (sourceWillChange) {
+      _scheduleOutputNudge(asset);
+    }
   }
 
   /// 確認指定 BGM 已載入並正在前進。
@@ -185,6 +189,38 @@ class BgmService with WidgetsBindingObserver {
       debugPrint('BGM: playback output prime failed: $e');
     }
     if (_intendedAsset != asset) return;
+  }
+
+  void _scheduleOutputNudge(String asset) {
+    _outputNudgeTimer?.cancel();
+    _outputNudgeTimer = Timer(const Duration(milliseconds: 700), () {
+      unawaited(_nudgePlaybackOutput(asset));
+    });
+  }
+
+  // 最後一道保險：如果新的 BGM source 在 release/iOS 上進入「狀態在播但沒聲」
+  // 的狀態，延遲做一次 pause→play，等同使用者手動把音樂關掉再打開的救援效果。
+  Future<void> _nudgePlaybackOutput(String asset) async {
+    if (AudioSettingsService.musicMuted.value ||
+        _intendedAsset != asset ||
+        _currentAsset != asset) {
+      return;
+    }
+    try {
+      await _activateSession();
+      await _player.pause();
+      await Future.delayed(const Duration(milliseconds: 60));
+      if (AudioSettingsService.musicMuted.value ||
+          _intendedAsset != asset ||
+          _currentAsset != asset) {
+        return;
+      }
+      await _player.play();
+      _currentVolume = _targetVolume;
+      await _player.setVolume(_targetVolume);
+    } catch (e) {
+      debugPrint('BGM: playback output nudge failed: $e');
+    }
   }
 
   // iOS/just_audio 偶爾會出現 play() 已回傳、甚至 playing=true，但音源還沒真正
