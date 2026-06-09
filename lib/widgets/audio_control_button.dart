@@ -51,8 +51,8 @@ class _AudioControlButtonState extends State<AudioControlButton> {
       ancestor: overlay,
     );
     final overlaySize = overlay.size;
-    final panelWidth = overlaySize.width < 306 ? overlaySize.width - 20 : 286.0;
-    const panelHeight = 184.0;
+    final panelWidth = overlaySize.width < 214 ? overlaySize.width - 20 : 194.0;
+    const panelHeight = 116.0;
     final buttonCenterX = buttonTopLeft.dx + buttonBox.size.width / 2;
     final left = (buttonCenterX - panelWidth / 2).clamp(
       10.0,
@@ -249,18 +249,18 @@ class _AudioSettingsPanel extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.97),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: accent.withValues(alpha: 0.14)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
+                color: Colors.black.withValues(alpha: 0.14),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -278,7 +278,7 @@ class _AudioSettingsPanel extends StatelessWidget {
                     },
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _FlowReveal(
                   progress: flowProgress,
                   delay: 0.24,
@@ -369,30 +369,31 @@ class _AudioRow extends StatelessWidget {
       builder: (_, muted, _) {
         final enabled = !muted;
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          height: 42,
+          padding: const EdgeInsets.only(left: 9, right: 8),
           decoration: BoxDecoration(
             color: enabled
-                ? accent.withValues(alpha: 0.08)
-                : Colors.grey.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
+                ? accent.withValues(alpha: 0.09)
+                : Colors.grey.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: enabled
-                  ? accent.withValues(alpha: 0.22)
+                  ? accent.withValues(alpha: 0.24)
                   : Colors.grey.withValues(alpha: 0.18),
             ),
           ),
           child: Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   color: enabled ? accent : Colors.grey.shade400,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: Colors.white, size: 18),
+                child: Icon(icon, color: Colors.white, size: 16),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 9),
               Expanded(
                 child: Text(
                   title,
@@ -402,15 +403,70 @@ class _AudioRow extends StatelessWidget {
                   ),
                 ),
               ),
-              Switch.adaptive(
-                value: enabled,
-                activeThumbColor: accent,
-                onChanged: (value) => unawaited(onChanged(!value)),
+              _MiniAudioSwitch(
+                enabled: enabled,
+                accent: accent,
+                onTap: () => unawaited(onChanged(enabled)),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _MiniAudioSwitch extends StatelessWidget {
+  final bool enabled;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _MiniAudioSwitch({
+    required this.enabled,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: enabled,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          width: 38,
+          height: 22,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: enabled ? accent : Colors.grey.shade300,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: AnimatedAlign(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            alignment: enabled ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.14),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
