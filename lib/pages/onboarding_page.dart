@@ -40,7 +40,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   final ScrollController _bodyInfoScrollCtrl = ScrollController();
 
   // 畫面1：打字動畫
-  final List<String> _lines = ['嗯...你來了。', '我是兔咪，平常有點愛睡。', '你想開始時，我會陪你。'];
+  final List<String> _lines = ['嗯...你來了。', '我平常有點愛睡。', '你想開始時，我會陪你。'];
   int _lineIndex = 0;
   String _displayText = '';
   bool _page1Done = false;
@@ -1001,8 +1001,8 @@ class _OnboardingPageState extends State<OnboardingPage>
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text(
-                '下一步',
+              child: Text(
+                _selectedHabits.isEmpty ? '略過' : '下一步',
                 style: TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),

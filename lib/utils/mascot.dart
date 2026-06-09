@@ -116,7 +116,7 @@ const Map<MascotContext, List<String>> _lines = {
   MascotContext.halfDone: [
     '已經一半了。',
     '你做到不少了。',
-    '兔咪有點醒了。',
+    '我有點醒了。',
     '照這樣慢慢來就好。',
   ],
 
@@ -125,14 +125,14 @@ const Map<MascotContext, List<String>> _lines = {
     '全部完成了。',
     '今天真的很棒。',
     '可以好好休息了。',
-    '兔咪替你開心。',
+    '我替你開心。',
   ],
 
   // ── 連續達標一段時間（streak >= 7） ──
   MascotContext.streak: [
     '連續好多天了。',
     '你一直有回來。',
-    '兔咪有點感動。',
+    '我有點感動。',
     '這段時間，你做到了。',
   ],
 
