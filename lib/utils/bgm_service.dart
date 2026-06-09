@@ -25,7 +25,7 @@ class BgmService with WidgetsBindingObserver {
   BgmService._();
   static final BgmService instance = BgmService._();
 
-  static const double _targetVolume = 0.6;
+  static const double _targetVolume = 0.25;
   static const Duration _fadeDuration = Duration(milliseconds: 1200);
   static const Duration _fadeStep = Duration(milliseconds: 50);
   static const int _playStartRetries = 3;

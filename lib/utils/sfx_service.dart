@@ -5,10 +5,10 @@ import 'package:just_audio/just_audio.dart';
 import 'audio_settings_service.dart';
 
 enum SfxCue {
-  tap('assets/sounds/sfx_tap.wav', 0.46),
-  success('assets/sounds/sfx_success.wav', 0.58),
-  complete('assets/sounds/sfx_complete.wav', 0.64),
-  cancel('assets/sounds/sfx_cancel.wav', 0.46);
+  tap('assets/sounds/sfx_tap.wav', 0.88),
+  success('assets/sounds/sfx_success.wav', 0.95),
+  complete('assets/sounds/sfx_complete.wav', 1.0),
+  cancel('assets/sounds/sfx_cancel.wav', 0.9);
 
   const SfxCue(this.assetPath, this.volume);
   final String assetPath;
