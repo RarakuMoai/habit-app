@@ -32,6 +32,34 @@ class WaterPage extends StatefulWidget {
   State<WaterPage> createState() => _WaterPageState();
 }
 
+class _WaterEntry {
+  final int ml;
+  final String kind;
+
+  const _WaterEntry._({required this.ml, required this.kind});
+
+  factory _WaterEntry.cup(int ml) => // units-ok
+      _WaterEntry._(ml: ml, kind: 'cup'); // units-ok
+  factory _WaterEntry.custom(int ml) => // units-ok
+      _WaterEntry._(ml: ml, kind: 'custom'); // units-ok
+
+  static _WaterEntry? tryParse(Object? raw) {
+    if (raw is num) {
+      return _WaterEntry.custom(raw.round());
+    }
+    if (raw is! Map) return null;
+    final ml = raw['ml']; // units-ok
+    final kind = raw['kind'];
+    if (ml is! num) return null;
+    return _WaterEntry._(
+      ml: ml.round(),
+      kind: kind == 'cup' ? 'cup' : 'custom',
+    );
+  }
+
+  Map<String, Object> toJson() => {'ml': ml, 'kind': kind}; // units-ok
+}
+
 class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   static const int _defaultCupMl = 250;
   static const int _defaultGoalMl = 2000;
@@ -41,16 +69,17 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   static const int _minGoalMl = 500;
   static const int _maxGoalMl = 6000;
   static const int _historyRetainDays = 30;
+  static const String _entryKeyPrefix = 'water_entries_';
   static const String _keyPrefix = 'water_';
-  // 自訂量累計（標準杯之外的補水）
+  // Legacy: 自訂量累計（標準杯之外的補水）
   static const String _extraKeyPrefix = 'water_extra_';
   // home_page 那邊勾「喝足夠的水」習慣時暫存原本杯數用的 key prefix
   static const String _savedKeyPrefix = 'water_saved_';
+  static const String _savedEntryKeyPrefix = 'water_entries_saved_';
   // 單次自訂量上限（2L 已經很多，超過就擋）
   static const int _maxSingleAddMl = 2000;
 
-  int _cups = 0;
-  int _extraMl = 0; // 標準杯之外的自訂量累計
+  List<_WaterEntry> _entries = [];
   int _cupMl = _defaultCupMl;
   int _goalMl = _defaultGoalMl;
   String _todayKey = '';
@@ -62,8 +91,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   String _volStr(int ml) => UnitFormat.volume(ml, _unit);
   String get _volLabel => UnitFormat.volumeLabel(_unit);
 
-  int get _totalMl => _cups * _cupMl + _extraMl;
-  int get _goalCups => math.max(1, (_goalMl / _cupMl).ceil());
+  int get _cups => _entries.where((entry) => entry.kind == 'cup').length;
+  int get _totalMl => _entries.fold(0, (sum, entry) => sum + entry.ml);
   bool get _goalReached => _totalMl >= _goalMl;
   double get _progress => (_totalMl / _goalMl).clamp(0.0, 1.0);
 
@@ -99,7 +128,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      final newKey = '$_keyPrefix${_todayString()}';
+      final newKey = '$_entryKeyPrefix${_todayString()}';
       if (newKey != _todayKey) _loadWater();
     }
   }
@@ -124,7 +153,11 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     // 長 prefix 先檢查，避免 'water_extra_2025-..' 被當作 'water_' 的 key 漏掉
     for (final key in prefs.getKeys()) {
       String? datePart;
-      if (key.startsWith(_extraKeyPrefix)) {
+      if (key.startsWith(_savedEntryKeyPrefix)) {
+        datePart = key.substring(_savedEntryKeyPrefix.length);
+      } else if (key.startsWith(_entryKeyPrefix)) {
+        datePart = key.substring(_entryKeyPrefix.length);
+      } else if (key.startsWith(_extraKeyPrefix)) {
         datePart = key.substring(_extraKeyPrefix.length);
       } else if (key.startsWith(_savedKeyPrefix)) {
         datePart = key.substring(_savedKeyPrefix.length);
@@ -146,11 +179,38 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       ? _defaultGoalMl
       : raw;
 
+  List<_WaterEntry> _parseEntries(String? raw) {
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded
+          .map(_WaterEntry.tryParse)
+          .whereType<_WaterEntry>()
+          .where((entry) => entry.ml > 0 && entry.ml <= _maxGoalMl * 2)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  List<_WaterEntry> _legacyEntries({
+    required int cups,
+    required int extraMl,
+    required int cupMl,
+  }) {
+    return [
+      for (var i = 0; i < cups; i++) _WaterEntry.cup(cupMl),
+      if (extraMl > 0) _WaterEntry.custom(extraMl),
+    ];
+  }
+
   Future<void> _loadWater() async {
     final prefs = await SharedPreferences.getInstance();
     await _cleanupOldKeys(prefs);
     final today = _todayString();
     final todayKey = '$_keyPrefix$today';
+    final entriesKey = '$_entryKeyPrefix$today';
     final cupMl = _sanitizeCupMl(prefs.getInt('water_cup_ml'));
     final goalMl = _sanitizeGoalMl(prefs.getInt('water_goal_ml'));
     final cups = (prefs.getInt(todayKey) ?? 0).clamp(0, _maxCups);
@@ -158,14 +218,23 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       0,
       _maxGoalMl * 2,
     );
+    var entries = _parseEntries(prefs.getString(entriesKey));
+    if (entries.isEmpty && !prefs.containsKey(entriesKey)) {
+      entries = _legacyEntries(cups: cups, extraMl: extra, cupMl: cupMl);
+      if (entries.isNotEmpty) {
+        await prefs.setString(
+          entriesKey,
+          jsonEncode(entries.map((entry) => entry.toJson()).toList()),
+        );
+      }
+    }
     final unit = UnitSystem.load(prefs);
     if (!mounted) return;
     setState(() {
-      _todayKey = todayKey;
+      _todayKey = entriesKey;
       _cupMl = cupMl;
       _goalMl = goalMl;
-      _cups = cups;
-      _extraMl = extra;
+      _entries = entries;
       _unit = unit;
     });
     _notifyGoalStatus(force: true);
@@ -173,27 +242,36 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   // Re-anchor to today's key in case the app crossed midnight while open.
   String _ensureTodayKey() {
-    final fresh = '$_keyPrefix${_todayString()}';
+    final fresh = '$_entryKeyPrefix${_todayString()}';
     if (fresh != _todayKey) _todayKey = fresh;
     return _todayKey;
   }
 
-  Future<void> _saveCups(int cups) async {
+  Future<void> _saveEntries() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_ensureTodayKey(), cups);
+    await prefs.setString(
+      _ensureTodayKey(),
+      jsonEncode(_entries.map((entry) => entry.toJson()).toList()),
+    );
+    await _syncLegacyWaterKeys(prefs);
   }
 
-  Future<void> _saveExtra(int amountMl) async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = '$_extraKeyPrefix${_todayString()}';
-    await prefs.setInt(key, amountMl);
+  Future<void> _syncLegacyWaterKeys(SharedPreferences prefs) async {
+    final today = _todayString();
+    final cupCount = _cups;
+    final cupMlTotal = _entries
+        .where((entry) => entry.kind == 'cup')
+        .fold(0, (sum, entry) => sum + entry.ml);
+    final customMl = math.max(0, _totalMl - cupMlTotal);
+    await prefs.setInt('$_keyPrefix$today', cupCount);
+    await prefs.setInt('$_extraKeyPrefix$today', customMl);
   }
 
   Future<void> _addCup() async {
     if (_cups >= _maxCups) return;
     final wasReached = _goalReached;
-    setState(() => _cups++);
-    await _saveCups(_cups);
+    setState(() => _entries = [..._entries, _WaterEntry.cup(_cupMl)]);
+    await _saveEntries();
     _notifyGoalStatus();
     SfxService.instance.play(
       !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
@@ -202,21 +280,21 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   Future<void> _removeCup() async {
-    if (_cups <= 0) return;
-    setState(() => _cups--);
-    await _saveCups(_cups);
+    if (_entries.isEmpty) return;
+    setState(() => _entries = _entries.sublist(0, _entries.length - 1));
+    await _saveEntries();
     _notifyGoalStatus();
     SfxService.instance.play(SfxCue.cancel);
     MascotPersona.interact(_mascotCtx);
   }
 
-  // 加入一個自訂量（不影響 _cups 與圓點數，只累加 _extraMl 進總量）
+  // 加入一個自訂量，作為一筆可被「減少」撤銷的喝水紀錄。
   Future<void> _addCustomMl(int ml) async {
     if (ml <= 0) return;
     final clamped = ml.clamp(1, _maxSingleAddMl);
     final wasReached = _goalReached;
-    setState(() => _extraMl += clamped);
-    await _saveExtra(_extraMl);
+    setState(() => _entries = [..._entries, _WaterEntry.custom(clamped)]);
+    await _saveEntries();
     _notifyGoalStatus();
     SfxService.instance.play(
       !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
@@ -415,8 +493,6 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final goalCups = _goalCups;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFEFF9FF),
@@ -442,7 +518,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
                 child: Column(
                   children: [
-                    _summaryCard(goalCups),
+                    _summaryCard(),
                     const SizedBox(height: 8),
                     Expanded(
                       child: Center(
@@ -452,7 +528,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                             builder: (_, openValue, _) => _WaterBottle(
                               progress: _progress,
                               reached: _goalReached,
-                              bumpKey: _cups,
+                              bumpKey: _entries.length,
                               panelOpenValue: openValue,
                             ),
                           ),
@@ -460,7 +536,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    _progressNodes(goalCups),
+                    _progressNodes(),
                     const SizedBox(height: 18),
                     _controls(),
                   ],
@@ -473,7 +549,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _summaryCard(int goalCups) {
+  Widget _summaryCard() {
     final left = math.max(0, _goalMl - _totalMl);
     final goalDisp = _volStr(_goalMl);
     final leftDisp = _volStr(left);
@@ -619,7 +695,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _progressNodes(int goalCups) {
+  Widget _progressNodes() {
     // Always show 8 evenly-spaced nodes regardless of goalCups.
     // Each node represents a fractional share of the goal; filled count
     // mirrors the proportion already drunk (capped at full).
@@ -627,7 +703,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final ratio = _goalMl == 0 ? 0.0 : (_totalMl / _goalMl).clamp(0.0, 1.0);
     final filledNodes = (ratio * nodeCount).round();
     return Semantics(
-      label: '已喝 $_cups 杯，目標 $goalCups 杯',
+      label: '已喝 ${_volStr(_totalMl)}，目標 ${_volStr(_goalMl)}',
       child: Column(
         children: [
           Row(
@@ -668,7 +744,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 8),
           Text(
-            _goalReached ? '$_cups 杯  ·  已達標' : '$_cups / $goalCups 杯',
+            _goalReached
+                ? '${_volStr(_totalMl)}  ·  已達標'
+                : '${_volStr(_totalMl)} / ${_volStr(_goalMl)}',
             style: TextStyle(
               color: _kInkSoft,
               fontSize: 12.5,
@@ -707,7 +785,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   Widget _controls() {
     final atMax = _cups >= _maxCups;
-    final canRemove = _cups > 0;
+    final canRemove = _entries.isNotEmpty;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -1629,7 +1707,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
               children: _presetMl.map((ml) {
                 final shown = UnitFormat.volume(ml, widget.unit);
                 return _PresetChip(
-                  label: '$shown $label',
+                  label: shown,
                   onTap: () => Navigator.of(context).pop(ml),
                 );
               }).toList(),

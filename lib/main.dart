@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -166,6 +168,38 @@ class _MainPageState extends State<MainPage> {
     setState(() => _waterGoalReached = reached);
   }
 
+  List<Map<String, Object>> _waterEntriesFromLegacy({
+    required int cups,
+    required int cupMl,
+    required int extraMl,
+  }) {
+    return [
+      for (var i = 0; i < cups; i++) {'ml': cupMl, 'kind': 'cup'},
+      if (extraMl > 0) {'ml': extraMl, 'kind': 'custom'},
+    ];
+  }
+
+  Future<void> _writeWaterEntries(
+    SharedPreferences prefs,
+    String today,
+    List<Map<String, Object>> entries,
+  ) async {
+    final cupCount = entries.where((entry) => entry['kind'] == 'cup').length;
+    final cupMlTotal = entries
+        .where((entry) => entry['kind'] == 'cup')
+        .fold<int>(0, (sum, entry) => sum + ((entry['ml'] as int?) ?? 0));
+    final totalMl = entries.fold<int>(
+      0,
+      (sum, entry) => sum + ((entry['ml'] as int?) ?? 0),
+    );
+    await prefs.setString('water_entries_$today', jsonEncode(entries));
+    await prefs.setInt('water_$today', cupCount);
+    await prefs.setInt(
+      'water_extra_$today',
+      (totalMl - cupMlTotal).clamp(0, 12000).toInt(),
+    );
+  }
+
   Future<void> _handleWaterHabitToggle(bool checked) async {
     final prefs = await SharedPreferences.getInstance();
     final cupMl = prefs.getInt('water_cup_ml') ?? 250;
@@ -174,17 +208,52 @@ class _MainPageState extends State<MainPage> {
     final today = _todayString();
     final todayKey = 'water_$today';
     final savedKey = 'water_saved_$today';
+    final entriesKey = 'water_entries_$today';
+    final savedEntriesKey = 'water_entries_saved_$today';
+    final extraKey = 'water_extra_$today';
 
     if (checked) {
       final actual = prefs.getInt(todayKey) ?? 0;
+      final extraMl = prefs.getInt(extraKey) ?? 0;
+      final currentEntries = prefs.getString(entriesKey);
       await prefs.setInt(savedKey, actual);
-      await prefs.setInt(todayKey, waterGoal);
+      await prefs.setString(
+        savedEntriesKey,
+        currentEntries ??
+            jsonEncode(
+              _waterEntriesFromLegacy(
+                cups: actual,
+                cupMl: cupMl,
+                extraMl: extraMl,
+              ),
+            ),
+      );
+      await _writeWaterEntries(prefs, today, [
+        for (var i = 0; i < waterGoal; i++) {'ml': cupMl, 'kind': 'cup'},
+      ]);
       await _handleWaterGoal(true);
     } else {
       final saved = prefs.getInt(savedKey) ?? 0;
-      await prefs.setInt(todayKey, saved);
+      final savedEntries = prefs.getString(savedEntriesKey);
+      final entries = savedEntries == null
+          ? _waterEntriesFromLegacy(cups: saved, cupMl: cupMl, extraMl: 0)
+          : (jsonDecode(savedEntries) as List)
+                .whereType<Map>()
+                .map(
+                  (entry) => {
+                    'ml': ((entry['ml'] as num?) ?? cupMl).round(),
+                    'kind': entry['kind'] == 'cup' ? 'cup' : 'custom',
+                  },
+                )
+                .toList();
+      await _writeWaterEntries(prefs, today, entries);
       await prefs.remove(savedKey);
-      await _handleWaterGoal(false);
+      await prefs.remove(savedEntriesKey);
+      final restoredTotal = entries.fold<int>(
+        0,
+        (sum, entry) => sum + ((entry['ml'] as int?) ?? 0),
+      );
+      await _handleWaterGoal(restoredTotal >= goalMl);
     }
     setState(() => _waterReloadTrigger++);
   }
