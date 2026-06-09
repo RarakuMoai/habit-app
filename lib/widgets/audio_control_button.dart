@@ -51,8 +51,8 @@ class _AudioControlButtonState extends State<AudioControlButton> {
       ancestor: overlay,
     );
     final overlaySize = overlay.size;
-    final panelWidth = overlaySize.width < 176 ? overlaySize.width - 20 : 156.0;
-    const panelHeight = 84.0;
+    final panelWidth = overlaySize.width < 192 ? overlaySize.width - 20 : 172.0;
+    const panelHeight = 92.0;
     final buttonCenterX = buttonTopLeft.dx + buttonBox.size.width / 2;
     final left = (buttonCenterX - panelWidth / 2).clamp(
       10.0,
@@ -246,6 +246,24 @@ class _AudioSettingsPanel extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
+        Positioned(
+          top: -7,
+          left: arrowX - 9,
+          child: Transform.rotate(
+            angle: 0.785398,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.97),
+                border: Border(
+                  left: BorderSide(color: accent.withValues(alpha: 0.14)),
+                  top: BorderSide(color: accent.withValues(alpha: 0.14)),
+                ),
+              ),
+            ),
+          ),
+        ),
         DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.97),
@@ -278,7 +296,7 @@ class _AudioSettingsPanel extends StatelessWidget {
                     },
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 _FlowReveal(
                   progress: flowProgress,
                   delay: 0.24,
@@ -296,24 +314,6 @@ class _AudioSettingsPanel extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-        Positioned(
-          top: -7,
-          left: arrowX - 9,
-          child: Transform.rotate(
-            angle: 0.785398,
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.97),
-                border: Border(
-                  left: BorderSide(color: accent.withValues(alpha: 0.14)),
-                  top: BorderSide(color: accent.withValues(alpha: 0.14)),
-                ),
-              ),
             ),
           ),
         ),
@@ -378,9 +378,9 @@ class _AudioTile extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 170),
               curve: Curves.easeOutCubic,
-              width: 68,
-              height: 62,
-              padding: const EdgeInsets.fromLTRB(8, 7, 8, 6),
+              width: 74,
+              height: 66,
+              padding: const EdgeInsets.fromLTRB(9, 8, 9, 7),
               decoration: BoxDecoration(
                 color: enabled
                     ? accent.withValues(alpha: 0.11)
@@ -399,13 +399,13 @@ class _AudioTile extends StatelessWidget {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 170),
                       curve: Curves.easeOutCubic,
-                      width: 28,
-                      height: 28,
+                      width: 30,
+                      height: 30,
                       decoration: BoxDecoration(
                         color: enabled ? accent : Colors.grey.shade400,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(icon, color: Colors.white, size: 16),
+                      child: Icon(icon, color: Colors.white, size: 17),
                     ),
                   ),
                   Align(
@@ -413,8 +413,8 @@ class _AudioTile extends StatelessWidget {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 170),
                       curve: Curves.easeOutCubic,
-                      width: 18,
-                      height: 18,
+                      width: 19,
+                      height: 19,
                       decoration: BoxDecoration(
                         color: enabled
                             ? accent.withValues(alpha: 0.16)
@@ -423,7 +423,7 @@ class _AudioTile extends StatelessWidget {
                       ),
                       child: Icon(
                         enabled ? Icons.check_rounded : Icons.close_rounded,
-                        size: 12,
+                        size: 12.5,
                         color: enabled ? accent : Colors.grey.shade500,
                       ),
                     ),
@@ -433,7 +433,7 @@ class _AudioTile extends StatelessWidget {
                     child: Text(
                       title,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 13.5,
                         height: 1,
                         fontWeight: FontWeight.w800,
                         color: enabled
