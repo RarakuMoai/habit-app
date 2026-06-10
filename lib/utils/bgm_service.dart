@@ -47,6 +47,7 @@ class BgmService with WidgetsBindingObserver {
   double _currentVolume = 0;
   Timer? _fadeTimer;
   Timer? _outputNudgeTimer;
+  Timer? _deferredFadeTimer;
   // 當前 fade 的 completer。下一個 fade 啟動時會把這個 complete 掉，
   // 避免「舊的 await _fadeTo」永遠 hang 在那裡。
   Completer<void>? _activeFadeCompleter;
@@ -112,10 +113,12 @@ class BgmService with WidgetsBindingObserver {
       _deferredFadeAsset = asset;
       await _player.setVolume(0);
       _currentVolume = 0;
+      _scheduleDeferredFade(asset);
       return;
     }
 
     _deferredFadeAsset = null;
+    _deferredFadeTimer?.cancel();
     await _fadeTo(_targetVolume);
     if (sourceWillChange) {
       _scheduleOutputNudge(asset);
@@ -154,7 +157,9 @@ class BgmService with WidgetsBindingObserver {
     if (deferredFade) {
       await _player.setVolume(0);
       _currentVolume = 0;
-      await _player.seek(Duration.zero);
+      if (_deferredFadeTimer == null || !_deferredFadeTimer!.isActive) {
+        _scheduleDeferredFade(asset);
+      }
     }
     await _startPlaybackWithRecovery(asset);
     if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
@@ -162,12 +167,9 @@ class BgmService with WidgetsBindingObserver {
     }
     if (_currentVolume < _targetVolume * 0.75) {
       if (deferredFade) {
-        await Future.delayed(_deferredFadeDelay);
-        if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
-          return;
+        if (_deferredFadeTimer == null || !_deferredFadeTimer!.isActive) {
+          _scheduleDeferredFade(asset);
         }
-        _deferredFadeAsset = null;
-        await _fadeTo(_targetVolume, duration: _deferredFadeDuration);
       } else {
         await _fadeTo(_targetVolume);
       }
@@ -222,6 +224,24 @@ class BgmService with WidgetsBindingObserver {
     _outputNudgeTimer = Timer(const Duration(milliseconds: 700), () {
       unawaited(_nudgePlaybackOutput(asset));
     });
+  }
+
+  void _scheduleDeferredFade(String asset) {
+    _deferredFadeTimer?.cancel();
+    _deferredFadeTimer = Timer(_deferredFadeDelay, () {
+      unawaited(_finishDeferredFade(asset));
+    });
+  }
+
+  Future<void> _finishDeferredFade(String asset) async {
+    if (AudioSettingsService.musicMuted.value ||
+        _intendedAsset != asset ||
+        _currentAsset != asset ||
+        _deferredFadeAsset != asset) {
+      return;
+    }
+    _deferredFadeAsset = null;
+    await _fadeTo(_targetVolume, duration: _deferredFadeDuration);
   }
 
   // 最後一道保險：如果新的 BGM source 在 release/iOS 上進入「狀態在播但沒聲」
