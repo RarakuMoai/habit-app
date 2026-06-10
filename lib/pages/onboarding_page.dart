@@ -114,7 +114,6 @@ class _OnboardingPageState extends State<OnboardingPage>
   final Set<String> _selectedHabits = {};
   // 習慣選擇頁：設為「每週」的習慣 → 名稱對應每週次數；未列入者為每日
   final Map<String, int> _weeklyTimes = {};
-  final List<Timer> _initialBgmWakeTimers = [];
 
   @override
   void initState() {
@@ -159,7 +158,6 @@ class _OnboardingPageState extends State<OnboardingPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _startTyping();
-      _scheduleInitialOnboardingBgmWake();
     });
   }
 
@@ -173,10 +171,6 @@ class _OnboardingPageState extends State<OnboardingPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _typingTimer?.cancel();
-    for (final timer in _initialBgmWakeTimers) {
-      timer.cancel();
-    }
-    _initialBgmWakeTimers.clear();
     _pageController.dispose();
     _mascotController.dispose();
     _nicknameController.dispose();
@@ -256,27 +250,6 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   void _playOnboardingSfx(SfxCue cue) {
     unawaited(SfxService.instance.play(cue));
-  }
-
-  void _scheduleInitialOnboardingBgmWake() {
-    const wakeDelays = [
-      Duration(milliseconds: 1200),
-      Duration(milliseconds: 2600),
-      Duration(milliseconds: 5200),
-    ];
-    for (final delay in wakeDelays) {
-      _initialBgmWakeTimers.add(
-        Timer(delay, () {
-          if (!mounted || _currentPage != 0) return;
-          unawaited(_wakeOnboardingBgm());
-        }),
-      );
-    }
-  }
-
-  Future<void> _wakeOnboardingBgm() async {
-    await _ensureOnboardingBgm();
-    await BgmService.instance.wakeOutput('sounds/bgm_onboarding.m4a');
   }
 
   // 身高/體重欄位格式化：最多 3 位整數 + 1 位小數，且輸入超過上限時自動壓回上限

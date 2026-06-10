@@ -62,3 +62,19 @@ bash scripts/check_units.sh
 cp scripts/pre-commit .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
+
+## 背景音樂（BGM）雷區 — 改音訊前必讀
+
+`lib/utils/bgm_service.dart`（just_audio + audio_session，iOS `ambient`）有幾個
+會害「release 沒聲音」的坑，**「簡化」音訊救援邏輯前先停一下**：
+
+- **絕不 `await _player.play()`**。just_audio 的 `play()` future 是「播到停止才
+  完成」，await 它在真的播起來時會永遠卡住後面的淡入＝靜音。一律
+  `unawaited(_player.play())` 再另外驗證。
+- **AOT（profile/release）冷啟動單次 play 常常不 engage**（`playing` 一直 false）。
+  要在音量 0 下反覆 pause→play 重踢到 `playing==true` 才淡入（見 `_engageCheck`）。
+  debug 是 JIT 時序不同所以有聲，**別只測 debug**。
+- **AVAudioSession 只 configure 一次**（`AppAudioSession`，BGM/SFX 共用）；重複
+  configure 會重設輸出路由造成沒聲，之後只 `setActive(true)`。
+- Debug 音訊：`flutter run --release` 不印 log，改用 `flutter run --profile`
+  （一樣 AOT 會重現問題、且會顯示 log）。

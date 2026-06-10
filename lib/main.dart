@@ -44,9 +44,11 @@ Future<void> _startInitialAudio({required bool onboardingDone}) async {
   try {
     await Future.delayed(const Duration(milliseconds: 900));
     await BgmService.instance.init();
+    // 冷啟動兩種情況（新用戶前導 / 既有用戶直接進主頁）都走 deferFade：
+    // 先靜音喚醒音訊路由，settle 後再柔和淡入，避免一開就突兀出現。
     await BgmService.instance.play(
       onboardingDone ? 'sounds/bgm_main.m4a' : 'sounds/bgm_onboarding.m4a',
-      deferFade: !onboardingDone,
+      deferFade: true,
     );
     await SfxService.instance.init();
   } catch (e, st) {
