@@ -989,8 +989,10 @@ class _WeightPageState extends State<WeightPage> {
     final bmi = _calcBMI(weight);
     final bmr = _calcBMR(weight);
     final tdee = _calcTDEE(weight);
-    // 任一計算值缺失時顯示補充資料提示
-    final needsHint = bmi == null || bmr == null || tdee == null;
+    final hintMessages = <String>[
+      if (bmi == null || bmr == null) '請至設定補充身高、生日或性別以計算 BMI / BMR',
+      if (_activityLevel.isEmpty && bmr != null) '補上每週運動天數，就能估算 TDEE',
+    ];
     final bmiCat = bmi == null ? null : _bmiCategory(bmi);
 
     final items = <_StatItem>[
@@ -1072,20 +1074,31 @@ class _WeightPageState extends State<WeightPage> {
               )
               .toList(),
         ),
-        // 缺少身高、生日或性別時顯示提示
-        if (needsHint) ...[
+        if (hintMessages.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.info_outline, size: 13, color: Colors.grey.shade400),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  '請至設定補充個人資料以計算 BMI / BMR / TDEE',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-                ),
+          ...hintMessages.map(
+            (message) => Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 13,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ],

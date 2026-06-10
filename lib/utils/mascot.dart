@@ -58,6 +58,9 @@ enum MascotContext {
   tapReaction,
   // 還沒有任何習慣時（空狀態）
   emptyHabits,
+  // 喝水過量警告（>=4L/day，醫學上「過量但還沒到水中毒」灰色地帶）
+  // 兔咪驚嚇 + 提示語，但不擋使用者繼續紀錄（硬擋在 6L）
+  overhydration,
 }
 
 // 各情境對應的預設情緒（呼叫端可以另外覆寫）。
@@ -72,6 +75,7 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.night: MascotEmotion.night,
   MascotContext.tapReaction: MascotEmotion.neutralFront,
   MascotContext.emptyHabits: MascotEmotion.neutralFront,
+  MascotContext.overhydration: MascotEmotion.sad,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -169,6 +173,15 @@ const Map<MascotContext, List<String>> _lines = {
     '先新增一個小習慣吧。',
     '從一個小小的開始。',
     '不用很多，一個就好。',
+  ],
+
+  // ── 喝水過量（>=4L/day，過量但還沒到水中毒）──
+  MascotContext.overhydration: [
+    '欸…你今天喝有點多了。',
+    '水也是有上限的喔，慢慢來。',
+    '已經喝很多了，先停一下吧。',
+    '再喝下去身體會吃不消。',
+    '記得補一點電解質。',
   ],
 };
 
@@ -292,6 +305,9 @@ class MascotPersona {
 
   static int _priorityOf(MascotContext ctx) {
     switch (ctx) {
+      // 警告類最高：喝過量比達標還重要，要先講
+      case MascotContext.overhydration:
+        return 40;
       case MascotContext.allDone:
       case MascotContext.streak:
         return 30;

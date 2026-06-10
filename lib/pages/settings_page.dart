@@ -19,8 +19,8 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _loaded = false;
 
   // PIN 相關狀態
-  String? _parentPin;   // null 表示尚未設定
-  int _pinDigits = 4;   // 4 或 6 位
+  String? _parentPin; // null 表示尚未設定
+  int _pinDigits = 4; // 4 或 6 位
 
   // 公制 / 英制
   UnitSystem _unitSystem = UnitSystem.metric;
@@ -113,8 +113,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (entered == null) return false;
     if (entered == _parentPin) return true;
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('密碼錯誤')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
     }
     return false;
   }
@@ -129,8 +130,9 @@ class _SettingsPageState extends State<SettingsPage> {
       if (decoded is List) count = decoded.length;
     }
     if (count == 0) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('目前沒有體重紀錄')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目前沒有體重紀錄')));
       return;
     }
 
@@ -160,8 +162,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (confirm == true) {
       await _prefs?.remove('weight_records');
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('已刪除所有體重紀錄')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已刪除所有體重紀錄')));
       }
     }
   }
@@ -234,7 +237,9 @@ class _SettingsPageState extends State<SettingsPage> {
           foregroundColor: color,
           side: BorderSide(color: color.withValues(alpha: 0.5)),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
@@ -269,10 +274,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('設定'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('設定'), centerTitle: true),
       body: _loaded
           ? ListView(
               padding: const EdgeInsets.all(24),
@@ -294,15 +296,38 @@ class _SettingsPageState extends State<SettingsPage> {
                         color: Colors.orange.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.edit_outlined, color: Colors.orange, size: 20),
+                      child: const Icon(
+                        Icons.edit_outlined,
+                        color: Colors.orange,
+                        size: 20,
+                      ),
                     ),
-                    title: const Text('基本資料', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                    subtitle: Text('暱稱、吉祥物名字、身高體重…', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                    trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    title: const Text(
+                      '基本資料',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '暱稱、吉祥物名字、身高體重…',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey.shade400,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const ProfileEditPage()),
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileEditPage(),
+                        ),
                       );
                     },
                   ),
@@ -344,8 +369,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ],
                         selected: {_unitSystem},
-                        onSelectionChanged: (sel) =>
-                            _setUnitSystem(sel.first),
+                        onSelectionChanged: (sel) => _setUnitSystem(sel.first),
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -380,15 +404,38 @@ class _SettingsPageState extends State<SettingsPage> {
                         color: Colors.teal.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.tune_outlined, color: Colors.teal, size: 20),
+                      child: const Icon(
+                        Icons.tune_outlined,
+                        color: Colors.teal,
+                        size: 20,
+                      ),
                     ),
-                    title: const Text('功能開關', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                    subtitle: Text('番茄鐘、喝水、體重、家庭模式…', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                    trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    title: const Text(
+                      '功能開關',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '番茄鐘、喝水、體重、家庭模式…',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey.shade400,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const FeatureSettingsPage()),
+                        MaterialPageRoute(
+                          builder: (_) => const FeatureSettingsPage(),
+                        ),
                       );
                     },
                   ),
@@ -413,18 +460,36 @@ class _SettingsPageState extends State<SettingsPage> {
                         color: Colors.indigo.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.lock_outline, color: Colors.indigo, size: 20),
+                      child: const Icon(
+                        Icons.lock_outline,
+                        color: Colors.indigo,
+                        size: 20,
+                      ),
                     ),
-                    title: const Text('數字密碼設定', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    title: const Text(
+                      '數字密碼設定',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     // 依是否設定數字密碼顯示不同狀態文字
                     subtitle: Text(
                       (_parentPin?.isNotEmpty ?? false)
                           ? '已設定（$_pinDigits 位）'
                           : '目前未設定',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
                     ),
-                    trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey.shade400,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     onTap: _showPinSettings,
                   ),
                 ),
@@ -568,7 +633,9 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             ),
             onChanged: (v) => setS(() {}), // 觸發重繪，更新確認按鈕狀態
             onSubmitted: (v) {
-              if (ctrl.text.length == _digits) Navigator.pop(dialogCtx, ctrl.text);
+              if (ctrl.text.length == _digits) {
+                Navigator.pop(dialogCtx, ctrl.text);
+              }
             },
           ),
           actions: [
@@ -598,15 +665,17 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     if (!mounted || confirm == null) return;
 
     if (newPin != confirm) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
       return;
     }
     await widget.onSaved(newPin, _digits);
     if (!mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('密碼已設定')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('密碼已設定')));
   }
 
   // 修改 PIN（需先輸入舊 PIN）
@@ -615,8 +684,9 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     if (!mounted || old == null) return;
 
     if (old != widget.currentPin) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
       return;
     }
 
@@ -627,15 +697,17 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     if (!mounted || confirm == null) return;
 
     if (newPin != confirm) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
       return;
     }
     await widget.onSaved(newPin, _digits);
     if (!mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('密碼已更新')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('密碼已更新')));
   }
 
   // 切換 PIN 位數（有 PIN 時需先驗證舊 PIN 再重設新 PIN）
@@ -654,8 +726,9 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     if (!mounted || old == null) return;
 
     if (old != widget.currentPin) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
       return;
     }
 
@@ -676,16 +749,18 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
 
     if (newPin != confirm) {
       setState(() => _digits = widget.currentDigits);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
       return;
     }
 
     await widget.onSaved(newPin, newDigits);
     if (!mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('位數已更新，密碼已重設')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('位數已更新，密碼已重設')));
   }
 
   @override

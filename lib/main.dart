@@ -37,6 +37,7 @@ void main() async {
       await BgmService.instance.init();
       await BgmService.instance.play(
         onboardingDone ? 'sounds/bgm_main.m4a' : 'sounds/bgm_onboarding.m4a',
+        deferFade: !onboardingDone,
       );
       await SfxService.instance.init();
     } catch (e, st) {
@@ -179,14 +180,37 @@ class _MainPageState extends State<MainPage> {
     setState(() => _waterGoalReached = reached);
   }
 
+  Map<String, Object> _waterEntryMap({
+    required int ml,
+    required String kind,
+    DateTime? at,
+  }) {
+    return {
+      'ml': ml, // units-ok
+      'kind': kind,
+      'at': (at ?? DateTime.now()).toIso8601String(),
+    };
+  }
+
   List<Map<String, Object>> _waterEntriesFromLegacy({
     required int cups,
     required int cupMl,
     required int extraMl,
   }) {
+    final now = DateTime.now();
     return [
-      for (var i = 0; i < cups; i++) {'ml': cupMl, 'kind': 'cup'},
-      if (extraMl > 0) {'ml': extraMl, 'kind': 'custom'},
+      for (var i = 0; i < cups; i++)
+        _waterEntryMap(
+          ml: cupMl,
+          kind: 'cup',
+          at: now.add(Duration(seconds: i)),
+        ),
+      if (extraMl > 0)
+        _waterEntryMap(
+          ml: extraMl,
+          kind: 'custom',
+          at: now.add(Duration(seconds: cups)),
+        ),
     ];
   }
 
@@ -198,10 +222,13 @@ class _MainPageState extends State<MainPage> {
     final cupCount = entries.where((entry) => entry['kind'] == 'cup').length;
     final cupMlTotal = entries
         .where((entry) => entry['kind'] == 'cup')
-        .fold<int>(0, (sum, entry) => sum + ((entry['ml'] as int?) ?? 0));
+        .fold<int>(
+          0,
+          (sum, entry) => sum + ((entry['ml'] as int?) ?? 0),
+        ); // units-ok
     final totalMl = entries.fold<int>(
       0,
-      (sum, entry) => sum + ((entry['ml'] as int?) ?? 0),
+      (sum, entry) => sum + ((entry['ml'] as int?) ?? 0), // units-ok
     );
     await prefs.setString('water_entries_$today', jsonEncode(entries));
     await prefs.setInt('water_$today', cupCount);
@@ -240,7 +267,12 @@ class _MainPageState extends State<MainPage> {
             ),
       );
       await _writeWaterEntries(prefs, today, [
-        for (var i = 0; i < waterGoal; i++) {'ml': cupMl, 'kind': 'cup'},
+        for (var i = 0; i < waterGoal; i++)
+          _waterEntryMap(
+            ml: cupMl,
+            kind: 'cup',
+            at: DateTime.now().add(Duration(seconds: i)),
+          ),
       ]);
       await _handleWaterGoal(true);
     } else {
@@ -252,8 +284,11 @@ class _MainPageState extends State<MainPage> {
                 .whereType<Map>()
                 .map(
                   (entry) => {
-                    'ml': ((entry['ml'] as num?) ?? cupMl).round(),
+                    'ml': ((entry['ml'] as num?) ?? cupMl).round(), // units-ok
                     'kind': entry['kind'] == 'cup' ? 'cup' : 'custom',
+                    'at': entry['at'] is String
+                        ? entry['at'] as String
+                        : DateTime.now().toIso8601String(),
                   },
                 )
                 .toList();
@@ -262,7 +297,7 @@ class _MainPageState extends State<MainPage> {
       await prefs.remove(savedEntriesKey);
       final restoredTotal = entries.fold<int>(
         0,
-        (sum, entry) => sum + ((entry['ml'] as int?) ?? 0),
+        (sum, entry) => sum + ((entry['ml'] as int?) ?? 0), // units-ok
       );
       await _handleWaterGoal(restoredTotal >= goalMl);
     }

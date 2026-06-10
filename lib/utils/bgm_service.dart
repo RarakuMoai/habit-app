@@ -27,6 +27,8 @@ class BgmService with WidgetsBindingObserver {
 
   static const double _targetVolume = 0.25;
   static const Duration _fadeDuration = Duration(milliseconds: 1200);
+  static const Duration _deferredFadeDelay = Duration(seconds: 2);
+  static const Duration _deferredFadeDuration = Duration(milliseconds: 2400);
   static const Duration _fadeStep = Duration(milliseconds: 50);
   static const int _playStartRetries = 3;
 
@@ -41,6 +43,7 @@ class BgmService with WidgetsBindingObserver {
   // 看到 intent 已改就 bail，不會把曲目切回去）。
   String? _intendedAsset;
   String? _currentAsset;
+  String? _deferredFadeAsset;
   double _currentVolume = 0;
   Timer? _fadeTimer;
   Timer? _outputNudgeTimer;
@@ -73,7 +76,7 @@ class BgmService with WidgetsBindingObserver {
 
   /// 切換到指定 BGM 資產（路徑相對 `assets/`，例如 `sounds/bgm_main.m4a`）。
   /// 重複呼叫同一首會無操作；切換到不同首會 cross-fade。
-  Future<void> play(String asset) async {
+  Future<void> play(String asset, {bool deferFade = false}) async {
     // 同步聲明意圖，必須在任何 await 之前 — 解 race（見 _intendedAsset 註解）
     _intendedAsset = asset;
     if (!_initialized) await init();
@@ -105,6 +108,14 @@ class BgmService with WidgetsBindingObserver {
     await _startPlaybackWithRecovery(asset);
     if (_intendedAsset != asset) return;
 
+    if (deferFade) {
+      _deferredFadeAsset = asset;
+      await _player.setVolume(0);
+      _currentVolume = 0;
+      return;
+    }
+
+    _deferredFadeAsset = null;
     await _fadeTo(_targetVolume);
     if (sourceWillChange) {
       _scheduleOutputNudge(asset);
@@ -139,12 +150,27 @@ class BgmService with WidgetsBindingObserver {
       await _loadAsset(asset);
     }
     if (_intendedAsset != asset) return;
+    final deferredFade = _deferredFadeAsset == asset;
+    if (deferredFade) {
+      await _player.setVolume(0);
+      _currentVolume = 0;
+      await _player.seek(Duration.zero);
+    }
     await _startPlaybackWithRecovery(asset);
     if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
       return;
     }
     if (_currentVolume < _targetVolume * 0.75) {
-      await _fadeTo(_targetVolume);
+      if (deferredFade) {
+        await Future.delayed(_deferredFadeDelay);
+        if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
+          return;
+        }
+        _deferredFadeAsset = null;
+        await _fadeTo(_targetVolume, duration: _deferredFadeDuration);
+      } else {
+        await _fadeTo(_targetVolume);
+      }
     }
   }
 
@@ -309,7 +335,7 @@ class BgmService with WidgetsBindingObserver {
 
   // 線性淡到目標音量。新的 fade 會把舊的 fade 的 Future 直接 complete 掉，
   // 防止「await _fadeTo」永遠卡住。
-  Future<void> _fadeTo(double to) async {
+  Future<void> _fadeTo(double to, {Duration duration = _fadeDuration}) async {
     // 取消舊 timer + complete 舊 future
     _fadeTimer?.cancel();
     if (_activeFadeCompleter != null && !_activeFadeCompleter!.isCompleted) {
@@ -325,7 +351,7 @@ class BgmService with WidgetsBindingObserver {
 
     final completer = Completer<void>();
     _activeFadeCompleter = completer;
-    final totalSteps = _fadeDuration.inMilliseconds ~/ _fadeStep.inMilliseconds;
+    final totalSteps = duration.inMilliseconds ~/ _fadeStep.inMilliseconds;
     var step = 0;
 
     _fadeTimer = Timer.periodic(_fadeStep, (timer) async {

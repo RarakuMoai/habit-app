@@ -24,16 +24,16 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   String _gender = '';
   DateTime? _birthday; // 生日（選填）
-  String _activityLevel = ''; // 活動量（久坐/輕度/中度/高度），用於計算 TDEE
+  String _activityLevel = ''; // 活動量（內部為久坐/輕度/中度/高度），用於計算 TDEE
   UnitSystem _unit = UnitSystem.metric;
   bool _loaded = false;
 
-  // 活動量等級與說明
-  static const Map<String, String> _activityDesc = {
-    '久坐': '幾乎不運動',
-    '輕度': '每週運動 1–3 天',
-    '中度': '每週運動 3–5 天',
-    '高度': '每週運動 6–7 天',
+  // 畫面顯示為一週運動天數，內部仍存既有活動量值。
+  static const Map<String, String> _activityDayLabels = {
+    '久坐': '幾乎沒有',
+    '輕度': '1-2 天',
+    '中度': '3-4 天',
+    '高度': '5 天以上',
   };
 
   @override
@@ -205,11 +205,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       UserValidators.targetWeightIn(_targetWeightCtrl.text, _unit);
 
   // BMI 比例檢查（用公制換算後判斷）
+  // 兩個值都進到合理範圍才比對比例（同 onboarding 的 _bmiOddOnboarding），
+  // 避免使用者還在改身高/體重的中間值就被誤判
   String? get _bmiError {
     final cm = _heightCmFromInputs();
     final kg = _weightKgFromInput(_weightCtrl);
     if (cm == null || kg == null) return null;
-    if (cm <= 0) return null;
+    if (cm < UserRanges.heightMinCm || cm > UserRanges.heightMaxCm) return null;
+    if (kg < UserRanges.weightMinKg || kg > UserRanges.weightMaxKg) return null;
     final hM = cm / 100;
     final bmi = kg / (hM * hM);
     if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) {
@@ -242,10 +245,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
         ),
         child: Text(
-          label,
+          _activityDayLabels[label] ?? label,
           style: TextStyle(
             color: selected ? Colors.white : Colors.grey.shade600,
             fontSize: 14,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
       ),
@@ -267,10 +271,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
         ),
         child: Text(
-          label,
+          _activityDayLabels[label] ?? label,
           style: TextStyle(
             color: selected ? Colors.white : Colors.grey.shade600,
             fontSize: 14,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
       ),
@@ -285,22 +290,15 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '活動量',
+            '一週大概運動幾天？',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _activityDesc.keys.map(_activityChip).toList(),
+            children: _activityDayLabels.keys.map(_activityChip).toList(),
           ),
-          if (_activityLevel.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              _activityDesc[_activityLevel]!,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-            ),
-          ],
         ],
       ),
     );

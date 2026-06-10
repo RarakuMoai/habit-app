@@ -35,13 +35,25 @@ class WaterPage extends StatefulWidget {
 class _WaterEntry {
   final int ml;
   final String kind;
+  final DateTime at;
 
-  const _WaterEntry._({required this.ml, required this.kind});
+  const _WaterEntry._({required this.ml, required this.kind, required this.at});
 
-  factory _WaterEntry.cup(int ml) => // units-ok
-      _WaterEntry._(ml: ml, kind: 'cup'); // units-ok
-  factory _WaterEntry.custom(int ml) => // units-ok
-      _WaterEntry._(ml: ml, kind: 'custom'); // units-ok
+  factory _WaterEntry.cup(int ml, {DateTime? at}) {
+    return _WaterEntry._(
+      ml: ml,
+      kind: 'cup',
+      at: at ?? DateTime.now(),
+    ); // units-ok
+  }
+
+  factory _WaterEntry.custom(int ml, {DateTime? at}) {
+    return _WaterEntry._(
+      ml: ml, // units-ok
+      kind: 'custom',
+      at: at ?? DateTime.now(),
+    );
+  }
 
   static _WaterEntry? tryParse(Object? raw) {
     if (raw is num) {
@@ -50,20 +62,41 @@ class _WaterEntry {
     if (raw is! Map) return null;
     final ml = raw['ml']; // units-ok
     final kind = raw['kind'];
+    final at = raw['at'];
     if (ml is! num) return null;
     return _WaterEntry._(
       ml: ml.round(),
       kind: kind == 'cup' ? 'cup' : 'custom',
+      at: at is String
+          ? DateTime.tryParse(at) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 
-  Map<String, Object> toJson() => {'ml': ml, 'kind': kind}; // units-ok
+  Map<String, Object> toJson() => {
+    'ml': ml, // units-ok
+    'kind': kind,
+    'at': at.toIso8601String(),
+  }; // units-ok
+}
+
+class _WaterSheetResult {
+  final int? addMl;
+
+  const _WaterSheetResult.add(this.addMl);
 }
 
 class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   static const int _defaultCupMl = 250;
   static const int _defaultGoalMl = 2000;
-  static const int _maxCups = 40;
+  // 每日總攝取上限（公制 ml）— 不再用「杯數」做門檻。
+  // 6000ml 是「補水」合理天花板：成人推薦 ~2-3.7L，6L 已遠超推薦量；
+  // 文獻紀錄的水中毒個案多在「短時間內 >6L」，這條線擋的是手滑連按 / 誤觸
+  // 累積到不合理的量，不是限制重度運動者的真實補水
+  static const int _maxTotalMl = 6000;
+  // 「過量但還沒到危險」警告線。4L 超過男性 RDA 3.7L 上限、進入醫學上的
+  // 灰色地帶。跨過去 → 兔咪變 sad + 提示語，但不擋使用者繼續紀錄
+  static const int _warnTotalMl = 4000;
   static const int _minCupMl = 50;
   static const int _maxCupMl = 1000;
   static const int _minGoalMl = 500;
@@ -85,6 +118,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   String _todayKey = '';
   bool _lastReportedReached = false;
   DateTime? _lastMaxCupHint;
+  // 本次 session 是否已跳過「跨越過量警告線」提示。
+  // 跨界只提醒一次，避免每加一杯就跳，惹人厭
+  bool _shownOverhydrationToast = false;
   UnitSystem _unit = UnitSystem.metric;
 
   // 顯示用：把公制 ml 轉成目前單位（imperial 顯示 fl oz）
@@ -97,7 +133,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   double get _progress => (_totalMl / _goalMl).clamp(0.0, 1.0);
 
   // 兔咪情境：依目前喝水進度切換（互動時呼叫，用於 MascotPersona.interact）。
+  // 注意：overhydration 優先於 allDone — 喝過量比達標重要，要先警告
   MascotContext get _mascotCtx {
+    if (_totalMl >= _warnTotalMl) return MascotContext.overhydration;
     if (_goalReached) return MascotContext.allDone;
     if (_cups == 0) return MascotContext.notStarted;
     if (_progress >= 0.5) return MascotContext.halfDone;
@@ -213,7 +251,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final entriesKey = '$_entryKeyPrefix$today';
     final cupMl = _sanitizeCupMl(prefs.getInt('water_cup_ml'));
     final goalMl = _sanitizeGoalMl(prefs.getInt('water_goal_ml'));
-    final cups = (prefs.getInt(todayKey) ?? 0).clamp(0, _maxCups);
+    // legacy cup 數舊鍵：只用來把舊資料 migrate 進 entries，clamp 寬鬆即可
+    final cups = (prefs.getInt(todayKey) ?? 0).clamp(0, 100);
     final extra = (prefs.getInt('$_extraKeyPrefix$today') ?? 0).clamp(
       0,
       _maxGoalMl * 2,
@@ -268,8 +307,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   Future<void> _addCup() async {
-    if (_cups >= _maxCups) return;
+    if (_totalMl + _cupMl > _maxTotalMl) return;
     final wasReached = _goalReached;
+    final wasUnderWarn = _totalMl < _warnTotalMl;
     setState(() => _entries = [..._entries, _WaterEntry.cup(_cupMl)]);
     await _saveEntries();
     _notifyGoalStatus();
@@ -277,6 +317,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
     );
     MascotPersona.interact(_mascotCtx);
+    _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
   }
 
   Future<void> _removeCup() async {
@@ -288,11 +329,29 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     MascotPersona.interact(_mascotCtx);
   }
 
+  Future<void> _deleteEntryAt(int index) async {
+    if (index < 0 || index >= _entries.length) return;
+    setState(() {
+      final next = List<_WaterEntry>.from(_entries)..removeAt(index);
+      _entries = next;
+    });
+    await _saveEntries();
+    _notifyGoalStatus();
+    SfxService.instance.play(SfxCue.cancel);
+    MascotPersona.interact(_mascotCtx);
+  }
+
   // 加入一個自訂量，作為一筆可被「減少」撤銷的喝水紀錄。
   Future<void> _addCustomMl(int ml) async {
     if (ml <= 0) return;
     final clamped = ml.clamp(1, _maxSingleAddMl);
+    // 超出每日總攝取上限就擋下來（提示 + 不存進去）
+    if (_totalMl + clamped > _maxTotalMl) {
+      _showOverLimitHint();
+      return;
+    }
     final wasReached = _goalReached;
+    final wasUnderWarn = _totalMl < _warnTotalMl;
     setState(() => _entries = [..._entries, _WaterEntry.custom(clamped)]);
     await _saveEntries();
     _notifyGoalStatus();
@@ -300,17 +359,64 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
     );
     MascotPersona.interact(_mascotCtx);
+    _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
+  }
+
+  // 跨越過量警告線時跳 snackbar 一次（同 session 內不重複）。
+  // 兔咪變 sad 已經是視覺主場，這個 toast 只是再強化提示
+  void _maybeShowOverhydrationToast({required bool wasUnderWarn}) {
+    if (!mounted) return;
+    if (!wasUnderWarn || _totalMl < _warnTotalMl) return;
+    if (_shownOverhydrationToast) return;
+    _shownOverhydrationToast = true;
+    final warnStr = _volStr(_warnTotalMl);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('已喝超過 $warnStr，建議休息一下、補點電解質'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+  }
+
+  // 超出每日上限的提示（4s 內 debounce 不重複跳）
+  void _showOverLimitHint() {
+    final now = DateTime.now();
+    if (_lastMaxCupHint != null &&
+        now.difference(_lastMaxCupHint!) < const Duration(seconds: 4)) {
+      return;
+    }
+    _lastMaxCupHint = now;
+    final limitStr = _volStr(_maxTotalMl);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('今天已喝接近 $limitStr，先休息一下吧'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 
   Future<void> _openCustomCupSheet() async {
-    final result = await showModalBottomSheet<int>(
+    // 刪除走 callback，sheet 自己留著、自己 setState 更新內部紀錄列表，
+    // 不會像之前那樣 pop 整個視窗
+    final result = await showModalBottomSheet<_WaterSheetResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CustomCupSheet(unit: _unit, maxMl: _maxSingleAddMl),
+      builder: (_) => _CustomCupSheet(
+        unit: _unit,
+        maxMl: _maxSingleAddMl,
+        entries: _entries,
+        onDeleteEntry: _deleteEntryAt,
+      ),
     );
-    if (result != null && result > 0) {
-      await _addCustomMl(result);
+    if (result == null) return;
+    final addMl = result.addMl;
+    if (addMl != null && addMl > 0) {
+      await _addCustomMl(addMl);
     }
   }
 
@@ -406,7 +512,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     'high': 750,
   };
 
-  Future<({int ml, String reason})> _suggestGoal() async {
+  Future<({int ml, String reason, bool needsActivity})> _suggestGoal() async {
     final prefs = await SharedPreferences.getInstance();
 
     // Prefer the most recent tracked weight; only fall back to the
@@ -419,6 +525,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final height = prefs.getDouble('user_height');
     final gender = _genderCode[prefs.getString('user_gender') ?? ''];
     final activity = prefs.getString('user_activity_level') ?? '';
+    final needsActivity = activity.isEmpty;
     final age = _ageFromBirthday(prefs.getString('user_birthday'));
 
     // Children: age-tiered base. Activity bonus is halved (kids hydrate
@@ -430,6 +537,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       return (
         ml: _roundToNearest50(childBase, min: 600, max: 2200),
         reason: '$age 歲建議',
+        needsActivity: needsActivity,
       );
     }
 
@@ -463,7 +571,11 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       reason = '$reason · 銀髮加量';
     }
 
-    return (ml: _roundToNearest50(base), reason: reason);
+    return (
+      ml: _roundToNearest50(base),
+      reason: reason,
+      needsActivity: needsActivity,
+    );
   }
 
   Future<void> _openWaterSettings() async {
@@ -760,31 +872,16 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   void _onAddCupPressed() {
-    if (_cups >= _maxCups) {
-      // Debounce: while the user keeps spamming the button after hitting
-      // the cap, only re-show the hint once every 4s and never stack
-      // multiple snack bars.
-      final now = DateTime.now();
-      if (_lastMaxCupHint != null &&
-          now.difference(_lastMaxCupHint!) < const Duration(seconds: 4)) {
-        return;
-      }
-      _lastMaxCupHint = now;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('今天已記錄 $_maxCups 杯，先休息一下吧'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+    if (_totalMl + _cupMl > _maxTotalMl) {
+      _showOverLimitHint();
       return;
     }
     _addCup();
   }
 
   Widget _controls() {
-    final atMax = _cups >= _maxCups;
+    // 加一杯會超過每日上限就視為「滿了」，主按鈕灰掉
+    final atMax = _totalMl + _cupMl > _maxTotalMl;
     final canRemove = _entries.isNotEmpty;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1298,7 +1395,7 @@ class _WaterSettingsResult {
 class _WaterSettingsSheet extends StatefulWidget {
   final int initialCupMl;
   final int initialGoalMl;
-  final ({int ml, String reason}) suggestion;
+  final ({int ml, String reason, bool needsActivity}) suggestion;
   final int minCupMl;
   final int maxCupMl;
   final int minGoalMl;
@@ -1458,7 +1555,9 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
                       Expanded(
                         child: Text(
                           _appliedHint ??
-                              '建議 ${UnitFormat.volume(widget.suggestion.ml, widget.unit)}\n${widget.suggestion.reason}',
+                              '建議 ${UnitFormat.volume(widget.suggestion.ml, widget.unit)}\n'
+                                  '${widget.suggestion.reason}'
+                                  '${widget.suggestion.needsActivity ? '\n補上每週運動天數，水量建議會更貼近你。' : ''}',
                           style: TextStyle(
                             color: Colors.cyan.shade900,
                             fontSize: 13,
@@ -1626,8 +1725,17 @@ class _BackdropPainter extends CustomPainter {
 class _CustomCupSheet extends StatefulWidget {
   final UnitSystem unit;
   final int maxMl;
+  final List<_WaterEntry> entries;
+  // 刪除一筆紀錄。sheet 不會 pop，自己 setState 更新內部列表；
+  // 這個 callback 負責 parent 那邊持久化（_deleteEntryAt）
+  final Future<void> Function(int index) onDeleteEntry;
 
-  const _CustomCupSheet({required this.unit, required this.maxMl});
+  const _CustomCupSheet({
+    required this.unit,
+    required this.maxMl,
+    required this.entries,
+    required this.onDeleteEntry,
+  });
 
   @override
   State<_CustomCupSheet> createState() => _CustomCupSheetState();
@@ -1635,23 +1743,58 @@ class _CustomCupSheet extends StatefulWidget {
 
 class _CustomCupSheetState extends State<_CustomCupSheet> {
   static const List<int> _presetMl = [100, 200, 300, 500];
+  // 自訂量內建小鍵盤可輸入位數上限（4 位 = 最多 9999，公制 ml/英制 fl oz 都夠用）
+  static const int _maxDigits = 4;
 
-  final TextEditingController _ctrl = TextEditingController();
+  // sheet 內部維護紀錄列表，刪除時 setState 更新自己 + 通知 parent 持久化
+  late List<_WaterEntry> _localEntries;
+  // 內建小鍵盤輸入緩衝（取代 TextField，系統鍵盤不會出來）
+  String _input = '';
   String? _err;
+  // 正在播刪除動畫的那一筆（reference 比對）。同時間只允許一筆，
+  // 避免使用者連點時動畫互相打架、_localEntries 索引漂移
+  _WaterEntry? _entryBeingRemoved;
+  // 刪除動畫 + 列表塌陷的長度
+  static const Duration _deleteAnimDuration = Duration(milliseconds: 280);
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _localEntries = List.of(widget.entries);
+  }
+
+  void _pressDigit(String d) {
+    if (_input.length >= _maxDigits) return;
+    // 前置 0 沒意義：第一個就按 0 直接跳過
+    if (_input.isEmpty && d == '0') return;
+    setState(() {
+      _input += d;
+      _err = null;
+    });
+  }
+
+  void _pressBackspace() {
+    if (_input.isEmpty) return;
+    setState(() {
+      _input = _input.substring(0, _input.length - 1);
+      _err = null;
+    });
+  }
+
+  void _pressClear() {
+    if (_input.isEmpty) return;
+    setState(() {
+      _input = '';
+      _err = null;
+    });
   }
 
   void _submitCustom() {
-    final raw = _ctrl.text.trim();
-    if (raw.isEmpty) {
+    if (_input.isEmpty) {
       setState(() => _err = '請輸入數字');
       return;
     }
-    final n = num.tryParse(raw);
+    final n = int.tryParse(_input);
     if (n == null || n <= 0) {
       setState(() => _err = '請輸入大於 0 的數字');
       return;
@@ -1659,108 +1802,490 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
     // 公制直接用，英制把 fl oz 轉成 ml
     final ml = widget.unit == UnitSystem.imperial
         ? UnitConvert.flOzToMl(n.toDouble()).round()
-        : n.round();
+        : n;
     if (ml > widget.maxMl) {
       setState(() => _err = '單次量太大了'); // units-ok
       return;
     }
-    FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).pop(ml);
+    Navigator.of(context).pop(_WaterSheetResult.add(ml));
+  }
+
+  Future<void> _handleDelete(int index) async {
+    // 序列化：同時間只允許一筆在做刪除動畫，避免索引漂移
+    if (_entryBeingRemoved != null) return;
+    if (index < 0 || index >= _localEntries.length) return;
+    final entry = _localEntries[index];
+
+    // 第 1 階段：標記為「正在移除」→ tile fade + 高度塌陷動畫
+    setState(() => _entryBeingRemoved = entry);
+    await Future.delayed(_deleteAnimDuration);
+    if (!mounted) return;
+
+    // 第 2 階段：動畫結束後才真正從 local list 移除 + 通知 parent 持久化
+    // 用 indexOf 重抓位置，避免動畫期間若有外部變動造成索引錯位
+    final currentIndex = _localEntries.indexOf(entry);
+    if (currentIndex < 0) {
+      setState(() => _entryBeingRemoved = null);
+      return;
+    }
+    setState(() {
+      _localEntries.removeAt(currentIndex);
+      _entryBeingRemoved = null;
+    });
+    await widget.onDeleteEntry(currentIndex);
+  }
+
+  String _formatEntryTime(DateTime at) {
+    final h = at.hour.toString().padLeft(2, '0');
+    final m = at.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  String _entryTypeLabel(_WaterEntry entry) {
+    return entry.kind == 'cup' ? '一杯' : '自訂';
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
     final label = UnitFormat.volumeLabel(widget.unit);
+    final history = _localEntries.indexed.toList().reversed.toList();
+    // 不再加 viewInsets.bottom，因為內建小鍵盤不會召喚系統鍵盤、
+    // sheet 也就不會被推上去
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, bottom + 16),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 22,
-              offset: const Offset(0, 8),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.78,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 22,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '喝了多少？',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '快速選擇 或自己輸入',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _presetMl.map((ml) {
+                  final shown = UnitFormat.volume(ml, widget.unit);
+                  return _PresetChip(
+                    label: shown,
+                    onTap: () =>
+                        Navigator.of(context).pop(_WaterSheetResult.add(ml)),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Text('自訂', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              _CustomCupInputDisplay(
+                input: _input,
+                unitLabel: label,
+                error: _err,
+              ),
+              const SizedBox(height: 10),
+              _CustomCupKeypad(
+                onDigit: _pressDigit,
+                onBackspace: _pressBackspace,
+                onClear: _pressClear,
+                onSubmit: _submitCustom,
+                submitEnabled: _input.isNotEmpty,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const Text(
+                    '今日紀錄',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${_localEntries.length} 筆',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: history.isEmpty
+                    ? Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        decoration: BoxDecoration(
+                          color: _kChipBg.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          '今天還沒有補水紀錄',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: history.length,
+                        // 每筆 entry 必須有獨立 key（用 entry.at 當識別），否則
+                        // 刪除中間項時，下方 entry 會 shift 到舊位置、
+                        // 接收前一個 AnimatedAlign 的狀態（heightFactor: 0），
+                        // 然後再 animate 回 1 → 視覺上「突然冒出來」
+                        findChildIndexCallback: (Key key) {
+                          if (key is! ValueKey<DateTime>) return null;
+                          final at = key.value;
+                          final idx = history.indexWhere((e) => e.$2.at == at);
+                          return idx < 0 ? null : idx;
+                        },
+                        itemBuilder: (context, i) {
+                          final (index, entry) = history[i];
+                          final isRemoving = identical(
+                            entry,
+                            _entryBeingRemoved,
+                          );
+                          // 刪除動畫：tile 本體不換掉，同時做 fade（opacity 1→0）
+                          // 跟「從上向下塌陷」（heightFactor 1→0）。
+                          // ClipRect 把塌陷過程中超出的部分裁掉。
+                          // 兩個動畫同 duration / 同 curve（easeInCubic 加速收尾）
+                          // → 不會有「fade 提早結束、size 還在收」的卡頓感
+                          return KeyedSubtree(
+                            key: ValueKey(entry.at),
+                            child: ClipRect(
+                              child: AnimatedAlign(
+                                duration: _deleteAnimDuration,
+                                curve: Curves.easeInCubic,
+                                alignment: Alignment.topCenter,
+                                heightFactor: isRemoving ? 0.0 : 1.0,
+                                child: AnimatedOpacity(
+                                  duration: _deleteAnimDuration,
+                                  curve: Curves.easeInCubic,
+                                  opacity: isRemoving ? 0.0 : 1.0,
+                                  child: IgnorePointer(
+                                    ignoring: isRemoving,
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: i < history.length - 1 ? 8 : 0,
+                                      ),
+                                      child: _WaterHistoryTile(
+                                        time: _formatEntryTime(entry.at),
+                                        amount: UnitFormat.volume(
+                                          entry.ml,
+                                          widget.unit,
+                                        ),
+                                        type: _entryTypeLabel(entry),
+                                        onDelete: () => _handleDelete(index),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// 自訂量輸入顯示框（取代 TextField，純展示用，沒有系統鍵盤）
+class _CustomCupInputDisplay extends StatelessWidget {
+  final String input;
+  final String unitLabel;
+  final String? error;
+
+  const _CustomCupInputDisplay({
+    required this.input,
+    required this.unitLabel,
+    this.error,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasInput = input.isNotEmpty;
+    final hasError = error != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(
+              color: hasError
+                  ? Colors.red.shade400
+                  : _kInk.withValues(alpha: 0.32),
+              width: 1.4,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hasInput ? input : '輸入數字',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: hasInput ? _kInk : Colors.grey.shade400,
+                  ),
+                ),
+              ),
+              Text(
+                unitLabel,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (hasError)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              error!,
+              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// 自訂量內建小鍵盤：3×4 數字格 + 加入按鈕，全部在 sheet 內、不召喚系統鍵盤
+class _CustomCupKeypad extends StatelessWidget {
+  final void Function(String digit) onDigit;
+  final VoidCallback onBackspace;
+  final VoidCallback onClear;
+  final VoidCallback onSubmit;
+  final bool submitEnabled;
+
+  const _CustomCupKeypad({
+    required this.onDigit,
+    required this.onBackspace,
+    required this.onClear,
+    required this.onSubmit,
+    required this.submitEnabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final row in const [
+          ['1', '2', '3'],
+          ['4', '5', '6'],
+          ['7', '8', '9'],
+        ])
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                for (final d in row) ...[
+                  Expanded(
+                    child: _KeyButton(label: d, onTap: () => onDigit(d)),
+                  ),
+                  if (d != row.last) const SizedBox(width: 6),
+                ],
+              ],
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: _KeyButton(label: 'C', onTap: onClear, muted: true),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _KeyButton(label: '0', onTap: () => onDigit('0')),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _KeyButton(
+                icon: Icons.backspace_outlined,
+                onTap: onBackspace,
+                muted: true,
+              ),
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '喝了多少？',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: submitEnabled ? onSubmit : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: _kInk,
+              disabledBackgroundColor: Colors.grey.shade300,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '快速選擇 或自己輸入',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            child: const Text(
+              '加入',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _presetMl.map((ml) {
-                final shown = UnitFormat.volume(ml, widget.unit);
-                return _PresetChip(
-                  label: shown,
-                  onTap: () => Navigator.of(context).pop(ml),
-                );
-              }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _KeyButton extends StatelessWidget {
+  final String? label;
+  final IconData? icon;
+  final VoidCallback onTap;
+  final bool muted;
+
+  const _KeyButton({
+    this.label,
+    this.icon,
+    required this.onTap,
+    this.muted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: muted ? Colors.grey.shade100 : _kChipBg,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 38,
+          child: Center(
+            child: icon != null
+                ? Icon(icon, size: 20, color: _kInk)
+                : Text(
+                    label!,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: _kInk,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WaterHistoryTile extends StatelessWidget {
+  final String time;
+  final String amount;
+  final String type;
+  final VoidCallback onDelete;
+
+  const _WaterHistoryTile({
+    required this.time,
+    required this.amount,
+    required this.type,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: _kChipBg.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.cyan.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.74),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(height: 18),
-            const Text('自訂', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            Row(
+            child: Text(
+              time,
+              style: const TextStyle(
+                color: _kInk,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: false,
-                    ),
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      hintText: '輸入數字',
-                      suffixText: label,
-                      errorText: _err,
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                    ),
-                    onChanged: (_) {
-                      if (_err != null) setState(() => _err = null);
-                    },
-                    onSubmitted: (_) => _submitCustom(),
+                Text(
+                  amount,
+                  style: const TextStyle(
+                    color: _kInk,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: FilledButton(
-                    onPressed: _submitCustom,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _kInk,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                    ),
-                    child: const Text('加入'),
+                const SizedBox(height: 2),
+                Text(
+                  type,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.1,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          IconButton(
+            tooltip: '刪除',
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline_rounded),
+            color: Colors.redAccent.shade200,
+            iconSize: 21,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ),
     );
   }
