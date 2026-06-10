@@ -1,0 +1,189 @@
+// 育兒模式共用儲存層：SharedPreferences 讀寫、日期/ID 工具、積分異動
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'family_models.dart';
+
+// 本週一到週日的日期字串集合
+Set<String> currentWeekDateSet() {
+  final now = DateTime.now();
+  final monday = now.subtract(Duration(days: now.weekday - 1));
+  return List.generate(7, (i) {
+    final d = monday.add(Duration(days: i));
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }).toSet();
+}
+
+// 計算每週習慣本週已完成次數
+int weeklyCount(ChildHabit habit) {
+  final weekSet = currentWeekDateSet();
+  return habit.weeklyDates.where(weekSet.contains).length;
+}
+
+// 今日日期字串（yyyy-MM-dd）
+String todayStr() {
+  final now = DateTime.now();
+  return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+}
+
+// 產生唯一 ID（毫秒時間戳 + 隨機後綴，避免同毫秒碰撞）
+String genId() =>
+    '${DateTime.now().millisecondsSinceEpoch}_${Object().hashCode}';
+
+// 格式化現在時間為 yyyy-MM-dd HH:mm
+String nowStr() {
+  final now = DateTime.now();
+  final date =
+      '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  final time =
+      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+  return '$date $time';
+}
+
+// ── 共用：讀寫各類資料的輔助方法 ──
+
+Future<List<ChildHabit>> loadHabits(SharedPreferences prefs) async {
+  final raw = prefs.getString('child_habits');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => ChildHabit.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> saveHabits(
+  SharedPreferences prefs,
+  List<ChildHabit> habits,
+) async {
+  await prefs.setString(
+    'child_habits',
+    jsonEncode(habits.map((h) => h.toJson()).toList()),
+  );
+}
+
+// 新增小孩時自動帶入的預設習慣（3 個最基本，讓使用者有起點，可再自行調整）
+List<ChildHabit> defaultHabitsForChild(String childId) => [
+  ChildHabit(id: genId(), childId: childId, name: '刷牙', points: 5),
+  ChildHabit(id: genId(), childId: childId, name: '寫作業', points: 10),
+  ChildHabit(id: genId(), childId: childId, name: '整理房間', points: 10),
+];
+
+Future<List<DeductionItem>> loadDeductions(SharedPreferences prefs) async {
+  final raw = prefs.getString('deduction_items');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => DeductionItem.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> saveDeductions(
+  SharedPreferences prefs,
+  List<DeductionItem> items,
+) async {
+  await prefs.setString(
+    'deduction_items',
+    jsonEncode(items.map((d) => d.toJson()).toList()),
+  );
+}
+
+Future<List<RewardItem>> loadRewards(SharedPreferences prefs) async {
+  final raw = prefs.getString('reward_items');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => RewardItem.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> saveRewards(
+  SharedPreferences prefs,
+  List<RewardItem> rewards,
+) async {
+  await prefs.setString(
+    'reward_items',
+    jsonEncode(rewards.map((r) => r.toJson()).toList()),
+  );
+}
+
+Future<List<VoucherLog>> loadVouchers(SharedPreferences prefs) async {
+  final raw =
+      prefs.getString('voucher_logs') ?? prefs.getString('redemption_logs');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => VoucherLog.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> saveVouchers(
+  SharedPreferences prefs,
+  List<VoucherLog> logs,
+) async {
+  await prefs.setString(
+    'voucher_logs',
+    jsonEncode(logs.map((l) => l.toJson()).toList()),
+  );
+}
+
+Future<List<PointRecord>> loadRecords(SharedPreferences prefs) async {
+  final raw = prefs.getString('point_records');
+  if (raw == null) return [];
+  return (jsonDecode(raw) as List)
+      .map((e) => PointRecord.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+Future<void> saveRecords(
+  SharedPreferences prefs,
+  List<PointRecord> records,
+) async {
+  await prefs.setString(
+    'point_records',
+    jsonEncode(records.map((r) => r.toJson()).toList()),
+  );
+}
+
+// 更新小孩積分並寫入積分紀錄；回傳更新後積分
+// delta 可為正（加分）或負（扣分），扣分不會低於 0
+Future<int> applyPoints({
+  required SharedPreferences prefs,
+  required ChildData child,
+  required int delta,
+  required String reason,
+}) async {
+  // 讀取最新小孩清單
+  final raw = prefs.getString('children');
+  final children = raw == null
+      ? <ChildData>[]
+      : (jsonDecode(raw) as List)
+            .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
+            .toList();
+
+  // 找到對應小孩並更新積分
+  final idx = children.indexWhere((c) => c.id == child.id);
+  if (idx == -1) return child.points;
+
+  final newPoints = children[idx].points + delta;
+  children[idx].points = newPoints;
+  child.points = newPoints; // 同步更新傳入的物件
+
+  await prefs.setString(
+    'children',
+    jsonEncode(children.map((c) => c.toJson()).toList()),
+  );
+
+  // 寫入積分紀錄
+  final records = await loadRecords(prefs);
+  records.insert(
+    0,
+    PointRecord(
+      id: genId(),
+      childId: child.id,
+      time: nowStr(),
+      reason: reason,
+      delta: delta,
+      total: newPoints,
+    ),
+  );
+  await saveRecords(prefs, records);
+
+  return newPoints;
+}

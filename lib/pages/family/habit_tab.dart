@@ -1,0 +1,1299 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'family_auth.dart';
+import 'family_models.dart';
+import 'family_presets.dart';
+import 'family_store.dart';
+
+// ── 習慣打卡 Tab ──
+
+class HabitTab extends StatefulWidget {
+  final ChildData child;
+  final VoidCallback onPointsChanged; // 積分異動後通知父層更新 AppBar
+
+  const HabitTab({
+    super.key,
+    required this.child,
+    required this.onPointsChanged,
+  });
+
+  @override
+  State<HabitTab> createState() => _HabitTabState();
+}
+
+class _HabitTabState extends State<HabitTab> {
+  List<ChildHabit> _habits = [];
+  List<DeductionItem> _deductions = [];
+  bool _loaded = false;
+  SharedPreferences? _prefs;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  // 重新載入習慣與扣分項目
+  Future<void> _load() async {
+    _prefs = await SharedPreferences.getInstance();
+    final habits = await loadHabits(_prefs!);
+    final deductions = await loadDeductions(_prefs!);
+    setState(() {
+      // 只顯示此小孩的習慣與扣分項目
+      _habits = habits.where((h) => h.childId == widget.child.id).toList();
+      _deductions = deductions
+          .where((d) => d.childId == widget.child.id)
+          .toList();
+      _loaded = true;
+    });
+  }
+
+  // 判斷習慣今日是否完成（每日：今日打卡；每週：本週次數達標）
+  bool _isDoneToday(ChildHabit habit) => habit.frequency == 'weekly'
+      ? weeklyCount(habit) >= habit.weeklyTarget
+      : habit.completedDate == todayStr();
+
+  // 打卡：增加積分、標記日期
+  // 每日：今日已打卡則跳過；每週：允許一日多次（上限 20 次/週）
+  Future<void> _checkIn(ChildHabit habit) async {
+    final today = todayStr();
+    if (habit.frequency == 'weekly') {
+      if (weeklyCount(habit) >= 20) return; // 上限
+    } else {
+      if (habit.completedDate == today) return;
+    }
+    final prefs = _prefs!;
+
+    final newPoints = await applyPoints(
+      prefs: prefs,
+      child: widget.child,
+      delta: habit.points,
+      reason: '完成習慣：${habit.name}',
+    );
+
+    final allHabits = await loadHabits(prefs);
+    final idx = allHabits.indexWhere((h) => h.id == habit.id);
+    if (idx != -1) {
+      if (habit.frequency == 'weekly') {
+        allHabits[idx].weeklyDates.add(today);
+        habit.weeklyDates.add(today);
+      } else {
+        allHabits[idx].completedDate = today;
+        habit.completedDate = today;
+      }
+      await saveHabits(prefs, allHabits);
+    }
+
+    setState(() => widget.child.points = newPoints);
+    widget.onPointsChanged();
+  }
+
+  // 撤銷打卡：扣回積分並清除日期（每週習慣移除最後一筆今日紀錄）
+  Future<void> _undoCheckIn(ChildHabit habit) async {
+    if (!mounted) return;
+    final today = todayStr();
+    if (habit.frequency == 'weekly') {
+      if (!habit.weeklyDates.contains(today)) return;
+    } else {
+      if (habit.completedDate != today) return;
+    }
+
+    final prefs = _prefs!;
+    final newPoints = await applyPoints(
+      prefs: prefs,
+      child: widget.child,
+      delta: -habit.points,
+      reason: '撤銷完成：${habit.name}',
+    );
+
+    final allHabits = await loadHabits(prefs);
+    final idx = allHabits.indexWhere((h) => h.id == habit.id);
+    if (idx != -1) {
+      if (habit.frequency == 'weekly') {
+        // 移除最後一筆今日紀錄（多次打卡只撤銷一次）
+        final lastIdx = allHabits[idx].weeklyDates.lastIndexOf(today);
+        if (lastIdx != -1) {
+          allHabits[idx].weeklyDates.removeAt(lastIdx);
+        }
+        final localIdx = habit.weeklyDates.lastIndexOf(today);
+        if (localIdx != -1) {
+          habit.weeklyDates.removeAt(localIdx);
+        }
+      } else {
+        allHabits[idx].completedDate = '';
+        habit.completedDate = '';
+      }
+      await saveHabits(prefs, allHabits);
+    }
+
+    setState(() => widget.child.points = newPoints);
+    widget.onPointsChanged();
+  }
+
+  // ── 特殊積分（需家長密碼）──
+  static const _kAddPresets = [
+    Preset('幫忙做家事', 10, '🏠'),
+    Preset('表現良好', 10, '😊'),
+    Preset('考試進步', 20, '📈'),
+    Preset('幫助別人', 10, '🤝'),
+    Preset('準時完成作業', 15, '⏰'),
+    Preset('主動學習', 15, '📚'),
+  ];
+
+  // 特殊積分預設子選單（勾選 + 個別調整分數）
+  Future<Map<String, int>?> _showSpecialPresetSubSheet({
+    required List<Preset> available,
+    required Map<String, int> initial,
+    required String title,
+    required Color accentColor,
+    required String badgePrefix,
+    required String dialogLabel,
+  }) {
+    final selected = Map<String, int>.from(initial);
+    return showModalBottomSheet<Map<String, int>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) => DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, size: 18, color: accentColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (selected.isNotEmpty)
+                      Text(
+                        '${selected.length} 項已選',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollCtrl,
+                  itemCount: available.length,
+                  itemBuilder: (_, i) {
+                    final p = available[i];
+                    final sel = selected.containsKey(p.name);
+                    final pts = selected[p.name] ?? p.value;
+                    return InkWell(
+                      onTap: () => setS(() {
+                        if (sel) {
+                          selected.remove(p.name);
+                        } else {
+                          selected[p.name] = p.value;
+                        }
+                      }),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? accentColor.withValues(alpha: 0.08)
+                              : Colors.white,
+                          border: Border(
+                            bottom: BorderSide(color: Colors.grey.shade100),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                p.name,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: sel
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: sel ? accentColor : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () async {
+                                if (!sel) {
+                                  setS(() => selected[p.name] = p.value);
+                                }
+                                final ctrl = TextEditingController(
+                                  text: '$pts',
+                                );
+                                final newPts = await showDialog<int>(
+                                  context: ctx,
+                                  builder: (dCtx) => AlertDialog(
+                                    title: Text('調整分數：${p.name}'),
+                                    content: TextField(
+                                      controller: ctrl,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                        LengthLimitingTextInputFormatter(4),
+                                      ],
+                                      decoration: InputDecoration(
+                                        labelText: dialogLabel,
+                                      ),
+                                      autofocus: true,
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: Text(
+                                          '取消',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(
+                                          dCtx,
+                                          int.tryParse(ctrl.text) ?? pts,
+                                        ),
+                                        child: const Text('確認'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (newPts != null && newPts > 0) {
+                                  setS(() => selected[p.name] = newPts);
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: sel
+                                      ? accentColor
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '$badgePrefix$pts',
+                                      style: TextStyle(
+                                        color: sel
+                                            ? Colors.white
+                                            : Colors.grey.shade600,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (sel) ...[
+                                      const SizedBox(width: 3),
+                                      const Icon(
+                                        Icons.edit,
+                                        size: 10,
+                                        color: Colors.white,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: sel ? accentColor : Colors.transparent,
+                                border: Border.all(
+                                  color: sel
+                                      ? accentColor
+                                      : Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              child: sel
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 24,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, selected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      selected.isEmpty
+                          ? '確認（未選取）'
+                          : '確認選取 (${selected.length} 項)',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _giveSpecialPoints() async {
+    if (!mounted) return;
+    final ok = await verifyParentPinIfNeeded(context, title: '請輸入家長密碼以給予特殊積分');
+    if (!ok || !mounted) return;
+
+    var isAdd = true;
+    final reasonCtrl = TextEditingController();
+    final pointCtrl = TextEditingController();
+    final selectedAddPresets = <String, int>{};
+    final selectedDeductItems = <String, int>{};
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setS) {
+          final customReason = reasonCtrl.text.trim();
+          final customPts = int.tryParse(pointCtrl.text.trim()) ?? 0;
+          final hasCustom = customReason.isNotEmpty;
+          final selectedPresets = isAdd
+              ? selectedAddPresets
+              : selectedDeductItems;
+          final canConfirm =
+              selectedPresets.isNotEmpty || (hasCustom && customPts > 0);
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '特殊積分',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 加分 / 扣分 切換
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: true,
+                        label: Text('加分'),
+                        icon: Icon(Icons.add_circle_outline),
+                      ),
+                      ButtonSegment(
+                        value: false,
+                        label: Text('扣分'),
+                        icon: Icon(Icons.remove_circle_outline),
+                      ),
+                    ],
+                    selected: {isAdd},
+                    onSelectionChanged: (s) => setS(() {
+                      isAdd = s.first;
+                      selectedAddPresets.clear();
+                      selectedDeductItems.clear();
+                      reasonCtrl.clear();
+                      pointCtrl.clear();
+                    }),
+                    style: SegmentedButton.styleFrom(
+                      selectedBackgroundColor: isAdd
+                          ? Colors.green.shade50
+                          : Colors.red.shade50,
+                      selectedForegroundColor: isAdd
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 快速理由 / 扣分項目 子選單按鈕
+                  InkWell(
+                    onTap: () async {
+                      if (isAdd) {
+                        final result = await _showSpecialPresetSubSheet(
+                          available: _kAddPresets.toList(),
+                          initial: Map.from(selectedAddPresets),
+                          title: '快速理由',
+                          accentColor: Colors.green.shade600,
+                          badgePrefix: '+',
+                          dialogLabel: '加幾分',
+                        );
+                        if (result != null) {
+                          setS(() {
+                            selectedAddPresets.clear();
+                            selectedAddPresets.addAll(result);
+                          });
+                        }
+                      } else {
+                        if (_deductions.isEmpty) return;
+                        final result = await _showSpecialPresetSubSheet(
+                          available: _deductions
+                              .map((d) => Preset(d.name, d.points))
+                              .toList(),
+                          initial: Map.from(selectedDeductItems),
+                          title: '扣分項目',
+                          accentColor: Colors.red.shade600,
+                          badgePrefix: '-',
+                          dialogLabel: '扣幾分',
+                        );
+                        if (result != null) {
+                          setS(() {
+                            selectedDeductItems.clear();
+                            selectedDeductItems.addAll(result);
+                          });
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selectedPresets.isEmpty
+                            ? Colors.grey.shade50
+                            : (isAdd
+                                  ? Colors.green.shade50
+                                  : Colors.red.shade50),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selectedPresets.isEmpty
+                              ? Colors.grey.shade300
+                              : (isAdd
+                                    ? Colors.green.shade300
+                                    : Colors.red.shade300),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            size: 18,
+                            color: selectedPresets.isEmpty
+                                ? Colors.grey.shade500
+                                : (isAdd
+                                      ? Colors.green.shade600
+                                      : Colors.red.shade600),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              selectedPresets.isEmpty
+                                  ? (isAdd ? '從快速理由選取' : '從扣分項目選取')
+                                  : '已選 ${selectedPresets.length} 項',
+                              style: TextStyle(
+                                color: selectedPresets.isEmpty
+                                    ? Colors.grey.shade600
+                                    : (isAdd
+                                          ? Colors.green.shade700
+                                          : Colors.red.shade700),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            selectedPresets.isEmpty
+                                ? Icons.chevron_right
+                                : Icons.check_circle,
+                            size: 20,
+                            color: selectedPresets.isEmpty
+                                ? Colors.grey.shade400
+                                : (isAdd
+                                      ? Colors.green.shade600
+                                      : Colors.red.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 自訂原因
+                  TextField(
+                    controller: reasonCtrl,
+                    onChanged: (_) => setS(() {}),
+                    decoration: InputDecoration(
+                      hintText: isAdd ? '自訂原因...' : '自訂原因...',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                    ),
+                  ),
+
+                  // 自訂分數（有輸入原因才顯示）
+                  if (hasCustom) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: pointCtrl,
+                      onChanged: (_) => setS(() {}),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: isAdd ? '自訂加分數' : '自訂扣分數',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon: Icon(
+                          isAdd
+                              ? Icons.add_circle_outline
+                              : Icons.remove_circle_outline,
+                          size: 18,
+                          color: isAdd ? Colors.green : Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+
+                  // 確認按鈕
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canConfirm
+                          ? () async {
+                              Navigator.pop(ctx);
+                              final prefs = _prefs!;
+                              var latestPts = widget.child.points;
+                              final presets = isAdd
+                                  ? selectedAddPresets
+                                  : selectedDeductItems;
+                              for (final entry in presets.entries) {
+                                final delta = isAdd
+                                    ? entry.value
+                                    : -entry.value;
+                                latestPts = await applyPoints(
+                                  prefs: prefs,
+                                  child: widget.child,
+                                  delta: delta,
+                                  reason: '特殊積分：${entry.key}',
+                                );
+                              }
+                              final customReason = reasonCtrl.text.trim();
+                              final customPts =
+                                  int.tryParse(pointCtrl.text.trim()) ?? 0;
+                              if (customReason.isNotEmpty && customPts > 0) {
+                                final delta = isAdd ? customPts : -customPts;
+                                latestPts = await applyPoints(
+                                  prefs: prefs,
+                                  child: widget.child,
+                                  delta: delta,
+                                  reason: '特殊積分：$customReason',
+                                );
+                              }
+                              setState(() => widget.child.points = latestPts);
+                              widget.onPointsChanged();
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '已更新 ${widget.child.name} 的積分，目前共 $latestPts 分',
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isAdd ? Colors.green : Colors.red,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        isAdd ? '確認加分' : '確認扣分',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final dailyHabits = _habits.where((h) => h.frequency == 'daily').toList();
+    final weeklyHabits = _habits.where((h) => h.frequency == 'weekly').toList();
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ── 習慣區塊 ──
+          if (_habits.isEmpty)
+            _emptyHint('尚無習慣，請家長至家長管理新增')
+          else ...[
+            // 每日習慣
+            if (dailyHabits.isNotEmpty) ...[
+              _sectionHeader(
+                '每日習慣',
+                Icons.wb_sunny_rounded,
+                Colors.orange,
+                done: dailyHabits.where(_isDoneToday).length,
+                total: dailyHabits.length,
+              ),
+              _todayPointsHint(dailyHabits, isWeekly: false),
+              ...dailyHabits.map(
+                (habit) => _HabitItem(
+                  habit: habit,
+                  doneToday: _isDoneToday(habit),
+                  weeklyCount: weeklyCount(habit),
+                  todayCount: habit.weeklyDates
+                      .where((d) => d == todayStr())
+                      .length,
+                  onCheckIn: () => _checkIn(habit),
+                  onUndo: () => _undoCheckIn(habit),
+                ),
+              ),
+            ],
+            // 每週習慣
+            if (weeklyHabits.isNotEmpty) ...[
+              if (dailyHabits.isNotEmpty) const SizedBox(height: 18),
+              _sectionHeader(
+                '每週習慣',
+                Icons.calendar_view_week_rounded,
+                Colors.indigo,
+                done: weeklyHabits
+                    .where((h) => weeklyCount(h) >= h.weeklyTarget)
+                    .length,
+                total: weeklyHabits.length,
+              ),
+              _todayPointsHint(weeklyHabits, isWeekly: true),
+              ...weeklyHabits.map(
+                (habit) => _HabitItem(
+                  habit: habit,
+                  doneToday: _isDoneToday(habit),
+                  weeklyCount: weeklyCount(habit),
+                  todayCount: habit.weeklyDates
+                      .where((d) => d == todayStr())
+                      .length,
+                  onCheckIn: () => _checkIn(habit),
+                  onUndo: () => _undoCheckIn(habit),
+                ),
+              ),
+            ],
+          ],
+
+          const SizedBox(height: 24),
+
+          OutlinedButton.icon(
+            onPressed: _giveSpecialPoints,
+            icon: const Icon(Icons.star_outline, size: 16),
+            label: const Text('特殊積分'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.purple,
+              side: BorderSide(color: Colors.purple.withValues(alpha: 0.5)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  // 區段標題：圖示底框 + 名稱 + 計數膠囊（home_page 風格）
+  Widget _sectionHeader(
+    String label,
+    IconData icon,
+    Color color, {
+    required int done,
+    required int total,
+  }) {
+    final allDone = total > 0 && done == total;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 6, left: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: color),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: allDone
+                  ? Colors.green.shade50
+                  : color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$done / $total',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: allDone ? Colors.green.shade700 : color,
+              ),
+            ),
+          ),
+          if (allDone) ...[
+            const SizedBox(width: 6),
+            Icon(
+              Icons.check_circle_rounded,
+              size: 14,
+              color: Colors.green.shade400,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // 今日已獲得分數提示（只在有得分時顯示）
+  Widget _todayPointsHint(List<ChildHabit> habits, {required bool isWeekly}) {
+    int todayPts;
+    if (isWeekly) {
+      // 每週習慣：每筆今日 weeklyDates 都計分（支援多次）
+      todayPts = habits.fold<int>(0, (sum, h) {
+        final todayCount = h.weeklyDates.where((d) => d == todayStr()).length;
+        return sum + todayCount * h.points;
+      });
+    } else {
+      todayPts = habits
+          .where((h) => h.completedDate == todayStr())
+          .fold<int>(0, (sum, h) => sum + h.points);
+    }
+    if (todayPts <= 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 8),
+      child: Row(
+        children: [
+          Icon(Icons.stars_rounded, size: 13, color: Colors.orange.shade400),
+          const SizedBox(width: 4),
+          Text(
+            '今日已獲得 +$todayPts 分',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.orange.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyHint(String text) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Text(
+      text,
+      style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+    ),
+  );
+}
+
+// 習慣列表項目（套用 home_page 風格）
+class _HabitItem extends StatefulWidget {
+  final ChildHabit habit;
+  final bool doneToday;
+  final int weeklyCount;
+  final int todayCount;
+  final VoidCallback onCheckIn;
+  final VoidCallback? onUndo;
+
+  const _HabitItem({
+    required this.habit,
+    required this.doneToday,
+    required this.weeklyCount,
+    required this.todayCount,
+    required this.onCheckIn,
+    this.onUndo,
+  });
+
+  @override
+  State<_HabitItem> createState() => _HabitItemState();
+}
+
+class _HabitItemState extends State<_HabitItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.78), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 0.78, end: 1.18), weight: 45),
+      TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 30),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleDailyTap() {
+    _ctrl.forward(from: 0);
+    if (widget.doneToday) {
+      widget.onUndo?.call();
+    } else {
+      widget.onCheckIn();
+    }
+  }
+
+  Widget _weeklyBtn({
+    required IconData icon,
+    VoidCallback? onTap,
+    double size = 30,
+  }) {
+    final active = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
+        ),
+        child: Icon(
+          icon,
+          size: size * 0.53,
+          color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.habit.frequency == 'weekly') return _buildWeeklyCard();
+    return _buildDailyCard();
+  }
+
+  Widget _buildDailyCard() {
+    final done = widget.doneToday;
+    final habit = widget.habit;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: done ? const Color(0xFFF1F8E9) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: done ? 0 : 1.5,
+        shadowColor: Colors.orange.withValues(alpha: 0.18),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 66),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 5,
+                    color: done
+                        ? Colors.green.shade400
+                        : Colors.orange.shade400,
+                  ),
+                  Expanded(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 2,
+                      ),
+                      leading: GestureDetector(
+                        onTap: _handleDailyTap,
+                        child: ScaleTransition(
+                          scale: _scale,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              gradient: done
+                                  ? LinearGradient(
+                                      colors: [
+                                        Colors.green.shade400,
+                                        Colors.green.shade500,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
+                              color: done ? null : Colors.grey.shade50,
+                              border: done
+                                  ? null
+                                  : Border.all(
+                                      color: Colors.grey.shade300,
+                                      width: 1.8,
+                                    ),
+                              shape: BoxShape.circle,
+                              boxShadow: done
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.green.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: done
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ),
+                      title: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          decoration: done
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: done ? Colors.grey.shade400 : Colors.black87,
+                        ),
+                        child: Text(
+                          habit.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      subtitle: done
+                          ? null
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                habit.minutes > 0
+                                    ? '+${habit.points} 分 · ${habit.minutes} 分鐘'
+                                    : '+${habit.points} 分',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.orange.shade600,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                      trailing: done
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_rounded,
+                                    size: 11,
+                                    color: Colors.green.shade700,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '+${habit.points}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.green.shade700,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyCard() {
+    final done = widget.doneToday;
+    final habit = widget.habit;
+    final inProgress = widget.weeklyCount > 0 && !done;
+    final todayCount = widget.todayCount;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: done
+            ? const Color(0xFFF1F8E9)
+            : inProgress
+            ? const Color(0xFFF3F2FB)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: done ? 0 : 1.5,
+        shadowColor: Colors.indigo.withValues(alpha: 0.18),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 66),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 左邊條
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 5,
+                    color: done
+                        ? Colors.green.shade400
+                        : Colors.indigo.shade300,
+                  ),
+                  // ⊖ n ⊕ 計數區
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _weeklyBtn(
+                            icon: Icons.remove_rounded,
+                            onTap: todayCount > 0
+                                ? () {
+                                    widget.onUndo?.call();
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(width: 4),
+                          ScaleTransition(
+                            scale: _scale,
+                            child: SizedBox(
+                              width: 24,
+                              child: Text(
+                                '$todayCount',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: todayCount > 0
+                                      ? Colors.indigo.shade700
+                                      : Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          _weeklyBtn(
+                            icon: Icons.add_rounded,
+                            onTap: widget.weeklyCount < 20
+                                ? () {
+                                    _ctrl.forward(from: 0);
+                                    widget.onCheckIn();
+                                  }
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 名稱
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          decoration: done
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: done ? Colors.grey.shade400 : Colors.black87,
+                        ),
+                        child: Text(
+                          habit.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 本週 N/M 膠囊
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: done
+                            ? Colors.green.shade100
+                            : Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            done ? Icons.check_rounded : Icons.flag_rounded,
+                            size: 11,
+                            color: done
+                                ? Colors.green.shade700
+                                : Colors.indigo.shade400,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${widget.weeklyCount}/${habit.weeklyTarget}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: done
+                                  ? Colors.green.shade700
+                                  : Colors.indigo.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
