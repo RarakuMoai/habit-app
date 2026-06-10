@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -31,19 +32,26 @@ void main() async {
   // App 冷啟動：兔咪從 openApp 池隨機抽一句問候，每次打開都有變化
   MascotPersona.resetToOpening();
   runApp(MyApp(startAtHome: onboardingDone));
-  // BGM 初始化 + 播放放 runApp 之後，failed 也不會擋住 UI
-  () async {
-    try {
-      await BgmService.instance.init();
-      await BgmService.instance.play(
-        onboardingDone ? 'sounds/bgm_main.m4a' : 'sounds/bgm_onboarding.m4a',
-        deferFade: !onboardingDone,
-      );
-      await SfxService.instance.init();
-    } catch (e, st) {
-      debugPrint('BGM init/play failed: $e\n$st');
-    }
-  }();
+  // BGM 初始化 + 播放放到第一個 frame 之後再稍微延遲。
+  // flutter run --release 安裝後自動拉起 app 時，iOS 音訊路由偶爾還沒穩；
+  // 等畫面 settled 再啟動音樂，比 main() 裡立刻 play 更可靠。
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(_startInitialAudio(onboardingDone: onboardingDone));
+  });
+}
+
+Future<void> _startInitialAudio({required bool onboardingDone}) async {
+  try {
+    await Future.delayed(const Duration(milliseconds: 900));
+    await BgmService.instance.init();
+    await BgmService.instance.play(
+      onboardingDone ? 'sounds/bgm_main.m4a' : 'sounds/bgm_onboarding.m4a',
+      deferFade: !onboardingDone,
+    );
+    await SfxService.instance.init();
+  } catch (e, st) {
+    debugPrint('BGM init/play failed: $e\n$st');
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -144,6 +152,8 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _ensureMainBgm() async {
     try {
+      await Future.delayed(const Duration(milliseconds: 2800));
+      if (!mounted) return;
       await BgmService.instance.ensurePlaying('sounds/bgm_main.m4a');
     } catch (e, st) {
       debugPrint('Main BGM ensure failed: $e\n$st');

@@ -36,6 +36,11 @@ class BgmService with WidgetsBindingObserver {
   static const Duration _entranceFadeDuration = Duration(milliseconds: 3200);
   static const Curve _entranceCurve = Curves.easeInQuad;
   static const int _playStartRetries = 3;
+  static const List<Duration> _settledRecoveryDelays = [
+    Duration(milliseconds: 1400),
+    Duration(seconds: 4),
+    Duration(seconds: 8),
+  ];
 
   // 跳過 AAC encoder 在開頭塞的暖機靜音（~48ms），讓 LoopMode.one 接得更緊
   static const Duration _aacPrimingTrim = Duration(milliseconds: 50);
@@ -54,6 +59,7 @@ class BgmService with WidgetsBindingObserver {
   Timer? _fadeTimer;
   Timer? _outputNudgeTimer;
   Timer? _deferredFadeTimer;
+  final List<Timer> _settledRecoveryTimers = [];
   // 當前 fade 的 completer。下一個 fade 啟動時會把這個 complete 掉，
   // 避免「舊的 await _fadeTo」永遠 hang 在那裡。
   Completer<void>? _activeFadeCompleter;
@@ -118,6 +124,7 @@ class BgmService with WidgetsBindingObserver {
       await _player.setVolume(0);
       _currentVolume = 0;
       _scheduleDeferredFade(asset, requestId: requestId);
+      _scheduleSettledRecoveryChecks(asset, requestId: requestId);
       return;
     }
 
@@ -127,6 +134,7 @@ class BgmService with WidgetsBindingObserver {
     if (sourceWillChange) {
       _scheduleOutputNudge(asset, requestId: requestId);
     }
+    _scheduleSettledRecoveryChecks(asset, requestId: requestId);
   }
 
   /// 確認指定 BGM 已載入並正在前進。
@@ -234,6 +242,24 @@ class BgmService with WidgetsBindingObserver {
     });
   }
 
+  void _scheduleSettledRecoveryChecks(String asset, {required int requestId}) {
+    _cancelSettledRecoveryChecks();
+    for (final delay in _settledRecoveryDelays) {
+      _settledRecoveryTimers.add(
+        Timer(delay, () {
+          unawaited(_recoverSettledPlayback(asset, requestId: requestId));
+        }),
+      );
+    }
+  }
+
+  void _cancelSettledRecoveryChecks() {
+    for (final timer in _settledRecoveryTimers) {
+      timer.cancel();
+    }
+    _settledRecoveryTimers.clear();
+  }
+
   Future<void> _finishDeferredFade(
     String asset, {
     required int requestId,
@@ -279,6 +305,42 @@ class BgmService with WidgetsBindingObserver {
       await _fadeInEntrance();
     } catch (e) {
       debugPrint('BGM: playback output nudge failed: $e');
+    }
+  }
+
+  Future<void> _recoverSettledPlayback(
+    String asset, {
+    required int requestId,
+  }) async {
+    if (AudioSettingsService.musicMuted.value ||
+        !_isPlayRequestCurrent(requestId, asset) ||
+        _currentAsset != asset) {
+      return;
+    }
+
+    try {
+      await _activateSession();
+      if (AudioSettingsService.musicMuted.value ||
+          !_isPlayRequestCurrent(requestId, asset) ||
+          _currentAsset != asset) {
+        return;
+      }
+
+      // Flutter/Xcode 安裝後自動拉起 app 時，iOS 有時已回報 playing，
+      // 但實際輸出路由還沒接好。等 app settled 後做一次溫和 pause→play，
+      // 模擬使用者切靜音再開啟，但保留目前音量，不製造明顯跳音。
+      final volumeBeforeNudge = _currentVolume;
+      await _player.pause();
+      await Future.delayed(const Duration(milliseconds: 80));
+      if (AudioSettingsService.musicMuted.value ||
+          !_isPlayRequestCurrent(requestId, asset) ||
+          _currentAsset != asset) {
+        return;
+      }
+      await _player.setVolume(volumeBeforeNudge);
+      await _player.play();
+    } catch (e) {
+      debugPrint('BGM: settled playback recovery failed: $e');
     }
   }
 
