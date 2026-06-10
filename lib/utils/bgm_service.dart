@@ -188,6 +188,40 @@ class BgmService with WidgetsBindingObserver {
     }
   }
 
+  /// 在 app 啟動後音訊路由可能已經 active、但實際沒有出聲時使用。
+  ///
+  /// 這個方法比 [ensurePlaying] 更像使用者「按一次聲音相關按鈕」造成的效果：
+  /// 重新 activate session，再做一次短暫 pause→play。它不切換曲目，也不改靜音偏好。
+  Future<void> wakeOutput(String asset) async {
+    if (!_initialized) await init();
+    if (AudioSettingsService.musicMuted.value) return;
+    if (_intendedAsset != null && _intendedAsset != asset) return;
+    if (_currentAsset != asset) {
+      await ensurePlaying(asset);
+      return;
+    }
+
+    try {
+      await _activateSession();
+      if (AudioSettingsService.musicMuted.value || _currentAsset != asset) {
+        return;
+      }
+      final volumeBeforeWake = _currentVolume;
+      await _player.pause();
+      await Future.delayed(const Duration(milliseconds: 90));
+      if (AudioSettingsService.musicMuted.value || _currentAsset != asset) {
+        return;
+      }
+      await _player.setVolume(volumeBeforeWake);
+      await _player.play();
+      if (_deferredFadeAsset == null && _currentVolume < _targetVolume * 0.75) {
+        await _fadeInEntrance();
+      }
+    } catch (e) {
+      debugPrint('BGM: wake output failed: $e');
+    }
+  }
+
   // 確保 session active（不 reconfigure）。播放 / 救援前用，避免重設輸出路由。
   Future<void> _activateSession() => AppAudioSession.activate();
 
