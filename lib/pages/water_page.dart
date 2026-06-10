@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/mascot.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
+import '../utils/water_entries.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -31,54 +32,6 @@ class WaterPage extends StatefulWidget {
 
   @override
   State<WaterPage> createState() => _WaterPageState();
-}
-
-class _WaterEntry {
-  final int ml;
-  final String kind;
-  final DateTime at;
-
-  const _WaterEntry._({required this.ml, required this.kind, required this.at});
-
-  factory _WaterEntry.cup(int ml, {DateTime? at}) {
-    return _WaterEntry._(
-      ml: ml,
-      kind: 'cup',
-      at: at ?? DateTime.now(),
-    ); // units-ok
-  }
-
-  factory _WaterEntry.custom(int ml, {DateTime? at}) {
-    return _WaterEntry._(
-      ml: ml, // units-ok
-      kind: 'custom',
-      at: at ?? DateTime.now(),
-    );
-  }
-
-  static _WaterEntry? tryParse(Object? raw) {
-    if (raw is num) {
-      return _WaterEntry.custom(raw.round());
-    }
-    if (raw is! Map) return null;
-    final ml = raw['ml']; // units-ok
-    final kind = raw['kind'];
-    final at = raw['at'];
-    if (ml is! num) return null;
-    return _WaterEntry._(
-      ml: ml.round(),
-      kind: kind == 'cup' ? 'cup' : 'custom',
-      at: at is String
-          ? DateTime.tryParse(at) ?? DateTime.now()
-          : DateTime.now(),
-    );
-  }
-
-  Map<String, Object> toJson() => {
-    'ml': ml, // units-ok
-    'kind': kind,
-    'at': at.toIso8601String(),
-  }; // units-ok
 }
 
 class _WaterSheetResult {
@@ -113,7 +66,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   // 單次自訂量上限（2L 已經很多，超過就擋）
   static const int _maxSingleAddMl = 2000;
 
-  List<_WaterEntry> _entries = [];
+  List<WaterEntry> _entries = [];
   int _cupMl = _defaultCupMl;
   int _goalMl = _defaultGoalMl;
   String _todayKey = '';
@@ -218,32 +171,6 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       ? _defaultGoalMl
       : raw;
 
-  List<_WaterEntry> _parseEntries(String? raw) {
-    if (raw == null || raw.isEmpty) return [];
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return [];
-      return decoded
-          .map(_WaterEntry.tryParse)
-          .whereType<_WaterEntry>()
-          .where((entry) => entry.ml > 0 && entry.ml <= _maxGoalMl * 2)
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  List<_WaterEntry> _legacyEntries({
-    required int cups,
-    required int extraMl,
-    required int cupMl,
-  }) {
-    return [
-      for (var i = 0; i < cups; i++) _WaterEntry.cup(cupMl),
-      if (extraMl > 0) _WaterEntry.custom(extraMl),
-    ];
-  }
-
   Future<void> _loadWater() async {
     final prefs = await SharedPreferences.getInstance();
     await _cleanupOldKeys(prefs);
@@ -258,14 +185,14 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       0,
       _maxGoalMl * 2,
     );
-    var entries = _parseEntries(prefs.getString(entriesKey));
+    var entries = parseWaterEntries(
+      prefs.getString(entriesKey),
+      maxEntryMl: _maxGoalMl * 2,
+    );
     if (entries.isEmpty && !prefs.containsKey(entriesKey)) {
-      entries = _legacyEntries(cups: cups, extraMl: extra, cupMl: cupMl);
+      entries = legacyWaterEntries(cups: cups, extraMl: extra, cupMl: cupMl);
       if (entries.isNotEmpty) {
-        await prefs.setString(
-          entriesKey,
-          jsonEncode(entries.map((entry) => entry.toJson()).toList()),
-        );
+        await prefs.setString(entriesKey, encodeWaterEntries(entries));
       }
     }
     final unit = UnitSystem.load(prefs);
@@ -289,10 +216,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   Future<void> _saveEntries() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _ensureTodayKey(),
-      jsonEncode(_entries.map((entry) => entry.toJson()).toList()),
-    );
+    await prefs.setString(_ensureTodayKey(), encodeWaterEntries(_entries));
     await _syncLegacyWaterKeys(prefs);
   }
 
@@ -311,7 +235,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     if (_totalMl + _cupMl > _maxTotalMl) return;
     final wasReached = _goalReached;
     final wasUnderWarn = _totalMl < _warnTotalMl;
-    setState(() => _entries = [..._entries, _WaterEntry.cup(_cupMl)]);
+    setState(() => _entries = [..._entries, WaterEntry.cup(_cupMl)]);
     await _saveEntries();
     _notifyGoalStatus();
     unawaited(
@@ -335,7 +259,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   Future<void> _deleteEntryAt(int index) async {
     if (index < 0 || index >= _entries.length) return;
     setState(() {
-      final next = List<_WaterEntry>.from(_entries)..removeAt(index);
+      final next = List<WaterEntry>.from(_entries)..removeAt(index);
       _entries = next;
     });
     await _saveEntries();
@@ -355,7 +279,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     }
     final wasReached = _goalReached;
     final wasUnderWarn = _totalMl < _warnTotalMl;
-    setState(() => _entries = [..._entries, _WaterEntry.custom(clamped)]);
+    setState(() => _entries = [..._entries, WaterEntry.custom(clamped)]);
     await _saveEntries();
     _notifyGoalStatus();
     unawaited(
@@ -1974,7 +1898,7 @@ class _BackdropPainter extends CustomPainter {
 class _CustomCupSheet extends StatefulWidget {
   final UnitSystem unit;
   final int maxMl;
-  final List<_WaterEntry> entries;
+  final List<WaterEntry> entries;
   // 刪除一筆紀錄。sheet 不會 pop，自己 setState 更新內部列表；
   // 這個 callback 負責 parent 那邊持久化（_deleteEntryAt）
   final Future<void> Function(int index) onDeleteEntry;
@@ -1996,13 +1920,13 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
   static const int _maxDigits = 4;
 
   // sheet 內部維護紀錄列表，刪除時 setState 更新自己 + 通知 parent 持久化
-  late List<_WaterEntry> _localEntries;
+  late List<WaterEntry> _localEntries;
   // 內建小鍵盤輸入緩衝（取代 TextField，系統鍵盤不會出來）
   String _input = '';
   String? _err;
   // 正在播刪除動畫的那一筆（reference 比對）。同時間只允許一筆，
   // 避免使用者連點時動畫互相打架、_localEntries 索引漂移
-  _WaterEntry? _entryBeingRemoved;
+  WaterEntry? _entryBeingRemoved;
   // 刪除動畫 + 列表塌陷的長度
   static const Duration _deleteAnimDuration = Duration(milliseconds: 280);
 
@@ -2090,7 +2014,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
     return '$h:$m';
   }
 
-  String _entryTypeLabel(_WaterEntry entry) {
+  String _entryTypeLabel(WaterEntry entry) {
     return entry.kind == 'cup' ? '一杯' : '自訂';
   }
 

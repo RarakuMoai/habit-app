@@ -20,6 +20,10 @@ void main() {
 
     // 主頁應顯示「新增習慣」按鈕（標題已改成兔咪場景，不再用文字標題）
     expect(find.text('新增習慣'), findsOneWidget);
+
+    // BGM 服務的 engage-check 重試 timer 最長排到 9 秒；把假時間推過去
+    // 讓所有一次性 timer 觸發完，避免 test binding 的 pending-timer 斷言
+    await tester.pump(const Duration(seconds: 10));
   });
 
   testWidgets('第一次啟動進入 onboarding 冒煙測試', (WidgetTester tester) async {
