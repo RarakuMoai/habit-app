@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
+import '../utils/parent_pin.dart';
 import '../utils/units.dart';
 import 'feature_settings_page.dart';
 import 'profile_edit_page.dart';
@@ -21,8 +22,8 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   bool _loaded = false;
 
-  // PIN 相關狀態
-  String? _parentPin; // null 表示尚未設定
+  // PIN 相關狀態（明文不進記憶體，只記有沒有設定）
+  bool _hasPin = false;
   int _pinDigits = 4; // 4 或 6 位
 
   // 公制 / 英制
@@ -38,8 +39,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
+    final hasPin = await ParentPin.hasPin(_prefs!);
+    if (!mounted) return;
     setState(() {
-      _parentPin = _prefs!.getString('parent_pin');
+      _hasPin = hasPin;
       _pinDigits = _prefs!.getInt('pin_digits') ?? 4;
       _unitSystem = UnitSystem.load(_prefs!);
       _loaded = true;
@@ -114,7 +117,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (entered == null) return false;
-    if (entered == _parentPin) return true;
+    if (await ParentPin.verify(_prefs!, entered)) return true;
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -140,7 +143,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     // 有設定數字密碼時先驗證
-    if (_parentPin?.isNotEmpty ?? false) {
+    if (_hasPin) {
       final ok = await _verifyPin();
       if (!ok || !mounted) return;
     }
@@ -256,13 +259,13 @@ class _SettingsPageState extends State<SettingsPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => _PinSettingsSheet(
-        currentPin: _parentPin,
+        hasPin: _hasPin,
         currentDigits: _pinDigits,
         onSaved: (newPin, newDigits) async {
-          await _prefs?.setString('parent_pin', newPin);
+          if (_prefs != null) await ParentPin.save(_prefs!, newPin);
           await _prefs?.setInt('pin_digits', newDigits);
           setState(() {
-            _parentPin = newPin;
+            _hasPin = true;
             _pinDigits = newDigits;
           });
         },
@@ -478,9 +481,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     // 依是否設定數字密碼顯示不同狀態文字
                     subtitle: Text(
-                      (_parentPin?.isNotEmpty ?? false)
-                          ? '已設定（$_pinDigits 位）'
-                          : '目前未設定',
+                      _hasPin ? '已設定（$_pinDigits 位）' : '目前未設定',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade500,
@@ -541,7 +542,7 @@ class _SettingsPageState extends State<SettingsPage> {
 // ── PIN 設定底部彈出面板 ──
 // 負責：PIN 位數切換、第一次設定 PIN、修改 PIN（需先輸入舊 PIN）
 class _PinSettingsSheet extends StatefulWidget {
-  final String? currentPin;
+  final bool hasPin;
   final int currentDigits;
   // 儲存新 PIN 及位數的回呼
   final Future<void> Function(String pin, int digits) onSaved;
@@ -549,7 +550,7 @@ class _PinSettingsSheet extends StatefulWidget {
   final Future<void> Function(int digits) onDigitsChanged;
 
   const _PinSettingsSheet({
-    required this.currentPin,
+    required this.hasPin,
     required this.currentDigits,
     required this.onSaved,
     required this.onDigitsChanged,
@@ -568,7 +569,13 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     _digits = widget.currentDigits;
   }
 
-  bool get _hasPin => widget.currentPin?.isNotEmpty ?? false;
+  bool get _hasPin => widget.hasPin;
+
+  // 對照儲存的雜湊驗證舊 PIN
+  Future<bool> _verifyOldPin(String entered) async {
+    final prefs = await SharedPreferences.getInstance();
+    return ParentPin.verify(prefs, entered);
+  }
 
   // 驗證舊 PIN：滿位數自動確認，僅顯示取消，含顯示/隱藏切換
   Future<String?> _promptOldPin(String title) async {
@@ -686,12 +693,14 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     final old = await _promptOldPin('請輸入目前的密碼');
     if (!mounted || old == null) return;
 
-    if (old != widget.currentPin) {
+    if (!await _verifyOldPin(old)) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
       return;
     }
+    if (!mounted) return;
 
     final newPin = await _promptNewPin('請設定新密碼（$_digits 位數字）');
     if (newPin == null || newPin.length != _digits) return;
@@ -728,12 +737,14 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     final old = await _promptOldPin('請輸入目前的密碼（$_digits 位）');
     if (!mounted || old == null) return;
 
-    if (old != widget.currentPin) {
+    if (!await _verifyOldPin(old)) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('舊密碼錯誤，請再試一次')));
       return;
     }
+    if (!mounted) return;
 
     // 驗證通過，切換至新位數並要求重設密碼（兩次確認）
     setState(() => _digits = newDigits);

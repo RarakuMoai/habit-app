@@ -17,6 +17,7 @@ import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
+import 'utils/parent_pin.dart';
 import 'utils/sfx_service.dart';
 
 void main() async {
@@ -24,6 +25,8 @@ void main() async {
   // 鎖定只支援直向（防止橫向自動翻轉）
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await SharedPreferences.getInstance();
+  // 舊版明文 PIN 啟動時就地雜湊遷移（hasPin 內含遷移邏輯）
+  await ParentPin.hasPin(prefs);
   final onboardingDone = prefs.getBool('onboarding_done') ?? false;
   // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
   await MascotPanelPrefs.load();
@@ -134,7 +137,7 @@ class MainPage extends StatefulWidget {
   State<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends State<MainPage> {
+class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _waterEnabled = false;
   bool _timerEnabled = true;
@@ -147,10 +150,27 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureMainBgm();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App 退到背景就清除家長 Session，回前景需重新驗證密碼，
+    // 避免家長驗證後把手機交給小孩時 Session 還活著
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      parentSessionActive = false;
+    }
   }
 
   Future<void> _ensureMainBgm() async {

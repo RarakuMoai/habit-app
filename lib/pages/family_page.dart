@@ -7,14 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/mascot.dart';
+import '../utils/parent_pin.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import 'settings_page.dart';
-
-// ── 家長 Session（全域）──
-// 驗證密碼成功後設為 true；切換離開家庭頁籤時設為 false
-bool parentSessionActive = false;
 
 // ── 小孩頭像選項 ──
 const List<String> _kChildAvatars = [
@@ -754,17 +751,16 @@ Future<bool> _verifyParentPinIfNeeded(
 }) async {
   if (parentSessionActive) return true;
   final prefs = await SharedPreferences.getInstance();
-  final savedPin = prefs.getString('parent_pin');
-  if (savedPin == null || savedPin.isEmpty) return true;
+  if (!await ParentPin.hasPin(prefs)) return true;
   if (!context.mounted) return false;
   final digits = prefs.getInt('pin_digits') ?? 4;
   final entered = await _showPinDialog(context, digits: digits, title: title);
-  if (!context.mounted) return false;
   if (entered == null) return false;
-  if (entered == savedPin) {
+  if (await ParentPin.verify(prefs, entered)) {
     parentSessionActive = true;
     return true;
   }
+  if (!context.mounted) return false;
   ScaffoldMessenger.of(
     context,
   ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
@@ -814,16 +810,14 @@ class _FamilyPageState extends State<FamilyPage> {
   // 點擊「家長管理」：有 Session 直接進入，否則驗證密碼
   Future<void> _enterParentManagement() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedPin = prefs.getString('parent_pin');
+    final hasPin = await ParentPin.hasPin(prefs);
     if (!mounted) return;
 
-    if (parentSessionActive || savedPin == null || savedPin.isEmpty) {
+    if (parentSessionActive || !hasPin) {
       // Session 有效或尚未設定密碼，直接進入
       final changed = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (_) => ParentManagementPage(
-            noPinWarning: savedPin == null || savedPin.isEmpty,
-          ),
+          builder: (_) => ParentManagementPage(noPinWarning: !hasPin),
         ),
       );
       if (changed == true) unawaited(_loadChildren());
@@ -835,8 +829,8 @@ class _FamilyPageState extends State<FamilyPage> {
         digits: digits,
         title: '請輸入家長密碼',
       );
-      if (!mounted) return;
-      if (entered == savedPin) {
+      if (entered != null && await ParentPin.verify(prefs, entered)) {
+        if (!mounted) return;
         // 驗證成功，啟動 Session
         parentSessionActive = true;
         final changed = await Navigator.of(context).push<bool>(
@@ -847,6 +841,7 @@ class _FamilyPageState extends State<FamilyPage> {
         if (changed == true) unawaited(_loadChildren());
       } else if (entered != null) {
         // 輸入了內容但不正確
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('密碼錯誤，請再試一次')));
