@@ -15,10 +15,10 @@
 
 import 'dart:async';
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'app_audio_session.dart';
 import 'audio_settings_service.dart';
 
 class BgmService with WidgetsBindingObserver {
@@ -30,6 +30,11 @@ class BgmService with WidgetsBindingObserver {
   static const Duration _deferredFadeDelay = Duration(seconds: 2);
   static const Duration _deferredFadeDuration = Duration(milliseconds: 2400);
   static const Duration _fadeStep = Duration(milliseconds: 50);
+
+  // 入場淡入：刻意長 + ease-in 曲線（前段幾乎聽不到、再慢慢膨脹），
+  // 比線性淡入更有「漸漸進來」的感覺，避免音樂一下就明顯出現。
+  static const Duration _entranceFadeDuration = Duration(milliseconds: 3200);
+  static const Curve _entranceCurve = Curves.easeInQuad;
   static const int _playStartRetries = 3;
 
   // 跳過 AAC encoder 在開頭塞的暖機靜音（~48ms），讓 LoopMode.one 接得更緊
@@ -44,6 +49,7 @@ class BgmService with WidgetsBindingObserver {
   String? _intendedAsset;
   String? _currentAsset;
   String? _deferredFadeAsset;
+  int _playRequestId = 0;
   double _currentVolume = 0;
   Timer? _fadeTimer;
   Timer? _outputNudgeTimer;
@@ -59,13 +65,10 @@ class BgmService with WidgetsBindingObserver {
 
     await AudioSettingsService.instance.init();
 
-    // 顯式 configure + activate audio session（ambient = 跟其他 app 共存、響應靜音鈕）。
-    // 不顯式設的話，iOS 在第一次 play() 時才幫忙設，會 race condition：
-    // 冷啟動時 onboarding 那次 play() 看似成功但沒輸出，要到第二次 play()
-    // （onboarding 結束切 bgm_main）才實際發聲。
-    // 注意：ambient 預設就 mixWithOthers，再寫 mixWithOthers flag 會 assert，
-    // 所以這裡只給 category。setActive 強制 iOS 立刻把 session 真正 active 起來。
-    await _activateSession();
+    // 全 app 只在這裡 configure 一次 audio session（ambient = 跟其他 app 共存、
+    // 響應實體靜音鈕）。重複 configure 會讓 iOS 重設輸出路由 → 冷啟動沒聲音，
+    // 所以之後所有「確保 active」的場合都只呼叫 AppAudioSession.activate()。
+    await AppAudioSession.ensureConfigured();
 
     await _player.setLoopMode(LoopMode.one); // gapless 單曲循環
     await _player.setVolume(0);
@@ -80,8 +83,9 @@ class BgmService with WidgetsBindingObserver {
   Future<void> play(String asset, {bool deferFade = false}) async {
     // 同步聲明意圖，必須在任何 await 之前 — 解 race（見 _intendedAsset 註解）
     _intendedAsset = asset;
+    final requestId = ++_playRequestId;
     if (!_initialized) await init();
-    if (_intendedAsset != asset) return;
+    if (!_isPlayRequestCurrent(requestId, asset)) return;
     if (_currentAsset == asset && _player.playing) return;
 
     // iOS / release 下，不只冷啟動，切換到新的 AudioSource 後也可能出現
@@ -91,7 +95,7 @@ class BgmService with WidgetsBindingObserver {
     // 只在「已有先前曲目」時才 stop（asset 切換要乾淨清掉舊 source）。
     // 首次呼叫對 fresh player 做 stop+setAudioSource+play 在 iOS 上會 silently fail。
     await _fadeTo(0);
-    if (_intendedAsset != asset) return;
+    if (!_isPlayRequestCurrent(requestId, asset)) return;
     if (_currentAsset != null) {
       await _player.stop();
     }
@@ -100,28 +104,28 @@ class BgmService with WidgetsBindingObserver {
     if (AudioSettingsService.musicMuted.value) return; // 靜音中只記錄當前曲目，不實際播放
 
     await _loadAsset(asset);
-    if (_intendedAsset != asset) return;
+    if (!_isPlayRequestCurrent(requestId, asset)) return;
 
     if (sourceWillChange) {
-      await _primePlaybackOutput(asset);
+      await _primePlaybackOutput(asset, requestId: requestId);
     }
 
-    await _startPlaybackWithRecovery(asset);
-    if (_intendedAsset != asset) return;
+    await _startPlaybackWithRecovery(asset, requestId: requestId);
+    if (!_isPlayRequestCurrent(requestId, asset)) return;
 
     if (deferFade) {
       _deferredFadeAsset = asset;
       await _player.setVolume(0);
       _currentVolume = 0;
-      _scheduleDeferredFade(asset);
+      _scheduleDeferredFade(asset, requestId: requestId);
       return;
     }
 
     _deferredFadeAsset = null;
     _deferredFadeTimer?.cancel();
-    await _fadeTo(_targetVolume);
+    await _fadeInEntrance();
     if (sourceWillChange) {
-      _scheduleOutputNudge(asset);
+      _scheduleOutputNudge(asset, requestId: requestId);
     }
   }
 
@@ -158,7 +162,7 @@ class BgmService with WidgetsBindingObserver {
       await _player.setVolume(0);
       _currentVolume = 0;
       if (_deferredFadeTimer == null || !_deferredFadeTimer!.isActive) {
-        _scheduleDeferredFade(asset);
+        _scheduleDeferredFade(asset, requestId: _playRequestId);
       }
     }
     await _startPlaybackWithRecovery(asset);
@@ -168,26 +172,19 @@ class BgmService with WidgetsBindingObserver {
     if (_currentVolume < _targetVolume * 0.75) {
       if (deferredFade) {
         if (_deferredFadeTimer == null || !_deferredFadeTimer!.isActive) {
-          _scheduleDeferredFade(asset);
+          _scheduleDeferredFade(asset, requestId: _playRequestId);
         }
       } else {
-        await _fadeTo(_targetVolume);
+        await _fadeInEntrance();
       }
     }
   }
 
-  Future<void> _activateSession() async {
-    try {
-      final session = await AudioSession.instance;
-      await session.configure(
-        const AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.ambient,
-        ),
-      );
-      await session.setActive(true);
-    } catch (e) {
-      debugPrint('BGM: audio session configure/activate failed: $e');
-    }
+  // 確保 session active（不 reconfigure）。播放 / 救援前用，避免重設輸出路由。
+  Future<void> _activateSession() => AppAudioSession.activate();
+
+  bool _isPlayRequestCurrent(int requestId, String asset) {
+    return _playRequestId == requestId && _intendedAsset == asset;
   }
 
   // 載入 asset 並包進 ClippingAudioSource 跳過開頭 priming，循環會更緊密
@@ -204,51 +201,65 @@ class BgmService with WidgetsBindingObserver {
   // iOS/just_audio workaround：新的 AudioSource 第一次 play() 有機率 silent fail。
   // 手動「靜音→開啟」會修好，是因為它走了 pause→play；這裡在音量 0 時先做
   // 一次 play→pause→seek(0)，讓真正播放時已經是同一個 source 的第二次 play。
-  Future<void> _primePlaybackOutput(String asset) async {
+  Future<void> _primePlaybackOutput(
+    String asset, {
+    required int requestId,
+  }) async {
     try {
       await _activateSession();
+      if (!_isPlayRequestCurrent(requestId, asset)) return;
       await _player.setVolume(0);
       _currentVolume = 0;
       await _player.play();
       await Future.delayed(const Duration(milliseconds: 80));
+      if (!_isPlayRequestCurrent(requestId, asset)) return;
       await _player.pause();
       await _player.seek(Duration.zero);
     } catch (e) {
       debugPrint('BGM: playback output prime failed: $e');
     }
-    if (_intendedAsset != asset) return;
   }
 
-  void _scheduleOutputNudge(String asset) {
+  void _scheduleOutputNudge(String asset, {required int requestId}) {
     _outputNudgeTimer?.cancel();
     _outputNudgeTimer = Timer(const Duration(milliseconds: 700), () {
-      unawaited(_nudgePlaybackOutput(asset));
+      unawaited(_nudgePlaybackOutput(asset, requestId: requestId));
     });
   }
 
-  void _scheduleDeferredFade(String asset) {
+  void _scheduleDeferredFade(String asset, {required int requestId}) {
     _deferredFadeTimer?.cancel();
     _deferredFadeTimer = Timer(_deferredFadeDelay, () {
-      unawaited(_finishDeferredFade(asset));
+      unawaited(_finishDeferredFade(asset, requestId: requestId));
     });
   }
 
-  Future<void> _finishDeferredFade(String asset) async {
+  Future<void> _finishDeferredFade(
+    String asset, {
+    required int requestId,
+  }) async {
     if (AudioSettingsService.musicMuted.value ||
-        _intendedAsset != asset ||
+        !_isPlayRequestCurrent(requestId, asset) ||
         _currentAsset != asset ||
         _deferredFadeAsset != asset) {
       return;
     }
     _deferredFadeAsset = null;
-    await _fadeTo(_targetVolume, duration: _deferredFadeDuration);
+    await _fadeTo(
+      _targetVolume,
+      duration: _deferredFadeDuration,
+      curve: _entranceCurve,
+    );
   }
 
   // 最後一道保險：如果新的 BGM source 在 release/iOS 上進入「狀態在播但沒聲」
   // 的狀態，延遲做一次 pause→play，等同使用者手動把音樂關掉再打開的救援效果。
-  Future<void> _nudgePlaybackOutput(String asset) async {
+  Future<void> _nudgePlaybackOutput(
+    String asset, {
+    required int requestId,
+  }) async {
     if (AudioSettingsService.musicMuted.value ||
-        _intendedAsset != asset ||
+        !_isPlayRequestCurrent(requestId, asset) ||
         _currentAsset != asset) {
       return;
     }
@@ -257,13 +268,15 @@ class BgmService with WidgetsBindingObserver {
       await _player.pause();
       await Future.delayed(const Duration(milliseconds: 60));
       if (AudioSettingsService.musicMuted.value ||
-          _intendedAsset != asset ||
+          !_isPlayRequestCurrent(requestId, asset) ||
           _currentAsset != asset) {
         return;
       }
+      // 先壓到 0 再播，才能真的從無到有柔和淡入，而不是「啪」一聲直接出現
+      await _player.setVolume(0);
+      _currentVolume = 0;
       await _player.play();
-      _currentVolume = _targetVolume;
-      await _player.setVolume(_targetVolume);
+      await _fadeInEntrance();
     } catch (e) {
       debugPrint('BGM: playback output nudge failed: $e');
     }
@@ -271,13 +284,23 @@ class BgmService with WidgetsBindingObserver {
 
   // iOS/just_audio 偶爾會出現 play() 已回傳、甚至 playing=true，但音源還沒真正
   // 前進的狀態。用 processingState + position 是否前進確認，比只看 playing 穩。
-  Future<void> _startPlaybackWithRecovery(String asset) async {
+  Future<void> _startPlaybackWithRecovery(
+    String asset, {
+    int? requestId,
+  }) async {
+    bool isCurrentRequest() {
+      return requestId == null
+          ? _intendedAsset == asset
+          : _isPlayRequestCurrent(requestId, asset);
+    }
+
     for (int attempt = 0; attempt < _playStartRetries; attempt++) {
-      if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
+      if (AudioSettingsService.musicMuted.value || !isCurrentRequest()) {
         return;
       }
 
       await _activateSession();
+      if (!isCurrentRequest()) return;
       await _player.play();
 
       if (await _isPlaybackAdvancing()) return;
@@ -290,7 +313,7 @@ class BgmService with WidgetsBindingObserver {
         return;
       }
       await _player.stop();
-      if (AudioSettingsService.musicMuted.value || _intendedAsset != asset) {
+      if (AudioSettingsService.musicMuted.value || !isCurrentRequest()) {
         return;
       }
       await _loadAsset(asset);
@@ -355,7 +378,18 @@ class BgmService with WidgetsBindingObserver {
 
   // 線性淡到目標音量。新的 fade 會把舊的 fade 的 Future 直接 complete 掉，
   // 防止「await _fadeTo」永遠卡住。
-  Future<void> _fadeTo(double to, {Duration duration = _fadeDuration}) async {
+  // 入場 / 救援統一走的柔和淡入：長時間 + ease-in 曲線。
+  Future<void> _fadeInEntrance() => _fadeTo(
+    _targetVolume,
+    duration: _entranceFadeDuration,
+    curve: _entranceCurve,
+  );
+
+  Future<void> _fadeTo(
+    double to, {
+    Duration duration = _fadeDuration,
+    Curve curve = Curves.linear,
+  }) async {
     // 取消舊 timer + complete 舊 future
     _fadeTimer?.cancel();
     if (_activeFadeCompleter != null && !_activeFadeCompleter!.isCompleted) {
@@ -382,7 +416,8 @@ class BgmService with WidgetsBindingObserver {
       }
       step++;
       final progress = (step / totalSteps).clamp(0.0, 1.0);
-      final vol = from + (to - from) * progress;
+      final eased = curve.transform(progress);
+      final vol = from + (to - from) * eased;
       _currentVolume = vol;
       await _player.setVolume(vol);
       if (step >= totalSteps) {
@@ -408,14 +443,43 @@ class BgmService with WidgetsBindingObserver {
         }
         break;
       case AppLifecycleState.resumed:
-        if (_wasPlayingBeforeBackground &&
-            !AudioSettingsService.musicMuted.value) {
-          _player.play();
-          _fadeTo(_targetVolume);
+        // app 真正回到前景（含冷啟動後第一次 active）才是 iOS 願意建立輸出
+        // 路由的可靠時機。這裡 re-activate session 並把該播的曲目踢起來，
+        // 救冷啟動「狀態在播但沒聲」而不必使用者手動切靜音。
+        final shouldResume =
+            _wasPlayingBeforeBackground || _currentAsset != null;
+        _wasPlayingBeforeBackground = false;
+        if (shouldResume && !AudioSettingsService.musicMuted.value) {
+          unawaited(_resumeOutput());
         }
         break;
       case AppLifecycleState.detached:
         break;
+    }
+  }
+
+  // 回前景 / 冷啟動後第一次 active 的播放救援。
+  // re-activate session（不 reconfigure）後做一次 play，並在不是 deferred-fade
+  // 期間時把音量補到目標值。intent 已被別人改掉就放手。
+  Future<void> _resumeOutput() async {
+    final asset = _currentAsset;
+    if (asset == null) return;
+    await AppAudioSession.activate();
+    if (AudioSettingsService.musicMuted.value || _currentAsset != asset) {
+      return;
+    }
+    try {
+      await _player.play();
+    } catch (e) {
+      debugPrint('BGM: resume output play failed: $e');
+      return;
+    }
+    if (AudioSettingsService.musicMuted.value || _currentAsset != asset) {
+      return;
+    }
+    // onboarding 的 deferred fade 還在排程時不要硬拉音量，交給它自己淡入
+    if (_deferredFadeAsset == null && _currentVolume < _targetVolume * 0.75) {
+      await _fadeInEntrance();
     }
   }
 }

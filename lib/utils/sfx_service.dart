@@ -1,7 +1,7 @@
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'app_audio_session.dart';
 import 'audio_settings_service.dart';
 
 enum SfxCue {
@@ -25,7 +25,7 @@ class SfxService {
   Future<void> init() async {
     if (_initialized) return;
     await AudioSettingsService.instance.init();
-    await _activateSession();
+    await AppAudioSession.ensureConfigured();
     for (final cue in SfxCue.values) {
       final player = AudioPlayer();
       await player.setAudioSource(AudioSource.asset(cue.assetPath));
@@ -41,27 +41,13 @@ class SfxService {
       if (!_initialized) await init();
       final player = _players[cue];
       if (player == null) return;
-      await _activateSession();
+      await AppAudioSession.activate();
       await player.stop();
       await player.seek(Duration.zero);
       await player.setVolume(cue.volume);
       await player.play();
     } catch (e) {
       debugPrint('SFX play failed: $e');
-    }
-  }
-
-  Future<void> _activateSession() async {
-    try {
-      final session = await AudioSession.instance;
-      await session.configure(
-        const AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.ambient,
-        ),
-      );
-      await session.setActive(true);
-    } catch (e) {
-      debugPrint('SFX: audio session activate failed: $e');
     }
   }
 
