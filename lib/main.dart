@@ -18,6 +18,7 @@ import 'utils/bgm_service.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
+import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
 
 void main() async {
@@ -27,7 +28,7 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   // 舊版明文 PIN 啟動時就地雜湊遷移（hasPin 內含遷移邏輯）
   await ParentPin.hasPin(prefs);
-  final onboardingDone = prefs.getBool('onboarding_done') ?? false;
+  final onboardingDone = prefs.getBool(PrefsKeys.onboardingDone) ?? false;
   // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
   await MascotPanelPrefs.load();
   await AudioSettingsService.instance.init();
@@ -193,12 +194,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _waterEnabled = prefs.getBool('water_enabled') ?? false;
-      _timerEnabled = prefs.getBool('timer_enabled') ?? true;
+      _waterEnabled = prefs.getBool(PrefsKeys.waterEnabled) ?? false;
+      _timerEnabled = prefs.getBool(PrefsKeys.timerEnabled) ?? true;
       _weightTrackingEnabled =
-          prefs.getBool('weight_tracking_enabled') ?? false;
-      _familyEnabled = prefs.getBool('family_enabled') ?? false;
-      _waterGoalReached = prefs.getString('water_goal_date') == _todayString();
+          prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
+      _familyEnabled = prefs.getBool(PrefsKeys.familyEnabled) ?? false;
+      _waterGoalReached =
+          prefs.getString(PrefsKeys.waterGoalDate) == _todayString();
       _loaded = true;
     });
   }
@@ -206,9 +208,9 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   Future<void> _handleWaterGoal(bool reached) async {
     final prefs = await SharedPreferences.getInstance();
     if (reached) {
-      await prefs.setString('water_goal_date', _todayString());
+      await prefs.setString(PrefsKeys.waterGoalDate, _todayString());
     } else {
-      await prefs.remove('water_goal_date');
+      await prefs.remove(PrefsKeys.waterGoalDate);
     }
     setState(() => _waterGoalReached = reached);
   }
@@ -263,25 +265,25 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       0,
       (sum, entry) => sum + ((entry['ml'] as int?) ?? 0), // units-ok
     );
-    await prefs.setString('water_entries_$today', jsonEncode(entries));
-    await prefs.setInt('water_$today', cupCount);
+    await prefs.setString(PrefsKeys.waterEntries(today), jsonEncode(entries));
+    await prefs.setInt(PrefsKeys.waterDay(today), cupCount);
     await prefs.setInt(
-      'water_extra_$today',
+      PrefsKeys.waterExtra(today),
       (totalMl - cupMlTotal).clamp(0, 12000).toInt(),
     );
   }
 
   Future<void> _handleWaterHabitToggle(bool checked) async {
     final prefs = await SharedPreferences.getInstance();
-    final cupMl = prefs.getInt('water_cup_ml') ?? 250;
-    final goalMl = prefs.getInt('water_goal_ml') ?? 2000;
+    final cupMl = prefs.getInt(PrefsKeys.waterCupMl) ?? 250;
+    final goalMl = prefs.getInt(PrefsKeys.waterGoalMl) ?? 2000;
     final waterGoal = (goalMl / cupMl).ceil();
     final today = _todayString();
-    final todayKey = 'water_$today';
-    final savedKey = 'water_saved_$today';
-    final entriesKey = 'water_entries_$today';
-    final savedEntriesKey = 'water_entries_saved_$today';
-    final extraKey = 'water_extra_$today';
+    final todayKey = PrefsKeys.waterDay(today);
+    final savedKey = PrefsKeys.waterSaved(today);
+    final entriesKey = PrefsKeys.waterEntries(today);
+    final savedEntriesKey = PrefsKeys.waterEntriesSaved(today);
+    final extraKey = PrefsKeys.waterExtra(today);
 
     if (checked) {
       final actual = prefs.getInt(todayKey) ?? 0;

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
+import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -73,23 +74,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Future<void> loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
     final today = todayString();
-    final lastOpen = prefs.getString('last_open_date');
-    streak = prefs.getInt('streak') ?? 0;
-    _nickname = prefs.getString('user_nickname') ?? '你';
-    mascotName0 = prefs.getString('mascot_name') ?? '兔咪';
+    final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
+    streak = prefs.getInt(PrefsKeys.streak) ?? 0;
+    _nickname = prefs.getString(PrefsKeys.userNickname) ?? '你';
+    mascotName0 = prefs.getString(PrefsKeys.mascotName) ?? '兔咪';
 
-    final obDateStr = prefs.getString('onboarding_date');
+    final obDateStr = prefs.getString(PrefsKeys.onboardingDate);
     if (obDateStr != null) {
       onboardingDate = DateTime.tryParse(obDateStr);
     } else {
       onboardingDate = DateTime.now();
       await prefs.setString(
-        'onboarding_date',
+        PrefsKeys.onboardingDate,
         onboardingDate!.toIso8601String(),
       );
     }
 
-    final habitsJson = prefs.getString('habits');
+    final habitsJson = prefs.getString(PrefsKeys.habits);
     if (habitsJson != null) {
       final decoded = jsonDecode(habitsJson) as List<dynamic>;
       habits.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
@@ -108,14 +109,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         } else {
           streak = 0;
         }
-        await prefs.setInt('streak', streak);
+        await prefs.setInt(PrefsKeys.streak, streak);
       }
       for (final habit in habits) {
         if ((habit['frequency'] ?? 'daily') != 'weekly') {
           habit['done'] = false;
         }
       }
-      await prefs.setString('habits', jsonEncode(habits));
+      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
 
     // Always recompute done for weekly habits from weeklyDates
@@ -132,11 +133,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (waterIdx != -1 &&
         habits[waterIdx]['done'] != widget.waterHabitAutoComplete) {
       habits[waterIdx]['done'] = widget.waterHabitAutoComplete;
-      await prefs.setString('habits', jsonEncode(habits));
+      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
 
     final isFirstOpenToday = lastOpen != today;
-    await prefs.setString('last_open_date', today);
+    await prefs.setString(PrefsKeys.lastOpenDate, today);
     setState(() => isLoading = false);
 
     if (isFirstOpenToday && mounted) {
@@ -210,7 +211,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> saveHabits() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('habits', jsonEncode(habits));
+    await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
   }
 
   @override
@@ -415,7 +416,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     saveHabits();
     if (name == '喝足夠的水') {
       SharedPreferences.getInstance().then((prefs) async {
-        await prefs.setBool('water_enabled', false);
+        await prefs.setBool(PrefsKeys.waterEnabled, false);
         widget.onSettingsChanged?.call();
       });
     }

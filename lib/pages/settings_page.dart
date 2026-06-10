@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
 import '../utils/parent_pin.dart';
+import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import 'feature_settings_page.dart';
 import 'profile_edit_page.dart';
@@ -43,7 +44,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     setState(() {
       _hasPin = hasPin;
-      _pinDigits = _prefs!.getInt('pin_digits') ?? 4;
+      _pinDigits = _prefs!.getInt(PrefsKeys.pinDigits) ?? 4;
       _unitSystem = UnitSystem.load(_prefs!);
       _loaded = true;
     });
@@ -74,7 +75,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (confirm == true) {
-      await _prefs?.remove('habits');
+      await _prefs?.remove(PrefsKeys.habits);
     }
   }
 
@@ -129,7 +130,7 @@ class _SettingsPageState extends State<SettingsPage> {
   // 刪除所有體重紀錄（其他資料保留）
   Future<void> _clearWeightRecords() async {
     // 計算目前筆數
-    final json = _prefs?.getString('weight_records');
+    final json = _prefs?.getString(PrefsKeys.weightRecords);
     var count = 0;
     if (json != null) {
       final decoded = jsonDecode(json);
@@ -166,7 +167,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (confirm == true) {
-      await _prefs?.remove('weight_records');
+      await _prefs?.remove(PrefsKeys.weightRecords);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -263,14 +264,14 @@ class _SettingsPageState extends State<SettingsPage> {
         currentDigits: _pinDigits,
         onSaved: (newPin, newDigits) async {
           if (_prefs != null) await ParentPin.save(_prefs!, newPin);
-          await _prefs?.setInt('pin_digits', newDigits);
+          await _prefs?.setInt(PrefsKeys.pinDigits, newDigits);
           setState(() {
             _hasPin = true;
             _pinDigits = newDigits;
           });
         },
         onDigitsChanged: (digits) async {
-          await _prefs?.setInt('pin_digits', digits);
+          await _prefs?.setInt(PrefsKeys.pinDigits, digits);
           setState(() => _pinDigits = digits);
         },
       ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
+import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../widgets/mascot_app_bar.dart';
@@ -51,20 +52,28 @@ class _WeightPageState extends State<WeightPage> {
   @override
   void initState() {
     super.initState();
+    UnitSystem.notifier.addListener(_onUnitChanged);
     _loadData();
   }
 
   @override
   void dispose() {
+    UnitSystem.notifier.removeListener(_onUnitChanged);
     _weightCtrl.dispose();
     _fatCtrl.dispose();
     super.dispose();
   }
 
+  // 設定頁切換公制/英制 → 立即反映，不用重開頁
+  void _onUnitChanged() {
+    if (!mounted) return;
+    setState(() => _unit = UnitSystem.notifier.value);
+  }
+
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    final json = prefs.getString('weight_records');
-    final bday = prefs.getString('user_birthday');
+    final json = prefs.getString(PrefsKeys.weightRecords);
+    final bday = prefs.getString(PrefsKeys.userBirthday);
 
     var records = <Map<String, dynamic>>[];
     if (json != null) {
@@ -76,13 +85,13 @@ class _WeightPageState extends State<WeightPage> {
 
     setState(() {
       _records = records;
-      _userHeight = prefs.getDouble('user_height');
-      _gender = prefs.getString('user_gender') ?? '';
-      _activityLevel = prefs.getString('user_activity_level') ?? '';
+      _userHeight = prefs.getDouble(PrefsKeys.userHeight);
+      _gender = prefs.getString(PrefsKeys.userGender) ?? '';
+      _activityLevel = prefs.getString(PrefsKeys.userActivityLevel) ?? '';
       if (bday != null) _birthday = DateTime.tryParse(bday);
       _weightTrackingEnabled =
-          prefs.getBool('weight_tracking_enabled') ?? false;
-      _targetWeight = prefs.getDouble('target_weight');
+          prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
+      _targetWeight = prefs.getDouble(PrefsKeys.targetWeight);
       _unit = UnitSystem.load(prefs);
       _loaded = true;
     });
@@ -90,7 +99,7 @@ class _WeightPageState extends State<WeightPage> {
 
   Future<void> _saveRecords() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('weight_records', jsonEncode(_records));
+    await prefs.setString(PrefsKeys.weightRecords, jsonEncode(_records));
   }
 
   // 今天日期字串（yyyy-MM-dd）

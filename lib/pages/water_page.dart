@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
+import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/water_entries.dart';
@@ -56,13 +57,13 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   static const int _minGoalMl = 500;
   static const int _maxGoalMl = 6000;
   static const int _historyRetainDays = 30;
-  static const String _entryKeyPrefix = 'water_entries_';
-  static const String _keyPrefix = 'water_';
+  static const String _entryKeyPrefix = PrefsKeys.waterEntriesPrefix;
+  static const String _keyPrefix = PrefsKeys.waterDayPrefix;
   // Legacy: 自訂量累計（標準杯之外的補水）
-  static const String _extraKeyPrefix = 'water_extra_';
+  static const String _extraKeyPrefix = PrefsKeys.waterExtraPrefix;
   // home_page 那邊勾「喝足夠的水」習慣時暫存原本杯數用的 key prefix
-  static const String _savedKeyPrefix = 'water_saved_';
-  static const String _savedEntryKeyPrefix = 'water_entries_saved_';
+  static const String _savedKeyPrefix = PrefsKeys.waterSavedPrefix;
+  static const String _savedEntryKeyPrefix = PrefsKeys.waterEntriesSavedPrefix;
   // 單次自訂量上限（2L 已經很多，超過就擋）
   static const int _maxSingleAddMl = 2000;
 
@@ -100,13 +101,21 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    UnitSystem.notifier.addListener(_onUnitChanged);
     _loadWater();
   }
 
   @override
   void dispose() {
+    UnitSystem.notifier.removeListener(_onUnitChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  // 設定頁切換公制/英制 → 立即反映，不用重開頁
+  void _onUnitChanged() {
+    if (!mounted) return;
+    setState(() => _unit = UnitSystem.notifier.value);
   }
 
   @override
@@ -177,8 +186,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final today = _todayString();
     final todayKey = '$_keyPrefix$today';
     final entriesKey = '$_entryKeyPrefix$today';
-    final cupMl = _sanitizeCupMl(prefs.getInt('water_cup_ml'));
-    final goalMl = _sanitizeGoalMl(prefs.getInt('water_goal_ml'));
+    final cupMl = _sanitizeCupMl(prefs.getInt(PrefsKeys.waterCupMl));
+    final goalMl = _sanitizeGoalMl(prefs.getInt(PrefsKeys.waterGoalMl));
     // legacy cup 數舊鍵：只用來把舊資料 migrate 進 entries，clamp 寬鬆即可
     final cups = (prefs.getInt(todayKey) ?? 0).clamp(0, 100);
     final extra = (prefs.getInt('$_extraKeyPrefix$today') ?? 0).clamp(
@@ -349,8 +358,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     required int goalMl,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('water_cup_ml', cupMl);
-    await prefs.setInt('water_goal_ml', goalMl);
+    await prefs.setInt(PrefsKeys.waterCupMl, cupMl);
+    await prefs.setInt(PrefsKeys.waterGoalMl, goalMl);
     if (!mounted) return;
     setState(() {
       _cupMl = cupMl;
@@ -365,7 +374,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   // Latest tracked weight (from weight tracking page) takes priority over
   // the static profile weight, since the profile copy may be stale.
   double? _latestTrackedWeight(SharedPreferences prefs) {
-    final raw = prefs.getString('weight_records');
+    final raw = prefs.getString(PrefsKeys.weightRecords);
     if (raw == null || raw.isEmpty) return null;
     try {
       final decoded = jsonDecode(raw);
@@ -442,15 +451,15 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     // Prefer the most recent tracked weight; only fall back to the
     // static profile weight when no records exist.
     final tracked = _latestTrackedWeight(prefs);
-    final profileWeight = prefs.getDouble('user_weight');
+    final profileWeight = prefs.getDouble(PrefsKeys.userWeight);
     final weight = tracked ?? profileWeight;
     final usingTracked = tracked != null;
 
-    final height = prefs.getDouble('user_height');
-    final gender = _genderCode[prefs.getString('user_gender') ?? ''];
-    final activity = prefs.getString('user_activity_level') ?? '';
+    final height = prefs.getDouble(PrefsKeys.userHeight);
+    final gender = _genderCode[prefs.getString(PrefsKeys.userGender) ?? ''];
+    final activity = prefs.getString(PrefsKeys.userActivityLevel) ?? '';
     final needsActivity = activity.isEmpty;
-    final age = _ageFromBirthday(prefs.getString('user_birthday'));
+    final age = _ageFromBirthday(prefs.getString(PrefsKeys.userBirthday));
 
     // Children: age-tiered base. Activity bonus is halved (kids hydrate
     // less per workout than adults), and the lower bound of the rounder

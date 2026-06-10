@@ -8,13 +8,15 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'prefs_keys.dart';
+
 /// 家長 Session（全域）：驗證密碼成功後設為 true。
 /// 離開家庭頁籤、FamilyPage unmount、或 app 退到背景時清除。
 bool parentSessionActive = false;
 
 class ParentPin {
-  static const _hashKey = 'parent_pin_hash';
-  static const _legacyKey = 'parent_pin';
+  static const _hashKey = PrefsKeys.parentPinHash;
+  static const _legacyKey = PrefsKeys.legacyParentPin;
   static const _iterations = 10000;
 
   /// 是否已設定 PIN（會先處理舊版明文遷移）

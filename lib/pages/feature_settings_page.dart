@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/prefs_keys.dart';
+
 // 功能開關頁：集中管理各頁籤的顯示開關
 class FeatureSettingsPage extends StatefulWidget {
   const FeatureSettingsPage({super.key});
@@ -27,10 +29,11 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     setState(() {
-      _timerEnabled = _prefs!.getBool('timer_enabled') ?? true;
-      _waterEnabled = _prefs!.getBool('water_enabled') ?? false;
-      _weightTrackingEnabled = _prefs!.getBool('weight_tracking_enabled') ?? false;
-      _familyEnabled = _prefs!.getBool('family_enabled') ?? false;
+      _timerEnabled = _prefs!.getBool(PrefsKeys.timerEnabled) ?? true;
+      _waterEnabled = _prefs!.getBool(PrefsKeys.waterEnabled) ?? false;
+      _weightTrackingEnabled =
+          _prefs!.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
+      _familyEnabled = _prefs!.getBool(PrefsKeys.familyEnabled) ?? false;
       _loaded = true;
     });
   }
@@ -96,7 +99,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                   value: _timerEnabled,
                   onChanged: (v) async {
                     setState(() => _timerEnabled = v);
-                    await _saveBool('timer_enabled', v);
+                    await _saveBool(PrefsKeys.timerEnabled, v);
                   },
                 ),
 
@@ -109,7 +112,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                   value: _waterEnabled,
                   onChanged: (v) async {
                     setState(() => _waterEnabled = v);
-                    await _saveBool('water_enabled', v);
+                    await _saveBool(PrefsKeys.waterEnabled, v);
                   },
                 ),
 
@@ -122,7 +125,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                   value: _weightTrackingEnabled,
                   onChanged: (v) async {
                     setState(() => _weightTrackingEnabled = v);
-                    await _saveBool('weight_tracking_enabled', v);
+                    await _saveBool(PrefsKeys.weightTrackingEnabled, v);
                   },
                 ),
 
@@ -135,7 +138,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                   value: _familyEnabled,
                   onChanged: (v) async {
                     setState(() => _familyEnabled = v);
-                    await _saveBool('family_enabled', v);
+                    await _saveBool(PrefsKeys.familyEnabled, v);
                   },
                 ),
               ],

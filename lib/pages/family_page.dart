@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
 import '../utils/parent_pin.dart';
+import '../utils/prefs_keys.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -48,7 +49,7 @@ class _FamilyPageState extends State<FamilyPage> {
   // 從 SharedPreferences 讀取小孩清單
   Future<void> _loadChildren() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('children');
+    final raw = prefs.getString(PrefsKeys.children);
     setState(() {
       _children = raw == null
           ? []
@@ -75,7 +76,7 @@ class _FamilyPageState extends State<FamilyPage> {
       if (changed == true) unawaited(_loadChildren());
     } else {
       // 需要輸入密碼才能進入
-      final digits = prefs.getInt('pin_digits') ?? 4;
+      final digits = prefs.getInt(PrefsKeys.pinDigits) ?? 4;
       final entered = await showPinDialog(
         context,
         digits: digits,

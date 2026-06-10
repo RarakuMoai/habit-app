@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'prefs_keys.dart';
+
 class AudioSettingsService {
   AudioSettingsService._();
   static final AudioSettingsService instance = AudioSettingsService._();
@@ -8,9 +10,9 @@ class AudioSettingsService {
   static final ValueNotifier<bool> musicMuted = ValueNotifier(false);
   static final ValueNotifier<bool> sfxMuted = ValueNotifier(false);
 
-  static const String _musicKey = 'music_muted';
-  static const String _sfxKey = 'sfx_muted';
-  static const String _legacyBgmKey = 'bgm_muted';
+  static const String _musicKey = PrefsKeys.musicMuted;
+  static const String _sfxKey = PrefsKeys.sfxMuted;
+  static const String _legacyBgmKey = PrefsKeys.legacyBgmMuted;
 
   bool _initialized = false;
 

@@ -1,5 +1,7 @@
 // 首頁常用習慣 preset 定義與選取時的自訂設定。
 
+import '../../utils/prefs_keys.dart';
+
 class PresetConfig {
   int minutes;
   String frequency;
@@ -34,7 +36,7 @@ const List<HomePreset> kHomePresets = [
   HomePreset('閱讀', '📖', null, null, 0, true),
   HomePreset('早起', '🌅'),
   HomePreset('運動', '🏃', null, null, 0, true),
-  HomePreset('喝足夠的水', '💧', 'water_enabled', '選取後自動開啟喝水頁籤'),
+  HomePreset('喝足夠的水', '💧', PrefsKeys.waterEnabled, '選取後自動開啟喝水頁籤'),
   HomePreset('冥想', '🧘', null, null, 0, true),
   HomePreset('早睡', '🌙'),
 ];

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/prefs_keys.dart';
 import 'add_children_sheet.dart';
 import 'deduction_sheets.dart';
 import 'family_models.dart';
@@ -60,7 +61,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   // 一次讀取所有資料
   Future<void> _loadAll() async {
     final prefs = _prefs!;
-    final raw = prefs.getString('children');
+    final raw = prefs.getString(PrefsKeys.children);
     final children = raw == null
         ? <ChildData>[]
         : (jsonDecode(raw) as List)
@@ -81,7 +82,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   // 儲存小孩清單
   Future<void> _saveChildren() async {
     final encoded = jsonEncode(_children.map((c) => c.toJson()).toList());
-    await _prefs?.setString('children', encoded);
+    await _prefs?.setString(PrefsKeys.children, encoded);
     _changed = true;
   }
 

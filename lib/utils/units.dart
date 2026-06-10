@@ -8,7 +8,10 @@
 
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'prefs_keys.dart';
 
 enum UnitSystem {
   metric,
@@ -16,7 +19,13 @@ enum UnitSystem {
 
   String get prefsValue => name; // 'metric' / 'imperial'
 
-  static const String prefsKey = 'unit_system';
+  static const String prefsKey = PrefsKeys.unitSystem;
+
+  /// 目前單位的全 app 廣播。[load] / [save] 都會同步它；
+  /// 需要「設定頁切換後立即生效」的頁面 addListener 並 setState 即可。
+  static final ValueNotifier<UnitSystem> notifier = ValueNotifier<UnitSystem>(
+    UnitSystem.metric,
+  );
 
   static UnitSystem fromString(String? raw) {
     if (raw == 'imperial') return UnitSystem.imperial;
@@ -26,12 +35,15 @@ enum UnitSystem {
   /// 從 prefs 讀目前單位，沒設過就回退到 [detectDefault]。
   static UnitSystem load(SharedPreferences prefs) {
     final raw = prefs.getString(prefsKey);
-    if (raw == null) return detectDefault();
-    return fromString(raw);
+    final v = raw == null ? detectDefault() : fromString(raw);
+    notifier.value = v;
+    return v;
   }
 
-  static Future<void> save(SharedPreferences prefs, UnitSystem v) =>
-      prefs.setString(prefsKey, v.prefsValue);
+  static Future<void> save(SharedPreferences prefs, UnitSystem v) {
+    notifier.value = v;
+    return prefs.setString(prefsKey, v.prefsValue);
+  }
 
   /// 用 device locale 猜預設：US / LR / MM 用 imperial，其餘用 metric。
   static UnitSystem detectDefault() {

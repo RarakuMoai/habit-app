@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/prefs_keys.dart';
 import 'family_models.dart';
 
 // 本週一到週日的日期字串集合
@@ -44,7 +45,7 @@ String nowStr() {
 // ── 共用：讀寫各類資料的輔助方法 ──
 
 Future<List<ChildHabit>> loadHabits(SharedPreferences prefs) async {
-  final raw = prefs.getString('child_habits');
+  final raw = prefs.getString(PrefsKeys.childHabits);
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
       .map((e) => ChildHabit.fromJson(e as Map<String, dynamic>))
@@ -56,7 +57,7 @@ Future<void> saveHabits(
   List<ChildHabit> habits,
 ) async {
   await prefs.setString(
-    'child_habits',
+    PrefsKeys.childHabits,
     jsonEncode(habits.map((h) => h.toJson()).toList()),
   );
 }
@@ -69,7 +70,7 @@ List<ChildHabit> defaultHabitsForChild(String childId) => [
 ];
 
 Future<List<DeductionItem>> loadDeductions(SharedPreferences prefs) async {
-  final raw = prefs.getString('deduction_items');
+  final raw = prefs.getString(PrefsKeys.deductionItems);
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
       .map((e) => DeductionItem.fromJson(e as Map<String, dynamic>))
@@ -81,13 +82,13 @@ Future<void> saveDeductions(
   List<DeductionItem> items,
 ) async {
   await prefs.setString(
-    'deduction_items',
+    PrefsKeys.deductionItems,
     jsonEncode(items.map((d) => d.toJson()).toList()),
   );
 }
 
 Future<List<RewardItem>> loadRewards(SharedPreferences prefs) async {
-  final raw = prefs.getString('reward_items');
+  final raw = prefs.getString(PrefsKeys.rewardItems);
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
       .map((e) => RewardItem.fromJson(e as Map<String, dynamic>))
@@ -99,14 +100,14 @@ Future<void> saveRewards(
   List<RewardItem> rewards,
 ) async {
   await prefs.setString(
-    'reward_items',
+    PrefsKeys.rewardItems,
     jsonEncode(rewards.map((r) => r.toJson()).toList()),
   );
 }
 
 Future<List<VoucherLog>> loadVouchers(SharedPreferences prefs) async {
   final raw =
-      prefs.getString('voucher_logs') ?? prefs.getString('redemption_logs');
+      prefs.getString(PrefsKeys.voucherLogs) ?? prefs.getString(PrefsKeys.legacyRedemptionLogs);
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
       .map((e) => VoucherLog.fromJson(e as Map<String, dynamic>))
@@ -118,13 +119,13 @@ Future<void> saveVouchers(
   List<VoucherLog> logs,
 ) async {
   await prefs.setString(
-    'voucher_logs',
+    PrefsKeys.voucherLogs,
     jsonEncode(logs.map((l) => l.toJson()).toList()),
   );
 }
 
 Future<List<PointRecord>> loadRecords(SharedPreferences prefs) async {
-  final raw = prefs.getString('point_records');
+  final raw = prefs.getString(PrefsKeys.pointRecords);
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
       .map((e) => PointRecord.fromJson(e as Map<String, dynamic>))
@@ -136,7 +137,7 @@ Future<void> saveRecords(
   List<PointRecord> records,
 ) async {
   await prefs.setString(
-    'point_records',
+    PrefsKeys.pointRecords,
     jsonEncode(records.map((r) => r.toJson()).toList()),
   );
 }
@@ -150,7 +151,7 @@ Future<int> applyPoints({
   required String reason,
 }) async {
   // 讀取最新小孩清單
-  final raw = prefs.getString('children');
+  final raw = prefs.getString(PrefsKeys.children);
   final children = raw == null
       ? <ChildData>[]
       : (jsonDecode(raw) as List)
@@ -166,7 +167,7 @@ Future<int> applyPoints({
   child.points = newPoints; // 同步更新傳入的物件
 
   await prefs.setString(
-    'children',
+    PrefsKeys.children,
     jsonEncode(children.map((c) => c.toJson()).toList()),
   );
 

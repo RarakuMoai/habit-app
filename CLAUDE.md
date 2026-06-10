@@ -26,7 +26,22 @@ App 同時支援公制與英制，使用者可在設定切換。寫新程式碼�
 - **驗證**：unit-aware 場合用 `UserValidators.weightIn/targetWeightIn/
   heightCm`；單純公制場合維持原本 `weight/height` 等。
 - **每個畫面 state** 載入時讀 `UnitSystem.load(prefs)` 並存進
-  `_unit` 欄位；切換單位後需重開該頁才反應（目前未做反應式廣播）。
+  `_unit` 欄位。單位切換有反應式廣播：`UnitSystem.notifier`
+  （`ValueNotifier<UnitSystem>`，`load`/`save` 都會同步它）。需要
+  「設定頁切換後立即生效」的常駐頁（喝水、體重）在 initState
+  `addListener` + setState、dispose 時 `removeListener`；push 進出的
+  頁面（個人資料編輯等）每次開啟重讀即可，不必掛 listener。
+
+## SharedPreferences key 集中管理
+
+所有持久化 key 一律定義在 `lib/utils/prefs_keys.dart` 的 `PrefsKeys`，
+呼叫端不准硬寫 key 字串：
+
+- 一般 key 用常數：`prefs.getBool(PrefsKeys.waterEnabled)`。
+- 帶日期的喝水 key 用 helper：`PrefsKeys.waterDay(date)` /
+  `waterEntries(date)` / `waterExtra(date)` 等；掃 `getKeys()` 時用
+  對應的 `*Prefix` 常數（長 prefix 要先比對）。
+- 新增 key 時先在 `PrefsKeys` 宣告（順手放進對應區塊）再使用。
 
 ### 不准在 Dart 字串字面值裡硬寫單位
 

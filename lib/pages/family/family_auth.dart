@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/parent_pin.dart';
+import '../../utils/prefs_keys.dart';
 
 // ── 密碼輸入對話框（供本檔案內部使用）──
 // 回傳使用者輸入的字串；取消回傳 null
@@ -62,7 +63,7 @@ Future<bool> verifyParentPinIfNeeded(
   final prefs = await SharedPreferences.getInstance();
   if (!await ParentPin.hasPin(prefs)) return true;
   if (!context.mounted) return false;
-  final digits = prefs.getInt('pin_digits') ?? 4;
+  final digits = prefs.getInt(PrefsKeys.pinDigits) ?? 4;
   final entered = await showPinDialog(context, digits: digits, title: title);
   if (entered == null) return false;
   if (await ParentPin.verify(prefs, entered)) {

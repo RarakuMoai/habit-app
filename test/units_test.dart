@@ -34,6 +34,32 @@ void main() {
       await UnitSystem.save(prefs, UnitSystem.imperial);
       expect(UnitSystem.load(prefs), UnitSystem.imperial);
     });
+
+    test('save / load 會同步 notifier（反應式廣播）', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      // notifier 是全域 static，先歸位避免受前面測試影響
+      UnitSystem.notifier.value = UnitSystem.metric;
+
+      var fired = 0;
+      void listener() => fired++;
+      UnitSystem.notifier.addListener(listener);
+      addTearDown(() => UnitSystem.notifier.removeListener(listener));
+
+      await UnitSystem.save(prefs, UnitSystem.imperial);
+      expect(UnitSystem.notifier.value, UnitSystem.imperial);
+      expect(fired, 1);
+
+      // load 也要把 notifier 拉回 prefs 的值
+      await UnitSystem.save(prefs, UnitSystem.metric);
+      SharedPreferences.setMockInitialValues({
+        UnitSystem.prefsKey: 'imperial',
+      });
+      final prefs2 = await SharedPreferences.getInstance();
+      UnitSystem.load(prefs2);
+      expect(UnitSystem.notifier.value, UnitSystem.imperial);
+    });
   });
 
   group('UnitConvert', () {

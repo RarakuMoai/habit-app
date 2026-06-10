@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/bgm_service.dart';
 import '../utils/mascot.dart';
+import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
@@ -563,37 +564,39 @@ class _OnboardingPageState extends State<OnboardingPage>
   Future<void> _finish() async {
     _playOnboardingSfx(SfxCue.complete);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_done', true);
+    await prefs.setBool(PrefsKeys.onboardingDone, true);
     await prefs.setString(
-      'mascot_name',
+      PrefsKeys.mascotName,
       _mascotController.text.trim().isEmpty
           ? '兔咪'
           : _mascotController.text.trim(),
     );
     await prefs.setString(
-      'user_nickname',
+      PrefsKeys.userNickname,
       _nicknameController.text.trim().isEmpty
           ? '你'
           : _nicknameController.text.trim(),
     );
-    await prefs.setBool('water_enabled', _waterEnabled ?? false);
-    await prefs.setBool('timer_enabled', _timerEnabled ?? false);
-    await prefs.setBool('family_enabled', _familyEnabled ?? false);
+    await prefs.setBool(PrefsKeys.waterEnabled, _waterEnabled ?? false);
+    await prefs.setBool(PrefsKeys.timerEnabled, _timerEnabled ?? false);
+    await prefs.setBool(PrefsKeys.familyEnabled, _familyEnabled ?? false);
 
     // 身體資訊
-    if (_gender.isNotEmpty) await prefs.setString('user_gender', _gender);
+    if (_gender.isNotEmpty) {
+      await prefs.setString(PrefsKeys.userGender, _gender);
+    }
     final heightCm = _heightCm();
     if (heightCm != null &&
         heightCm >= UserRanges.heightMinCm &&
         heightCm <= UserRanges.heightMaxCm) {
-      await prefs.setDouble('user_height', heightCm);
+      await prefs.setDouble(PrefsKeys.userHeight, heightCm);
     }
     final weightKg = _weightKgFromCtrl(_weightController);
     if (weightKg != null &&
         weightKg >= UserRanges.weightMinKg &&
         weightKg <= UserRanges.weightMaxKg) {
-      await prefs.setDouble('user_weight', weightKg);
-      await prefs.setBool('weight_tracking_enabled', true);
+      await prefs.setDouble(PrefsKeys.userWeight, weightKg);
+      await prefs.setBool(PrefsKeys.weightTrackingEnabled, true);
       // 自動新增體重紀錄習慣
       await _addWeightHabit(prefs);
     }
@@ -601,7 +604,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     if (targetKg != null &&
         targetKg >= UserRanges.targetWeightMinKg &&
         targetKg <= UserRanges.targetWeightMaxKg) {
-      await prefs.setDouble('target_weight', targetKg);
+      await prefs.setDouble(PrefsKeys.targetWeight, targetKg);
     }
     // 選了喝水功能 → 自動加入「喝足夠的水」習慣
     if (_waterEnabled == true) _selectedHabits.add('喝足夠的水');
@@ -612,7 +615,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     if (_birthday != null) {
       final b = _birthday!;
       await prefs.setString(
-        'user_birthday',
+        PrefsKeys.userBirthday,
         '${b.year.toString().padLeft(4, '0')}-'
             '${b.month.toString().padLeft(2, '0')}-'
             '${b.day.toString().padLeft(2, '0')}',
@@ -620,7 +623,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
     // 活動量（選填）— water/weight 頁讀 user_activity_level 算 TDEE 與每日水量
     if (_activityLevel.isNotEmpty) {
-      await prefs.setString('user_activity_level', _activityLevel);
+      await prefs.setString(PrefsKeys.userActivityLevel, _activityLevel);
     }
 
     if (!mounted) return;
@@ -631,7 +634,7 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 在習慣清單自動新增體重紀錄
   Future<void> _addWeightHabit(SharedPreferences prefs) async {
-    final habitsJson = prefs.getString('habits');
+    final habitsJson = prefs.getString(PrefsKeys.habits);
     var habits = <Map<String, dynamic>>[];
     if (habitsJson != null) {
       final decoded = jsonDecode(habitsJson) as List<dynamic>;
@@ -641,14 +644,14 @@ class _OnboardingPageState extends State<OnboardingPage>
     final exists = habits.any((h) => h['name'] == '體重紀錄');
     if (!exists) {
       habits.add({'name': '體重紀錄', 'done': false});
-      await prefs.setString('habits', jsonEncode(habits));
+      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
   }
 
   // 將習慣選擇頁勾選的習慣寫入習慣清單
   Future<void> _addPickedHabits(SharedPreferences prefs) async {
     if (_selectedHabits.isEmpty) return;
-    final habitsJson = prefs.getString('habits');
+    final habitsJson = prefs.getString(PrefsKeys.habits);
     var habits = <Map<String, dynamic>>[];
     if (habitsJson != null) {
       final decoded = jsonDecode(habitsJson) as List<dynamic>;
@@ -669,7 +672,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         habits.add({'name': name, 'done': false});
       }
     }
-    await prefs.setString('habits', jsonEncode(habits));
+    await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
   }
 
   // 通用對話氣泡樣式

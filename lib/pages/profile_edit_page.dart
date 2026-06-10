@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 
@@ -69,16 +70,16 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final unit = UnitSystem.load(prefs);
-    final h = prefs.getDouble('user_height');
-    final w = prefs.getDouble('user_weight');
-    final tw = prefs.getDouble('target_weight');
-    final bday = prefs.getString('user_birthday');
+    final h = prefs.getDouble(PrefsKeys.userHeight);
+    final w = prefs.getDouble(PrefsKeys.userWeight);
+    final tw = prefs.getDouble(PrefsKeys.targetWeight);
+    final bday = prefs.getString(PrefsKeys.userBirthday);
     setState(() {
       _unit = unit;
-      _nicknameCtrl.text = prefs.getString('user_nickname') ?? '';
-      _mascotCtrl.text = prefs.getString('mascot_name') ?? '兔咪';
-      _gender = prefs.getString('user_gender') ?? '';
-      _activityLevel = prefs.getString('user_activity_level') ?? '';
+      _nicknameCtrl.text = prefs.getString(PrefsKeys.userNickname) ?? '';
+      _mascotCtrl.text = prefs.getString(PrefsKeys.mascotName) ?? '兔咪';
+      _gender = prefs.getString(PrefsKeys.userGender) ?? '';
+      _activityLevel = prefs.getString(PrefsKeys.userActivityLevel) ?? '';
       if (h != null) {
         if (unit == UnitSystem.imperial) {
           final (ft, inches) = UnitConvert.cmToFtIn(h);
@@ -126,39 +127,41 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   // 按下「儲存」時一次寫入所有欄位，然後返回
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_nickname', _nicknameCtrl.text.trim());
+    await prefs.setString(PrefsKeys.userNickname, _nicknameCtrl.text.trim());
     await prefs.setString(
-      'mascot_name',
+      PrefsKeys.mascotName,
       _mascotCtrl.text.trim().isEmpty ? '兔咪' : _mascotCtrl.text.trim(),
     );
-    if (_gender.isNotEmpty) await prefs.setString('user_gender', _gender);
+    if (_gender.isNotEmpty) {
+      await prefs.setString(PrefsKeys.userGender, _gender);
+    }
     if (_activityLevel.isNotEmpty) {
-      await prefs.setString('user_activity_level', _activityLevel);
+      await prefs.setString(PrefsKeys.userActivityLevel, _activityLevel);
     }
     final hCm = _heightCmFromInputs();
     if (hCm != null &&
         hCm >= UserRanges.heightMinCm &&
         hCm <= UserRanges.heightMaxCm) {
-      await prefs.setDouble('user_height', hCm);
+      await prefs.setDouble(PrefsKeys.userHeight, hCm);
     }
     final wKg = _weightKgFromInput(_weightCtrl);
     if (wKg != null &&
         wKg >= UserRanges.weightMinKg &&
         wKg <= UserRanges.weightMaxKg) {
-      await prefs.setDouble('user_weight', wKg);
+      await prefs.setDouble(PrefsKeys.userWeight, wKg);
     }
     // 目標體重（選填）
     final twKg = _weightKgFromInput(_targetWeightCtrl);
     if (twKg != null &&
         twKg >= UserRanges.targetWeightMinKg &&
         twKg <= UserRanges.targetWeightMaxKg) {
-      await prefs.setDouble('target_weight', twKg);
+      await prefs.setDouble(PrefsKeys.targetWeight, twKg);
     }
     // 生日（選填），以 yyyy-MM-dd 格式儲存
     if (_birthday != null) {
       final b = _birthday!;
       await prefs.setString(
-        'user_birthday',
+        PrefsKeys.userBirthday,
         '${b.year.toString().padLeft(4, '0')}-'
             '${b.month.toString().padLeft(2, '0')}-'
             '${b.day.toString().padLeft(2, '0')}',
