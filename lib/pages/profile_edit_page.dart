@@ -69,10 +69,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final unit = UnitSystem.load(prefs);
-    final double? h = prefs.getDouble('user_height');
-    final double? w = prefs.getDouble('user_weight');
-    final double? tw = prefs.getDouble('target_weight');
-    final String? bday = prefs.getString('user_birthday');
+    final h = prefs.getDouble('user_height');
+    final w = prefs.getDouble('user_weight');
+    final tw = prefs.getDouble('target_weight');
+    final bday = prefs.getString('user_birthday');
     setState(() {
       _unit = unit;
       _nicknameCtrl.text = prefs.getString('user_nickname') ?? '';
@@ -413,8 +413,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           suffixText: suffixWidget == null ? suffix : null,
           suffixIcon: suffixWidget,
           suffixIconConstraints: const BoxConstraints(
-            minWidth: 0,
-            minHeight: 0,
+            
           ),
           counterText: '',
           errorText: errorText,
@@ -598,7 +597,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       // 暱稱為空時顯示提示
                       if (!_canSave)
                         Padding(
-                          padding: const EdgeInsets.only(top: 0, bottom: 8),
+                          padding: const EdgeInsets.only(bottom: 8),
                           child: Text(
                             '暱稱不能為空',
                             style: TextStyle(

@@ -10,6 +10,8 @@
 //   呼叫端組合 mascot 場景時，請用 [MascotPanelPrefs.openValue] 連續值
 //   去決定場景高度（或 Positioned.top）。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -62,9 +64,10 @@ class _MascotToggleBarState extends State<MascotToggleBar>
       vsync: this,
       duration: const Duration(milliseconds: 130),
     );
-    _pressScale = Tween<double>(begin: 1.0, end: 0.82).animate(
-      CurvedAnimation(parent: _pressCtl, curve: Curves.easeOut),
-    );
+    _pressScale = Tween<double>(
+      begin: 1.0,
+      end: 0.82,
+    ).animate(CurvedAnimation(parent: _pressCtl, curve: Curves.easeOut));
   }
 
   @override
@@ -81,10 +84,10 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   void _onTapCancel() => _pressCtl.reverse();
 
   Future<void> _onTap() async {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     final target = _ctl.value >= 0.5 ? 0.0 : 1.0;
-    _pressCtl.reverse();
-    await _animateToWithSpring(target, velocity: 0);
+    unawaited(_pressCtl.reverse());
+    await _animateToWithSpring(target);
     await _persist();
   }
 
@@ -100,7 +103,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   }
 
   Future<void> _onDragEnd(DragEndDetails d) async {
-    _pressCtl.reverse();
+    unawaited(_pressCtl.reverse());
     final velocityFraction = d.velocity.pixelsPerSecond.dy / widget.dragExtent;
     // 依速度決定目標：明顯往下→展開、往上→收合；速度小看位置
     final double target;
@@ -111,7 +114,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
     } else {
       target = _ctl.value >= 0.5 ? 1.0 : 0.0;
     }
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     await _animateToWithSpring(target, velocity: velocityFraction);
     await _persist();
   }
@@ -145,9 +148,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
                 width: 52,
                 height: 7,
                 decoration: BoxDecoration(
-                  color: widget.accent.withValues(
-                    alpha: v > 0.5 ? 0.35 : 0.6,
-                  ),
+                  color: widget.accent.withValues(alpha: v > 0.5 ? 0.35 : 0.6),
                   borderRadius: BorderRadius.circular(4),
                   boxShadow: [
                     BoxShadow(

@@ -1,7 +1,9 @@
+import 'dart:convert';
+
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'dart:convert';
+
 import '../utils/mascot.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
@@ -61,16 +63,16 @@ class _WeightPageState extends State<WeightPage> {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? json = prefs.getString('weight_records');
-    final String? bday = prefs.getString('user_birthday');
+    final json = prefs.getString('weight_records');
+    final bday = prefs.getString('user_birthday');
 
-    List<Map<String, dynamic>> records = [];
+    var records = <Map<String, dynamic>>[];
     if (json != null) {
-      final List<dynamic> decoded = jsonDecode(json);
-      records = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      final decoded = jsonDecode(json) as List<dynamic>;
+      records = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     // 按日期降序排列（最新在上）
-    records.sort((a, b) => b['date'].compareTo(a['date']));
+    records.sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
 
     setState(() {
       _records = records;
@@ -112,7 +114,7 @@ class _WeightPageState extends State<WeightPage> {
   int? _calcAge() {
     if (_birthday == null) return null;
     final now = DateTime.now();
-    int age = now.year - _birthday!.year;
+    var age = now.year - _birthday!.year;
     if (now.month < _birthday!.month ||
         (now.month == _birthday!.month && now.day < _birthday!.day)) {
       age--;
@@ -177,8 +179,8 @@ class _WeightPageState extends State<WeightPage> {
   // 歷史不足7天時只顯示有資料的點，不強制補滿
   List<FlSpot> _weekSpots() {
     final weekDays = _currentWeekDays();
-    final List<FlSpot> spots = [];
-    for (int i = 0; i < weekDays.length; i++) {
+    final spots = <FlSpot>[];
+    for (var i = 0; i < weekDays.length; i++) {
       final dayStr = _dateStr(weekDays[i]);
       final idx = _records.indexWhere((r) => r['date'] == dayStr);
       if (idx >= 0) {
@@ -197,7 +199,7 @@ class _WeightPageState extends State<WeightPage> {
   List<FlSpot> _monthSpots() {
     final now = DateTime.now();
     final prefix = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    final List<FlSpot> spots = [];
+    final spots = <FlSpot>[];
     // reversed 讓資料從舊到新（ascending order for chart）
     for (final rec in _records.reversed) {
       final date = rec['date'] as String;
@@ -222,7 +224,7 @@ class _WeightPageState extends State<WeightPage> {
       now.month,
       now.day,
     ).subtract(const Duration(days: 89));
-    final List<FlSpot> spots = [];
+    final spots = <FlSpot>[];
     for (final rec in _records.reversed) {
       final date = DateTime.tryParse(rec['date'] as String);
       if (date == null) continue;
@@ -241,7 +243,7 @@ class _WeightPageState extends State<WeightPage> {
     setState(() {
       _records.removeWhere((r) => r['date'] == record['date']);
       _records.add(record);
-      _records.sort((a, b) => b['date'].compareTo(a['date']));
+      _records.sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
     });
     _saveRecords();
     MascotPersona.interact(MascotContext.completedOne);
@@ -372,7 +374,7 @@ class _WeightPageState extends State<WeightPage> {
   // 開啟新增／編輯 BottomSheet
   // existing 不為 null 時為編輯模式，預填現有資料
   void _openAddSheet({Map<String, dynamic>? existing}) {
-    DateTime selectedDate = existing != null
+    var selectedDate = existing != null
         ? (DateTime.tryParse(existing['date'] as String) ?? DateTime.now())
         : DateTime.now();
     _weightCtrl.text = existing != null
@@ -573,7 +575,7 @@ class _WeightPageState extends State<WeightPage> {
 
   // 顯示紀錄操作選單（長按或左滑呼叫）
   void _showRecordActions(Map<String, dynamic> rec) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
@@ -619,7 +621,7 @@ class _WeightPageState extends State<WeightPage> {
 
   // 刪除二次確認 Dialog
   void _confirmDelete(Map<String, dynamic> rec) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('確認刪除'),
@@ -725,7 +727,7 @@ class _WeightPageState extends State<WeightPage> {
     final today = _todayString();
     // 今天的紀錄（若有）
     final todayIdx = _records.indexWhere((r) => r['date'] == today);
-    final Map<String, dynamic>? todayRec = todayIdx >= 0
+    final todayRec = todayIdx >= 0
         ? _records[todayIdx]
         : null;
 
@@ -738,7 +740,7 @@ class _WeightPageState extends State<WeightPage> {
       backgroundColor: const Color(0xFFFFF8F0),
       appBar: MascotAppBar(accent: Colors.orange, onSettingsReturn: _loadData),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openAddSheet(),
+        onPressed: _openAddSheet,
         backgroundColor: Colors.orange,
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -820,7 +822,6 @@ class _WeightPageState extends State<WeightPage> {
                                         isCurved: true,
                                         color: Colors.orange,
                                         barWidth: 2.5,
-                                        dotData: const FlDotData(show: true),
                                         belowBarData: BarAreaData(
                                           show: true,
                                           color: Colors.orange.withValues(
@@ -833,14 +834,10 @@ class _WeightPageState extends State<WeightPage> {
                                     borderData: FlBorderData(show: false),
                                     titlesData: FlTitlesData(
                                       leftTitles: const AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: false,
-                                        ),
+                                        
                                       ),
                                       topTitles: const AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: false,
-                                        ),
+                                        
                                       ),
                                       // 右側顯示體重數值
                                       rightTitles: AxisTitles(
@@ -947,7 +944,7 @@ class _WeightPageState extends State<WeightPage> {
                       ),
                     )
                   else
-                    ..._records.map((rec) => _buildHistoryTile(rec)),
+                    ..._records.map(_buildHistoryTile),
                 ],
               ),
             ),

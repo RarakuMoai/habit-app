@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/bgm_service.dart';
 import '../utils/mascot.dart';
@@ -212,7 +213,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       return;
     }
     final chars = _lines[_lineIndex].characters.toList(); // 預先拆好，避免每次重建
-    int charIndex = 0;
+    var charIndex = 0;
     setState(() => _displayText = '');
     _typingTimer?.cancel();
     _typingTimer = Timer.periodic(const Duration(milliseconds: 60), (timer) {
@@ -624,17 +625,17 @@ class _OnboardingPageState extends State<OnboardingPage>
 
     if (!mounted) return;
     // 切換 BGM 到主 app 曲目（cross-fade）
-    BgmService.instance.play('sounds/bgm_main.m4a');
-    Navigator.of(context).pushReplacementNamed('/home');
+    unawaited(BgmService.instance.play('sounds/bgm_main.m4a'));
+    unawaited(Navigator.of(context).pushReplacementNamed('/home'));
   }
 
   // 在習慣清單自動新增體重紀錄
   Future<void> _addWeightHabit(SharedPreferences prefs) async {
-    final String? habitsJson = prefs.getString('habits');
-    List<Map<String, dynamic>> habits = [];
+    final habitsJson = prefs.getString('habits');
+    var habits = <Map<String, dynamic>>[];
     if (habitsJson != null) {
-      final List<dynamic> decoded = jsonDecode(habitsJson);
-      habits = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      final decoded = jsonDecode(habitsJson) as List<dynamic>;
+      habits = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     // 避免重複新增
     final exists = habits.any((h) => h['name'] == '體重紀錄');
@@ -647,11 +648,11 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 將習慣選擇頁勾選的習慣寫入習慣清單
   Future<void> _addPickedHabits(SharedPreferences prefs) async {
     if (_selectedHabits.isEmpty) return;
-    final String? habitsJson = prefs.getString('habits');
-    List<Map<String, dynamic>> habits = [];
+    final habitsJson = prefs.getString('habits');
+    var habits = <Map<String, dynamic>>[];
     if (habitsJson != null) {
-      final List<dynamic> decoded = jsonDecode(habitsJson);
-      habits = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      final decoded = jsonDecode(habitsJson) as List<dynamic>;
+      habits = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     for (final name in _selectedHabits) {
       if (habits.any((h) => h['name'] == name)) continue;
@@ -1539,7 +1540,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         labelText: label,
         errorText: errorText,
         suffixIcon: suffixWidget,
-        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        suffixIconConstraints: const BoxConstraints(),
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
@@ -1916,7 +1917,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   @override
   Widget build(BuildContext context) {
     // 第1頁（畫面1）沒有返回按鈕；畫面4/5/6 在追問子步驟時也要顯示返回
-    final bool showBack =
+    final showBack =
         _currentPage > 0 ||
         (_currentPage == 3 && _waterStep == 1) ||
         (_currentPage == 4 && _timerStep == 1) ||

@@ -6,12 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'pages/family_page.dart';
 import 'pages/home_page.dart';
+import 'pages/onboarding_page.dart';
 import 'pages/timer_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
-import 'pages/onboarding_page.dart';
-import 'pages/family_page.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
 import 'utils/mascot.dart';
@@ -23,7 +24,7 @@ void main() async {
   // 鎖定只支援直向（防止橫向自動翻轉）
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await SharedPreferences.getInstance();
-  final bool onboardingDone = prefs.getBool('onboarding_done') ?? false;
+  final onboardingDone = prefs.getBool('onboarding_done') ?? false;
   // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
   await MascotPanelPrefs.load();
   await AudioSettingsService.instance.init();
@@ -42,7 +43,7 @@ void main() async {
 
 Future<void> _startInitialAudio({required bool onboardingDone}) async {
   try {
-    await Future.delayed(const Duration(milliseconds: 900));
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     await BgmService.instance.init();
     // 冷啟動兩種情況（新用戶前導 / 既有用戶直接進主頁）都走 deferFade：
     // 先靜音喚醒音訊路由，settle 後再柔和淡入，避免一開就突兀出現。
@@ -154,7 +155,7 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _ensureMainBgm() async {
     try {
-      await Future.delayed(const Duration(milliseconds: 2800));
+      await Future<void>.delayed(const Duration(milliseconds: 2800));
       if (!mounted) return;
       await BgmService.instance.ensurePlaying('sounds/bgm_main.m4a');
     } catch (e, st) {
@@ -292,8 +293,8 @@ class _MainPageState extends State<MainPage> {
       final savedEntries = prefs.getString(savedEntriesKey);
       final entries = savedEntries == null
           ? _waterEntriesFromLegacy(cups: saved, cupMl: cupMl, extraMl: 0)
-          : (jsonDecode(savedEntries) as List)
-                .whereType<Map>()
+          : (jsonDecode(savedEntries) as List<dynamic>)
+                .whereType<Map<String, dynamic>>()
                 .map(
                   (entry) => {
                     'ml': ((entry['ml'] as num?) ?? cupMl).round(), // units-ok

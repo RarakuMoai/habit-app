@@ -87,7 +87,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
                 tooltip: '設定',
                 onPressed: () async {
                   await Navigator.of(context).push(
-                    PageRouteBuilder(
+                    PageRouteBuilder<void>(
                       pageBuilder: (_, _, _) => const SettingsPage(),
                       transitionsBuilder: (_, anim, _, child) =>
                           SlideTransition(

@@ -1,6 +1,7 @@
-﻿// 育兒模式主頁面
+// 育兒模式主頁面
 // 包含：小孩選擇畫面、小孩主頁（三 Tab）、家長管理頁面、密碼驗證
 // 修改2段：習慣系統、積分系統、扣分項目、家長 Session
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,9 +18,30 @@ bool parentSessionActive = false;
 
 // ── 小孩頭像選項 ──
 const List<String> _kChildAvatars = [
-  '🐼', '🦁', '🐸', '🦊', '🐨', '🐯', '🐻', '🐰',
-  '🦄', '🐙', '🦋', '🐢', '🦕', '🐬', '🦅', '🐧',
-  '🐺', '🐮', '🐹', '🐱', '🌟', '🌈', '🚀', '⚡',
+  '🐼',
+  '🦁',
+  '🐸',
+  '🦊',
+  '🐨',
+  '🐯',
+  '🐻',
+  '🐰',
+  '🦄',
+  '🐙',
+  '🦋',
+  '🐢',
+  '🦕',
+  '🐬',
+  '🦅',
+  '🐧',
+  '🐺',
+  '🐮',
+  '🐹',
+  '🐱',
+  '🌟',
+  '🌈',
+  '🚀',
+  '⚡',
 ];
 
 // 新增小孩時的暫存資料（名字 + 頭像）
@@ -64,10 +86,10 @@ class ChildHabit {
   String name;
   int points;
   String completedDate; // 每日習慣：最後打卡日期；每週習慣：不使用
-  String frequency;     // 'daily' | 'weekly'
-  int weeklyTarget;     // 每週目標次數（1-7）
+  String frequency; // 'daily' | 'weekly'
+  int weeklyTarget; // 每週目標次數（1-7）
   List<String> weeklyDates; // 本週已完成的日期清單
-  int minutes;          // 持續時間（分鐘），0 表示未設定
+  int minutes; // 持續時間（分鐘），0 表示未設定
 
   ChildHabit({
     required this.id,
@@ -89,7 +111,8 @@ class ChildHabit {
     completedDate: (json['completed_date'] as String?) ?? '',
     frequency: (json['frequency'] as String?) ?? 'daily',
     weeklyTarget: (json['weekly_target'] as int?) ?? 3,
-    weeklyDates: (json['weekly_dates'] as List?)?.map((e) => e as String).toList() ?? [],
+    weeklyDates:
+        (json['weekly_dates'] as List?)?.map((e) => e as String).toList() ?? [],
     minutes: (json['minutes'] as int?) ?? 0,
   );
 
@@ -249,7 +272,6 @@ class PointRecord {
   };
 }
 
-
 // ── 常用選項預設資料 ──
 
 class _Preset {
@@ -258,8 +280,13 @@ class _Preset {
   final String emoji;
   final int defaultMinutes;
   final bool supportsFrequency;
-  const _Preset(this.name, this.value,
-      [this.emoji = '', this.defaultMinutes = 0, this.supportsFrequency = false]);
+  const _Preset(
+    this.name,
+    this.value, [
+    this.emoji = '',
+    this.defaultMinutes = 0,
+    this.supportsFrequency = false,
+  ]);
 }
 
 // 每個常用習慣的個別設定（積分、時間、頻率）
@@ -325,7 +352,7 @@ Set<String> _currentWeekDateSet() {
 // 計算每週習慣本週已完成次數
 int _weeklyCount(ChildHabit habit) {
   final weekSet = _currentWeekDateSet();
-  return habit.weeklyDates.where((d) => weekSet.contains(d)).length;
+  return habit.weeklyDates.where(weekSet.contains).length;
 }
 
 // 今日日期字串（yyyy-MM-dd）
@@ -339,8 +366,7 @@ String _genId() =>
     '${DateTime.now().millisecondsSinceEpoch}_${Object().hashCode}';
 
 // 新增小孩 bottom sheet（支援一次新增多位）
-Future<String?> _showAvatarPickerDialog(
-    BuildContext context, String current) {
+Future<String?> _showAvatarPickerDialog(BuildContext context, String current) {
   return showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -361,19 +387,16 @@ Future<String?> _showAvatarPickerDialog(
             final selected = emoji == current;
             return GestureDetector(
               onTap: () => Navigator.pop(ctx, emoji),
-              child: Container(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: selected
-                      ? Colors.blue.shade100
-                      : Colors.grey.shade100,
+                  color: selected ? Colors.blue.shade100 : Colors.grey.shade100,
                   border: selected
                       ? Border.all(color: Colors.blue.shade400, width: 2)
                       : null,
                 ),
                 child: Center(
-                  child: Text(emoji,
-                      style: const TextStyle(fontSize: 22)),
+                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
                 ),
               ),
             );
@@ -401,14 +424,19 @@ Future<List<_ChildInput>?> _showAddChildrenSheet(BuildContext context) async {
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) => Padding(
         padding: EdgeInsets.fromLTRB(
-          20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24,
+          20,
+          20,
+          20,
+          MediaQuery.of(ctx).viewInsets.bottom + 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('新增小孩',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              '新增小孩',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             ...inputs.asMap().entries.map((e) {
               final i = e.key;
@@ -420,7 +448,9 @@ Future<List<_ChildInput>?> _showAddChildrenSheet(BuildContext context) async {
                     GestureDetector(
                       onTap: () async {
                         final picked = await _showAvatarPickerDialog(
-                            ctx, input.avatar);
+                          ctx,
+                          input.avatar,
+                        );
                         if (picked != null) setS(() => input.avatar = picked);
                       },
                       child: Container(
@@ -431,8 +461,10 @@ Future<List<_ChildInput>?> _showAddChildrenSheet(BuildContext context) async {
                           color: Colors.grey.shade100,
                         ),
                         child: Center(
-                          child: Text(input.avatar,
-                              style: const TextStyle(fontSize: 22)),
+                          child: Text(
+                            input.avatar,
+                            style: const TextStyle(fontSize: 22),
+                          ),
                         ),
                       ),
                     ),
@@ -443,10 +475,14 @@ Future<List<_ChildInput>?> _showAddChildrenSheet(BuildContext context) async {
                         textInputAction: TextInputAction.next,
                         onChanged: (v) => input.name = v,
                         decoration: InputDecoration(
-                          hintText: inputs.length > 1 ? '小孩名字 ${i + 1}' : '小孩名字',
+                          hintText: inputs.length > 1
+                              ? '小孩名字 ${i + 1}'
+                              : '小孩名字',
                           border: const OutlineInputBorder(),
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           isDense: true,
                         ),
                       ),
@@ -455,8 +491,11 @@ Future<List<_ChildInput>?> _showAddChildrenSheet(BuildContext context) async {
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () => setS(() => inputs.removeAt(i)),
-                        child: Icon(Icons.remove_circle_outline,
-                            color: Colors.red.shade300, size: 22),
+                        child: Icon(
+                          Icons.remove_circle_outline,
+                          color: Colors.red.shade300,
+                          size: 22,
+                        ),
                       ),
                     ],
                   ],
@@ -479,8 +518,10 @@ Future<List<_ChildInput>?> _showAddChildrenSheet(BuildContext context) async {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text('取消',
-                      style: TextStyle(color: Colors.grey.shade600)),
+                  child: Text(
+                    '取消',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
@@ -666,7 +707,7 @@ Future<String?> _showPinDialog(
   required String title,
 }) async {
   final controller = TextEditingController();
-  bool obscure = true;
+  var obscure = true;
   return showDialog<String>(
     context: context,
     builder: (dialogCtx) => StatefulBuilder(
@@ -678,7 +719,10 @@ Future<String?> _showPinDialog(
           obscureText: obscure,
           maxLength: digits,
           autofocus: true,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(4),
+          ],
           decoration: InputDecoration(
             hintText: '請輸入 $digits 位數字密碼',
             counterText: '',
@@ -704,19 +748,17 @@ Future<String?> _showPinDialog(
 }
 
 // 驗證家長密碼（Session 有效或未設密碼時直接通過）
-Future<bool> _verifyParentPinIfNeeded(BuildContext context,
-    {String title = '請輸入家長密碼'}) async {
+Future<bool> _verifyParentPinIfNeeded(
+  BuildContext context, {
+  String title = '請輸入家長密碼',
+}) async {
   if (parentSessionActive) return true;
   final prefs = await SharedPreferences.getInstance();
   final savedPin = prefs.getString('parent_pin');
   if (savedPin == null || savedPin.isEmpty) return true;
   if (!context.mounted) return false;
   final digits = prefs.getInt('pin_digits') ?? 4;
-  final entered = await _showPinDialog(
-    context,
-    digits: digits,
-    title: title,
-  );
+  final entered = await _showPinDialog(context, digits: digits, title: title);
   if (!context.mounted) return false;
   if (entered == null) return false;
   if (entered == savedPin) {
@@ -784,7 +826,7 @@ class _FamilyPageState extends State<FamilyPage> {
           ),
         ),
       );
-      if (changed == true) _loadChildren();
+      if (changed == true) unawaited(_loadChildren());
     } else {
       // 需要輸入密碼才能進入
       final digits = prefs.getInt('pin_digits') ?? 4;
@@ -802,7 +844,7 @@ class _FamilyPageState extends State<FamilyPage> {
             builder: (_) => const ParentManagementPage(noPinWarning: false),
           ),
         );
-        if (changed == true) _loadChildren();
+        if (changed == true) unawaited(_loadChildren());
       } else if (entered != null) {
         // 輸入了內容但不正確
         ScaffoldMessenger.of(
@@ -884,7 +926,7 @@ class _FamilyPageState extends State<FamilyPage> {
   }
 
   Future<void> _addChildAction() async {
-    final ok = await _verifyParentPinIfNeeded(context, title: '請輸入家長密碼');
+    final ok = await _verifyParentPinIfNeeded(context);
     if (!ok || !mounted) return;
     final inputs = await _showAddChildrenSheet(context);
     if (inputs == null || inputs.isEmpty || !mounted) return;
@@ -892,12 +934,18 @@ class _FamilyPageState extends State<FamilyPage> {
     final habits = await _loadHabits(prefs);
     for (final inp in inputs) {
       final child = ChildData(
-          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0);
+        id: _genId(),
+        name: inp.name.trim(),
+        avatar: inp.avatar,
+        points: 0,
+      );
       _children.add(child);
       habits.addAll(_defaultHabitsForChild(child.id));
     }
     await prefs.setString(
-        'children', jsonEncode(_children.map((c) => c.toJson()).toList()));
+      'children',
+      jsonEncode(_children.map((c) => c.toJson()).toList()),
+    );
     await _saveHabits(prefs, habits);
     setState(() {});
     MascotPersona.interact(MascotContext.completedOne);
@@ -927,13 +975,13 @@ class _FamilyPageState extends State<FamilyPage> {
           child: child,
           onTap: () async {
             await Navigator.of(context).push(
-              MaterialPageRoute(
+              MaterialPageRoute<void>(
                 builder: (_) =>
                     _ChildHomePage(children: _children, initialIndex: i),
               ),
             );
             widget.onSettingsChanged?.call();
-            _loadChildren();
+            unawaited(_loadChildren());
           },
         );
       },
@@ -1012,7 +1060,7 @@ class _ChildHomePageState extends State<_ChildHomePage> {
   // 點擊名字旁的下拉箭頭，從底部彈出切換清單
   void _showChildPicker() {
     final primary = Theme.of(context).colorScheme.primary;
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1093,7 +1141,7 @@ class _ChildHomePageState extends State<_ChildHomePage> {
               icon: const Icon(Icons.settings_outlined),
               tooltip: '設定',
               onPressed: () => Navigator.of(context).push(
-                PageRouteBuilder(
+                PageRouteBuilder<void>(
                   pageBuilder: (context, animation, secondaryAnimation) =>
                       const SettingsPage(),
                   transitionsBuilder:
@@ -1532,13 +1580,13 @@ class _HabitTabState extends State<_HabitTab> {
     final ok = await _verifyParentPinIfNeeded(context, title: '請輸入家長密碼以給予特殊積分');
     if (!ok || !mounted) return;
 
-    bool isAdd = true;
+    var isAdd = true;
     final reasonCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
     final selectedAddPresets = <String, int>{};
     final selectedDeductItems = <String, int>{};
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1744,7 +1792,10 @@ class _HabitTabState extends State<_HabitTab> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
                       decoration: InputDecoration(
                         labelText: isAdd ? '自訂加分數' : '自訂扣分數',
                         filled: true,
@@ -1773,7 +1824,7 @@ class _HabitTabState extends State<_HabitTab> {
                           ? () async {
                               Navigator.pop(ctx);
                               final prefs = _prefs!;
-                              int latestPts = widget.child.points;
+                              var latestPts = widget.child.points;
                               final presets = isAdd
                                   ? selectedAddPresets
                                   : selectedDeductItems;
@@ -1977,8 +2028,11 @@ class _HabitTabState extends State<_HabitTab> {
           ),
           if (allDone) ...[
             const SizedBox(width: 6),
-            Icon(Icons.check_circle_rounded,
-                size: 14, color: Colors.green.shade400),
+            Icon(
+              Icons.check_circle_rounded,
+              size: 14,
+              color: Colors.green.shade400,
+            ),
           ],
         ],
       ),
@@ -1991,8 +2045,7 @@ class _HabitTabState extends State<_HabitTab> {
     if (isWeekly) {
       // 每週習慣：每筆今日 weeklyDates 都計分（支援多次）
       todayPts = habits.fold<int>(0, (sum, h) {
-        final todayCount =
-            h.weeklyDates.where((d) => d == _todayStr()).length;
+        final todayCount = h.weeklyDates.where((d) => d == _todayStr()).length;
         return sum + todayCount * h.points;
       });
     } else {
@@ -2178,7 +2231,8 @@ class _HabitItemState extends State<_HabitItem>
                                   ? [
                                       BoxShadow(
                                         color: Colors.green.withValues(
-                                            alpha: 0.3),
+                                          alpha: 0.3,
+                                        ),
                                         blurRadius: 6,
                                         offset: const Offset(0, 2),
                                       ),
@@ -2239,9 +2293,11 @@ class _HabitItemState extends State<_HabitItem>
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.check_rounded,
-                                      size: 11,
-                                      color: Colors.green.shade700),
+                                  Icon(
+                                    Icons.check_rounded,
+                                    size: 11,
+                                    color: Colors.green.shade700,
+                                  ),
                                   const SizedBox(width: 3),
                                   Text(
                                     '+${habit.points}',
@@ -2278,8 +2334,8 @@ class _HabitItemState extends State<_HabitItem>
         color: done
             ? const Color(0xFFF1F8E9)
             : inProgress
-                ? const Color(0xFFF3F2FB)
-                : Colors.white,
+            ? const Color(0xFFF3F2FB)
+            : Colors.white,
         borderRadius: BorderRadius.circular(16),
         elevation: done ? 0 : 1.5,
         shadowColor: Colors.indigo.withValues(alpha: 0.18),
@@ -2373,7 +2429,9 @@ class _HabitItemState extends State<_HabitItem>
                     child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: done
                             ? Colors.green.shade100
@@ -2714,7 +2772,6 @@ class _RewardTabState extends State<_RewardTab> {
     return r?.name ?? '已刪除的獎勵';
   }
 
-
   Future<void> _redeem(RewardItem r) async {
     if (!mounted) return;
     if (widget.child.points < r.pointsCost) {
@@ -2724,7 +2781,7 @@ class _RewardTabState extends State<_RewardTab> {
       return;
     }
 
-    int qty = 1;
+    var qty = 1;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -2879,11 +2936,13 @@ class _RewardTabState extends State<_RewardTab> {
               ),
             )
           else
-            ...pendingVouchers.map((v) => _VoucherCard(
-              voucher: v,
-              rewardName: _rewardName(v.rewardId),
-              onUse: () => _useVoucher(v),
-            )),
+            ...pendingVouchers.map(
+              (v) => _VoucherCard(
+                voucher: v,
+                rewardName: _rewardName(v.rewardId),
+                onUse: () => _useVoucher(v),
+              ),
+            ),
 
           const SizedBox(height: 8),
 
@@ -3030,7 +3089,11 @@ class _VoucherCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.confirmation_num, size: 32, color: Colors.purple.shade300),
+            Icon(
+              Icons.confirmation_num,
+              size: 32,
+              color: Colors.purple.shade300,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -3038,7 +3101,10 @@ class _VoucherCard extends StatelessWidget {
                 children: [
                   Text(
                     rewardName,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -3053,10 +3119,15 @@ class _VoucherCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple.shade400,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 textStyle: const TextStyle(fontSize: 13),
               ),
               child: const Text('使用'),
@@ -3237,7 +3308,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final habits = await _loadHabits(prefs);
     for (final inp in inputs) {
       final child = ChildData(
-          id: _genId(), name: inp.name.trim(), avatar: inp.avatar, points: 0);
+        id: _genId(),
+        name: inp.name.trim(),
+        avatar: inp.avatar,
+        points: 0,
+      );
       _children.add(child);
       habits.addAll(_defaultHabitsForChild(child.id));
     }
@@ -3343,10 +3418,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     await _saveChildren();
 
     final records = await _loadRecords(prefs);
-    await _saveRecords(prefs, records.where((r) => r.childId != childId).toList());
+    await _saveRecords(
+      prefs,
+      records.where((r) => r.childId != childId).toList(),
+    );
 
     final vouchers = await _loadVouchers(prefs);
-    await _saveVouchers(prefs, vouchers.where((v) => v.childId != childId).toList());
+    await _saveVouchers(
+      prefs,
+      vouchers.where((v) => v.childId != childId).toList(),
+    );
 
     final habits = await _loadHabits(prefs);
     for (final h in habits) {
@@ -3364,7 +3445,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _editChildName(int index) async {
     final child = _children[index];
     final nameCtrl = TextEditingController(text: child.name);
-    String selectedAvatar = child.avatar;
+    var selectedAvatar = child.avatar;
 
     final result = await showDialog<bool>(
       context: context,
@@ -3376,21 +3457,26 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             children: [
               GestureDetector(
                 onTap: () async {
-                  final picked =
-                      await _showAvatarPickerDialog(ctx, selectedAvatar);
+                  final picked = await _showAvatarPickerDialog(
+                    ctx,
+                    selectedAvatar,
+                  );
                   if (picked != null) setS(() => selectedAvatar = picked);
                 },
                 child: CircleAvatar(
                   radius: 32,
                   backgroundColor: Colors.grey.shade100,
-                  child: Text(selectedAvatar,
-                      style: const TextStyle(fontSize: 32)),
+                  child: Text(
+                    selectedAvatar,
+                    style: const TextStyle(fontSize: 32),
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
-              Text('點擊更換頭像',
-                  style:
-                      TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text(
+                '點擊更換頭像',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
               const SizedBox(height: 14),
               TextField(
                 controller: nameCtrl,
@@ -3708,7 +3794,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           decoration: InputDecoration(
             suffixText: '分鐘',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
           ),
           onSubmitted: (v) {
             final n = int.tryParse(v.trim());
@@ -3733,7 +3822,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   }
 
   Widget _buildFamilyPresetCustomization(
-      _Preset p, _HabitPresetCfg cfg, StateSetter setS) {
+    _Preset p,
+    _HabitPresetCfg cfg,
+    StateSetter setS,
+  ) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -3747,13 +3839,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.timer_outlined, size: 15, color: Colors.orange.shade500),
+              Icon(
+                Icons.timer_outlined,
+                size: 15,
+                color: Colors.orange.shade500,
+              ),
               const SizedBox(width: 10),
               _AdjustBtn(
                 icon: Icons.remove,
                 enabled: cfg.minutes > 0,
                 onTap: () => setS(
-                    () => cfg.minutes = cfg.minutes <= 5 ? 0 : cfg.minutes - 5),
+                  () => cfg.minutes = cfg.minutes <= 5 ? 0 : cfg.minutes - 5,
+                ),
               ),
               const SizedBox(width: 14),
               GestureDetector(
@@ -3763,10 +3860,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 },
                 child: Container(
                   constraints: const BoxConstraints(minWidth: 44),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: Colors.orange.shade300, width: 1.5),
+                      bottom: BorderSide(
+                        color: Colors.orange.shade300,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                   child: Text(
@@ -3775,18 +3878,26 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: cfg.minutes > 0 ? Colors.black87 : Colors.grey.shade400,
+                      color: cfg.minutes > 0
+                          ? Colors.black87
+                          : Colors.grey.shade400,
                     ),
                   ),
                 ),
               ),
-              Text('分鐘', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              Text(
+                '分鐘',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
               const SizedBox(width: 14),
               _AdjustBtn(
                 icon: Icons.add,
                 enabled: cfg.minutes < 999,
-                onTap: () => setS(() => cfg.minutes =
-                    cfg.minutes == 0 ? 5 : (cfg.minutes + 5).clamp(5, 999)),
+                onTap: () => setS(
+                  () => cfg.minutes = cfg.minutes == 0
+                      ? 5
+                      : (cfg.minutes + 5).clamp(5, 999),
+                ),
               ),
             ],
           ),
@@ -3819,8 +3930,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('每週目標',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(
+                      '每週目標',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     _AdjustBtn(
                       icon: Icons.remove,
@@ -3834,12 +3950,18 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         '${cfg.weeklyTarget}',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    Text('次',
-                        style: TextStyle(
-                            fontSize: 13, color: Colors.grey.shade600)),
+                    Text(
+                      '次',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     _AdjustBtn(
                       icon: Icons.add,
@@ -3856,7 +3978,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   }
 
   Widget _buildRewardPresetCustomization(
-      _Preset p, _RewardPresetCfg cfg, StateSetter setS) {
+    _Preset p,
+    _RewardPresetCfg cfg,
+    StateSetter setS,
+  ) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -3874,7 +3999,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             icon: Icons.remove,
             enabled: cfg.minutes > 0,
             onTap: () => setS(
-                () => cfg.minutes = cfg.minutes <= 5 ? 0 : cfg.minutes - 5),
+              () => cfg.minutes = cfg.minutes <= 5 ? 0 : cfg.minutes - 5,
+            ),
           ),
           const SizedBox(width: 14),
           GestureDetector(
@@ -3903,15 +4029,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               ),
             ),
           ),
-          Text('分鐘',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          Text(
+            '分鐘',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          ),
           const SizedBox(width: 14),
           _AdjustBtn(
             icon: Icons.add,
             enabled: cfg.minutes < 999,
-            onTap: () => setS(() =>
-                cfg.minutes =
-                    cfg.minutes == 0 ? 5 : (cfg.minutes + 5).clamp(5, 999)),
+            onTap: () => setS(
+              () => cfg.minutes = cfg.minutes == 0
+                  ? 5
+                  : (cfg.minutes + 5).clamp(5, 999),
+            ),
           ),
         ],
       ),
@@ -3948,7 +4078,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 12, bottom: 4),
                 child: Container(
-                  width: 36, height: 4,
+                  width: 36,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2),
@@ -3959,15 +4090,29 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.auto_awesome, size: 18, color: Colors.orange),
+                    const Icon(
+                      Icons.auto_awesome,
+                      size: 18,
+                      color: Colors.orange,
+                    ),
                     const SizedBox(width: 8),
                     const Expanded(
-                      child: Text('常用習慣',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        '常用習慣',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     if (tempSelected.isNotEmpty)
-                      Text('${tempSelected.length} 項已選',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      Text(
+                        '${tempSelected.length} 項已選',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -3980,13 +4125,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     final p = available[i];
                     final sel = tempSelected.containsKey(p.name);
                     final cfg = tempSelected[p.name];
-                    final hasCustom = p.defaultMinutes > 0 || p.supportsFrequency;
+                    final hasCustom =
+                        p.defaultMinutes > 0 || p.supportsFrequency;
                     final pts = cfg?.points ?? p.value;
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       decoration: BoxDecoration(
                         color: sel ? Colors.orange.shade50 : Colors.white,
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey.shade100),
+                        ),
                       ),
                       child: Column(
                         children: [
@@ -4003,15 +4151,20 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             }),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 14),
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
                               child: Row(
                                 children: [
-                                  Text(p.emoji,
-                                      style: const TextStyle(fontSize: 22)),
+                                  Text(
+                                    p.emoji,
+                                    style: const TextStyle(fontSize: 22),
+                                  ),
                                   const SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           p.name,
@@ -4027,17 +4180,22 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                         ),
                                         if (!sel && hasCustom)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 3),
+                                            padding: const EdgeInsets.only(
+                                              top: 3,
+                                            ),
                                             child: Text(
                                               '可自訂時間${p.supportsFrequency ? "・可設頻率" : ""}',
                                               style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey.shade500),
+                                                fontSize: 11,
+                                                color: Colors.grey.shade500,
+                                              ),
                                             ),
                                           ),
                                         if (sel && hasCustom && cfg != null)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 3),
+                                            padding: const EdgeInsets.only(
+                                              top: 3,
+                                            ),
                                             child: Text(
                                               '${cfg.minutes > 0 ? "${cfg.minutes} 分鐘" : "未設時間"}${cfg.frequency == "weekly" ? "・每週 ${cfg.weeklyTarget} 次" : "・每日"}',
                                               style: TextStyle(
@@ -4054,13 +4212,17 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   GestureDetector(
                                     onTap: () async {
                                       if (!sel) {
-                                        setS(() => tempSelected[p.name] =
-                                            _HabitPresetCfg(
+                                        setS(
+                                          () => tempSelected[p.name] =
+                                              _HabitPresetCfg(
                                                 points: p.value,
-                                                minutes: p.defaultMinutes));
+                                                minutes: p.defaultMinutes,
+                                              ),
+                                        );
                                       }
-                                      final ctrl =
-                                          TextEditingController(text: '$pts');
+                                      final ctrl = TextEditingController(
+                                        text: '$pts',
+                                      );
                                       final newPts = await showDialog<int>(
                                         context: ctx,
                                         builder: (dCtx) => AlertDialog(
@@ -4069,27 +4231,33 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                             controller: ctrl,
                                             keyboardType: TextInputType.number,
                                             inputFormatters: [
-                                              FilteringTextInputFormatter.digitsOnly,
-                                              LengthLimitingTextInputFormatter(4),
+                                              FilteringTextInputFormatter
+                                                  .digitsOnly,
+                                              LengthLimitingTextInputFormatter(
+                                                4,
+                                              ),
                                             ],
                                             decoration: const InputDecoration(
-                                                labelText: '完成可得積分'),
+                                              labelText: '完成可得積分',
+                                            ),
                                             autofocus: true,
                                           ),
                                           actions: [
                                             TextButton(
                                               onPressed: () =>
                                                   Navigator.pop(dCtx),
-                                              child: Text('取消',
-                                                  style: TextStyle(
-                                                      color: Colors
-                                                          .grey.shade600)),
+                                              child: Text(
+                                                '取消',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                              ),
                                             ),
                                             TextButton(
                                               onPressed: () => Navigator.pop(
-                                                  dCtx,
-                                                  int.tryParse(ctrl.text) ??
-                                                      pts),
+                                                dCtx,
+                                                int.tryParse(ctrl.text) ?? pts,
+                                              ),
                                               child: const Text('確認'),
                                             ),
                                           ],
@@ -4097,23 +4265,29 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       );
                                       if (newPts != null && newPts > 0) {
                                         setS(() {
-                                          if (tempSelected.containsKey(p.name)) {
+                                          if (tempSelected.containsKey(
+                                            p.name,
+                                          )) {
                                             tempSelected[p.name]!.points =
                                                 newPts;
                                           } else {
                                             tempSelected[p.name] =
                                                 _HabitPresetCfg(
-                                                    points: newPts,
-                                                    minutes: p.defaultMinutes);
+                                                  points: newPts,
+                                                  minutes: p.defaultMinutes,
+                                                );
                                           }
                                         });
                                       }
                                     },
                                     child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 150),
+                                      duration: const Duration(
+                                        milliseconds: 150,
+                                      ),
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: sel
                                             ? Colors.orange
@@ -4123,18 +4297,23 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Text('+$pts',
-                                              style: TextStyle(
-                                                color: sel
-                                                    ? Colors.white
-                                                    : Colors.grey.shade600,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 13,
-                                              )),
+                                          Text(
+                                            '+$pts',
+                                            style: TextStyle(
+                                              color: sel
+                                                  ? Colors.white
+                                                  : Colors.grey.shade600,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
                                           if (sel) ...[
                                             const SizedBox(width: 3),
-                                            const Icon(Icons.edit,
-                                                size: 10, color: Colors.white),
+                                            const Icon(
+                                              Icons.edit,
+                                              size: 10,
+                                              color: Colors.white,
+                                            ),
                                           ],
                                         ],
                                       ),
@@ -4143,7 +4322,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   const SizedBox(width: 10),
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 150),
-                                    width: 24, height: 24,
+                                    width: 24,
+                                    height: 24,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: sel
@@ -4157,8 +4337,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       ),
                                     ),
                                     child: sel
-                                        ? const Icon(Icons.check,
-                                            size: 14, color: Colors.white)
+                                        ? const Icon(
+                                            Icons.check,
+                                            size: 14,
+                                            color: Colors.white,
+                                          )
                                         : null,
                                   ),
                                 ],
@@ -4166,11 +4349,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             ),
                           ),
                           AnimatedCrossFade(
-                            firstChild:
-                                const SizedBox(width: double.infinity, height: 0),
+                            firstChild: const SizedBox(
+                              width: double.infinity,
+                              height: 0,
+                            ),
                             secondChild: sel && hasCustom && cfg != null
                                 ? _buildFamilyPresetCustomization(p, cfg, setS)
-                                : const SizedBox(width: double.infinity, height: 0),
+                                : const SizedBox(
+                                    width: double.infinity,
+                                    height: 0,
+                                  ),
                             crossFadeState: (sel && hasCustom)
                                 ? CrossFadeState.showSecond
                                 : CrossFadeState.showFirst,
@@ -4184,7 +4372,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                    20, 12, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+                  20,
+                  12,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 20,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -4192,7 +4384,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
@@ -4217,7 +4410,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   ) {
     final tempSelected = <String, _RewardPresetCfg>{
       for (final e in initial.entries)
-        e.key: _RewardPresetCfg(points: e.value.points, minutes: e.value.minutes),
+        e.key: _RewardPresetCfg(
+          points: e.value.points,
+          minutes: e.value.minutes,
+        ),
     };
     return showModalBottomSheet<Map<String, _RewardPresetCfg>>(
       context: context,
@@ -4236,7 +4432,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 12, bottom: 4),
                 child: Container(
-                  width: 36, height: 4,
+                  width: 36,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2),
@@ -4247,15 +4444,29 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.auto_awesome, size: 18, color: Colors.purple.shade600),
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 18,
+                      color: Colors.purple.shade600,
+                    ),
                     const SizedBox(width: 8),
                     const Expanded(
-                      child: Text('常用獎勵',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        '常用獎勵',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     if (tempSelected.isNotEmpty)
-                      Text('${tempSelected.length} 項已選',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      Text(
+                        '${tempSelected.length} 項已選',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -4274,7 +4485,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       duration: const Duration(milliseconds: 200),
                       decoration: BoxDecoration(
                         color: sel ? Colors.purple.shade50 : Colors.white,
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey.shade100),
+                        ),
                       ),
                       child: Column(
                         children: [
@@ -4283,24 +4496,33 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               if (sel) {
                                 tempSelected.remove(p.name);
                               } else {
-                                tempSelected[p.name] =
-                                    _RewardPresetCfg(points: p.value);
+                                tempSelected[p.name] = _RewardPresetCfg(
+                                  points: p.value,
+                                );
                               }
                             }),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 14),
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
                               child: Row(
                                 children: [
-                                  Text(p.emoji,
-                                      style: const TextStyle(fontSize: 22)),
+                                  Text(
+                                    p.emoji,
+                                    style: const TextStyle(fontSize: 22),
+                                  ),
                                   const SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          sel && hasCustom && cfg != null && cfg.minutes > 0
+                                          sel &&
+                                                  hasCustom &&
+                                                  cfg != null &&
+                                                  cfg.minutes > 0
                                               ? '${p.name} ${cfg.minutes} 分鐘'
                                               : p.name,
                                           style: TextStyle(
@@ -4315,12 +4537,15 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                         ),
                                         if (!sel && hasCustom)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 3),
+                                            padding: const EdgeInsets.only(
+                                              top: 3,
+                                            ),
                                             child: Text(
                                               '可自訂時間',
                                               style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey.shade500),
+                                                fontSize: 11,
+                                                color: Colors.grey.shade500,
+                                              ),
                                             ),
                                           ),
                                       ],
@@ -4330,11 +4555,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   GestureDetector(
                                     onTap: () async {
                                       if (!sel) {
-                                        setS(() => tempSelected[p.name] =
-                                            _RewardPresetCfg(points: p.value));
+                                        setS(
+                                          () => tempSelected[p.name] =
+                                              _RewardPresetCfg(points: p.value),
+                                        );
                                       }
-                                      final ctrl =
-                                          TextEditingController(text: '$pts');
+                                      final ctrl = TextEditingController(
+                                        text: '$pts',
+                                      );
                                       final newPts = await showDialog<int>(
                                         context: ctx,
                                         builder: (dCtx) => AlertDialog(
@@ -4343,25 +4571,33 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                             controller: ctrl,
                                             keyboardType: TextInputType.number,
                                             inputFormatters: [
-                                              FilteringTextInputFormatter.digitsOnly,
-                                              LengthLimitingTextInputFormatter(4),
+                                              FilteringTextInputFormatter
+                                                  .digitsOnly,
+                                              LengthLimitingTextInputFormatter(
+                                                4,
+                                              ),
                                             ],
                                             decoration: const InputDecoration(
-                                                labelText: '所需積分'),
+                                              labelText: '所需積分',
+                                            ),
                                             autofocus: true,
                                           ),
                                           actions: [
                                             TextButton(
                                               onPressed: () =>
                                                   Navigator.pop(dCtx),
-                                              child: Text('取消',
-                                                  style: TextStyle(
-                                                      color: Colors.grey.shade600)),
+                                              child: Text(
+                                                '取消',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                              ),
                                             ),
                                             TextButton(
                                               onPressed: () => Navigator.pop(
-                                                  dCtx,
-                                                  int.tryParse(ctrl.text) ?? pts),
+                                                dCtx,
+                                                int.tryParse(ctrl.text) ?? pts,
+                                              ),
                                               child: const Text('確認'),
                                             ),
                                           ],
@@ -4369,19 +4605,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       );
                                       if (newPts != null && newPts > 0) {
                                         setS(() {
-                                          if (tempSelected.containsKey(p.name)) {
-                                            tempSelected[p.name]!.points = newPts;
+                                          if (tempSelected.containsKey(
+                                            p.name,
+                                          )) {
+                                            tempSelected[p.name]!.points =
+                                                newPts;
                                           } else {
                                             tempSelected[p.name] =
-                                                _RewardPresetCfg(points: newPts);
+                                                _RewardPresetCfg(
+                                                  points: newPts,
+                                                );
                                           }
                                         });
                                       }
                                     },
                                     child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 150),
+                                      duration: const Duration(
+                                        milliseconds: 150,
+                                      ),
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: sel
                                             ? Colors.purple.shade600
@@ -4391,18 +4636,23 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Text('$pts',
-                                              style: TextStyle(
-                                                color: sel
-                                                    ? Colors.white
-                                                    : Colors.grey.shade600,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 13,
-                                              )),
+                                          Text(
+                                            '$pts',
+                                            style: TextStyle(
+                                              color: sel
+                                                  ? Colors.white
+                                                  : Colors.grey.shade600,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
                                           if (sel) ...[
                                             const SizedBox(width: 3),
-                                            const Icon(Icons.edit,
-                                                size: 10, color: Colors.white),
+                                            const Icon(
+                                              Icons.edit,
+                                              size: 10,
+                                              color: Colors.white,
+                                            ),
                                           ],
                                         ],
                                       ),
@@ -4411,7 +4661,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   const SizedBox(width: 10),
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 150),
-                                    width: 24, height: 24,
+                                    width: 24,
+                                    height: 24,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: sel
@@ -4425,8 +4676,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                       ),
                                     ),
                                     child: sel
-                                        ? const Icon(Icons.check,
-                                            size: 14, color: Colors.white)
+                                        ? const Icon(
+                                            Icons.check,
+                                            size: 14,
+                                            color: Colors.white,
+                                          )
                                         : null,
                                   ),
                                 ],
@@ -4434,11 +4688,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             ),
                           ),
                           AnimatedCrossFade(
-                            firstChild:
-                                const SizedBox(width: double.infinity, height: 0),
+                            firstChild: const SizedBox(
+                              width: double.infinity,
+                              height: 0,
+                            ),
                             secondChild: sel && hasCustom && cfg != null
                                 ? _buildRewardPresetCustomization(p, cfg, setS)
-                                : const SizedBox(width: double.infinity, height: 0),
+                                : const SizedBox(
+                                    width: double.infinity,
+                                    height: 0,
+                                  ),
                             crossFadeState: (sel && hasCustom)
                                 ? CrossFadeState.showSecond
                                 : CrossFadeState.showFirst,
@@ -4452,7 +4711,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                    20, 12, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+                  20,
+                  12,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 20,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -4460,7 +4723,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.purple.shade600,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
@@ -4490,19 +4754,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController(text: '10');
-    final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
+    final selectedIds = Set<String>.from(_children.map((c) => c.id));
     final selectedPresetCfgs = <String, _HabitPresetCfg>{};
-    String freq = 'daily';
-    int weeklyTarget = 3;
-    int minutes = 0;
-    bool customExpanded = false;
+    var freq = 'daily';
+    var weeklyTarget = 3;
+    var minutes = 0;
+    var customExpanded = false;
 
     final existingNames = _habits.map((h) => h.name).toSet();
     final available = _kHabitPresets
         .where((p) => !existingNames.contains(p.name))
         .toList();
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -4655,42 +4919,62 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     borderRadius: BorderRadius.circular(12),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: customExpanded
-                            ? (hasCustom ? Colors.deepOrange.shade50 : Colors.grey.shade100)
+                            ? (hasCustom
+                                  ? Colors.deepOrange.shade50
+                                  : Colors.grey.shade100)
                             : Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: customExpanded
-                              ? (hasCustom ? Colors.deepOrange.shade300 : Colors.grey.shade300)
+                              ? (hasCustom
+                                    ? Colors.deepOrange.shade300
+                                    : Colors.grey.shade300)
                               : Colors.grey.shade300,
                         ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.edit_note, size: 18,
-                              color: hasCustom ? Colors.deepOrange.shade500 : Colors.grey.shade500),
+                          Icon(
+                            Icons.edit_note,
+                            size: 18,
+                            color: hasCustom
+                                ? Colors.deepOrange.shade500
+                                : Colors.grey.shade500,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               hasCustom ? customName : '自訂習慣',
                               style: TextStyle(
-                                color: hasCustom ? Colors.deepOrange.shade700 : Colors.grey.shade600,
+                                color: hasCustom
+                                    ? Colors.deepOrange.shade700
+                                    : Colors.grey.shade600,
                                 fontSize: 14,
                               ),
                             ),
                           ),
                           Icon(
-                            customExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                            size: 20, color: Colors.grey.shade400,
+                            customExpanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                            size: 20,
+                            color: Colors.grey.shade400,
                           ),
                         ],
                       ),
                     ),
                   ),
                   AnimatedCrossFade(
-                    firstChild: const SizedBox(width: double.infinity, height: 0),
+                    firstChild: const SizedBox(
+                      width: double.infinity,
+                      height: 0,
+                    ),
                     secondChild: Container(
                       margin: const EdgeInsets.only(top: 8),
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -4712,17 +4996,26 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               fillColor: Colors.white,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.grey.shade200),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.grey.shade200),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.orange.shade400),
+                                borderSide: BorderSide(
+                                  color: Colors.orange.shade400,
+                                ),
                               ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -4730,29 +5023,51 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             controller: pointCtrl,
                             onChanged: (_) => setS(() {}),
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(4),
+                            ],
                             decoration: InputDecoration(
                               hintText: '完成可得分數',
                               filled: true,
                               fillColor: Colors.white,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.grey.shade200),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.grey.shade200),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.orange.shade400),
+                                borderSide: BorderSide(
+                                  color: Colors.orange.shade400,
+                                ),
                               ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              prefixIcon: const Icon(Icons.star_outline, size: 18),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.star_outline,
+                                size: 18,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Text('頻率', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                          Text(
+                            '頻率',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           Row(
                             children: [
@@ -4775,8 +5090,20 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   onTap: () => setS(() => weeklyTarget--),
                                 ),
                                 const SizedBox(width: 8),
-                                Text('$weeklyTarget', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                Text('  次', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                                Text(
+                                  '$weeklyTarget',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '  次',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
                                 const SizedBox(width: 8),
                                 _AdjustBtn(
                                   icon: Icons.add,
@@ -4787,64 +5114,116 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text('持續時間（選填）', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                          Text(
+                            '持續時間（選填）',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(28),
                               border: Border.all(
-                                color: minutes > 0 ? Colors.orange.shade300 : Colors.grey.shade300,
+                                color: minutes > 0
+                                    ? Colors.orange.shade300
+                                    : Colors.grey.shade300,
                                 width: 1.5,
                               ),
-                              color: minutes > 0 ? Colors.orange.shade50 : Colors.white,
+                              color: minutes > 0
+                                  ? Colors.orange.shade50
+                                  : Colors.white,
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 GestureDetector(
                                   onTap: minutes > 0
-                                      ? () => setS(() => minutes = minutes <= 5 ? 0 : minutes - 5)
+                                      ? () => setS(
+                                          () => minutes = minutes <= 5
+                                              ? 0
+                                              : minutes - 5,
+                                        )
                                       : null,
                                   child: Container(
-                                    width: 44, height: 44,
+                                    width: 44,
+                                    height: 44,
                                     alignment: Alignment.center,
-                                    child: Icon(Icons.remove, size: 18,
-                                        color: minutes > 0 ? Colors.orange.shade700 : Colors.grey.shade300),
+                                    child: Icon(
+                                      Icons.remove,
+                                      size: 18,
+                                      color: minutes > 0
+                                          ? Colors.orange.shade700
+                                          : Colors.grey.shade300,
+                                    ),
                                   ),
                                 ),
-                                Container(width: 1, height: 28,
-                                    color: minutes > 0 ? Colors.orange.shade200 : Colors.grey.shade200),
+                                Container(
+                                  width: 1,
+                                  height: 28,
+                                  color: minutes > 0
+                                      ? Colors.orange.shade200
+                                      : Colors.grey.shade200,
+                                ),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.baseline,
                                     textBaseline: TextBaseline.alphabetic,
                                     children: [
                                       Text(
                                         minutes > 0 ? '$minutes' : '--',
                                         style: TextStyle(
-                                          fontSize: 22, fontWeight: FontWeight.bold,
-                                          color: minutes > 0 ? Colors.black87 : Colors.grey.shade400,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: minutes > 0
+                                              ? Colors.black87
+                                              : Colors.grey.shade400,
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      Text('分鐘', style: TextStyle(
-                                        fontSize: 13,
-                                        color: minutes > 0 ? Colors.grey.shade600 : Colors.grey.shade400,
-                                      )),
+                                      Text(
+                                        '分鐘',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: minutes > 0
+                                              ? Colors.grey.shade600
+                                              : Colors.grey.shade400,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
-                                Container(width: 1, height: 28,
-                                    color: minutes > 0 ? Colors.orange.shade200 : Colors.grey.shade200),
+                                Container(
+                                  width: 1,
+                                  height: 28,
+                                  color: minutes > 0
+                                      ? Colors.orange.shade200
+                                      : Colors.grey.shade200,
+                                ),
                                 GestureDetector(
-                                  onTap: () => setS(() => minutes = minutes == 0 ? 5 : (minutes + 5).clamp(5, 999)),
+                                  onTap: () => setS(
+                                    () => minutes = minutes == 0
+                                        ? 5
+                                        : (minutes + 5).clamp(5, 999),
+                                  ),
                                   child: Container(
-                                    width: 44, height: 44,
+                                    width: 44,
+                                    height: 44,
                                     alignment: Alignment.center,
-                                    child: Icon(Icons.add, size: 18, color: Colors.orange.shade700),
+                                    child: Icon(
+                                      Icons.add,
+                                      size: 18,
+                                      color: Colors.orange.shade700,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -4853,7 +5232,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         ],
                       ),
                     ),
-                    crossFadeState: customExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                    crossFadeState: customExpanded
+                        ? CrossFadeState.showSecond
+                        : CrossFadeState.showFirst,
                     duration: const Duration(milliseconds: 200),
                   ),
                   const SizedBox(height: 20),
@@ -4943,11 +5324,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _editHabit(ChildHabit habit) async {
     final nameCtrl = TextEditingController(text: habit.name);
     final pointCtrl = TextEditingController(text: habit.points.toString());
-    String freq = habit.frequency;
-    int weeklyTarget = habit.weeklyTarget;
-    int minutes = habit.minutes;
+    var freq = habit.frequency;
+    var weeklyTarget = habit.weeklyTarget;
+    var minutes = habit.minutes;
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -4960,7 +5341,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           final canSave = name.isNotEmpty && pts > 0;
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -4968,7 +5353,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 children: [
                   Center(
                     child: Container(
-                      width: 36, height: 4,
+                      width: 36,
+                      height: 4,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade300,
                         borderRadius: BorderRadius.circular(2),
@@ -4976,8 +5362,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('編輯習慣',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '編輯習慣',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: nameCtrl,
@@ -4988,74 +5376,102 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       filled: true,
                       fillColor: Colors.grey.shade50,
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none),
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: pointCtrl,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
                     onChanged: (_) => setS(() {}),
                     decoration: InputDecoration(
                       labelText: '完成可得分數',
                       filled: true,
                       fillColor: Colors.grey.shade50,
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none),
-                      prefixIcon:
-                          const Icon(Icons.stars_outlined, size: 18),
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: const Icon(Icons.stars_outlined, size: 18),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Text('頻率',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500)),
+                  Text(
+                    '頻率',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Row(children: [
-                    _FreqChip(
+                  Row(
+                    children: [
+                      _FreqChip(
                         label: '每日',
                         selected: freq == 'daily',
-                        onTap: () => setS(() => freq = 'daily')),
-                    const SizedBox(width: 8),
-                    _FreqChip(
+                        onTap: () => setS(() => freq = 'daily'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FreqChip(
                         label: '每週',
                         selected: freq == 'weekly',
-                        onTap: () => setS(() => freq = 'weekly')),
-                    if (freq == 'weekly') ...[
-                      const SizedBox(width: 16),
-                      _AdjustBtn(
+                        onTap: () => setS(() => freq = 'weekly'),
+                      ),
+                      if (freq == 'weekly') ...[
+                        const SizedBox(width: 16),
+                        _AdjustBtn(
                           icon: Icons.remove,
                           enabled: weeklyTarget > 1,
-                          onTap: () => setS(() => weeklyTarget--)),
-                      const SizedBox(width: 8),
-                      Text('$weeklyTarget',
+                          onTap: () => setS(() => weeklyTarget--),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$weeklyTarget',
                           style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text('  次',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '  次',
                           style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade600)),
-                      const SizedBox(width: 8),
-                      _AdjustBtn(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _AdjustBtn(
                           icon: Icons.add,
                           enabled: weeklyTarget < 7,
-                          onTap: () => setS(() => weeklyTarget++)),
+                          onTap: () => setS(() => weeklyTarget++),
+                        ),
+                      ],
                     ],
-                  ]),
+                  ),
                   const SizedBox(height: 14),
-                  Text('持續時間（選填）',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500)),
+                  Text(
+                    '持續時間（選填）',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -5067,46 +5483,51 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             : Colors.grey.shade300,
                         width: 1.5,
                       ),
-                      color: minutes > 0
-                          ? Colors.orange.shade50
-                          : Colors.white,
+                      color: minutes > 0 ? Colors.orange.shade50 : Colors.white,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         GestureDetector(
                           onTap: minutes > 0
-                              ? () => setS(() => minutes =
-                                  minutes <= 5 ? 0 : minutes - 5)
+                              ? () => setS(
+                                  () =>
+                                      minutes = minutes <= 5 ? 0 : minutes - 5,
+                                )
                               : null,
                           child: Container(
-                            width: 44, height: 44,
+                            width: 44,
+                            height: 44,
                             alignment: Alignment.center,
-                            child: Icon(Icons.remove,
-                                size: 18,
-                                color: minutes > 0
-                                    ? Colors.orange.shade700
-                                    : Colors.grey.shade300),
+                            child: Icon(
+                              Icons.remove,
+                              size: 18,
+                              color: minutes > 0
+                                  ? Colors.orange.shade700
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                         ),
                         Container(
-                            width: 1, height: 28,
-                            color: minutes > 0
-                                ? Colors.orange.shade200
-                                : Colors.grey.shade200),
+                          width: 1,
+                          height: 28,
+                          color: minutes > 0
+                              ? Colors.orange.shade200
+                              : Colors.grey.shade200,
+                        ),
                         GestureDetector(
                           onTap: () async {
-                            final r =
-                                await _showFamilyMinutesDialog(minutes);
+                            final r = await _showFamilyMinutesDialog(minutes);
                             if (r != null) setS(() => minutes = r);
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 10),
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.baseline,
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
                               textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
@@ -5120,36 +5541,45 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 4),
-                                Text('分鐘',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: minutes > 0
-                                          ? Colors.grey.shade600
-                                          : Colors.grey.shade400,
-                                    )),
+                                Text(
+                                  '分鐘',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: minutes > 0
+                                        ? Colors.grey.shade600
+                                        : Colors.grey.shade400,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                         ),
                         Container(
-                            width: 1, height: 28,
-                            color: minutes > 0
-                                ? Colors.orange.shade200
-                                : Colors.grey.shade200),
+                          width: 1,
+                          height: 28,
+                          color: minutes > 0
+                              ? Colors.orange.shade200
+                              : Colors.grey.shade200,
+                        ),
                         GestureDetector(
                           onTap: minutes < 999
-                              ? () => setS(() => minutes = minutes == 0
-                                  ? 5
-                                  : (minutes + 5).clamp(5, 999))
+                              ? () => setS(
+                                  () => minutes = minutes == 0
+                                      ? 5
+                                      : (minutes + 5).clamp(5, 999),
+                                )
                               : null,
                           child: Container(
-                            width: 44, height: 44,
+                            width: 44,
+                            height: 44,
                             alignment: Alignment.center,
-                            child: Icon(Icons.add,
-                                size: 18,
-                                color: minutes < 999
-                                    ? Colors.orange.shade700
-                                    : Colors.grey.shade300),
+                            child: Icon(
+                              Icons.add,
+                              size: 18,
+                              color: minutes < 999
+                                  ? Colors.orange.shade700
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                         ),
                       ],
@@ -5164,8 +5594,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               Navigator.pop(ctx);
                               final prefs = _prefs!;
                               final habits = await _loadHabits(prefs);
-                              final idx =
-                                  habits.indexWhere((h) => h.id == habit.id);
+                              final idx = habits.indexWhere(
+                                (h) => h.id == habit.id,
+                              );
                               if (idx != -1) {
                                 habits[idx] = ChildHabit(
                                   id: habit.id,
@@ -5188,12 +5619,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         backgroundColor: Colors.green,
                         disabledBackgroundColor: Colors.grey.shade200,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('儲存',
-                          style: TextStyle(color: Colors.white)),
+                      child: const Text(
+                        '儲存',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ),
                 ],
@@ -5216,7 +5649,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController(text: '5');
-    final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
+    final selectedIds = Set<String>.from(_children.map((c) => c.id));
     final selectedPresets = <String>{};
     final selectedPresetPts = <String, int>{};
 
@@ -5225,7 +5658,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         .where((p) => !existingNames.contains(p.name))
         .toList();
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -5409,7 +5842,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
                       decoration: InputDecoration(
                         labelText: '自訂扣分數',
                         filled: true,
@@ -5508,7 +5944,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final nameCtrl = TextEditingController(text: item.name);
     final pointCtrl = TextEditingController(text: item.points.toString());
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -5521,14 +5957,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           final canSave = name.isNotEmpty && pts > 0;
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
-                    width: 36, height: 4,
+                    width: 36,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
@@ -5536,8 +5977,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('編輯扣分項目',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text(
+                  '編輯扣分項目',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameCtrl,
@@ -5548,29 +5991,40 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none),
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: pointCtrl,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(4),
+                  ],
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
                     labelText: '扣幾分',
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none),
-                    prefixIcon:
-                        const Icon(Icons.remove_circle_outline, size: 18),
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.remove_circle_outline,
+                      size: 18,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -5582,8 +6036,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                             Navigator.pop(ctx);
                             final prefs = _prefs!;
                             final deductions = await _loadDeductions(prefs);
-                            final idx =
-                                deductions.indexWhere((d) => d.id == item.id);
+                            final idx = deductions.indexWhere(
+                              (d) => d.id == item.id,
+                            );
                             if (idx != -1) {
                               deductions[idx] = DeductionItem(
                                 id: item.id,
@@ -5601,11 +6056,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       backgroundColor: Colors.red.shade600,
                       disabledBackgroundColor: Colors.grey.shade200,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text('儲存',
-                        style: TextStyle(color: Colors.white)),
+                    child: const Text(
+                      '儲存',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],
@@ -5627,7 +6085,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
     final nameCtrl = TextEditingController();
     final pointCtrl = TextEditingController();
-    final Set<String> selectedIds = Set.from(_children.map((c) => c.id));
+    final selectedIds = Set<String>.from(_children.map((c) => c.id));
     final selectedPresetCfgs = <String, _RewardPresetCfg>{};
 
     final existingNames = _rewards.map((r) => r.name).toSet();
@@ -5635,7 +6093,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         .where((p) => !existingNames.contains(p.name))
         .toList();
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -5808,7 +6266,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
                       decoration: InputDecoration(
                         labelText: '所需積分',
                         filled: true,
@@ -5900,9 +6361,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _editReward(RewardItem reward) async {
     final nameCtrl = TextEditingController(text: reward.name);
     final pointCtrl = TextEditingController(text: reward.pointsCost.toString());
-    final Set<String> selectedIds = Set.from(reward.childIds);
+    final selectedIds = Set<String>.from(reward.childIds);
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -5915,7 +6376,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           final canSave = name.isNotEmpty && pts > 0 && selectedIds.isNotEmpty;
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              20,
+              16,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -5923,7 +6388,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 children: [
                   Center(
                     child: Container(
-                      width: 36, height: 4,
+                      width: 36,
+                      height: 4,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade300,
                         borderRadius: BorderRadius.circular(2),
@@ -5931,13 +6397,15 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('編輯獎勵',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '編輯獎勵',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 14),
-                  Text('套用小孩',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    '套用小孩',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
@@ -5969,32 +6437,41 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                       filled: true,
                       fillColor: Colors.grey.shade50,
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none),
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
                       prefixIcon: const Icon(
-                          Icons.card_giftcard_outlined,
-                          size: 18),
+                        Icons.card_giftcard_outlined,
+                        size: 18,
+                      ),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: pointCtrl,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
                     onChanged: (_) => setS(() {}),
                     decoration: InputDecoration(
                       labelText: '所需積分',
                       filled: true,
                       fillColor: Colors.grey.shade50,
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none),
-                      prefixIcon:
-                          const Icon(Icons.stars_outlined, size: 18),
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: const Icon(Icons.stars_outlined, size: 18),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -6006,8 +6483,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                               Navigator.pop(ctx);
                               final prefs = _prefs!;
                               final rewards = await _loadRewards(prefs);
-                              final idx = rewards
-                                  .indexWhere((r) => r.id == reward.id);
+                              final idx = rewards.indexWhere(
+                                (r) => r.id == reward.id,
+                              );
                               if (idx != -1) {
                                 rewards[idx] = RewardItem(
                                   id: reward.id,
@@ -6026,12 +6504,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         backgroundColor: Colors.purple,
                         disabledBackgroundColor: Colors.grey.shade200,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('儲存',
-                          style: TextStyle(color: Colors.white)),
+                      child: const Text(
+                        '儲存',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ),
                 ],
@@ -6069,6 +6549,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
     if (confirm == true) await onConfirm();
   }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -6267,7 +6748,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               child: TextButton(
                 onPressed: () => _clearChildData(index),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -6524,7 +7008,11 @@ class _AdjustBtn extends StatelessWidget {
   final IconData icon;
   final bool enabled;
   final VoidCallback onTap;
-  const _AdjustBtn({required this.icon, required this.enabled, required this.onTap});
+  const _AdjustBtn({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -6532,7 +7020,8 @@ class _AdjustBtn extends StatelessWidget {
       onTap: enabled ? onTap : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        width: 32, height: 32,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: enabled ? Colors.white : Colors.grey.shade100,
@@ -6541,11 +7030,20 @@ class _AdjustBtn extends StatelessWidget {
             width: 1.5,
           ),
           boxShadow: enabled
-              ? [BoxShadow(color: Colors.orange.withValues(alpha: 0.15), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
-        child: Icon(icon, size: 16,
-            color: enabled ? Colors.orange.shade700 : Colors.grey.shade400),
+        child: Icon(
+          icon,
+          size: 16,
+          color: enabled ? Colors.orange.shade700 : Colors.grey.shade400,
+        ),
       ),
     );
   }
@@ -6556,7 +7054,11 @@ class _FreqChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _FreqChip({required this.label, required this.selected, required this.onTap});
+  const _FreqChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -6573,7 +7075,13 @@ class _FreqChip extends StatelessWidget {
             width: 1.5,
           ),
           boxShadow: selected
-              ? [BoxShadow(color: Colors.orange.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                    color: Colors.orange.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
         child: Text(

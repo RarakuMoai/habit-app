@@ -90,8 +90,6 @@ class NotificationService {
           channelDescription: '番茄鐘倒數結束時的鈴聲提醒',
           importance: Importance.high,
           priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
           category: AndroidNotificationCategory.alarm,
         ),
         iOS: DarwinNotificationDetails(

@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../utils/mascot.dart';
 import '../utils/sfx_service.dart';
 import '../widgets/mascot_app_bar.dart';
@@ -101,13 +104,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
-    final String today = todayString();
-    final String? lastOpen = prefs.getString('last_open_date');
+    final today = todayString();
+    final lastOpen = prefs.getString('last_open_date');
     streak = prefs.getInt('streak') ?? 0;
     _nickname = prefs.getString('user_nickname') ?? '你';
     mascotName0 = prefs.getString('mascot_name') ?? '兔咪';
 
-    final String? obDateStr = prefs.getString('onboarding_date');
+    final obDateStr = prefs.getString('onboarding_date');
     if (obDateStr != null) {
       onboardingDate = DateTime.tryParse(obDateStr);
     } else {
@@ -118,17 +121,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
     }
 
-    final String? habitsJson = prefs.getString('habits');
+    final habitsJson = prefs.getString('habits');
     if (habitsJson != null) {
-      final List<dynamic> decoded = jsonDecode(habitsJson);
-      habits.addAll(decoded.map((e) => Map<String, dynamic>.from(e)));
+      final decoded = jsonDecode(habitsJson) as List<dynamic>;
+      habits.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
     }
 
     if (lastOpen != null && lastOpen != today) {
       final dailyHabits = habits
           .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
           .toList();
-      final bool allDailyDone =
+      final allDailyDone =
           dailyHabits.isNotEmpty && dailyHabits.every((h) => h['done'] == true);
       yesterdayAllDone = allDailyDone;
       if (dailyHabits.isNotEmpty) {
@@ -139,7 +142,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         }
         await prefs.setInt('streak', streak);
       }
-      for (var habit in habits) {
+      for (final habit in habits) {
         if ((habit['frequency'] ?? 'daily') != 'weekly') {
           habit['done'] = false;
         }
@@ -148,7 +151,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     // Always recompute done for weekly habits from weeklyDates
-    for (var habit in habits) {
+    for (final habit in habits) {
       if ((habit['frequency'] ?? 'daily') == 'weekly') {
         final target = (habit['weeklyTarget'] as int?) ?? 3;
         habit['done'] = _weeklyCount(habit) >= target;
@@ -164,7 +167,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       await prefs.setString('habits', jsonEncode(habits));
     }
 
-    final bool isFirstOpenToday = lastOpen != today;
+    final isFirstOpenToday = lastOpen != today;
     await prefs.setString('last_open_date', today);
     setState(() => isLoading = false);
 
@@ -478,7 +481,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final name = ctrl.text.trim();
     if (name.isEmpty) return;
     setState(() => habits[index]['name'] = name);
-    saveHabits();
+    unawaited(saveHabits());
   }
 
   Future<void> _confirmDeleteHabit(int index) async {
@@ -982,11 +985,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final initWeekly = (habit['weeklyTarget'] as int?) ?? 3;
 
     final nameCtrl = TextEditingController(text: initBase);
-    String freq = initFreq;
-    int weeklyTarget = initWeekly;
-    int minutes = initMinutes;
+    var freq = initFreq;
+    var weeklyTarget = initWeekly;
+    var minutes = initMinutes;
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1283,12 +1286,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return !existing.contains(p.name);
     }).toList();
     final selected = <String, _PresetConfig>{};
-    String freq = 'daily';
-    int weeklyTarget = 3;
-    int customMinutes = 0;
-    bool customExpanded = false;
+    var freq = 'daily';
+    var weeklyTarget = 3;
+    var customMinutes = 0;
+    var customExpanded = false;
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1700,7 +1703,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ? null
                         : () async {
                             Navigator.pop(ctx);
-                            bool settingsChanged = false;
+                            var settingsChanged = false;
                             final prefs = await SharedPreferences.getInstance();
                             for (final name in selected.keys) {
                               final idx = available.indexWhere(
@@ -1763,7 +1766,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 habits.add(map);
                               }
                             });
-                            saveHabits();
+                            unawaited(saveHabits());
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
@@ -2010,11 +2013,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               color: Colors.orange.shade50.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.orange.shade200,
-                width: 1.2,
-                style: BorderStyle.solid,
-              ),
+              border: Border.all(color: Colors.orange.shade200, width: 1.2),
             ),
             padding: const EdgeInsets.symmetric(vertical: 13),
             child: Row(

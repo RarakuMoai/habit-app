@@ -236,7 +236,7 @@ class BgmService with WidgetsBindingObserver {
       _currentVolume = 0;
       // 注意：just_audio 的 play() future「播到停止才完成」，不可 await，否則會卡住
       unawaited(_player.play());
-      await Future.delayed(const Duration(milliseconds: 80));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
       if (!_isPlayRequestCurrent(requestId, asset)) return;
       await _player.pause();
       await _player.seek(Duration.zero);
@@ -292,7 +292,7 @@ class BgmService with WidgetsBindingObserver {
       await _player.setVolume(0);
       _currentVolume = 0;
       await _player.pause();
-      await Future.delayed(const Duration(milliseconds: 40));
+      await Future<void>.delayed(const Duration(milliseconds: 40));
       if (_bailDeferred(requestId, asset)) return;
       // 注意：play() 不可 await（其 future 播到停止才完成）。fire-and-forget。
       unawaited(_player.play());
@@ -326,7 +326,7 @@ class BgmService with WidgetsBindingObserver {
           : _isPlayRequestCurrent(requestId, asset);
     }
 
-    for (int attempt = 0; attempt < _playStartRetries; attempt++) {
+    for (var attempt = 0; attempt < _playStartRetries; attempt++) {
       if (AudioSettingsService.musicMuted.value || !isCurrentRequest()) {
         return;
       }
@@ -373,7 +373,7 @@ class BgmService with WidgetsBindingObserver {
       }
 
       final before = _player.position;
-      await Future.delayed(const Duration(milliseconds: 450));
+      await Future<void>.delayed(const Duration(milliseconds: 450));
       final after = _player.position;
       return _player.playing &&
           after.inMilliseconds > before.inMilliseconds + 80;
@@ -474,7 +474,6 @@ class BgmService with WidgetsBindingObserver {
         if (_wasPlayingBeforeBackground) {
           _player.pause();
         }
-        break;
       case AppLifecycleState.resumed:
         // app 真正回到前景（含冷啟動後第一次 active）才是 iOS 願意建立輸出
         // 路由的可靠時機。這裡 re-activate session 並把該播的曲目踢起來，
@@ -485,7 +484,6 @@ class BgmService with WidgetsBindingObserver {
         if (shouldResume && !AudioSettingsService.musicMuted.value) {
           unawaited(_resumeOutput());
         }
-        break;
       case AppLifecycleState.detached:
         break;
     }

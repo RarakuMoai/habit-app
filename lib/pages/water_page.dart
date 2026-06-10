@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -313,8 +314,10 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _entries = [..._entries, _WaterEntry.cup(_cupMl)]);
     await _saveEntries();
     _notifyGoalStatus();
-    SfxService.instance.play(
-      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+    unawaited(
+      SfxService.instance.play(
+        !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+      ),
     );
     MascotPersona.interact(_mascotCtx);
     _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
@@ -325,7 +328,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _entries = _entries.sublist(0, _entries.length - 1));
     await _saveEntries();
     _notifyGoalStatus();
-    SfxService.instance.play(SfxCue.cancel);
+    unawaited(SfxService.instance.play(SfxCue.cancel));
     MascotPersona.interact(_mascotCtx);
   }
 
@@ -337,7 +340,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     });
     await _saveEntries();
     _notifyGoalStatus();
-    SfxService.instance.play(SfxCue.cancel);
+    unawaited(SfxService.instance.play(SfxCue.cancel));
     MascotPersona.interact(_mascotCtx);
   }
 
@@ -355,8 +358,10 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _entries = [..._entries, _WaterEntry.custom(clamped)]);
     await _saveEntries();
     _notifyGoalStatus();
-    SfxService.instance.play(
-      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+    unawaited(
+      SfxService.instance.play(
+        !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+      ),
     );
     MascotPersona.interact(_mascotCtx);
     _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
@@ -372,12 +377,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final warnStr = _volStr(_warnTotalMl);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('已喝超過 $warnStr，建議休息一下、補點電解質'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text('已喝超過 $warnStr，建議休息一下、補點電解質')));
   }
 
   // 超出每日上限的提示（4s 內 debounce 不重複跳）
@@ -884,7 +884,6 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final atMax = _totalMl + _cupMl > _maxTotalMl;
     final canRemove = _entries.isNotEmpty;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _SmallGhostButton(
           icon: Icons.remove_rounded,
@@ -1395,19 +1394,30 @@ class _WaterPainter extends CustomPainter {
 
     // 波面取樣：兩個不同波長/速度的諧波疊加，dir 控制行進方向
     // （前後層反向流動，水面才有立體感）
-    double surfaceYAt(double f, double lift, double phaseOff, double ampMul,
-        double dir) {
+    double surfaceYAt(
+      double f,
+      double lift,
+      double phaseOff,
+      double ampMul,
+      double dir,
+    ) {
       return waterTop -
           lift +
           tilt * (f - 0.5) * 2 * ampMul +
-          a1 * ampMul * math.sin(_tau * (f * 1.15 + dir * clock * 7 + phaseOff)) +
+          a1 *
+              ampMul *
+              math.sin(_tau * (f * 1.15 + dir * clock * 7 + phaseOff)) +
           a2 *
               ampMul *
               math.sin(_tau * (f * 2.45 - dir * clock * 11 + phaseOff * 1.7));
     }
 
-    Path surfacePolyline(double lift, double phaseOff, double ampMul,
-        double dir) {
+    Path surfacePolyline(
+      double lift,
+      double phaseOff,
+      double ampMul,
+      double dir,
+    ) {
       final p = Path();
       for (var i = 0; i <= _surfaceSteps; i++) {
         final f = i / _surfaceSteps;
@@ -1432,8 +1442,9 @@ class _WaterPainter extends CustomPainter {
     canvas.clipPath(clip);
 
     // 後層波浪：比前層高出一點點、反向流動，營造水面厚度
-    final backBody =
-        bodyFrom(surfacePolyline(a1 * 1.5 + w * 0.012, 0.42, 0.7, -1));
+    final backBody = bodyFrom(
+      surfacePolyline(a1 * 1.5 + w * 0.012, 0.42, 0.7, -1),
+    );
     canvas.drawPath(
       backBody,
       Paint()..color = const Color(0xFFAEEBFF).withValues(alpha: 0.6),
@@ -1521,7 +1532,8 @@ class _WaterPainter extends CustomPainter {
       final h4 = _hash(i, 4);
       final cycles = 10 + (h1 * 14).floor(); // 整數圈 → 60s 接縫不跳
       final tt = (clock * cycles + h2) % 1.0;
-      final x = r.left +
+      final x =
+          r.left +
           w * (0.16 + 0.68 * h3) +
           math.sin(_tau * (tt * 2 + h4)) * w * 0.022;
       final y = r.bottom - w * 0.05 - rise * tt;
@@ -2055,7 +2067,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
 
     // 第 1 階段：標記為「正在移除」→ tile fade + 高度塌陷動畫
     setState(() => _entryBeingRemoved = entry);
-    await Future.delayed(_deleteAnimDuration);
+    await Future<void>.delayed(_deleteAnimDuration);
     if (!mounted) return;
 
     // 第 2 階段：動畫結束後才真正從 local list 移除 + 通知 parent 持久化

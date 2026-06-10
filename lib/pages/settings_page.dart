@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
 import '../utils/units.dart';
-import 'profile_edit_page.dart';
 import 'feature_settings_page.dart';
+import 'profile_edit_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -75,7 +78,7 @@ class _SettingsPageState extends State<SettingsPage> {
   // 驗證數字密碼（危險操作前的把關），通過回傳 true
   Future<bool> _verifyPin() async {
     final ctrl = TextEditingController();
-    bool obscure = true;
+    var obscure = true;
     final entered = await showDialog<String>(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
@@ -124,7 +127,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _clearWeightRecords() async {
     // 計算目前筆數
     final json = _prefs?.getString('weight_records');
-    int count = 0;
+    var count = 0;
     if (json != null) {
       final decoded = jsonDecode(json);
       if (decoded is List) count = decoded.length;
@@ -193,8 +196,8 @@ class _SettingsPageState extends State<SettingsPage> {
       await _prefs?.clear();
       // 切回引導 BGM（cross-fade），音樂與音效也恢復為開啟。
       await AudioSettingsService.instance.setAllMuted(false);
-      BgmService.instance.play('sounds/bgm_onboarding.m4a');
-      nav.pushNamedAndRemoveUntil('/onboarding', (_) => false);
+      unawaited(BgmService.instance.play('sounds/bgm_onboarding.m4a'));
+      unawaited(nav.pushNamedAndRemoveUntil('/onboarding', (_) => false));
     }
   }
 
@@ -246,7 +249,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showPinSettings() async {
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -282,7 +285,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 // ── 區塊1：基本資料（進入子頁面編輯）──
                 _sectionTitle('基本資料', Icons.person_outline),
 
-                Container(
+                DecoratedBox(
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
@@ -325,7 +328,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
+                        MaterialPageRoute<void>(
                           builder: (_) => const ProfileEditPage(),
                         ),
                       );
@@ -390,7 +393,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 // ── 區塊2：功能開關（進入獨立子頁面）──
                 _sectionTitle('功能開關', Icons.tune_outlined),
 
-                Container(
+                DecoratedBox(
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
@@ -433,7 +436,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
+                        MaterialPageRoute<void>(
                           builder: (_) => const FeatureSettingsPage(),
                         ),
                       );
@@ -446,7 +449,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 // ── 安全性區塊：PIN 設定 ──
                 _sectionTitle('安全性', Icons.security_outlined),
 
-                Container(
+                DecoratedBox(
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
@@ -570,7 +573,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
   // 驗證舊 PIN：滿位數自動確認，僅顯示取消，含顯示/隱藏切換
   Future<String?> _promptOldPin(String title) async {
     final ctrl = TextEditingController();
-    bool obscure = true;
+    var obscure = true;
     return showDialog<String>(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
@@ -610,7 +613,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
   // 設定／確認新 PIN：需按確認按鈕，不自動送出，含顯示/隱藏切換
   Future<String?> _promptNewPin(String title) async {
     final ctrl = TextEditingController();
-    bool obscure = true;
+    var obscure = true;
     return showDialog<String>(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
