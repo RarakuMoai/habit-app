@@ -13,6 +13,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
   Color accentColor = Colors.orange,
   String badgePrefix = '+',
   String dialogLabel = '完成可得積分',
+  String adjustDialogTitle = '調整積分',
 }) {
   final selected = Map<String, int>.from(initial);
   return showModalBottomSheet<Map<String, int>>(
@@ -123,7 +124,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                               final newPts = await showDialog<int>(
                                 context: ctx,
                                 builder: (dCtx) => AlertDialog(
-                                  title: Text('調整積分：${p.name}'),
+                                  title: Text('$adjustDialogTitle：${p.name}'),
                                   content: TextField(
                                     controller: ctrl,
                                     keyboardType: TextInputType.number,

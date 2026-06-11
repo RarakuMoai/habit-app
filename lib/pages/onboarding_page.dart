@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/bgm_service.dart';
+import '../utils/input_formatters.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
@@ -262,27 +263,6 @@ class _OnboardingPageState extends State<OnboardingPage>
       case SfxCue.cancel:
         unawaited(HapticFeedback.selectionClick());
     }
-  }
-
-  // 身高/體重欄位格式化：最多 3 位整數 + 1 位小數，且輸入超過上限時自動壓回上限
-  TextInputFormatter _maxValueFormatter(int max) {
-    final pattern = RegExp(r'^\d{0,3}(\.\d?)?$');
-    return TextInputFormatter.withFunction((oldValue, newValue) {
-      final text = newValue.text;
-      if (text.isEmpty) return newValue;
-      // 格式不符（多個小數點、超過 1 位小數、整數超過 3 位）→ 維持原值
-      if (!pattern.hasMatch(text)) return oldValue;
-      // 數值超過上限 → 壓回上限
-      final v = double.tryParse(text);
-      if (v != null && v > max) {
-        final t = max.toString();
-        return TextEditingValue(
-          text: t,
-          selection: TextSelection.collapsed(offset: t.length),
-        );
-      }
-      return newValue;
-    });
   }
 
   Future<void> _ensureOnboardingBgm({bool unmute = false}) async {
@@ -1548,7 +1528,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       controller: controller,
       focusNode: focusNode,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [_maxValueFormatter(999)],
+      inputFormatters: [maxValueFormatter(999)],
       decoration: InputDecoration(
         labelText: label,
         errorText: errorText,

@@ -107,7 +107,8 @@ Future<void> saveRewards(
 
 Future<List<VoucherLog>> loadVouchers(SharedPreferences prefs) async {
   final raw =
-      prefs.getString(PrefsKeys.voucherLogs) ?? prefs.getString(PrefsKeys.legacyRedemptionLogs);
+      prefs.getString(PrefsKeys.voucherLogs) ??
+      prefs.getString(PrefsKeys.legacyRedemptionLogs);
   if (raw == null) return [];
   return (jsonDecode(raw) as List)
       .map((e) => VoucherLog.fromJson(e as Map<String, dynamic>))
@@ -143,7 +144,7 @@ Future<void> saveRecords(
 }
 
 // 更新小孩積分並寫入積分紀錄；回傳更新後積分
-// delta 可為正（加分）或負（扣分），扣分不會低於 0
+// delta 可為正（加分）或負（扣分）；扣分可能使積分為負，呼叫端自行把關
 Future<int> applyPoints({
   required SharedPreferences prefs,
   required ChildData child,

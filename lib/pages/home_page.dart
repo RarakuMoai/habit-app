@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -917,10 +918,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
         if (dailyEntries.isNotEmpty) ...[
-          _habitSectionLabel(
-            '每日習慣',
-            Icons.wb_sunny_rounded,
-            Colors.orange,
+          HabitSectionHeader(
+            label: '每日習慣',
+            icon: Icons.wb_sunny_rounded,
+            color: Colors.orange,
             done: dailyDoneCount,
             total: _dailyHabits.length,
           ),
@@ -928,10 +929,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ],
         if (weeklyEntries.isNotEmpty) ...[
           if (dailyEntries.isNotEmpty) const SizedBox(height: 14),
-          _habitSectionLabel(
-            '每週習慣',
-            Icons.calendar_view_week_rounded,
-            Colors.indigo,
+          HabitSectionHeader(
+            label: '每週習慣',
+            icon: Icons.calendar_view_week_rounded,
+            color: Colors.indigo,
             done: weeklyMetCount,
             total: _weeklyHabits.length,
           ),
@@ -998,68 +999,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _habitSectionLabel(
-    String label,
-    IconData icon,
-    Color color, {
-    required int done,
-    required int total,
-  }) {
-    final allDone = total > 0 && done == total;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 6, left: 2),
-      child: Row(
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 15, color: color),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: color,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: allDone
-                  ? Colors.green.shade50
-                  : color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '$done / $total',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: allDone ? Colors.green.shade700 : color,
-              ),
-            ),
-          ),
-          if (allDone) ...[
-            const SizedBox(width: 6),
-            Icon(
-              Icons.check_circle_rounded,
-              size: 14,
-              color: Colors.green.shade400,
-            ),
-          ],
-        ],
       ),
     );
   }

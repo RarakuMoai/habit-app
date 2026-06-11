@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/habit_ui.dart';
+
 // ── 習慣卡片（含彈跳動畫）──
 
 class HabitCard extends StatefulWidget {
@@ -60,38 +62,6 @@ class _HabitCardState extends State<HabitCard>
   void _handleTap() {
     _ctrl.forward(from: 0);
     widget.onToggle();
-  }
-
-  Widget _weeklyBtn({
-    required IconData icon,
-    VoidCallback? onTap,
-    double size = 32,
-  }) {
-    final active = onTap != null;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          splashColor: Colors.indigo.withValues(alpha: 0.18),
-          highlightColor: Colors.indigo.withValues(alpha: 0.08),
-          onTap: onTap,
-          child: Icon(
-            icon,
-            size: size * 0.53,
-            color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -304,7 +274,7 @@ class _HabitCardState extends State<HabitCard>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _weeklyBtn(
+                          WeeklyAdjustBtn(
                             icon: Icons.remove_rounded,
                             onTap: todayCount > 0
                                 ? () {
@@ -331,7 +301,7 @@ class _HabitCardState extends State<HabitCard>
                             ),
                           ),
                           const SizedBox(width: 4),
-                          _weeklyBtn(
+                          WeeklyAdjustBtn(
                             icon: Icons.add_rounded,
                             onTap: widget.weeklyCount < 20
                                 ? () {

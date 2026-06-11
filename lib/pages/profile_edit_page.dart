@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/input_formatters.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
@@ -171,27 +172,6 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       );
     }
     if (mounted) Navigator.pop(context);
-  }
-
-  // 身高/體重欄位格式化：最多 3 位整數 + 1 位小數，且輸入超過上限時自動壓回上限
-  TextInputFormatter _maxValueFormatter(int max) {
-    final pattern = RegExp(r'^\d{0,3}(\.\d?)?$');
-    return TextInputFormatter.withFunction((oldValue, newValue) {
-      final text = newValue.text;
-      if (text.isEmpty) return newValue;
-      // 格式不符（多個小數點、超過 1 位小數、整數超過 3 位）→ 維持原值
-      if (!pattern.hasMatch(text)) return oldValue;
-      // 數值超過上限 → 壓回上限
-      final v = double.tryParse(text);
-      if (v != null && v > max) {
-        final t = max.toString();
-        return TextEditingValue(
-          text: t,
-          selection: TextSelection.collapsed(offset: t.length),
-        );
-      }
-      return newValue;
-    });
   }
 
   // 取得目前單位下顯示用的錯誤訊息（null 表示沒問題）
@@ -663,7 +643,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             decimal: true,
                           ),
                           suffix: 'cm',
-                          inputFormatters: [_maxValueFormatter(999)],
+                          inputFormatters: [maxValueFormatter(999)],
                           errorText: _heightError,
                         ),
 
@@ -675,7 +655,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           decimal: true,
                         ),
                         suffix: UnitFormat.weightLabel(_unit),
-                        inputFormatters: [_maxValueFormatter(999)],
+                        inputFormatters: [maxValueFormatter(999)],
                         // 個別範圍錯誤優先；都過了才顯示 BMI 比例錯誤
                         errorText: _weightError ?? _bmiError,
                       ),
@@ -689,7 +669,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         ),
                         suffix: UnitFormat.weightLabel(_unit),
                         suffixWidget: _targetWeightSuggestSuffix(),
-                        inputFormatters: [_maxValueFormatter(999)],
+                        inputFormatters: [maxValueFormatter(999)],
                         errorText: _targetWeightError,
                       ),
 

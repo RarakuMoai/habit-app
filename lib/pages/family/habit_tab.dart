@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/sfx_service.dart';
+import '../../widgets/habit_ui.dart';
 import 'family_auth.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
+import 'preset_pick_sheet.dart';
 
 // ── 習慣打卡 Tab ──
 
@@ -157,263 +159,6 @@ class _HabitTabState extends State<HabitTab> {
     Preset('主動學習', 15, '📚'),
   ];
 
-  // 特殊積分預設子選單（勾選 + 個別調整分數）
-  Future<Map<String, int>?> _showSpecialPresetSubSheet({
-    required List<Preset> available,
-    required Map<String, int> initial,
-    required String title,
-    required Color accentColor,
-    required String badgePrefix,
-    required String dialogLabel,
-  }) {
-    final selected = Map<String, int>.from(initial);
-    return showModalBottomSheet<Map<String, int>>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (_, setS) => DraggableScrollableSheet(
-          initialChildSize: 0.55,
-          maxChildSize: 0.9,
-          minChildSize: 0.4,
-          expand: false,
-          builder: (_, scrollCtrl) => Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 12, bottom: 4),
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.auto_awesome, size: 18, color: accentColor),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    if (selected.isNotEmpty)
-                      Text(
-                        '${selected.length} 項已選',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollCtrl,
-                  itemCount: available.length,
-                  itemBuilder: (_, i) {
-                    final p = available[i];
-                    final sel = selected.containsKey(p.name);
-                    final pts = selected[p.name] ?? p.value;
-                    return InkWell(
-                      onTap: () => setS(() {
-                        if (sel) {
-                          selected.remove(p.name);
-                        } else {
-                          selected[p.name] = p.value;
-                        }
-                      }),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: sel
-                              ? accentColor.withValues(alpha: 0.08)
-                              : Colors.white,
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade100),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(p.emoji, style: const TextStyle(fontSize: 22)),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Text(
-                                p.name,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: sel
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                  color: sel ? accentColor : Colors.black87,
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () async {
-                                if (!sel) {
-                                  setS(() => selected[p.name] = p.value);
-                                }
-                                final ctrl = TextEditingController(
-                                  text: '$pts',
-                                );
-                                final newPts = await showDialog<int>(
-                                  context: ctx,
-                                  builder: (dCtx) => AlertDialog(
-                                    title: Text('調整分數：${p.name}'),
-                                    content: TextField(
-                                      controller: ctrl,
-                                      keyboardType: TextInputType.number,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly,
-                                        LengthLimitingTextInputFormatter(4),
-                                      ],
-                                      decoration: InputDecoration(
-                                        labelText: dialogLabel,
-                                      ),
-                                      autofocus: true,
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(dCtx),
-                                        child: Text(
-                                          '取消',
-                                          style: TextStyle(
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(
-                                          dCtx,
-                                          int.tryParse(ctrl.text) ?? pts,
-                                        ),
-                                        child: const Text('確認'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (newPts != null && newPts > 0) {
-                                  setS(() => selected[p.name] = newPts);
-                                }
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: sel
-                                      ? accentColor
-                                      : Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '$badgePrefix$pts',
-                                      style: TextStyle(
-                                        color: sel
-                                            ? Colors.white
-                                            : Colors.grey.shade600,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    if (sel) ...[
-                                      const SizedBox(width: 3),
-                                      const Icon(
-                                        Icons.edit,
-                                        size: 10,
-                                        color: Colors.white,
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: sel ? accentColor : Colors.transparent,
-                                border: Border.all(
-                                  color: sel
-                                      ? accentColor
-                                      : Colors.grey.shade300,
-                                  width: 2,
-                                ),
-                              ),
-                              child: sel
-                                  ? const Icon(
-                                      Icons.check,
-                                      size: 14,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  20,
-                  12,
-                  20,
-                  MediaQuery.of(ctx).viewInsets.bottom + 24,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, selected),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: Text(
-                      selected.isEmpty
-                          ? '確認（未選取）'
-                          : '確認選取 (${selected.length} 項)',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _giveSpecialPoints() async {
     if (!mounted) return;
     final ok = await verifyParentPinIfNeeded(context, title: '請輸入家長密碼以給予特殊積分');
@@ -508,13 +253,14 @@ class _HabitTabState extends State<HabitTab> {
                   InkWell(
                     onTap: () async {
                       if (isAdd) {
-                        final result = await _showSpecialPresetSubSheet(
-                          available: _kAddPresets.toList(),
-                          initial: Map.from(selectedAddPresets),
+                        final result = await showFamilyPresetSubSheet(
+                          context,
+                          _kAddPresets.toList(),
+                          Map.from(selectedAddPresets),
                           title: '快速理由',
                           accentColor: Colors.green.shade600,
-                          badgePrefix: '+',
                           dialogLabel: '加幾分',
+                          adjustDialogTitle: '調整分數',
                         );
                         if (result != null) {
                           setS(() {
@@ -524,15 +270,17 @@ class _HabitTabState extends State<HabitTab> {
                         }
                       } else {
                         if (_deductions.isEmpty) return;
-                        final result = await _showSpecialPresetSubSheet(
-                          available: _deductions
+                        final result = await showFamilyPresetSubSheet(
+                          context,
+                          _deductions
                               .map((d) => Preset(d.name, d.points))
                               .toList(),
-                          initial: Map.from(selectedDeductItems),
+                          Map.from(selectedDeductItems),
                           title: '扣分項目',
                           accentColor: Colors.red.shade600,
                           badgePrefix: '-',
                           dialogLabel: '扣幾分',
+                          adjustDialogTitle: '調整分數',
                         );
                         if (result != null) {
                           setS(() {
@@ -690,7 +438,9 @@ class _HabitTabState extends State<HabitTab> {
                                   reason: '特殊積分：$customReason',
                                 );
                               }
-                              unawaited(SfxService.instance.play(SfxCue.success));
+                              unawaited(
+                                SfxService.instance.play(SfxCue.success),
+                              );
                               unawaited(HapticFeedback.lightImpact());
                               setState(() => widget.child.points = latestPts);
                               widget.onPointsChanged();
@@ -733,6 +483,7 @@ class _HabitTabState extends State<HabitTab> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final today = todayStr();
     final dailyHabits = _habits.where((h) => h.frequency == 'daily').toList();
     final weeklyHabits = _habits.where((h) => h.frequency == 'weekly').toList();
 
@@ -747,10 +498,10 @@ class _HabitTabState extends State<HabitTab> {
           else ...[
             // 每日習慣
             if (dailyHabits.isNotEmpty) ...[
-              _sectionHeader(
-                '每日習慣',
-                Icons.wb_sunny_rounded,
-                Colors.orange,
+              HabitSectionHeader(
+                label: '每日習慣',
+                icon: Icons.wb_sunny_rounded,
+                color: Colors.orange,
                 done: dailyHabits.where(_isDoneToday).length,
                 total: dailyHabits.length,
               ),
@@ -760,9 +511,7 @@ class _HabitTabState extends State<HabitTab> {
                   habit: habit,
                   doneToday: _isDoneToday(habit),
                   weeklyCount: weeklyCount(habit),
-                  todayCount: habit.weeklyDates
-                      .where((d) => d == todayStr())
-                      .length,
+                  todayCount: habit.weeklyDates.where((d) => d == today).length,
                   onCheckIn: () => _checkIn(habit),
                   onUndo: () => _undoCheckIn(habit),
                 ),
@@ -771,10 +520,10 @@ class _HabitTabState extends State<HabitTab> {
             // 每週習慣
             if (weeklyHabits.isNotEmpty) ...[
               if (dailyHabits.isNotEmpty) const SizedBox(height: 18),
-              _sectionHeader(
-                '每週習慣',
-                Icons.calendar_view_week_rounded,
-                Colors.indigo,
+              HabitSectionHeader(
+                label: '每週習慣',
+                icon: Icons.calendar_view_week_rounded,
+                color: Colors.indigo,
                 done: weeklyHabits
                     .where((h) => weeklyCount(h) >= h.weeklyTarget)
                     .length,
@@ -786,9 +535,7 @@ class _HabitTabState extends State<HabitTab> {
                   habit: habit,
                   doneToday: _isDoneToday(habit),
                   weeklyCount: weeklyCount(habit),
-                  todayCount: habit.weeklyDates
-                      .where((d) => d == todayStr())
-                      .length,
+                  todayCount: habit.weeklyDates.where((d) => d == today).length,
                   onCheckIn: () => _checkIn(habit),
                   onUndo: () => _undoCheckIn(habit),
                 ),
@@ -817,81 +564,19 @@ class _HabitTabState extends State<HabitTab> {
     );
   }
 
-  // 區段標題：圖示底框 + 名稱 + 計數膠囊（home_page 風格）
-  Widget _sectionHeader(
-    String label,
-    IconData icon,
-    Color color, {
-    required int done,
-    required int total,
-  }) {
-    final allDone = total > 0 && done == total;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 6, left: 2),
-      child: Row(
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 15, color: color),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: color,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: allDone
-                  ? Colors.green.shade50
-                  : color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '$done / $total',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: allDone ? Colors.green.shade700 : color,
-              ),
-            ),
-          ),
-          if (allDone) ...[
-            const SizedBox(width: 6),
-            Icon(
-              Icons.check_circle_rounded,
-              size: 14,
-              color: Colors.green.shade400,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   // 今日已獲得分數提示（只在有得分時顯示）
   Widget _todayPointsHint(List<ChildHabit> habits, {required bool isWeekly}) {
+    final today = todayStr();
     int todayPts;
     if (isWeekly) {
       // 每週習慣：每筆今日 weeklyDates 都計分（支援多次）
       todayPts = habits.fold<int>(0, (sum, h) {
-        final todayCount = h.weeklyDates.where((d) => d == todayStr()).length;
+        final todayCount = h.weeklyDates.where((d) => d == today).length;
         return sum + todayCount * h.points;
       });
     } else {
       todayPts = habits
-          .where((h) => h.completedDate == todayStr())
+          .where((h) => h.completedDate == today)
           .fold<int>(0, (sum, h) => sum + h.points);
     }
     if (todayPts <= 0) return const SizedBox.shrink();
@@ -977,38 +662,6 @@ class _HabitItemState extends State<_HabitItem>
     } else {
       widget.onCheckIn();
     }
-  }
-
-  Widget _weeklyBtn({
-    required IconData icon,
-    VoidCallback? onTap,
-    double size = 30,
-  }) {
-    final active = onTap != null;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          splashColor: Colors.indigo.withValues(alpha: 0.18),
-          highlightColor: Colors.indigo.withValues(alpha: 0.08),
-          onTap: onTap,
-          child: Icon(
-            icon,
-            size: size * 0.53,
-            color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -1217,7 +870,8 @@ class _HabitItemState extends State<_HabitItem>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _weeklyBtn(
+                          WeeklyAdjustBtn(
+                            size: 30,
                             icon: Icons.remove_rounded,
                             onTap: todayCount > 0
                                 ? () {
@@ -1244,7 +898,8 @@ class _HabitItemState extends State<_HabitItem>
                             ),
                           ),
                           const SizedBox(width: 4),
-                          _weeklyBtn(
+                          WeeklyAdjustBtn(
+                            size: 30,
                             icon: Icons.add_rounded,
                             onTap: widget.weeklyCount < 20
                                 ? () {
