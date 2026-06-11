@@ -405,34 +405,30 @@ class _HabitTabState extends State<HabitTab> {
                       onPressed: canConfirm
                           ? () async {
                               Navigator.pop(ctx);
-                              final prefs = _prefs!;
-                              var latestPts = widget.child.points;
                               final presets = isAdd
                                   ? selectedAddPresets
                                   : selectedDeductItems;
-                              for (final entry in presets.entries) {
-                                final delta = isAdd
-                                    ? entry.value
-                                    : -entry.value;
-                                latestPts = await applyPoints(
-                                  prefs: prefs,
-                                  child: widget.child,
-                                  delta: delta,
-                                  reason: '特殊積分：${entry.key}',
-                                );
-                              }
                               final customReason = reasonCtrl.text.trim();
                               final customPts =
                                   int.tryParse(pointCtrl.text.trim()) ?? 0;
-                              if (customReason.isNotEmpty && customPts > 0) {
-                                final delta = isAdd ? customPts : -customPts;
-                                latestPts = await applyPoints(
-                                  prefs: prefs,
-                                  child: widget.child,
-                                  delta: delta,
-                                  reason: '特殊積分：$customReason',
-                                );
-                              }
+                              final sign = isAdd ? 1 : -1;
+                              // 多筆異動整批套用（讀寫各一次，順序同逐筆）
+                              final latestPts = await applyPointsBatch(
+                                prefs: _prefs!,
+                                child: widget.child,
+                                entries: [
+                                  for (final entry in presets.entries)
+                                    (
+                                      delta: sign * entry.value,
+                                      reason: '特殊積分：${entry.key}',
+                                    ),
+                                  if (customReason.isNotEmpty && customPts > 0)
+                                    (
+                                      delta: sign * customPts,
+                                      reason: '特殊積分：$customReason',
+                                    ),
+                                ],
+                              );
                               playFeedback(SfxCue.success);
                               setState(() => widget.child.points = latestPts);
                               widget.onPointsChanged();

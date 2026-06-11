@@ -150,7 +150,22 @@ Future<int> applyPoints({
   required ChildData child,
   required int delta,
   required String reason,
+}) => applyPointsBatch(
+  prefs: prefs,
+  child: child,
+  entries: [(delta: delta, reason: reason)],
+);
+
+// 一次套用多筆積分異動（特殊積分多選用）。
+// 積分寫入的唯一實作：小孩清單與紀錄各讀寫一次，整批一起落盤；
+// 紀錄順序與逐筆呼叫 applyPoints 完全一致（新的在前、total 逐筆累計）。
+Future<int> applyPointsBatch({
+  required SharedPreferences prefs,
+  required ChildData child,
+  required List<({int delta, String reason})> entries,
 }) async {
+  if (entries.isEmpty) return child.points;
+
   // 讀取最新小孩清單
   final raw = prefs.getString(PrefsKeys.children);
   final children = raw == null
@@ -159,33 +174,34 @@ Future<int> applyPoints({
             .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
             .toList();
 
-  // 找到對應小孩並更新積分
+  // 找到對應小孩
   final idx = children.indexWhere((c) => c.id == child.id);
   if (idx == -1) return child.points;
 
-  final newPoints = children[idx].points + delta;
-  children[idx].points = newPoints;
-  child.points = newPoints; // 同步更新傳入的物件
+  final records = await loadRecords(prefs);
+  var points = children[idx].points;
+  for (final entry in entries) {
+    points += entry.delta;
+    records.insert(
+      0,
+      PointRecord(
+        id: genId(),
+        childId: child.id,
+        time: nowStr(),
+        reason: entry.reason,
+        delta: entry.delta,
+        total: points,
+      ),
+    );
+  }
+  children[idx].points = points;
+  child.points = points; // 同步更新傳入的物件
 
   await prefs.setString(
     PrefsKeys.children,
     jsonEncode(children.map((c) => c.toJson()).toList()),
   );
-
-  // 寫入積分紀錄
-  final records = await loadRecords(prefs);
-  records.insert(
-    0,
-    PointRecord(
-      id: genId(),
-      childId: child.id,
-      time: nowStr(),
-      reason: reason,
-      delta: delta,
-      total: newPoints,
-    ),
-  );
   await saveRecords(prefs, records);
 
-  return newPoints;
+  return points;
 }
