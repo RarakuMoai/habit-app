@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../pages/settings_page.dart';
+import '../utils/app_style.dart';
 import 'audio_control_button.dart';
 
 class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -129,7 +130,7 @@ class MascotPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(20),
@@ -147,12 +148,16 @@ class MascotPill extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
+          // Baloo 2 的 ascent 佔比大，字形在行框內偏上（模擬器實測高
+          // 1.2pt），往下平移做光學置中；用 Transform 不影響膠囊高度
+          Transform.translate(
+            offset: const Offset(0, 1.2),
+            child: Text(
+              label,
+              style: AppType.digits(
+                color: Colors.grey.shade800,
+                fontSize: 11.5,
+              ),
             ),
           ),
         ],

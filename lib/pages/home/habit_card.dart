@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/app_style.dart';
 import '../../widgets/habit_ui.dart';
 
 // ── 習慣卡片（含彈跳動畫）──
@@ -34,10 +35,13 @@ class HabitCard extends StatefulWidget {
   State<HabitCard> createState() => _HabitCardState();
 }
 
-class _HabitCardState extends State<HabitCard>
-    with SingleTickerProviderStateMixin {
+class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _scale;
+  // 勾勾描繪動畫：done 轉 true 時從 0 畫到 1
+  late AnimationController _checkCtrl;
+  late Animation<double> _checkAnim;
+  late bool _wasDone;
 
   @override
   void initState() {
@@ -51,12 +55,37 @@ class _HabitCardState extends State<HabitCard>
       TweenSequenceItem(tween: Tween(begin: 0.78, end: 1.18), weight: 45),
       TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 30),
     ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
+    _checkCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+    _checkAnim = CurvedAnimation(
+      parent: _checkCtrl,
+      curve: Curves.easeOutCubic,
+    );
+    // 列表載入時已完成的卡直接顯示完整勾，不重播描繪
+    _wasDone = widget.habit['done'] == true;
+    _checkCtrl.value = _wasDone ? 1.0 : 0.0;
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _checkCtrl.dispose();
     super.dispose();
+  }
+
+  /// habit map 是同一個實例被原地修改，didUpdateWidget 比不出新舊值，
+  /// 改在 build 時偵測 done 變化來觸發描繪動畫。
+  void _syncCheckAnim(bool done) {
+    if (done == _wasDone) return;
+    _wasDone = done;
+    if (done) {
+      _checkCtrl.forward(from: 0);
+    } else {
+      _checkCtrl.value = 0;
+    }
   }
 
   void _handleTap() {
@@ -73,46 +102,68 @@ class _HabitCardState extends State<HabitCard>
   Widget _buildDailyCard() {
     final done = widget.habit['done'] as bool;
     final name = widget.habit['name'] as String;
+    _syncCheckAnim(done);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: done ? const Color(0xFFF1F8E9) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        elevation: done ? 0 : 1.5,
-        shadowColor: Colors.orange.withValues(alpha: 0.18),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          // 整張卡都可點擊打卡（不只左邊小圓圈），ripple 回饋
-          child: InkWell(
-            onTap: _handleTap,
-            splashColor: (done ? Colors.grey : Colors.green).withValues(
-              alpha: 0.12,
-            ),
-            highlightColor: (done ? Colors.grey : Colors.green).withValues(
-              alpha: 0.06,
-            ),
-            child: IntrinsicHeight(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 66),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: 5,
-                      color: done
-                          ? Colors.green.shade400
-                          : widget.isLinked
-                          ? Colors.blue.shade400
-                          : Colors.orange.shade400,
-                    ),
-                    Expanded(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 2,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        decoration: BoxDecoration(
+          color: done ? const Color(0xFFF1F8E9) : Colors.white,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          border: done
+              ? Border.all(color: Colors.green.withValues(alpha: 0.18))
+              : AppCardStyle.hairline,
+          boxShadow: done ? AppShadows.flat : AppShadows.card,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
+            // 整張卡都可點擊打卡（不只左邊小圓圈），ripple 回饋
+            child: InkWell(
+              onTap: _handleTap,
+              splashColor: (done ? Colors.grey : Colors.green).withValues(
+                alpha: 0.12,
+              ),
+              highlightColor: (done ? Colors.grey : Colors.green).withValues(
+                alpha: 0.06,
+              ),
+              child: IntrinsicHeight(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 68),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 內縮圓角色條：只表「類別」（橘=一般、藍=連動），
+                      // 完成狀態交給圓圈/底色表達，色條僅淡出讓位
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 14, 0, 14),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          width: 4,
+                          decoration: BoxDecoration(
+                            color:
+                                (widget.isLinked
+                                        ? Colors.blue.shade400
+                                        : Colors.orange.shade400)
+                                    .withValues(alpha: done ? 0.30 : 1.0),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
+                      ),
+                      Expanded(
+                        child: ListTile(
+                          // ListTile 對 leading 的置中是用「內部算出的內容高度」
+                          // （單行=56），不是被外層撐開後的實際高度（68），
+                          // 所以要用 minTileHeight 讓內外高度一致圓圈才會置中；
+                          // titleAlignment 再保證有副標（連動喝水）時也走同一規則
+                          minTileHeight: 68,
+                          titleAlignment: ListTileTitleAlignment.center,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 2,
+                          ),
                         leading: ScaleTransition(
                           scale: _scale,
                           child: AnimatedContainer(
@@ -130,11 +181,11 @@ class _HabitCardState extends State<HabitCard>
                                       end: Alignment.bottomRight,
                                     )
                                   : null,
-                              color: done ? null : Colors.grey.shade50,
+                              color: done ? null : const Color(0xFFFAF7F2),
                               border: done
                                   ? null
                                   : Border.all(
-                                      color: Colors.grey.shade300,
+                                      color: const Color(0xFFDDD0C4),
                                       width: 1.8,
                                     ),
                               shape: BoxShape.circle,
@@ -151,10 +202,13 @@ class _HabitCardState extends State<HabitCard>
                                   : null,
                             ),
                             child: done
-                                ? const Icon(
-                                    Icons.check_rounded,
-                                    color: Colors.white,
-                                    size: 20,
+                                ? AnimatedBuilder(
+                                    animation: _checkAnim,
+                                    builder: (_, _) => CustomPaint(
+                                      painter: _CheckDrawPainter(
+                                        _checkAnim.value,
+                                      ),
+                                    ),
                                   )
                                 : null,
                           ),
@@ -163,11 +217,13 @@ class _HabitCardState extends State<HabitCard>
                           duration: const Duration(milliseconds: 250),
                           style: TextStyle(
                             fontSize: 15,
+                            height: 1.3,
                             fontWeight: FontWeight.w600,
                             decoration: done
                                 ? TextDecoration.lineThrough
                                 : TextDecoration.none,
-                            color: done ? Colors.grey.shade400 : Colors.black87,
+                            decorationColor: AppInk.faint,
+                            color: done ? AppInk.faint : AppInk.strong,
                           ),
                           child: Text(
                             name,
@@ -202,18 +258,9 @@ class _HabitCardState extends State<HabitCard>
                           icon: Icon(
                             Icons.more_vert,
                             size: 20,
-                            color: Colors.grey.shade400,
+                            color: AppInk.iconFaint,
                           ),
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('編輯')),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text(
-                                '刪除',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
+                          itemBuilder: (_) => _habitMenuItems(),
                           onSelected: (v) {
                             if (v == 'edit') {
                               widget.onEdit();
@@ -221,10 +268,11 @@ class _HabitCardState extends State<HabitCard>
                               widget.onDelete();
                             }
                           },
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -241,31 +289,42 @@ class _HabitCardState extends State<HabitCard>
     final inProgress = widget.weeklyCount > 0 && !done;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: done
-            ? const Color(0xFFF1F8E9)
-            : inProgress
-            ? const Color(0xFFF3F2FB)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        elevation: done ? 0 : 1.5,
-        shadowColor: Colors.indigo.withValues(alpha: 0.18),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        decoration: BoxDecoration(
+          color: done
+              ? const Color(0xFFF1F8E9)
+              : inProgress
+              ? const Color(0xFFF5F4FC)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          border: done
+              ? Border.all(color: Colors.green.withValues(alpha: 0.18))
+              : AppCardStyle.hairline,
+          boxShadow: done ? AppShadows.flat : AppShadows.card,
+        ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           child: IntrinsicHeight(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 66),
+              constraints: const BoxConstraints(minHeight: 68),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 左邊條
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: 5,
-                    color: done
-                        ? Colors.green.shade400
-                        : Colors.indigo.shade300,
+                  // 內縮圓角色條：只表類別（靛=每週），完成時淡出
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 0, 14),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade300.withValues(
+                          alpha: done ? 0.30 : 1.0,
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
                   // ⊖ n ⊕ 計數區（取代 checkbox）
                   Padding(
@@ -290,12 +349,12 @@ class _HabitCardState extends State<HabitCard>
                               child: Text(
                                 '$todayCount',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                                style: AppType.digits(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
                                   color: todayCount > 0
                                       ? Colors.indigo.shade700
-                                      : Colors.grey.shade400,
+                                      : AppInk.faint,
                                 ),
                               ),
                             ),
@@ -322,11 +381,13 @@ class _HabitCardState extends State<HabitCard>
                         duration: const Duration(milliseconds: 250),
                         style: TextStyle(
                           fontSize: 15,
+                          height: 1.3,
                           fontWeight: FontWeight.w600,
                           decoration: done
                               ? TextDecoration.lineThrough
                               : TextDecoration.none,
-                          color: done ? Colors.grey.shade400 : Colors.black87,
+                          decorationColor: AppInk.faint,
+                          color: done ? AppInk.faint : AppInk.strong,
                         ),
                         child: Text(
                           name,
@@ -363,9 +424,7 @@ class _HabitCardState extends State<HabitCard>
                           const SizedBox(width: 3),
                           Text(
                             '${widget.weeklyCount}/${widget.weeklyTarget}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                            style: AppType.digits(
                               color: done
                                   ? Colors.green.shade700
                                   : Colors.indigo.shade500,
@@ -380,15 +439,9 @@ class _HabitCardState extends State<HabitCard>
                     icon: Icon(
                       Icons.more_vert,
                       size: 20,
-                      color: Colors.grey.shade400,
+                      color: AppInk.iconFaint,
                     ),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('編輯')),
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Text('刪除', style: TextStyle(color: Colors.red)),
-                      ),
-                    ],
+                    itemBuilder: (_) => _habitMenuItems(),
                     onSelected: (v) {
                       if (v == 'edit') {
                         widget.onEdit();
@@ -405,4 +458,54 @@ class _HabitCardState extends State<HabitCard>
       ),
     );
   }
+}
+
+// 編輯/刪除選單項目（每日/每週卡共用）：icon + 文字
+List<PopupMenuItem<String>> _habitMenuItems() => [
+  const PopupMenuItem(
+    value: 'edit',
+    child: Row(
+      children: [
+        Icon(Icons.edit_outlined, size: 18, color: AppInk.soft),
+        SizedBox(width: 10),
+        Text('編輯'),
+      ],
+    ),
+  ),
+  PopupMenuItem(
+    value: 'delete',
+    child: Row(
+      children: [
+        Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red.shade400),
+        const SizedBox(width: 10),
+        Text('刪除', style: TextStyle(color: Colors.red.shade400)),
+      ],
+    ),
+  ),
+];
+
+// 勾勾描繪 painter：照筆順從左到右畫出白色圓頭勾
+class _CheckDrawPainter extends CustomPainter {
+  final double t;
+  const _CheckDrawPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(size.width * 0.26, size.height * 0.53)
+      ..lineTo(size.width * 0.44, size.height * 0.70)
+      ..lineTo(size.width * 0.75, size.height * 0.33);
+    final metric = path.computeMetrics().first;
+    canvas.drawPath(metric.extractPath(0, metric.length * t), paint);
+  }
+
+  @override
+  bool shouldRepaint(_CheckDrawPainter oldDelegate) => oldDelegate.t != t;
 }

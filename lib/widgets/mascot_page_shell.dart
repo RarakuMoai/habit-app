@@ -120,13 +120,20 @@ class _MascotCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.96),
+        // 暖白卡面 + 雙層上拋陰影（ambient 大模糊淡 + contact 貼邊），
+        // 讓卡片跟場景的交界更柔和精緻
+        color: const Color(0xFFFFFDF9).withValues(alpha: 0.97),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.18),
-            blurRadius: 18,
-            offset: const Offset(0, -4),
+            color: accent.withValues(alpha: 0.14),
+            blurRadius: 26,
+            offset: const Offset(0, -8),
+          ),
+          BoxShadow(
+            color: accent.withValues(alpha: 0.10),
+            blurRadius: 6,
+            offset: const Offset(0, -2),
           ),
         ],
       ),

@@ -121,6 +121,23 @@ class MyApp extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
+        // 彈出選單/對話框統一暖白卡面 + 暖棕陰影，跟卡片語彙一致
+        popupMenuTheme: PopupMenuThemeData(
+          color: const Color(0xFFFFFDF9),
+          surfaceTintColor: Colors.transparent,
+          elevation: 6,
+          shadowColor: const Color(0xFF8D6E63).withValues(alpha: 0.4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: const Color(0xFFFFFDF9),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+        ),
       ),
       initialRoute: startAtHome ? '/home' : '/onboarding',
       routes: {

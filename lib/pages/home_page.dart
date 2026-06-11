@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/app_style.dart';
+import '../utils/input_formatters.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
@@ -49,6 +51,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   late AnimationController _celebCtrl;
   late Animation<double> _celebScale;
+  // 進度列尾端亮點的呼吸光暈（達標時 repeat，未達標停在 0）
+  late AnimationController _glowCtrl;
 
   final Set<String> _animatedIn = {};
 
@@ -63,6 +67,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.05), weight: 50),
       TweenSequenceItem(tween: Tween(begin: 1.05, end: 1.0), weight: 50),
     ]).animate(_celebCtrl);
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
 
     loadHabits();
   }
@@ -70,6 +78,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _celebCtrl.dispose();
+    _glowCtrl.dispose();
     super.dispose();
   }
 
@@ -438,7 +447,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          maxLength: 20,
+          maxLength: kHabitNameMaxLength,
           decoration: const InputDecoration(labelText: '習慣名稱'),
         ),
         actions: [
@@ -454,7 +463,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
     if (result != true) return;
-    final name = ctrl.text.trim();
+    final name = clampHabitName(ctrl.text);
     if (name.isEmpty) return;
     setState(() => habits[index]['name'] = name);
     unawaited(saveHabits());
@@ -578,8 +587,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final colors = _sceneColors;
-    final now = DateTime.now();
-    final isNight = now.hour >= 22 || now.hour < 6;
     final sceneProgress = habits.isEmpty ? 0.0 : doneCount / habits.length;
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -637,19 +644,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               height: MediaQuery.of(context).size.height * 0.56,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 600),
-                color:
-                    (isNight
-                            ? const Color(0xFF3F456B)
-                            : allDone0 && habits.isNotEmpty
-                            ? const Color(0xFFFFF3C4)
-                            : Colors.transparent)
-                        .withValues(
-                          alpha: isNight
-                              ? 0.12
-                              : allDone0 && habits.isNotEmpty
-                              ? 0.10
-                              : 0,
-                        ),
+                color: _sceneTint,
               ),
             ),
             // 互動狀態效果（完成星光、連續天數獎盃）
@@ -714,11 +709,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required Color accent,
   }) {
     final reached = displayTotal > 0 && displayDone >= displayTotal;
+    // 達標時亮點呼吸，未達標時停住歸零（在 build 同步狀態，含載入時）
+    if (reached && !_glowCtrl.isAnimating) {
+      _glowCtrl.repeat(reverse: true);
+    } else if (!reached && _glowCtrl.isAnimating) {
+      _glowCtrl
+        ..stop()
+        ..value = 0;
+    }
     return Column(
       children: [
         if (habits.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(
               children: [
                 Expanded(
@@ -726,14 +729,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     tween: Tween(begin: 0.0, end: progress),
                     duration: const Duration(milliseconds: 700),
                     curve: Curves.easeOut,
-                    builder: (_, value, _) => ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: value,
-                        minHeight: 7,
-                        backgroundColor: Colors.grey.shade200,
-                        valueColor: AlwaysStoppedAnimation(accent),
-                      ),
+                    builder: (_, value, _) => _ProgressBar(
+                      value: value,
+                      accent: accent,
+                      glow: _glowCtrl,
                     ),
                   ),
                 ),
@@ -762,9 +761,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ],
                       Text(
                         '$displayDone / $displayTotal',
-                        style: TextStyle(
+                        style: AppType.digits(
                           color: reached ? Colors.green.shade700 : accent,
-                          fontSize: 12,
+                          fontSize: 14,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -776,16 +775,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         const SizedBox(height: 8),
         _buildAddButton(),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Expanded(child: _buildHabitList()),
       ],
     );
   }
 
-  // 場景配色：依據狀態切換（白天/夜晚/全完成）
+  // 房間背景圖上的時段色罩（順序與 _sceneColors 一致：全完成 > 夜 > 晨 > 暮）
+  Color get _sceneTint {
+    final hour = DateTime.now().hour;
+    if (allDone0 && habits.isNotEmpty) {
+      return const Color(0xFFFFF3C4).withValues(alpha: 0.10);
+    }
+    if (hour >= 22 || hour < 6) {
+      return const Color(0xFF3F456B).withValues(alpha: 0.12);
+    }
+    if (hour < 9) {
+      return const Color(0xFFFFC4AD).withValues(alpha: 0.10);
+    }
+    if (hour >= 17) {
+      return const Color(0xFFC9A1E8).withValues(alpha: 0.10);
+    }
+    return Colors.transparent;
+  }
+
+  // 場景配色：全完成 > 夜晚(22-6) > 清晨(6-9 粉金) > 傍晚(17-22 橘紫) > 白天
   ({Color top, Color bottom, Color accent}) get _sceneColors {
     final hour = DateTime.now().hour;
-    final isNight = hour >= 22 || hour < 6;
     if (allDone0 && habits.isNotEmpty) {
       return (
         top: const Color(0xFFE8F8E5),
@@ -793,11 +809,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         accent: const Color(0xFF66BB6A),
       );
     }
-    if (isNight) {
+    if (hour >= 22 || hour < 6) {
       return (
         top: const Color(0xFFE8EAF6),
         bottom: const Color(0xFFC5CAE9),
         accent: const Color(0xFF7986CB),
+      );
+    }
+    if (hour < 9) {
+      // 清晨：粉金日出
+      return (
+        top: const Color(0xFFFFF1E8),
+        bottom: const Color(0xFFFFD9CB),
+        accent: const Color(0xFFF0826E),
+      );
+    }
+    if (hour >= 17) {
+      // 傍晚：橘光收進薰衣草暮色
+      return (
+        top: const Color(0xFFFFE6CD),
+        bottom: const Color(0xFFE9D7F2),
+        accent: const Color(0xFFA984D6),
       );
     }
     return (
@@ -814,22 +846,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         color: Colors.transparent,
         child: InkWell(
           onTap: _showAddHabitSheet,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           splashColor: Colors.orange.withValues(alpha: 0.15),
           highlightColor: Colors.orange.withValues(alpha: 0.08),
           child: Ink(
             decoration: BoxDecoration(
-              color: Colors.orange.shade50.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.orange.shade200, width: 1.2),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFF8EC), Color(0xFFFFEFDA)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.orange.withValues(alpha: 0.35),
+              ),
             ),
-            padding: const EdgeInsets.symmetric(vertical: 13),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 22,
-                  height: 22,
+                  width: 24,
+                  height: 24,
                   decoration: BoxDecoration(
                     color: Colors.orange.shade400,
                     shape: BoxShape.circle,
@@ -922,7 +960,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ...dailyEntries.map(buildCard),
         ],
         if (weeklyEntries.isNotEmpty) ...[
-          if (dailyEntries.isNotEmpty) const SizedBox(height: 14),
+          if (dailyEntries.isNotEmpty) const SizedBox(height: 20),
           HabitSectionHeader(
             label: '每週習慣',
             icon: Icons.calendar_view_week_rounded,
@@ -975,24 +1013,98 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: Colors.black87,
+                    color: AppInk.strong,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   '點上面的「新增習慣」\n從一件小事開始吧',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade500,
+                    color: AppInk.soft,
                   ),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// 進度列：漸層填色 + 尾端亮點；達標時亮點隨 [glow] 呼吸發光
+class _ProgressBar extends StatelessWidget {
+  final double value;
+  final Color accent;
+  final Animation<double> glow;
+
+  const _ProgressBar({
+    required this.value,
+    required this.accent,
+    required this.glow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 14,
+      child: LayoutBuilder(
+        builder: (_, constraints) {
+          final w = constraints.maxWidth;
+          final x = (w * value).clamp(0.0, w);
+          return Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.centerLeft,
+            children: [
+              Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              Container(
+                height: 6,
+                width: x,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [accent.withValues(alpha: 0.72), accent],
+                  ),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              if (value > 0.03)
+                AnimatedBuilder(
+                  animation: glow,
+                  builder: (_, _) => Positioned(
+                    left: (x - 5).clamp(0.0, w - 10),
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: accent, width: 2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(
+                              alpha: 0.35 + 0.30 * glow.value,
+                            ),
+                            blurRadius: 4 + 6 * glow.value,
+                            spreadRadius: 0.5 + 1.5 * glow.value,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

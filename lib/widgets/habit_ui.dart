@@ -2,6 +2,8 @@
 // 區段標題（圖示底框 + 名稱 + 完成計數膠囊）、每週習慣 ± 調整鈕
 import 'package:flutter/material.dart';
 
+import '../utils/app_style.dart';
+
 // 區段標題：圖示底框 + 名稱 + 計數膠囊，全完成時轉綠＋勾
 class HabitSectionHeader extends StatelessWidget {
   final String label;
@@ -23,7 +25,7 @@ class HabitSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final allDone = total > 0 && done == total;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 6, left: 2),
+      padding: const EdgeInsets.only(bottom: 8, top: 8, left: 2),
       child: Row(
         children: [
           Container(
@@ -31,7 +33,7 @@ class HabitSectionHeader extends StatelessWidget {
             height: 26,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(9),
             ),
             child: Icon(icon, size: 15, color: color),
           ),
@@ -42,7 +44,7 @@ class HabitSectionHeader extends StatelessWidget {
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: color,
-              letterSpacing: 0.4,
+              letterSpacing: 0.8,
             ),
           ),
           const SizedBox(width: 8),
@@ -56,9 +58,7 @@ class HabitSectionHeader extends StatelessWidget {
             ),
             child: Text(
               '$done / $total',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+              style: AppType.digits(
                 color: allDone ? Colors.green.shade700 : color,
               ),
             ),
@@ -71,6 +71,21 @@ class HabitSectionHeader extends StatelessWidget {
               color: Colors.green.shade400,
             ),
           ],
+          // 右側漸隱細線：把標題行視覺上「收」到右緣，留出呼吸感
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.25),
+                    color.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
