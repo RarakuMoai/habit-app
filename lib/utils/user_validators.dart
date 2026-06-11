@@ -101,8 +101,7 @@ class UserValidators {
     if (t.isEmpty) return null;
     final v = double.tryParse(t);
     if (v == null) return '請輸入數字';
-    if (v < UserRanges.targetWeightMinKg ||
-        v > UserRanges.targetWeightMaxKg) {
+    if (v < UserRanges.targetWeightMinKg || v > UserRanges.targetWeightMaxKg) {
       return '請輸入 ${UserRanges.targetWeightMinKg.toInt()}–${UserRanges.targetWeightMaxKg.toInt()} kg'; // units-ok
     }
     return null;

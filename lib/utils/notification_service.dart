@@ -25,7 +25,9 @@ class NotificationService {
     if (_initialized) return;
     tz.initializeTimeZones();
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     // iOS：先不要要權限，第一次排通知時才 ensurePermission()
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -46,8 +48,10 @@ class NotificationService {
   static Future<bool> ensurePermission() async {
     await init();
     // iOS
-    final ios = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
+    final ios = _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     if (ios != null) {
       final granted = await ios.requestPermissions(
         alert: true,
@@ -57,8 +61,10 @@ class NotificationService {
       return granted ?? false;
     }
     // Android
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (android != null) {
       final notifGranted =
           await android.requestNotificationsPermission() ?? false;

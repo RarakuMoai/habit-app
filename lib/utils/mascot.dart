@@ -92,12 +92,7 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
 // ─────────────────────────────────────────────────────────────
 const Map<MascotContext, List<String>> _lines = {
   // ── 打開 app / 一般招呼 ──
-  MascotContext.openApp: [
-    '嗯...你來了。',
-    '我在這裡。',
-    '今天也慢慢來？',
-    '要先做一件小事嗎？',
-  ],
+  MascotContext.openApp: ['嗯...你來了。', '我在這裡。', '今天也慢慢來？', '要先做一件小事嗎？'],
 
   // ── 今天還沒開始做任何習慣 ──
   MascotContext.notStarted: [
@@ -109,52 +104,22 @@ const Map<MascotContext, List<String>> _lines = {
   ],
 
   // ── 完成了第一個 / 任一個習慣 ──
-  MascotContext.completedOne: [
-    '做到了，我有看到。',
-    '剛剛那一下，很好。',
-    '你完成了一個。',
-    '嗯，這樣就很好。',
-  ],
+  MascotContext.completedOne: ['做到了，我有看到。', '剛剛那一下，很好。', '你完成了一個。', '嗯，這樣就很好。'],
 
   // ── 完成過一半 ──
-  MascotContext.halfDone: [
-    '已經一半了。',
-    '你做到不少了。',
-    '我有點醒了。',
-    '照這樣慢慢來就好。',
-  ],
+  MascotContext.halfDone: ['已經一半了。', '你做到不少了。', '我有點醒了。', '照這樣慢慢來就好。'],
 
   // ── 今天全部完成 ──
-  MascotContext.allDone: [
-    '全部完成了。',
-    '今天真的很棒。',
-    '可以好好休息了。',
-    '我替你開心。',
-  ],
+  MascotContext.allDone: ['全部完成了。', '今天真的很棒。', '可以好好休息了。', '我替你開心。'],
 
   // ── 連續達標一段時間（streak >= 7） ──
-  MascotContext.streak: [
-    '連續好多天了。',
-    '你一直有回來。',
-    '我有點感動。',
-    '這段時間，你做到了。',
-  ],
+  MascotContext.streak: ['連續好多天了。', '你一直有回來。', '我有點感動。', '這段時間，你做到了。'],
 
   // ── 取消已完成的習慣（撤銷感） ──
-  MascotContext.undone: [
-    '沒關係，我還在。',
-    '今天慢一點也可以。',
-    '我們等一下再來。',
-    '先休息一下也沒關係。',
-  ],
+  MascotContext.undone: ['沒關係，我還在。', '今天慢一點也可以。', '我們等一下再來。', '先休息一下也沒關係。'],
 
   // ── 夜晚（22:00 ~ 06:00） ──
-  MascotContext.night: [
-    '很晚了，我小聲一點。',
-    '今天辛苦了。',
-    '如果累了，也可以休息。',
-    '明天我還會在這裡。',
-  ],
+  MascotContext.night: ['很晚了，我小聲一點。', '今天辛苦了。', '如果累了，也可以休息。', '明天我還會在這裡。'],
 
   // ── 使用者點兔咪本身的隨機反應 ──
   MascotContext.tapReaction: [
@@ -169,11 +134,7 @@ const Map<MascotContext, List<String>> _lines = {
   ],
 
   // ── 還沒新增任何習慣（空狀態） ──
-  MascotContext.emptyHabits: [
-    '先新增一個小習慣吧。',
-    '從一個小小的開始。',
-    '不用很多，一個就好。',
-  ],
+  MascotContext.emptyHabits: ['先新增一個小習慣吧。', '從一個小小的開始。', '不用很多，一個就好。'],
 
   // ── 喝水過量（>=4L/day，過量但還沒到水中毒）──
   MascotContext.overhydration: [

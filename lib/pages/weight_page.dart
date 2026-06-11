@@ -82,10 +82,14 @@ class _WeightPageState extends State<WeightPage> {
     var records = <Map<String, dynamic>>[];
     if (json != null) {
       final decoded = jsonDecode(json) as List<dynamic>;
-      records = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      records = decoded
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
     }
     // 按日期降序排列（最新在上）
-    records.sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
+    records.sort(
+      (a, b) => (b['date'] as String).compareTo(a['date'] as String),
+    );
 
     setState(() {
       _records = records;
@@ -256,7 +260,9 @@ class _WeightPageState extends State<WeightPage> {
     setState(() {
       _records.removeWhere((r) => r['date'] == record['date']);
       _records.add(record);
-      _records.sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
+      _records.sort(
+        (a, b) => (b['date'] as String).compareTo(a['date'] as String),
+      );
     });
     _saveRecords();
     MascotPersona.interact(MascotContext.completedOne);
@@ -590,10 +596,9 @@ class _WeightPageState extends State<WeightPage> {
                           child: TextField(
                             controller: _weightCtrl,
                             autofocus: true,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             textInputAction: TextInputAction.done,
                             onChanged: (_) {
                               if (weightError != null) {
@@ -880,9 +885,7 @@ class _WeightPageState extends State<WeightPage> {
     final today = _todayString();
     // 今天的紀錄（若有）
     final todayIdx = _records.indexWhere((r) => r['date'] == today);
-    final todayRec = todayIdx >= 0
-        ? _records[todayIdx]
-        : null;
+    final todayRec = todayIdx >= 0 ? _records[todayIdx] : null;
 
     // 提前計算，避免 build() 中重複呼叫
     final chartData = _getChartData();
@@ -944,8 +947,7 @@ class _WeightPageState extends State<WeightPage> {
                                 height: 160,
                                 child: Center(
                                   child: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(
                                         Icons.show_chart,
@@ -1146,13 +1148,12 @@ class _WeightPageState extends State<WeightPage> {
             ),
             barWidth: 3,
             dotData: FlDotData(
-              getDotPainter: (spot, percent, bar, index) =>
-                  FlDotCirclePainter(
-                    radius: dotRadius,
-                    color: Colors.white,
-                    strokeWidth: 2,
-                    strokeColor: Colors.deepOrange.shade300,
-                  ),
+              getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
+                radius: dotRadius,
+                color: Colors.white,
+                strokeWidth: 2,
+                strokeColor: Colors.deepOrange.shade300,
+              ),
             ),
             belowBarData: BarAreaData(
               show: true,

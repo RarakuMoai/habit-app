@@ -308,7 +308,9 @@ class _AudioSettingsPanel extends StatelessWidget {
                     onChanged: (muted) async {
                       if (muted) {
                         unawaited(SfxService.instance.play(SfxCue.tap));
-                        await Future<void>.delayed(const Duration(milliseconds: 80));
+                        await Future<void>.delayed(
+                          const Duration(milliseconds: 80),
+                        );
                       }
                       await AudioSettingsService.instance.setSfxMuted(muted);
                       if (!muted) {

@@ -277,8 +277,7 @@ class BgmService with WidgetsBindingObserver {
     if (_bailDeferred(requestId, asset) || _deferredFadeAsset != asset) return;
 
     // play 真的 engage 了（有在播且 buffer ready）→ 柔和淡入一次，結束重試
-    if (_player.playing &&
-        _player.processingState == ProcessingState.ready) {
+    if (_player.playing && _player.processingState == ProcessingState.ready) {
       _cancelEngageChecks();
       _deferredFadeAsset = null;
       await _fadeInEntrance();
@@ -302,7 +301,9 @@ class BgmService with WidgetsBindingObserver {
 
     // 最後一次：不論有沒有 engage 都淡入，至少不要永遠靜音卡在音量 0
     if (isLast) {
-      if (_bailDeferred(requestId, asset) || _deferredFadeAsset != asset) return;
+      if (_bailDeferred(requestId, asset) || _deferredFadeAsset != asset) {
+        return;
+      }
       _deferredFadeAsset = null;
       await _fadeInEntrance();
     }
