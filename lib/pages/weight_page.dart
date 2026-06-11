@@ -1,13 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
+import '../utils/user_validators.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -257,6 +261,7 @@ class _WeightPageState extends State<WeightPage> {
     _saveRecords();
     MascotPersona.interact(MascotContext.completedOne);
     SfxService.instance.play(SfxCue.success);
+    unawaited(HapticFeedback.mediumImpact());
   }
 
   // 刪除指定日期的紀錄
@@ -265,6 +270,8 @@ class _WeightPageState extends State<WeightPage> {
       _records.removeWhere((r) => r['date'] == rec['date']);
     });
     _saveRecords();
+    SfxService.instance.play(SfxCue.cancel);
+    unawaited(HapticFeedback.lightImpact());
   }
 
   // 格式化數字（整數不顯示小數點，否則保留指定位數）
@@ -309,6 +316,7 @@ class _WeightPageState extends State<WeightPage> {
             }
             return const SizedBox.shrink();
           },
+          xLabel: (x) => '${now.month}/${x.toInt()}',
         );
 
       case 2: // 三個月：x = 距90天前的偏移天數
@@ -346,6 +354,10 @@ class _WeightPageState extends State<WeightPage> {
             }
             return const SizedBox.shrink();
           },
+          xLabel: (x) {
+            final d = startDate.add(Duration(days: x.toInt()));
+            return '${d.month}/${d.day}';
+          },
         );
 
       case 0: // 本週（預設）：x = 0~6 對應週一~週日
@@ -376,22 +388,55 @@ class _WeightPageState extends State<WeightPage> {
               ),
             );
           },
+          xLabel: (x) {
+            final idx = x.toInt().clamp(0, 6);
+            final d = weekDays[idx];
+            return '${d.month}/${d.day} 週${labels[idx]}';
+          },
         );
     }
   }
 
+  // 日期顯示標籤：今天/昨天直接講人話，其他日期照舊
+  String _dateLabel(DateTime d) {
+    final now = DateTime.now();
+    final diff = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).difference(DateTime(d.year, d.month, d.day)).inDays;
+    if (diff == 0) return '今天';
+    if (diff == 1) return '昨天';
+    return '${d.year} 年 '
+        '${d.month.toString().padLeft(2, '0')} 月 '
+        '${d.day.toString().padLeft(2, '0')} 日';
+  }
+
   // 開啟新增／編輯 BottomSheet
-  // existing 不為 null 時為編輯模式，預填現有資料
+  // existing 不為 null 時為編輯模式，預填現有資料；
+  // 新增模式預填上次體重（全選，直接打字就覆蓋），通常只需微調
   void _openAddSheet({Map<String, dynamic>? existing}) {
     var selectedDate = existing != null
         ? (DateTime.tryParse(existing['date'] as String) ?? DateTime.now())
         : DateTime.now();
-    _weightCtrl.text = existing != null
-        ? _fmtWeight((existing['weight'] as num).toDouble())
-        : '';
+    if (existing != null) {
+      _weightCtrl.text = _fmtWeight((existing['weight'] as num).toDouble());
+    } else if (_records.isNotEmpty) {
+      _weightCtrl.text = _fmtWeight(
+        (_records.first['weight'] as num).toDouble(),
+      );
+    } else {
+      _weightCtrl.text = '';
+    }
+    _weightCtrl.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _weightCtrl.text.length,
+    );
     _fatCtrl.text = existing != null && existing['body_fat'] != null
         ? _fmt((existing['body_fat'] as num).toDouble())
         : '';
+    String? weightError;
+    String? fatError;
 
     showModalBottomSheet<void>(
       context: context,
@@ -400,6 +445,63 @@ class _WeightPageState extends State<WeightPage> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
+            // ± 微調鈕：公制一格 0.1 kg、英制一格 1 lb
+            void stepWeight(double delta) {
+              final cur = double.tryParse(_weightCtrl.text.trim());
+              final fallback = _records.isNotEmpty
+                  ? _wDisp((_records.first['weight'] as num).toDouble())
+                  : _wDisp(60);
+              var next = (cur ?? fallback) + delta;
+              if (next < 0) next = 0;
+              _weightCtrl.text = _unit == UnitSystem.imperial
+                  ? next.round().toString()
+                  : _fmt(next);
+              setSheetState(() => weightError = null);
+              unawaited(HapticFeedback.selectionClick());
+            }
+
+            void submit() {
+              final rawText = _weightCtrl.text.trim();
+              final wErr = rawText.isEmpty
+                  ? '請輸入體重'
+                  : UserValidators.weightIn(rawText, _unit);
+              String? fErr;
+              final fatText = _fatCtrl.text.trim();
+              double? fat;
+              if (fatText.isNotEmpty) {
+                fat = double.tryParse(fatText);
+                if (fat == null || fat <= 0 || fat >= 75) {
+                  fErr = '請輸入 0–75 之間的數值';
+                  fat = null;
+                }
+              }
+              if (wErr != null || fErr != null) {
+                setSheetState(() {
+                  weightError = wErr;
+                  fatError = fErr;
+                });
+                unawaited(HapticFeedback.lightImpact());
+                return;
+              }
+              // 輸入是當下單位（kg 或 lb），統一轉成 kg 存
+              final raw = double.parse(rawText);
+              final weightKg = _unit == UnitSystem.imperial
+                  ? UnitConvert.lbToKg(raw)
+                  : raw;
+              final now = DateTime.now();
+              final time =
+                  '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+              final record = <String, dynamic>{
+                'date': _dateStr(selectedDate),
+                // 編輯模式保留原始時間；新增模式使用當前時間
+                'time': existing?['time'] ?? time,
+                'weight': weightKg,
+              };
+              if (fat != null) record['body_fat'] = fat;
+              _upsertRecord(record);
+              Navigator.pop(ctx);
+            }
+
             return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(ctx).viewInsets.bottom,
@@ -473,35 +575,72 @@ class _WeightPageState extends State<WeightPage> {
                           ),
                         ),
                         child: Text(
-                          '${selectedDate.year} 年 '
-                          '${selectedDate.month.toString().padLeft(2, '0')} 月 '
-                          '${selectedDate.day.toString().padLeft(2, '0')} 日',
+                          _dateLabel(selectedDate),
                           style: const TextStyle(fontSize: 15),
                         ),
                       ),
                     ),
                     const SizedBox(height: 12),
 
-                    // 體重（必填）
-                    TextField(
-                      controller: _weightCtrl,
-                      autofocus: true,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: '體重 *',
-                        suffixText: _wLabel,
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // 體重（必填）＋ ± 微調鈕
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _weightCtrl,
+                            autofocus: true,
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                            textInputAction: TextInputAction.done,
+                            onChanged: (_) {
+                              if (weightError != null) {
+                                setSheetState(() => weightError = null);
+                              }
+                            },
+                            onSubmitted: (_) => submit(),
+                            decoration: InputDecoration(
+                              labelText: '體重 *',
+                              suffixText: _wLabel,
+                              errorText: weightError,
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.orange),
+                        const SizedBox(width: 10),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 7),
+                          child: Row(
+                            children: [
+                              _stepButton(
+                                Icons.remove,
+                                () => stepWeight(
+                                  _unit == UnitSystem.imperial ? -1 : -0.1,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _stepButton(
+                                Icons.add,
+                                () => stepWeight(
+                                  _unit == UnitSystem.imperial ? 1 : 0.1,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
 
                     // 體脂（選填，依 weight_tracking_enabled 控制顯示）
@@ -512,9 +651,17 @@ class _WeightPageState extends State<WeightPage> {
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
+                        textInputAction: TextInputAction.done,
+                        onChanged: (_) {
+                          if (fatError != null) {
+                            setSheetState(() => fatError = null);
+                          }
+                        },
+                        onSubmitted: (_) => submit(),
                         decoration: InputDecoration(
                           labelText: '體脂率（選填）',
                           suffixText: '%',
+                          errorText: fatError,
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
@@ -534,27 +681,7 @@ class _WeightPageState extends State<WeightPage> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // 輸入是當下單位（kg 或 lb），統一轉成 kg 存
-                          final raw = double.tryParse(_weightCtrl.text.trim());
-                          if (raw == null) return;
-                          final weightKg = _unit == UnitSystem.imperial
-                              ? UnitConvert.lbToKg(raw)
-                              : raw;
-                          final fat = double.tryParse(_fatCtrl.text.trim());
-                          final now = DateTime.now();
-                          final time =
-                              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-                          final record = <String, dynamic>{
-                            'date': _dateStr(selectedDate),
-                            // 編輯模式保留原始時間；新增模式使用當前時間
-                            'time': existing?['time'] ?? time,
-                            'weight': weightKg,
-                          };
-                          if (fat != null) record['body_fat'] = fat;
-                          _upsertRecord(record);
-                          Navigator.pop(ctx);
-                        },
+                        onPressed: submit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange,
                           shape: RoundedRectangleBorder(
@@ -579,6 +706,23 @@ class _WeightPageState extends State<WeightPage> {
           },
         );
       },
+    );
+  }
+
+  // 體重 ± 微調圓鈕（sheet 內用）
+  Widget _stepButton(IconData icon, VoidCallback onTap) {
+    return Material(
+      color: Colors.white,
+      shape: CircleBorder(side: BorderSide(color: Colors.orange.shade200)),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, size: 20, color: Colors.orange.shade600),
+        ),
+      ),
     );
   }
 
@@ -796,106 +940,49 @@ class _WeightPageState extends State<WeightPage> {
                         const SizedBox(height: 12),
                         // 無資料時顯示友善提示，否則顯示折線圖
                         chartData.spots.isEmpty
-                            ? const SizedBox(
-                                height: 100,
+                            ? SizedBox(
+                                height: 160,
                                 child: Center(
-                                  child: Text(
-                                    '此區間沒有紀錄',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
+                                  child: Column(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.show_chart,
+                                        size: 36,
+                                        color: Colors.orange.shade200,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        '此區間沒有紀錄',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               )
                             : SizedBox(
                                 height: 160,
-                                child: LineChart(
-                                  LineChartData(
-                                    minX: chartData.minX,
-                                    maxX: chartData.maxX,
-                                    // Y 軸範圍：最小值 -2，最大值 +2（讓線不貼邊）
-                                    minY:
-                                        chartData.spots
-                                            .map((s) => s.y)
-                                            .reduce((a, b) => a < b ? a : b) -
-                                        2,
-                                    maxY:
-                                        chartData.spots
-                                            .map((s) => s.y)
-                                            .reduce((a, b) => a > b ? a : b) +
-                                        2,
-                                    lineBarsData: [
-                                      LineChartBarData(
-                                        spots: chartData.spots,
-                                        isCurved: true,
-                                        color: Colors.orange,
-                                        barWidth: 2.5,
-                                        belowBarData: BarAreaData(
-                                          show: true,
-                                          color: Colors.orange.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    gridData: const FlGridData(show: false),
-                                    borderData: FlBorderData(show: false),
-                                    titlesData: FlTitlesData(
-                                      leftTitles: const AxisTitles(
-                                        
-                                      ),
-                                      topTitles: const AxisTitles(
-                                        
-                                      ),
-                                      // 右側顯示體重數值
-                                      rightTitles: AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: true,
-                                          reservedSize: 44,
-                                          getTitlesWidget: (value, meta) =>
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: 4,
-                                                ),
-                                                child: Text(
-                                                  value.toStringAsFixed(1),
-                                                  style: const TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-                                              ),
-                                        ),
-                                      ),
-                                      // 底部標籤由各範圍自行提供
-                                      bottomTitles: AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: true,
-                                          reservedSize: 28,
-                                          getTitlesWidget:
-                                              chartData.getBottomTitle,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                child: _buildLineChart(chartData),
                               ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
 
-                  // ── 今日數據卡片 ──
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.orange.shade100),
-                    ),
-                    child: todayRec != null
-                        ? Column(
+                  // ── 今日數據卡片（沒紀錄時整卡可點，直接開新增） ──
+                  todayRec != null
+                      ? Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.orange.shade100),
+                          ),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
@@ -909,20 +996,52 @@ class _WeightPageState extends State<WeightPage> {
                               const SizedBox(height: 12),
                               _buildStatGrid(todayRec),
                             ],
-                          )
-                        : const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Text(
-                                '今天還沒量體重喔',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 15,
+                          ),
+                        )
+                      : Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: _openAddSheet,
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.orange.shade100,
+                                ),
+                              ),
+                              child: Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        '今天還沒量體重喔',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '點這裡記錄今天的體重',
+                                        style: TextStyle(
+                                          color: Colors.orange.shade400,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                  ),
+                        ),
 
                   // ── 目標體重進度條（有設定目標才顯示） ──
                   if (targetProgressWidget != null) ...[
@@ -963,23 +1082,175 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
+  // 折線圖本體：漸層線＋資料點＋觸控 tooltip＋虛線格線＋目標線
+  Widget _buildLineChart(_ChartData chartData) {
+    var minV = chartData.spots.map((s) => s.y).reduce(math.min);
+    var maxV = chartData.spots.map((s) => s.y).reduce(math.max);
+
+    // 目標線：離資料太遠（>5 顯示單位）就不畫，避免把曲線壓扁
+    var targetLine = _targetWeight != null ? _wDisp(_targetWeight!) : null;
+    if (targetLine != null &&
+        targetLine >= minV - 5 &&
+        targetLine <= maxV + 5) {
+      minV = math.min(minV, targetLine);
+      maxV = math.max(maxV, targetLine);
+    } else {
+      targetLine = null;
+    }
+
+    // 週檢視點少、點畫大顆；月／三個月點多、縮小避免擠成一團
+    final dotRadius = _chartRangeIndex == 0 ? 4.0 : 2.5;
+
+    return LineChart(
+      LineChartData(
+        minX: chartData.minX,
+        maxX: chartData.maxX,
+        // Y 軸範圍上下各留 2 單位，讓線不貼邊
+        minY: minV - 2,
+        maxY: maxV + 2,
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (_) => Colors.orange.shade600,
+            tooltipRoundedRadius: 10,
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItems: (touchedSpots) => touchedSpots
+                .map(
+                  (s) => LineTooltipItem(
+                    '${chartData.xLabel(s.x)}\n',
+                    const TextStyle(color: Colors.white70, fontSize: 11),
+                    children: [
+                      TextSpan(
+                        text: '${_fmt(s.y)} $_wLabel',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: chartData.spots,
+            isCurved: true,
+            curveSmoothness: 0.3,
+            // 避免單調資料間的曲線過衝出現假波峰
+            preventCurveOverShooting: true,
+            gradient: LinearGradient(
+              colors: [Colors.orange.shade300, Colors.deepOrange.shade400],
+            ),
+            barWidth: 3,
+            dotData: FlDotData(
+              getDotPainter: (spot, percent, bar, index) =>
+                  FlDotCirclePainter(
+                    radius: dotRadius,
+                    color: Colors.white,
+                    strokeWidth: 2,
+                    strokeColor: Colors.deepOrange.shade300,
+                  ),
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.orange.withValues(alpha: 0.18),
+                  Colors.orange.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ],
+        gridData: FlGridData(
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: Colors.orange.shade100.withValues(alpha: 0.6),
+            strokeWidth: 1,
+            dashArray: [4, 4],
+          ),
+        ),
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            if (targetLine != null)
+              HorizontalLine(
+                y: targetLine,
+                color: Colors.green.shade400,
+                strokeWidth: 1.5,
+                dashArray: [6, 4],
+                label: HorizontalLineLabel(
+                  show: true,
+                  padding: const EdgeInsets.only(left: 4, bottom: 2),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.green.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  labelResolver: (_) => '目標',
+                ),
+              ),
+          ],
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(),
+          topTitles: const AxisTitles(),
+          // 右側顯示體重數值
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 44,
+              getTitlesWidget: (value, meta) => Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(
+                  _fmt(value),
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ),
+            ),
+          ),
+          // 底部標籤由各範圍自行提供；interval 固定 1，
+          // 否則 fl_chart 自動取樣會跳過我們想顯示的日期
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: 1,
+              getTitlesWidget: chartData.getBottomTitle,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // 圖表範圍切換按鈕（選中時橘底白字）
   Widget _chartRangeButton(String label, int index) {
     final selected = _chartRangeIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _chartRangeIndex = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: selected ? Colors.white : Colors.orange.shade700,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+    return Material(
+      color: selected ? Colors.orange : Colors.orange.shade50,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          if (_chartRangeIndex == index) return;
+          unawaited(HapticFeedback.selectionClick());
+          setState(() => _chartRangeIndex = index);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: selected ? Colors.white : Colors.orange.shade700,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
         ),
       ),
@@ -1220,12 +1491,15 @@ class _ChartData {
   final double minX;
   final double maxX;
   final Widget Function(double, TitleMeta) getBottomTitle;
+  // 觸控 tooltip 的日期標籤（x 值 → 人看的日期字串）
+  final String Function(double x) xLabel;
 
   const _ChartData({
     required this.spots,
     required this.minX,
     required this.maxX,
     required this.getBottomTitle,
+    required this.xLabel,
   });
 }
 
