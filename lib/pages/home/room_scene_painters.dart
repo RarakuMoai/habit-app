@@ -135,4 +135,3 @@ class RoomSceneEffectsPainter extends CustomPainter {
       old.allDone != allDone ||
       old.streak != streak;
 }
-

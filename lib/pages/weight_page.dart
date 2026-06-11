@@ -4,9 +4,9 @@ import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
@@ -266,8 +266,7 @@ class _WeightPageState extends State<WeightPage> {
     });
     _saveRecords();
     MascotPersona.interact(MascotContext.completedOne);
-    SfxService.instance.play(SfxCue.success);
-    unawaited(HapticFeedback.mediumImpact());
+    playFeedback(SfxCue.success, haptic: HapticLevel.medium);
   }
 
   // 刪除指定日期的紀錄
@@ -276,8 +275,7 @@ class _WeightPageState extends State<WeightPage> {
       _records.removeWhere((r) => r['date'] == rec['date']);
     });
     _saveRecords();
-    SfxService.instance.play(SfxCue.cancel);
-    unawaited(HapticFeedback.lightImpact());
+    playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
   }
 
   // 格式化數字（整數不顯示小數點，否則保留指定位數）
@@ -463,7 +461,7 @@ class _WeightPageState extends State<WeightPage> {
                   ? next.round().toString()
                   : _fmt(next);
               setSheetState(() => weightError = null);
-              unawaited(HapticFeedback.selectionClick());
+              playHaptic(HapticLevel.selection);
             }
 
             void submit() {
@@ -486,7 +484,7 @@ class _WeightPageState extends State<WeightPage> {
                   weightError = wErr;
                   fatError = fErr;
                 });
-                unawaited(HapticFeedback.lightImpact());
+                playHaptic(HapticLevel.light);
                 return;
               }
               // 輸入是當下單位（kg 或 lb），統一轉成 kg 存
@@ -1240,7 +1238,7 @@ class _WeightPageState extends State<WeightPage> {
         borderRadius: BorderRadius.circular(20),
         onTap: () {
           if (_chartRangeIndex == index) return;
-          unawaited(HapticFeedback.selectionClick());
+          playHaptic(HapticLevel.selection);
           setState(() => _chartRangeIndex = index);
         },
         child: Padding(

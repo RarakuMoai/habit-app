@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 import '../utils/notification_service.dart';
 import '../utils/sfx_service.dart';
@@ -104,8 +104,7 @@ class _TimerPageState extends State<TimerPage>
     MascotPersona.interact(
       _isWork ? MascotContext.halfDone : MascotContext.completedOne,
     );
-    SfxService.instance.play(SfxCue.complete);
-    unawaited(HapticFeedback.mediumImpact());
+    playFeedback(SfxCue.complete);
   }
 
   Future<void> _scheduleEndNotification(DateTime when) async {
@@ -137,8 +136,7 @@ class _TimerPageState extends State<TimerPage>
         _isRunning = false;
         _endTime = null;
       });
-      SfxService.instance.play(SfxCue.tap);
-      unawaited(HapticFeedback.lightImpact());
+      playFeedback(SfxCue.tap);
     } else {
       // 開始：算結束時刻、排通知、起 UI tick
       if (_secondsLeft <= 0) _secondsLeft = _phaseSeconds(_isWork);
@@ -156,8 +154,7 @@ class _TimerPageState extends State<TimerPage>
       MascotPersona.interact(
         _isWork ? MascotContext.openApp : MascotContext.halfDone,
       );
-      SfxService.instance.play(SfxCue.tap);
-      unawaited(HapticFeedback.mediumImpact());
+      playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
     }
   }
 
@@ -172,8 +169,7 @@ class _TimerPageState extends State<TimerPage>
       _endTime = null;
     });
     MascotPersona.interact(MascotContext.notStarted);
-    SfxService.instance.play(SfxCue.cancel);
-    unawaited(HapticFeedback.lightImpact());
+    playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
   }
 
   void _skipPhase() {
@@ -190,8 +186,7 @@ class _TimerPageState extends State<TimerPage>
     MascotPersona.interact(
       _isWork ? MascotContext.openApp : MascotContext.completedOne,
     );
-    SfxService.instance.play(SfxCue.tap);
-    unawaited(HapticFeedback.selectionClick());
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
   }
 
   @override

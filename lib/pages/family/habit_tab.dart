@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_feedback.dart';
 import '../../utils/sfx_service.dart';
 import '../../widgets/habit_ui.dart';
 import 'family_auth.dart';
@@ -93,12 +94,7 @@ class _HabitTabState extends State<HabitTab> {
 
     // 音效＋震動回饋（對齊習慣頁慣例）：
     // 達標（每日打卡 / 每週湊滿次數）→ success；每週累加未達標 → tap
-    if (_isDoneToday(habit)) {
-      unawaited(SfxService.instance.play(SfxCue.success));
-    } else {
-      unawaited(SfxService.instance.play(SfxCue.tap));
-    }
-    unawaited(HapticFeedback.lightImpact());
+    playFeedback(_isDoneToday(habit) ? SfxCue.success : SfxCue.tap);
 
     setState(() => widget.child.points = newPoints);
     widget.onPointsChanged();
@@ -142,8 +138,7 @@ class _HabitTabState extends State<HabitTab> {
       await saveHabits(prefs, allHabits);
     }
 
-    unawaited(SfxService.instance.play(SfxCue.cancel));
-    unawaited(HapticFeedback.selectionClick());
+    playFeedback(SfxCue.cancel);
 
     setState(() => widget.child.points = newPoints);
     widget.onPointsChanged();
@@ -438,10 +433,7 @@ class _HabitTabState extends State<HabitTab> {
                                   reason: '特殊積分：$customReason',
                                 );
                               }
-                              unawaited(
-                                SfxService.instance.play(SfxCue.success),
-                              );
-                              unawaited(HapticFeedback.lightImpact());
+                              playFeedback(SfxCue.success);
                               setState(() => widget.child.points = latestPts);
                               widget.onPointsChanged();
                               if (!mounted) return;

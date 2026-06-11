@@ -5,9 +5,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
@@ -375,27 +375,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     saveHabits();
     if (!wasAllDone && allDone0) {
-      SfxService.instance.play(SfxCue.complete);
-      unawaited(HapticFeedback.mediumImpact());
+      playFeedback(SfxCue.complete);
       _celebCtrl.forward(from: 0);
       setState(() => _mascotReactionTick++);
     } else if (habits[index]['done'] == true) {
       if (!wasHabitDone) {
-        SfxService.instance.play(SfxCue.success);
-        unawaited(HapticFeedback.lightImpact());
+        playFeedback(SfxCue.success);
       } else {
-        SfxService.instance.play(SfxCue.tap);
-        unawaited(HapticFeedback.lightImpact());
+        playFeedback(SfxCue.tap);
       }
       setState(() => _mascotReactionTick++);
     } else if (isWeekly) {
       // 每週習慣累加但還沒達標：是正向操作，給 tap 不給 cancel
-      SfxService.instance.play(SfxCue.tap);
-      unawaited(HapticFeedback.lightImpact());
+      playFeedback(SfxCue.tap);
       setState(() => _mascotReactionTick++);
     } else {
-      SfxService.instance.play(SfxCue.cancel);
-      unawaited(HapticFeedback.selectionClick());
+      playFeedback(SfxCue.cancel);
     }
     if (habits[index]['name'] == '喝足夠的水') {
       widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
@@ -417,8 +412,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       habit['done'] = dates.where(weekSet.contains).length >= target;
     });
     saveHabits();
-    SfxService.instance.play(SfxCue.cancel);
-    unawaited(HapticFeedback.selectionClick());
+    playFeedback(SfxCue.cancel);
     _showTransientMascot('sad');
   }
 

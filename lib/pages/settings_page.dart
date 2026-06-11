@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
 import '../utils/parent_pin.dart';
@@ -52,7 +53,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _setUnitSystem(UnitSystem v) async {
     if (v == _unitSystem) return;
-    unawaited(HapticFeedback.selectionClick());
+    playHaptic(HapticLevel.selection);
     setState(() => _unitSystem = v);
     if (_prefs != null) await UnitSystem.save(_prefs!, v);
   }
@@ -888,7 +889,7 @@ class _DigitChip extends StatelessWidget {
           splashColor: color.withValues(alpha: 0.18),
           highlightColor: color.withValues(alpha: 0.08),
           onTap: () {
-            unawaited(HapticFeedback.selectionClick());
+            playHaptic(HapticLevel.selection);
             onTap();
           },
           child: Padding(

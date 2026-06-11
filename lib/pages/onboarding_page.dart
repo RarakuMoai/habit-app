@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/bgm_service.dart';
 import '../utils/input_formatters.dart';
 import '../utils/mascot.dart';
@@ -251,18 +252,10 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
   }
 
-  // 音效一律配對觸覺回饋（強度對齊 home：tap/cancel 輕點、success 輕震、complete 中震）
+  // 音效一律配對觸覺回饋；onboarding 的 tap 比預設再輕一階（selection），
+  // 引導流程點擊密集，避免震過頭
   void _playOnboardingSfx(SfxCue cue) {
-    unawaited(SfxService.instance.play(cue));
-    switch (cue) {
-      case SfxCue.complete:
-        unawaited(HapticFeedback.mediumImpact());
-      case SfxCue.success:
-        unawaited(HapticFeedback.lightImpact());
-      case SfxCue.tap:
-      case SfxCue.cancel:
-        unawaited(HapticFeedback.selectionClick());
-    }
+    playFeedback(cue, haptic: cue == SfxCue.tap ? HapticLevel.selection : null);
   }
 
   Future<void> _ensureOnboardingBgm({bool unmute = false}) async {

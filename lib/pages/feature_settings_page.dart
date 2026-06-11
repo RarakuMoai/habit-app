@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/prefs_keys.dart';
 
 // 功能開關頁：集中管理各頁籤的顯示開關
@@ -83,7 +83,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
         activeThumbColor: Colors.orange,
         activeTrackColor: Colors.orange.shade200,
         onChanged: (v) {
-          unawaited(HapticFeedback.selectionClick());
+          playHaptic(HapticLevel.selection);
           onChanged(v);
         },
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

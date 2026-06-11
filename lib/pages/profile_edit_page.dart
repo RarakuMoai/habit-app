@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/input_formatters.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
@@ -129,7 +130,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   // 按下「儲存」時一次寫入所有欄位，然後返回
   Future<void> _save() async {
-    unawaited(HapticFeedback.lightImpact());
+    playHaptic(HapticLevel.light);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(PrefsKeys.userNickname, _nicknameCtrl.text.trim());
     await prefs.setString(
@@ -238,7 +239,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           splashColor: Colors.orange.withValues(alpha: 0.18),
           highlightColor: Colors.orange.withValues(alpha: 0.08),
           onTap: () {
-            if (!selected) unawaited(HapticFeedback.selectionClick());
+            if (!selected) playHaptic(HapticLevel.selection);
             onSelected();
           },
           child: Padding(

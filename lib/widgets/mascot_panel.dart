@@ -14,8 +14,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
-import 'package:flutter/services.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 
 class MascotToggleBar extends StatefulWidget {
@@ -84,7 +84,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   void _onTapCancel() => _pressCtl.reverse();
 
   Future<void> _onTap() async {
-    unawaited(HapticFeedback.lightImpact());
+    playHaptic(HapticLevel.light);
     final target = _ctl.value >= 0.5 ? 0.0 : 1.0;
     unawaited(_pressCtl.reverse());
     await _animateToWithSpring(target);
@@ -114,7 +114,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
     } else {
       target = _ctl.value >= 0.5 ? 1.0 : 0.0;
     }
-    unawaited(HapticFeedback.lightImpact());
+    playHaptic(HapticLevel.light);
     await _animateToWithSpring(target, velocity: velocityFraction);
     await _persist();
   }

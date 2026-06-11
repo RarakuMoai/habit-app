@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../utils/app_feedback.dart';
+
 // 持續時間（分鐘）輸入對話框
 Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {
   final ctrl = TextEditingController(text: current > 0 ? '$current' : '');
@@ -145,7 +147,7 @@ class FreqChip extends StatelessWidget {
           splashColor: Colors.orange.withValues(alpha: 0.18),
           highlightColor: Colors.orange.withValues(alpha: 0.08),
           onTap: () {
-            unawaited(HapticFeedback.selectionClick());
+            playHaptic(HapticLevel.selection);
             onTap();
           },
           child: Padding(

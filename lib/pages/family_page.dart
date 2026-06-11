@@ -5,9 +5,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
@@ -245,8 +245,7 @@ class _FamilyPageState extends State<FamilyPage> {
     );
     await saveHabits(prefs, habits);
     setState(() {});
-    unawaited(SfxService.instance.play(SfxCue.success));
-    unawaited(HapticFeedback.lightImpact());
+    playFeedback(SfxCue.success);
     MascotPersona.interact(MascotContext.completedOne);
   }
 
