@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
@@ -352,7 +353,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final wasAllDone = allDone0;
     final habit = habits[index];
     final wasHabitDone = habit['done'] == true;
-    if ((habit['frequency'] ?? 'daily') == 'weekly') {
+    final isWeekly = (habit['frequency'] ?? 'daily') == 'weekly';
+    if (isWeekly) {
       final today = todayString();
       final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
       final target = (habit['weeklyTarget'] as int?) ?? 3;
@@ -373,17 +375,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     saveHabits();
     if (!wasAllDone && allDone0) {
       SfxService.instance.play(SfxCue.complete);
+      unawaited(HapticFeedback.mediumImpact());
       _celebCtrl.forward(from: 0);
       setState(() => _mascotReactionTick++);
     } else if (habits[index]['done'] == true) {
       if (!wasHabitDone) {
         SfxService.instance.play(SfxCue.success);
+        unawaited(HapticFeedback.lightImpact());
       } else {
         SfxService.instance.play(SfxCue.tap);
+        unawaited(HapticFeedback.lightImpact());
       }
+      setState(() => _mascotReactionTick++);
+    } else if (isWeekly) {
+      // 每週習慣累加但還沒達標：是正向操作，給 tap 不給 cancel
+      SfxService.instance.play(SfxCue.tap);
+      unawaited(HapticFeedback.lightImpact());
       setState(() => _mascotReactionTick++);
     } else {
       SfxService.instance.play(SfxCue.cancel);
+      unawaited(HapticFeedback.selectionClick());
     }
     if (habits[index]['name'] == '喝足夠的水') {
       widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
@@ -406,6 +417,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
     saveHabits();
     SfxService.instance.play(SfxCue.cancel);
+    unawaited(HapticFeedback.selectionClick());
     _showTransientMascot('sad');
   }
 
@@ -706,11 +718,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required int displayTotal,
     required Color accent,
   }) {
+    final reached = displayTotal > 0 && displayDone >= displayTotal;
     return Column(
       children: [
         if (habits.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: Row(
               children: [
                 Expanded(
@@ -722,7 +735,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
                         value: value,
-                        minHeight: 6,
+                        minHeight: 7,
                         backgroundColor: Colors.grey.shade200,
                         valueColor: AlwaysStoppedAnimation(accent),
                       ),
@@ -730,12 +743,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  '$displayDone / $displayTotal',
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                // 達標時數字升級成綠色膠囊＋勾，給一個小小的完成獎勵
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: reached ? Colors.green.shade50 : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (reached) ...[
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 13,
+                          color: Colors.green.shade500,
+                        ),
+                        const SizedBox(width: 3),
+                      ],
+                      Text(
+                        '$displayDone / $displayTotal',
+                        style: TextStyle(
+                          color: reached ? Colors.green.shade700 : accent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -822,11 +860,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildHabitList() {
-    if (habits.isEmpty) {
-      return const Center(
-        child: Text('還沒有習慣，新增一個吧！', style: TextStyle(color: Colors.grey)),
-      );
-    }
+    if (habits.isEmpty) return _buildEmptyState();
 
     final dailyEntries = habits
         .asMap()
@@ -905,6 +939,66 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ],
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  // 空狀態：淡入＋上浮，視覺語言對齊喝水頁的「今天還沒有補水紀錄」
+  Widget _buildEmptyState() {
+    final accent = _sceneColors.accent;
+    return Center(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOut,
+        builder: (_, v, child) => Opacity(
+          opacity: v,
+          child: Transform.translate(
+            offset: Offset(0, 12 * (1 - v)),
+            child: child,
+          ),
+        ),
+        // FittedBox：兔咪面板展開時卡片高度有限，等比縮小避免 overflow
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.spa_rounded, size: 30, color: accent),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  '還沒有任何習慣',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '點上面的「新增習慣」\n從一件小事開始吧',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

@@ -65,23 +65,30 @@ class _HabitCardState extends State<HabitCard>
   Widget _weeklyBtn({
     required IconData icon,
     VoidCallback? onTap,
-    double size = 30,
+    double size = 32,
   }) {
     final active = onTap != null;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
-        ),
-        child: Icon(
-          icon,
-          size: size * 0.53,
-          color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          splashColor: Colors.indigo.withValues(alpha: 0.18),
+          highlightColor: Colors.indigo.withValues(alpha: 0.08),
+          onTap: onTap,
+          child: Icon(
+            icon,
+            size: size * 0.53,
+            color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+          ),
         ),
       ),
     );
@@ -106,30 +113,37 @@ class _HabitCardState extends State<HabitCard>
         shadowColor: Colors.orange.withValues(alpha: 0.18),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: IntrinsicHeight(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 66),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: 5,
-                    color: done
-                        ? Colors.green.shade400
-                        : widget.isLinked
-                        ? Colors.blue.shade400
-                        : Colors.orange.shade400,
-                  ),
-                  Expanded(
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 2,
-                      ),
-                      leading: GestureDetector(
-                        onTap: _handleTap,
-                        child: ScaleTransition(
+          // 整張卡都可點擊打卡（不只左邊小圓圈），ripple 回饋
+          child: InkWell(
+            onTap: _handleTap,
+            splashColor: (done ? Colors.grey : Colors.green).withValues(
+              alpha: 0.12,
+            ),
+            highlightColor: (done ? Colors.grey : Colors.green).withValues(
+              alpha: 0.06,
+            ),
+            child: IntrinsicHeight(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 66),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 5,
+                      color: done
+                          ? Colors.green.shade400
+                          : widget.isLinked
+                          ? Colors.blue.shade400
+                          : Colors.orange.shade400,
+                    ),
+                    Expanded(
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 2,
+                        ),
+                        leading: ScaleTransition(
                           scale: _scale,
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
@@ -175,73 +189,73 @@ class _HabitCardState extends State<HabitCard>
                                 : null,
                           ),
                         ),
-                      ),
-                      title: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 250),
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          decoration: done
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                          color: done ? Colors.grey.shade400 : Colors.black87,
-                        ),
-                        child: Text(
-                          name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      subtitle: widget.isLinked
-                          ? Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.link,
-                                    size: 11,
-                                    color: Colors.blue.shade400,
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '連動喝水頁面',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.blue.shade500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : null,
-                      trailing: PopupMenuButton<String>(
-                        icon: Icon(
-                          Icons.more_vert,
-                          size: 20,
-                          color: Colors.grey.shade400,
-                        ),
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'edit', child: Text('編輯')),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text(
-                              '刪除',
-                              style: TextStyle(color: Colors.red),
-                            ),
+                        title: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 250),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            decoration: done
+                                ? TextDecoration.lineThrough
+                                : TextDecoration.none,
+                            color: done ? Colors.grey.shade400 : Colors.black87,
                           ),
-                        ],
-                        onSelected: (v) {
-                          if (v == 'edit') {
-                            widget.onEdit();
-                          } else {
-                            widget.onDelete();
-                          }
-                        },
+                          child: Text(
+                            name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        subtitle: widget.isLinked
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.link,
+                                      size: 11,
+                                      color: Colors.blue.shade400,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      '連動喝水頁面',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.blue.shade500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : null,
+                        trailing: PopupMenuButton<String>(
+                          icon: Icon(
+                            Icons.more_vert,
+                            size: 20,
+                            color: Colors.grey.shade400,
+                          ),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'edit', child: Text('編輯')),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text(
+                                '刪除',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                          onSelected: (v) {
+                            if (v == 'edit') {
+                              widget.onEdit();
+                            } else {
+                              widget.onDelete();
+                            }
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
