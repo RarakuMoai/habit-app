@@ -105,6 +105,47 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 用戶暱稱（畫面3填完後存起來）
   String _nickname = '';
 
+  // ── 頁面定義表：頁數、順序、返回鍵的子步驟邏輯都從這裡推導 ──
+  // 新增/刪除頁面只要改這張表，進度點數量與換頁邊界會自動跟上。
+  // inSubStep 回 true 時返回鍵先退出追問子步驟（exitSubStep）而不換頁。
+  late final List<
+    ({
+      Widget Function() build,
+      bool Function() inSubStep,
+      VoidCallback exitSubStep,
+    })
+  >
+  _pages = [
+    (build: _buildPage1, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildPage2, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildPage3, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (
+      build: _buildPage4,
+      inSubStep: () => _waterStep == 1,
+      exitSubStep: () => _waterStep = 0,
+    ),
+    (
+      build: _buildPage5,
+      inSubStep: () => _timerStep == 1,
+      exitSubStep: () => _timerStep = 0,
+    ),
+    (
+      build: _buildFamilyPage,
+      inSubStep: () => _familyStep > 0,
+      exitSubStep: () => _familyStep = 0,
+    ),
+    (
+      build: _buildHabitPickerPage,
+      inSubStep: _noSubStep,
+      exitSubStep: _noopSubStep,
+    ),
+    (build: _buildPage6, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildPage7, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+  ];
+
+  static bool _noSubStep() => false;
+  static void _noopSubStep() {}
+
   // 身體資訊頁：使用者按過一次「填寫完成」後變 true。
   // 行為：按鈕永遠可按，按下去才檢查必填；空著的必填欄會跳「請填寫 X」紅字。
   bool _bodyInfoSubmitAttempted = false;
@@ -243,7 +284,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     unawaited(_ensureOnboardingBgm());
     // 換頁前先收起鍵盤，避免下一頁殘留鍵盤
     FocusScope.of(context).unfocus();
-    if (_currentPage < 8) {
+    if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeInOut,
@@ -489,21 +530,14 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 兔咪 sad 跟對話切換，跟欄位下方紅字共用同一個顯示條件
   bool get _bmiOddOnboarding => _bmiOddVisible;
 
-  // 回上一步：畫面4/5/6 若在追問子步驟，先退回初始選項；否則回上一畫面
+  // 回上一步：若該頁正處於追問子步驟，先退回初始選項；否則回上一畫面
   void _handleBack() {
     _playOnboardingSfx(SfxCue.cancel);
     // 換頁前先收起鍵盤，與 _nextPage 一致
     FocusScope.of(context).unfocus();
-    if (_currentPage == 3 && _waterStep == 1) {
-      setState(() => _waterStep = 0);
-      return;
-    }
-    if (_currentPage == 4 && _timerStep == 1) {
-      setState(() => _timerStep = 0);
-      return;
-    }
-    if (_currentPage == 5 && _familyStep > 0) {
-      setState(() => _familyStep = 0);
+    final page = _pages[_currentPage];
+    if (page.inSubStep()) {
+      setState(page.exitSubStep);
       return;
     }
     if (_currentPage > 0) {
@@ -1874,12 +1908,8 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   @override
   Widget build(BuildContext context) {
-    // 第1頁（畫面1）沒有返回按鈕；畫面4/5/6 在追問子步驟時也要顯示返回
-    final showBack =
-        _currentPage > 0 ||
-        (_currentPage == 3 && _waterStep == 1) ||
-        (_currentPage == 4 && _timerStep == 1) ||
-        (_currentPage == 5 && _familyStep > 0);
+    // 第1頁沒有返回按鈕；任何頁在追問子步驟時也要顯示返回
+    final showBack = _currentPage > 0 || _pages[_currentPage].inSubStep();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // 引導頁背景是 #FFF8F0 米黃淡色，預設 iOS status bar 是淺色字會看不見
@@ -1893,7 +1923,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           color: const Color(0xFFFFF8F0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(9, (i) {
+            children: List.generate(_pages.length, (i) {
               final active = i == _currentPage;
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1945,17 +1975,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               controller: _pageController,
               // 禁止滑動（只能用按鈕前進）
               physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildPage1(),
-                _buildPage2(),
-                _buildPage3(),
-                _buildPage4(),
-                _buildPage5(),
-                _buildFamilyPage(),
-                _buildHabitPickerPage(),
-                _buildPage6(),
-                _buildPage7(),
-              ],
+              children: [for (final p in _pages) p.build()],
             ),
             _onboardingSoundButton(),
             // 返回按鈕：浮在主畫面上層，不佔排版空間，避免內容下移

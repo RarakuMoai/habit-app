@@ -1,0 +1,75 @@
+// onboarding 全流程 widget test：依頁面定義表逐頁前進到最後一頁。
+// 目的：改動頁面順序/新增頁面時，確保換頁邊界、返回鍵的子步驟邏輯、
+// 各頁渲染（含 overflow）不被弄壞。
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/pages/onboarding_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  // 點一個選項/按鈕並等換頁動畫（350ms）跑完。
+  // 測試視窗較小，先捲到可見再點，避免畫面外 tap 落空。
+  Future<void> tapAndSettle(WidgetTester tester, String label) async {
+    await tester.ensureVisible(find.text(label));
+    await tester.pump();
+    await tester.tap(find.text(label));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  testWidgets('從打字動畫一路走到最後一頁，含追問子步驟的返回', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const MaterialApp(home: OnboardingPage()));
+
+    // 畫面1：等打字動畫播完（3 句 × 60ms/字 + 句間 900ms），「繼續」浮現
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('繼續'), findsOneWidget);
+    await tapAndSettle(tester, '繼續');
+
+    // 畫面2：吉祥物命名（預設兔咪，直接下一步）
+    expect(find.text('幫我取個名字'), findsOneWidget);
+    await tapAndSettle(tester, '下一步');
+
+    // 畫面3：暱稱必填，填了才能下一步
+    await tester.enterText(find.byType(TextField), '小測');
+    await tester.pump();
+    await tapAndSettle(tester, '下一步');
+
+    // 畫面4（喝水）：進追問子步驟後按返回，應退回初始選項而不是上一頁
+    expect(find.text('有，但常常忘記'), findsOneWidget);
+    await tapAndSettle(tester, '有，但常常忘記');
+    expect(find.text('好，幫我記'), findsOneWidget);
+    await tester.tap(find.byTooltip('回上一步'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('有，但常常忘記'), findsOneWidget);
+    // 走不追問的選項直接前進
+    await tapAndSettle(tester, '我自己會注意，不用記錄');
+
+    // 畫面5（番茄鐘）：「我很專注」不追問直接前進
+    expect(find.text('我很專注'), findsOneWidget);
+    await tapAndSettle(tester, '我很專注');
+
+    // 畫面6（家庭）
+    expect(find.text('沒有'), findsOneWidget);
+    await tapAndSettle(tester, '沒有');
+
+    // 畫面7（習慣挑選）：不選任何習慣 → 按鈕顯示「略過」
+    expect(find.text('略過'), findsOneWidget);
+    await tapAndSettle(tester, '略過');
+
+    // 畫面8（身體資訊）：選填，直接下次再說
+    expect(find.text('下次再說'), findsOneWidget);
+    await tapAndSettle(tester, '下次再說');
+
+    // 畫面9（收尾）：到達最後一頁
+    expect(find.text('開始'), findsOneWidget);
+
+    // 把 BGM/音效的一次性 timer 推完，避免 pending-timer 斷言
+    await tester.pump(const Duration(seconds: 10));
+  });
+}
