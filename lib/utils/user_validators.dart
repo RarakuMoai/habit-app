@@ -30,6 +30,45 @@ class UserRanges {
   static const double bmiMax = 65;
 }
 
+// 健康建議計算（onboarding 與個人資料編輯共用）
+class HealthAdvice {
+  /// 依身高的健康目標體重建議：BMI 18.5–24 為範圍、22 為建議值。
+  ///
+  /// 規則（兩頁統一）：身高在合理範圍才給建議；若同時填了合理範圍內的
+  /// 體重、但身高體重比例明顯不合理（BMI 超出 [UserRanges.bmiMin]–
+  /// [UserRanges.bmiMax]），回 null —— 先讓使用者修正輸入，不給可能
+  /// 誤導的建議。體重缺漏或本身超出範圍時不做比例檢查（各自的欄位
+  /// 錯誤會另外提示）。回傳值已轉成 [system] 單位。
+  static ({int low, int high, int suggest, String unit})?
+  targetWeightSuggestion({
+    required double? heightCm,
+    required double? weightKg,
+    required UnitSystem system,
+  }) {
+    if (heightCm == null ||
+        heightCm < UserRanges.heightMinCm ||
+        heightCm > UserRanges.heightMaxCm) {
+      return null;
+    }
+    final hM = heightCm / 100;
+    if (weightKg != null &&
+        weightKg >= UserRanges.weightMinKg &&
+        weightKg <= UserRanges.weightMaxKg) {
+      final bmi = weightKg / (hM * hM);
+      if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) return null;
+    }
+    int disp(double kg) => system == UnitSystem.imperial
+        ? UnitConvert.kgToLb(kg).round()
+        : kg.round();
+    return (
+      low: disp(18.5 * hM * hM),
+      high: disp(24 * hM * hM),
+      suggest: disp(22 * hM * hM),
+      unit: UnitFormat.weightLabel(system),
+    );
+  }
+}
+
 class UserValidators {
   /// Returns an error message for [raw], or null when [raw] is acceptable.
   /// Empty input is treated as "not provided" (no error) — callers decide

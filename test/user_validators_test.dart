@@ -120,9 +120,7 @@ void main() {
 
     test('未來日期擋下', () {
       expect(
-        UserValidators.birthday(
-          DateTime.now().add(const Duration(days: 1)),
-        ),
+        UserValidators.birthday(DateTime.now().add(const Duration(days: 1))),
         '生日不能是未來日期',
       );
     });
@@ -132,11 +130,103 @@ void main() {
       final exactly130 = DateTime(now.year - 130, now.month, now.day);
       expect(UserValidators.birthday(exactly130), isNull);
       expect(
-        UserValidators.birthday(
-          exactly130.subtract(const Duration(days: 1)),
-        ),
+        UserValidators.birthday(exactly130.subtract(const Duration(days: 1))),
         contains('130'),
       );
+    });
+  });
+
+  group('HealthAdvice.targetWeightSuggestion', () {
+    test('公制：170cm 給 53–69 kg、建議 64', () {
+      final s = HealthAdvice.targetWeightSuggestion(
+        heightCm: 170,
+        weightKg: 65,
+        system: UnitSystem.metric,
+      );
+      expect(s, isNotNull);
+      expect(s!.low, 53);
+      expect(s.high, 69);
+      expect(s.suggest, 64);
+      expect(s.unit, 'kg'); // units-ok
+    });
+
+    test('身高缺漏或超出範圍 → null', () {
+      expect(
+        HealthAdvice.targetWeightSuggestion(
+          heightCm: null,
+          weightKg: 60,
+          system: UnitSystem.metric,
+        ),
+        isNull,
+      );
+      expect(
+        HealthAdvice.targetWeightSuggestion(
+          heightCm: 79,
+          weightKg: 60,
+          system: UnitSystem.metric,
+        ),
+        isNull,
+      );
+      expect(
+        HealthAdvice.targetWeightSuggestion(
+          heightCm: 231,
+          weightKg: 60,
+          system: UnitSystem.metric,
+        ),
+        isNull,
+      );
+    });
+
+    test('體重合理但 BMI 比例明顯不合理 → null（不給誤導建議）', () {
+      // 170cm / 200kg → BMI 69.2 > 65
+      expect(
+        HealthAdvice.targetWeightSuggestion(
+          heightCm: 170,
+          weightKg: 200,
+          system: UnitSystem.metric,
+        ),
+        isNull,
+      );
+      // 170cm / 25kg → BMI 8.7 < 10
+      expect(
+        HealthAdvice.targetWeightSuggestion(
+          heightCm: 170,
+          weightKg: 25,
+          system: UnitSystem.metric,
+        ),
+        isNull,
+      );
+    });
+
+    test('體重缺漏或本身超出範圍 → 不做比例檢查，照給建議', () {
+      expect(
+        HealthAdvice.targetWeightSuggestion(
+          heightCm: 170,
+          weightKg: null,
+          system: UnitSystem.metric,
+        ),
+        isNotNull,
+      );
+      // 300kg 超出 weightMaxKg，交給欄位驗證提示，建議仍顯示
+      expect(
+        HealthAdvice.targetWeightSuggestion(
+          heightCm: 170,
+          weightKg: 300,
+          system: UnitSystem.metric,
+        ),
+        isNotNull,
+      );
+    });
+
+    test('英制：數值轉 lb、單位字串為 lb', () {
+      final s = HealthAdvice.targetWeightSuggestion(
+        heightCm: 170,
+        weightKg: 65,
+        system: UnitSystem.imperial,
+      );
+      expect(s, isNotNull);
+      expect(s!.unit, 'lb'); // units-ok
+      expect(s.suggest, UnitConvert.kgToLb(22 * 1.7 * 1.7).round());
     });
   });
 }

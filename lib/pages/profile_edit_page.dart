@@ -424,33 +424,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     );
   }
 
-  ({String low, String high, int suggest, String unit})?
-  get _targetWeightSuggestion {
-    final cm = _heightCmFromInputs();
-    if (cm == null || cm < 1 || cm > 300) return null;
-    final hM = cm / 100;
-    final lowKg = (18.5 * hM * hM).round();
-    final highKg = (24 * hM * hM).round();
-    final suggestKg = (22 * hM * hM).round();
-
-    // 轉成當下單位顯示
-    final lowDisp = _unit == UnitSystem.imperial
-        ? '${UnitConvert.kgToLb(lowKg.toDouble()).round()}'
-        : '$lowKg';
-    final highDisp = _unit == UnitSystem.imperial
-        ? '${UnitConvert.kgToLb(highKg.toDouble()).round()}'
-        : '$highKg';
-    final suggestDisp = _unit == UnitSystem.imperial
-        ? UnitConvert.kgToLb(suggestKg.toDouble()).round()
-        : suggestKg;
-    final unitLabel = UnitFormat.weightLabel(_unit);
-    return (
-      low: lowDisp,
-      high: highDisp,
-      suggest: suggestDisp,
-      unit: unitLabel,
-    );
-  }
+  // 比例明顯不合理時不顯示建議（與 onboarding 統一，見 HealthAdvice）
+  ({int low, int high, int suggest, String unit})?
+  get _targetWeightSuggestion => HealthAdvice.targetWeightSuggestion(
+    heightCm: _heightCmFromInputs(),
+    weightKg: _weightKgFromInput(_weightCtrl),
+    system: _unit,
+  );
 
   // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
   // 需先填身高才顯示；點欄位右側「建議」可一鍵套用

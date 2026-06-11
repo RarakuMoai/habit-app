@@ -398,44 +398,16 @@ class _OnboardingPageState extends State<OnboardingPage>
     return _heightController.text.trim().isNotEmpty;
   }
 
-  ({int low, int high, int suggest, String unit})? get _targetWeightSuggestion {
-    // 「建議體重」用 Raw 驗證決定要不要顯示（跟 errText 走「按過按鈕才顯示」
-    // 不同 — 建議本身不是錯誤訊息，所以即使還沒按過按鈕，數字一合理就該出現）
-    if (!_hasHeightInput || _heightErrTextRaw != null) return null;
-    if (_weightController.text.trim().isEmpty || _weightErrTextRaw != null) {
-      return null;
-    }
-    // BMI 比例不合理也不出建議
-    final cmCheck = _heightCm();
-    final kgCheck = _weightKgFromCtrl(_weightController);
-    if (cmCheck != null && kgCheck != null && cmCheck > 0) {
-      final hM = cmCheck / 100;
-      final bmi = kgCheck / (hM * hM);
-      if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) return null;
-    }
-    final cm = _heightCm();
-    if (cm == null) return null;
-    final hM = cm / 100;
-    final lowKg = (18.5 * hM * hM).round();
-    final highKg = (24 * hM * hM).round();
-    final suggestKg = (22 * hM * hM).round();
-    final lowDisp = _unit == UnitSystem.imperial
-        ? UnitConvert.kgToLb(lowKg.toDouble()).round()
-        : lowKg;
-    final highDisp = _unit == UnitSystem.imperial
-        ? UnitConvert.kgToLb(highKg.toDouble()).round()
-        : highKg;
-    final suggestDisp = _unit == UnitSystem.imperial
-        ? UnitConvert.kgToLb(suggestKg.toDouble()).round()
-        : suggestKg;
-    final unitLabel = UnitFormat.weightLabel(_unit);
-    return (
-      low: lowDisp,
-      high: highDisp,
-      suggest: suggestDisp,
-      unit: unitLabel,
-    );
-  }
+  // 建議不是錯誤訊息：身高一合理就出現，不等「填寫完成」；
+  // 比例明顯不合理時收起（統一規則見 HealthAdvice）
+  ({int low, int high, int suggest, String unit})?
+  get _targetWeightSuggestion => HealthAdvice.targetWeightSuggestion(
+    heightCm: _heightErrTextRaw == null ? _heightCm() : null,
+    weightKg: _weightErrTextRaw == null
+        ? _weightKgFromCtrl(_weightController)
+        : null,
+    system: _unit,
+  );
 
   // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
   Widget _targetWeightHint() {
