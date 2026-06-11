@@ -559,33 +559,47 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
             child: MascotPageShell(
               accent: _kInk,
               scene: const PersonaScene(accent: _kInk),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
-                child: Column(
-                  children: [
-                    _summaryCard(),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: Center(
-                        child: RepaintBoundary(
-                          child: ValueListenableBuilder<double>(
-                            valueListenable: MascotPanelPrefs.openValue,
-                            builder: (_, openValue, _) => _WaterBottle(
-                              progress: _progress,
-                              reached: _goalReached,
-                              bumpKey: _entries.length,
-                              panelOpenValue: openValue,
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  // 面板展開時卡片只剩約半屏高，summary 卡＋節點列＋控制列
+                  // 這些固定高度區塊會把 Column 撐爆（iPhone 17 超出 12px）。
+                  // 依可用高度線性收緊間距與底部留白（拖曳中也平滑），水瓶
+                  // 本身在 Expanded 裡會自行縮放；極小高度時再讓掉節點列。
+                  final t = ((box.maxHeight - 360) / 100).clamp(0.0, 1.0);
+                  double sp(double tight, double roomy) =>
+                      tight + (roomy - tight) * t;
+                  final showNodes = box.maxHeight >= 300;
+                  return Padding(
+                    padding: EdgeInsets.fromLTRB(22, 8, 22, sp(10, 20)),
+                    child: Column(
+                      children: [
+                        _summaryCard(),
+                        SizedBox(height: sp(4, 8)),
+                        Expanded(
+                          child: Center(
+                            child: RepaintBoundary(
+                              child: ValueListenableBuilder<double>(
+                                valueListenable: MascotPanelPrefs.openValue,
+                                builder: (_, openValue, _) => _WaterBottle(
+                                  progress: _progress,
+                                  reached: _goalReached,
+                                  bumpKey: _entries.length,
+                                  panelOpenValue: openValue,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                        if (showNodes) ...[
+                          SizedBox(height: sp(6, 12)),
+                          _progressNodes(),
+                        ],
+                        SizedBox(height: sp(8, 18)),
+                        _controls(),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    _progressNodes(),
-                    const SizedBox(height: 18),
-                    _controls(),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),
