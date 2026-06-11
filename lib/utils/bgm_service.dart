@@ -174,6 +174,12 @@ class BgmService with WidgetsBindingObserver {
     if (_intendedAsset != asset) return;
     if (AudioSettingsService.musicMuted.value) return;
 
+    // 同一首的 play() 流程還在執行中（冷啟動 asset 載入慢時會撞到）：
+    // 別插手。否則下面的救援 stop()/load 會把對方還掛著的 setAudioSource
+    // 打斷成 Loading interrupted，兩條流程雙雙失敗、音量卡在 0。
+    // 該 play() 自己的 engage 重試 + 延遲淡入會把聲音帶起來。
+    if (_playInFlightAsset == asset) return;
+
     if (_currentAsset != asset) {
       // 全新起播也走 deferFade（靜音喚醒路由 + 延遲柔和淡入），
       // 確保不管是 main() 還是 MainPage 的 ensurePlaying 先搶到，入場都一致柔和。
