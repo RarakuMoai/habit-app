@@ -5,11 +5,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/mascot.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/sfx_service.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -150,25 +152,72 @@ class _FamilyPageState extends State<FamilyPage> {
     );
   }
 
-  // 尚無小孩時的空狀態
+  // 尚無小孩時的空狀態：淡入＋上浮，視覺語言對齊習慣頁
   Widget _buildEmpty() {
+    final accent = Theme.of(context).colorScheme.primary;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.child_care, size: 72, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            '還沒有任何小孩',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOut,
+        builder: (_, v, child) => Opacity(
+          opacity: v,
+          child: Transform.translate(
+            offset: Offset(0, 12 * (1 - v)),
+            child: child,
           ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: _addChildAction,
-            icon: const Icon(Icons.person_add_outlined),
-            label: const Text('新增小孩'),
+        ),
+        // FittedBox：兔咪面板展開時卡片高度有限，等比縮小避免 overflow
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.child_care_rounded,
+                    size: 32,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  '還沒有任何小孩',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '新增小孩後，就能一起記小任務、累積積分',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: _addChildAction,
+                  icon: const Icon(Icons.person_add_outlined),
+                  label: const Text('新增小孩'),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -191,11 +240,13 @@ class _FamilyPageState extends State<FamilyPage> {
       habits.addAll(defaultHabitsForChild(child.id));
     }
     await prefs.setString(
-      'children',
+      PrefsKeys.children,
       jsonEncode(_children.map((c) => c.toJson()).toList()),
     );
     await saveHabits(prefs, habits);
     setState(() {});
+    unawaited(SfxService.instance.play(SfxCue.success));
+    unawaited(HapticFeedback.lightImpact());
     MascotPersona.interact(MascotContext.completedOne);
   }
 

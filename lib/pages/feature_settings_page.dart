@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/prefs_keys.dart';
@@ -68,12 +71,21 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
-        title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+        ),
         value: value,
         activeThumbColor: Colors.orange,
         activeTrackColor: Colors.orange.shade200,
-        onChanged: onChanged,
+        onChanged: (v) {
+          unawaited(HapticFeedback.selectionClick());
+          onChanged(v);
+        },
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
@@ -82,10 +94,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('功能開關'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('功能開關'), centerTitle: true),
       body: _loaded
           ? ListView(
               padding: const EdgeInsets.all(24),

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/sfx_service.dart';
 import 'family_auth.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
@@ -86,6 +89,15 @@ class _HabitTabState extends State<HabitTab> {
       await saveHabits(prefs, allHabits);
     }
 
+    // 音效＋震動回饋（對齊習慣頁慣例）：
+    // 達標（每日打卡 / 每週湊滿次數）→ success；每週累加未達標 → tap
+    if (_isDoneToday(habit)) {
+      unawaited(SfxService.instance.play(SfxCue.success));
+    } else {
+      unawaited(SfxService.instance.play(SfxCue.tap));
+    }
+    unawaited(HapticFeedback.lightImpact());
+
     setState(() => widget.child.points = newPoints);
     widget.onPointsChanged();
   }
@@ -127,6 +139,9 @@ class _HabitTabState extends State<HabitTab> {
       }
       await saveHabits(prefs, allHabits);
     }
+
+    unawaited(SfxService.instance.play(SfxCue.cancel));
+    unawaited(HapticFeedback.selectionClick());
 
     setState(() => widget.child.points = newPoints);
     widget.onPointsChanged();
@@ -675,6 +690,8 @@ class _HabitTabState extends State<HabitTab> {
                                   reason: '特殊積分：$customReason',
                                 );
                               }
+                              unawaited(SfxService.instance.play(SfxCue.success));
+                              unawaited(HapticFeedback.lightImpact());
                               setState(() => widget.child.points = latestPts);
                               widget.onPointsChanged();
                               if (!mounted) return;
@@ -968,20 +985,27 @@ class _HabitItemState extends State<_HabitItem>
     double size = 30,
   }) {
     final active = onTap != null;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
-        ),
-        child: Icon(
-          icon,
-          size: size * 0.53,
-          color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          splashColor: Colors.indigo.withValues(alpha: 0.18),
+          highlightColor: Colors.indigo.withValues(alpha: 0.08),
+          onTap: onTap,
+          child: Icon(
+            icon,
+            size: size * 0.53,
+            color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+          ),
         ),
       ),
     );
@@ -1005,28 +1029,35 @@ class _HabitItemState extends State<_HabitItem>
         shadowColor: Colors.orange.withValues(alpha: 0.18),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: IntrinsicHeight(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 66),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: 5,
-                    color: done
-                        ? Colors.green.shade400
-                        : Colors.orange.shade400,
-                  ),
-                  Expanded(
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 2,
-                      ),
-                      leading: GestureDetector(
-                        onTap: _handleDailyTap,
-                        child: ScaleTransition(
+          // 整張卡都可點擊打卡（不只左邊小圓圈），ripple 回饋
+          child: InkWell(
+            onTap: _handleDailyTap,
+            splashColor: (done ? Colors.grey : Colors.green).withValues(
+              alpha: 0.12,
+            ),
+            highlightColor: (done ? Colors.grey : Colors.green).withValues(
+              alpha: 0.06,
+            ),
+            child: IntrinsicHeight(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 66),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 5,
+                      color: done
+                          ? Colors.green.shade400
+                          : Colors.orange.shade400,
+                    ),
+                    Expanded(
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 2,
+                        ),
+                        leading: ScaleTransition(
                           scale: _scale,
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
@@ -1072,72 +1103,72 @@ class _HabitItemState extends State<_HabitItem>
                                 : null,
                           ),
                         ),
-                      ),
-                      title: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 250),
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          decoration: done
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                          color: done ? Colors.grey.shade400 : Colors.black87,
+                        title: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 250),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            decoration: done
+                                ? TextDecoration.lineThrough
+                                : TextDecoration.none,
+                            color: done ? Colors.grey.shade400 : Colors.black87,
+                          ),
+                          child: Text(
+                            habit.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        child: Text(
-                          habit.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      subtitle: done
-                          ? null
-                          : Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                habit.minutes > 0
-                                    ? '+${habit.points} 分 · ${habit.minutes} 分鐘'
-                                    : '+${habit.points} 分',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.orange.shade600,
-                                  fontWeight: FontWeight.w600,
+                        subtitle: done
+                            ? null
+                            : Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  habit.minutes > 0
+                                      ? '+${habit.points} 分 · ${habit.minutes} 分鐘'
+                                      : '+${habit.points} 分',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.orange.shade600,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                      trailing: done
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade100,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.check_rounded,
-                                    size: 11,
-                                    color: Colors.green.shade700,
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '+${habit.points}',
-                                    style: TextStyle(
-                                      fontSize: 11,
+                        trailing: done
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade100,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_rounded,
+                                      size: 11,
                                       color: Colors.green.shade700,
-                                      fontWeight: FontWeight.w700,
                                     ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : null,
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      '+${habit.points}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : null,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

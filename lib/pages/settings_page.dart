@@ -52,6 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _setUnitSystem(UnitSystem v) async {
     if (v == _unitSystem) return;
+    unawaited(HapticFeedback.selectionClick());
     setState(() => _unitSystem = v);
     if (_prefs != null) await UnitSystem.save(_prefs!, v);
   }
@@ -873,20 +874,32 @@ class _DigitChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? color : Colors.grey.shade100,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: selected ? color : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: selected ? color : Colors.grey.shade300),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? color : Colors.grey.shade300),
-        ),
-        child: Text(
-          '$digits 位',
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.grey.shade700,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          splashColor: color.withValues(alpha: 0.18),
+          highlightColor: color.withValues(alpha: 0.08),
+          onTap: () {
+            unawaited(HapticFeedback.selectionClick());
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            child: Text(
+              '$digits 位',
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.grey.shade700,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
           ),
         ),
       ),

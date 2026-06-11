@@ -1,4 +1,6 @@
 // 育兒模式共用小元件：持續時間對話框、調整按鈕、頻率 Chip
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -62,33 +64,40 @@ class AdjustBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: enabled ? Colors.white : Colors.grey.shade100,
-          border: Border.all(
-            color: enabled ? Colors.orange.shade300 : Colors.grey.shade200,
-            width: 1.5,
-          ),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: Colors.orange.withValues(alpha: 0.15),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: enabled ? Colors.white : Colors.grey.shade100,
+        border: Border.all(
+          color: enabled ? Colors.orange.shade300 : Colors.grey.shade200,
+          width: 1.5,
         ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: enabled ? Colors.orange.shade700 : Colors.grey.shade400,
+        boxShadow: enabled
+            ? [
+                BoxShadow(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          splashColor: Colors.orange.withValues(alpha: 0.18),
+          highlightColor: Colors.orange.withValues(alpha: 0.08),
+          onTap: enabled ? onTap : null,
+          child: Icon(
+            icon,
+            size: 16,
+            color: enabled ? Colors.orange.shade700 : Colors.grey.shade400,
+          ),
         ),
       ),
     );
@@ -109,34 +118,46 @@ class FreqChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.orange : Colors.grey.shade300,
-            width: 1.5,
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: Colors.orange.withValues(alpha: 0.25),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      decoration: BoxDecoration(
+        color: selected ? Colors.orange : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? Colors.orange : Colors.grey.shade300,
+          width: 1.5,
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : Colors.grey.shade600,
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: Colors.orange.withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          splashColor: Colors.orange.withValues(alpha: 0.18),
+          highlightColor: Colors.orange.withValues(alpha: 0.08),
+          onTap: () {
+            unawaited(HapticFeedback.selectionClick());
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : Colors.grey.shade600,
+              ),
+            ),
           ),
         ),
       ),

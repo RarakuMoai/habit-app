@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -126,6 +128,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   // 按下「儲存」時一次寫入所有欄位，然後返回
   Future<void> _save() async {
+    unawaited(HapticFeedback.lightImpact());
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(PrefsKeys.userNickname, _nicknameCtrl.text.trim());
     await prefs.setString(
@@ -163,8 +166,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       await prefs.setString(
         PrefsKeys.userBirthday,
         '${b.year.toString().padLeft(4, '0')}-'
-            '${b.month.toString().padLeft(2, '0')}-'
-            '${b.day.toString().padLeft(2, '0')}',
+        '${b.month.toString().padLeft(2, '0')}-'
+        '${b.day.toString().padLeft(2, '0')}',
       );
     }
     if (mounted) Navigator.pop(context);
@@ -233,57 +236,60 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       UserValidators.birthday(_birthday) == null &&
       _bmiError == null;
 
-  // 性別選擇 Chip
-  Widget _genderChip(String label) {
-    final selected = _gender == label;
-    return GestureDetector(
-      onTap: () => setState(() => _gender = label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.orange : Colors.grey.shade300,
-          ),
+  // 單選 Chip（性別 / 活動量共用）：ripple + 觸覺回饋
+  Widget _choiceChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: selected ? Colors.orange : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? Colors.orange : Colors.grey.shade300,
         ),
-        child: Text(
-          _activityDayLabels[label] ?? label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.grey.shade600,
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          splashColor: Colors.orange.withValues(alpha: 0.18),
+          highlightColor: Colors.orange.withValues(alpha: 0.08),
+          onTap: () {
+            if (!selected) unawaited(HapticFeedback.selectionClick());
+            onSelected();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.grey.shade600,
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // 活動量選擇 Chip
-  Widget _activityChip(String label) {
-    final selected = _activityLevel == label;
-    return GestureDetector(
-      onTap: () => setState(() => _activityLevel = label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.orange : Colors.grey.shade300,
-          ),
-        ),
-        child: Text(
-          _activityDayLabels[label] ?? label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.grey.shade600,
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
+  // 性別選擇 Chip
+  Widget _genderChip(String label) => _choiceChip(
+    label: label,
+    selected: _gender == label,
+    onSelected: () => setState(() => _gender = label),
+  );
+
+  // 活動量選擇 Chip（顯示為一週運動天數）
+  Widget _activityChip(String label) => _choiceChip(
+    label: _activityDayLabels[label] ?? label,
+    selected: _activityLevel == label,
+    onSelected: () => setState(() => _activityLevel = label),
+  );
 
   // 活動量選擇區（用於計算每日總消耗 TDEE）
   Widget _activitySelector() {
@@ -415,9 +421,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           labelText: required ? '$label *' : label,
           suffixText: suffixWidget == null ? suffix : null,
           suffixIcon: suffixWidget,
-          suffixIconConstraints: const BoxConstraints(
-            
-          ),
+          suffixIconConstraints: const BoxConstraints(),
           counterText: '',
           errorText: errorText,
           filled: true,
@@ -597,8 +601,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         required: true,
                         maxLength: 12,
                       ),
-                      // 暱稱為空時顯示提示
-                      if (!_canSave)
+                      // 暱稱為空時顯示提示（其他欄位的錯誤各自在欄位下方顯示）
+                      if (_nicknameCtrl.text.trim().isEmpty)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Text(

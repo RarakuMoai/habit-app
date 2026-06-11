@@ -250,8 +250,18 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
   }
 
+  // 音效一律配對觸覺回饋（強度對齊 home：tap/cancel 輕點、success 輕震、complete 中震）
   void _playOnboardingSfx(SfxCue cue) {
     unawaited(SfxService.instance.play(cue));
+    switch (cue) {
+      case SfxCue.complete:
+        unawaited(HapticFeedback.mediumImpact());
+      case SfxCue.success:
+        unawaited(HapticFeedback.lightImpact());
+      case SfxCue.tap:
+      case SfxCue.cancel:
+        unawaited(HapticFeedback.selectionClick());
+    }
   }
 
   // 身高/體重欄位格式化：最多 3 位整數 + 1 位小數，且輸入超過上限時自動壓回上限
@@ -617,8 +627,8 @@ class _OnboardingPageState extends State<OnboardingPage>
       await prefs.setString(
         PrefsKeys.userBirthday,
         '${b.year.toString().padLeft(4, '0')}-'
-            '${b.month.toString().padLeft(2, '0')}-'
-            '${b.day.toString().padLeft(2, '0')}',
+        '${b.month.toString().padLeft(2, '0')}-'
+        '${b.day.toString().padLeft(2, '0')}',
       );
     }
     // 活動量（選填）— water/weight 頁讀 user_activity_level 算 TDEE 與每日水量
