@@ -2,6 +2,7 @@
 // 這裡只負責互動 UI；習慣資料的實際變更由呼叫端透過 callback 處理。
 import 'package:flutter/material.dart';
 
+import '../../utils/input_formatters.dart';
 import 'home_presets.dart';
 import 'home_widgets.dart';
 
@@ -491,7 +492,7 @@ Future<void> showEditHabitSheet(
     ),
     builder: (ctx) => StatefulBuilder(
       builder: (_, setS) {
-        final baseName = nameCtrl.text.trim();
+        final baseName = clampHabitName(nameCtrl.text);
         return Padding(
           padding: EdgeInsets.fromLTRB(
             20,
@@ -522,7 +523,7 @@ Future<void> showEditHabitSheet(
               TextField(
                 controller: nameCtrl,
                 onChanged: (_) => setS(() {}),
-                maxLength: 20,
+                maxLength: kHabitNameMaxLength,
                 decoration: InputDecoration(
                   labelText: '習慣名稱',
                   filled: true,
@@ -786,7 +787,7 @@ Future<void> showAddHabitSheet(
     ),
     builder: (ctx) => StatefulBuilder(
       builder: (_, setS) {
-        final customName = nameCtrl.text.trim();
+        final customName = clampHabitName(nameCtrl.text);
         final total = (customName.isNotEmpty ? 1 : 0) + selected.length;
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -960,7 +961,7 @@ Future<void> showAddHabitSheet(
                       TextField(
                         controller: nameCtrl,
                         onChanged: (_) => setS(() {}),
-                        maxLength: 20,
+                        maxLength: kHabitNameMaxLength,
                         decoration: InputDecoration(
                           hintText: '習慣名稱',
                           filled: true,
