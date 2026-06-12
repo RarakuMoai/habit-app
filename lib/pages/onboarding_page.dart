@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/app_style.dart';
 import '../utils/bgm_service.dart';
 import '../utils/input_formatters.dart';
 import '../utils/mascot.dart';
@@ -16,6 +17,7 @@ import '../utils/units.dart';
 import '../utils/user_validators.dart';
 import '../widgets/audio_control_button.dart';
 import '../widgets/manual_date_dialog.dart';
+import '../widgets/mascot_scene.dart';
 
 // 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
@@ -464,7 +466,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           Expanded(
             child: Text(
               '健康體重約 ${suggestion.low}–${suggestion.high} ${suggestion.unit}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: const TextStyle(fontSize: 12, color: AppInk.soft),
             ),
           ),
         ],
@@ -725,26 +727,26 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // 吉祥物頭像（PNG，依情境切換情緒）
+  // 吉祥物（依情境切換情緒）。走 MascotStage 讓引導頁的兔咪跟主 app
+  // 一樣活著：呼吸、眨眼（neutral_front 有閉眼差分）、點擊彈跳＋星星。
   Widget _mascot({double size = 80, String emotion = 'neutral_front'}) {
+    // 透過 MascotEmotion 取，會自動走新 CG / 舊圖路由
+    final asset = MascotEmotion.values
+        .firstWhere(
+          (e) => e.assetKey == emotion,
+          orElse: () => MascotEmotion.neutralFront,
+        )
+        .assetPath;
     return SizedBox(
       width: size,
       height: size,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 350),
-        // 只淡入、不縮放——避免兔咪在動畫中看起來忽大忽小
-        transitionBuilder: (child, anim) =>
-            FadeTransition(opacity: anim, child: child),
-        child: Image.asset(
-          // 透過 MascotEmotion 取，會自動走新 CG / 舊圖路由
-          MascotEmotion.values
-              .firstWhere(
-                (e) => e.assetKey == emotion,
-                orElse: () => MascotEmotion.neutralFront,
-              )
-              .assetPath,
-          key: ValueKey(emotion),
-          fit: BoxFit.contain,
+      // MascotStage 內部是固定 252 的舞台，FittedBox 等比縮到引導頁要的大小
+      child: FittedBox(
+        child: MascotStage(
+          asset: asset,
+          accent: Colors.orange,
+          reactionTick: 0,
+          onTap: () => _playOnboardingSfx(SfxCue.tap),
         ),
       ),
     );
@@ -983,7 +985,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                disabledBackgroundColor: Colors.grey.shade300,
+                disabledBackgroundColor: AppInk.faint,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1404,14 +1406,14 @@ class _OnboardingPageState extends State<OnboardingPage>
         color: selected ? Colors.orange : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: selected ? Colors.orange : Colors.grey.shade300,
+          color: selected ? Colors.orange : const Color(0xFFDDD0C4),
         ),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 13,
-          color: selected ? Colors.white : Colors.grey.shade600,
+          color: selected ? Colors.white : AppInk.soft,
           fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
@@ -1463,7 +1465,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             style: TextStyle(
-              color: selected ? Colors.white : Colors.grey.shade700,
+              color: selected ? Colors.white : AppInk.strong,
               fontSize: 14,
               fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
             ),
@@ -1796,7 +1798,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
           TextButton(
             onPressed: _nextPage,
-            child: Text('下次再說', style: TextStyle(color: Colors.grey.shade500)),
+            child: const Text('下次再說', style: TextStyle(color: AppInk.soft)),
           ),
         ],
       ),
@@ -1817,13 +1819,13 @@ class _OnboardingPageState extends State<OnboardingPage>
           color: selected ? Colors.orange : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.orange : Colors.grey.shade300,
+            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.grey.shade600,
+            color: selected ? Colors.white : AppInk.soft,
             fontSize: 14,
           ),
         ),
@@ -1845,13 +1847,13 @@ class _OnboardingPageState extends State<OnboardingPage>
           color: selected ? Colors.orange : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.orange : Colors.grey.shade300,
+            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
           ),
         ),
         child: Text(
           _activityDayLabels[label] ?? label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.grey.shade600,
+            color: selected ? Colors.white : AppInk.soft,
             fontSize: 14,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
           ),
