@@ -45,7 +45,7 @@ class _FamilyPageState extends State<FamilyPage> {
 
   @override
   void deactivate() {
-    parentSessionActive = false;
+    parentSession.value = false;
     super.deactivate();
   }
 
@@ -69,7 +69,7 @@ class _FamilyPageState extends State<FamilyPage> {
     final hasPin = await ParentPin.hasPin(prefs);
     if (!mounted) return;
 
-    if (parentSessionActive || !hasPin) {
+    if (parentSession.value || !hasPin) {
       // Session 有效或尚未設定密碼，直接進入
       final changed = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
@@ -88,7 +88,7 @@ class _FamilyPageState extends State<FamilyPage> {
       if (entered != null && await ParentPin.verify(prefs, entered)) {
         if (!mounted) return;
         // 驗證成功，啟動 Session
-        parentSessionActive = true;
+        parentSession.value = true;
         final changed = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (_) => const ParentManagementPage(noPinWarning: false),
@@ -143,12 +143,49 @@ class _FamilyPageState extends State<FamilyPage> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _enterParentManagement,
-        icon: const Icon(Icons.lock_outline),
-        label: const Text('家長管理'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
+      // 家長管理按鈕：鎖定狀態看得見 —— 解鎖中變綠開鎖 + 多一顆手動上鎖鈕
+      // （家長管理完把手機交給小孩前可以立刻鎖回去）
+      floatingActionButton: ValueListenableBuilder<bool>(
+        valueListenable: parentSession,
+        builder: (_, unlocked, _) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (unlocked) ...[
+              FloatingActionButton.small(
+                heroTag: 'family_lock_now',
+                onPressed: () {
+                  parentSession.value = false;
+                  playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text('已重新上鎖 🔒'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                },
+                tooltip: '立刻上鎖',
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.green.shade700,
+                child: const Icon(Icons.lock_outline),
+              ),
+              const SizedBox(width: 10),
+            ],
+            FloatingActionButton.extended(
+              heroTag: 'family_manage',
+              onPressed: _enterParentManagement,
+              icon: Icon(
+                unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
+              ),
+              label: Text(unlocked ? '管理中（已解鎖）' : '家長管理'),
+              backgroundColor: unlocked
+                  ? Colors.green.shade600
+                  : Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+            ),
+          ],
+        ),
       ),
     );
   }

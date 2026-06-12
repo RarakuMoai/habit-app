@@ -187,7 +187,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     // 避免家長驗證後把手機交給小孩時 Session 還活著
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      parentSessionActive = false;
+      parentSession.value = false;
     }
   }
 
@@ -432,7 +432,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                 if (familyIdx != -1 &&
                     _currentIndex == familyIdx &&
                     index != familyIdx) {
-                  parentSessionActive = false;
+                  parentSession.value = false;
                 }
                 setState(() => _currentIndex = index);
               },

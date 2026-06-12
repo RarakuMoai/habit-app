@@ -6,13 +6,15 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'prefs_keys.dart';
 
 /// 家長 Session（全域）：驗證密碼成功後設為 true。
 /// 離開家庭頁籤、FamilyPage unmount、或 app 退到背景時清除。
-bool parentSessionActive = false;
+/// ValueNotifier 讓「家長管理」按鈕的鎖定狀態能即時跟著變。
+final ValueNotifier<bool> parentSession = ValueNotifier<bool>(false);
 
 class ParentPin {
   static const _hashKey = PrefsKeys.parentPinHash;

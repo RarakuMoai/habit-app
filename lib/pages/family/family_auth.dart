@@ -59,7 +59,7 @@ Future<bool> verifyParentPinIfNeeded(
   BuildContext context, {
   String title = '請輸入家長密碼',
 }) async {
-  if (parentSessionActive) return true;
+  if (parentSession.value) return true;
   final prefs = await SharedPreferences.getInstance();
   if (!await ParentPin.hasPin(prefs)) return true;
   if (!context.mounted) return false;
@@ -67,7 +67,7 @@ Future<bool> verifyParentPinIfNeeded(
   final entered = await showPinDialog(context, digits: digits, title: title);
   if (entered == null) return false;
   if (await ParentPin.verify(prefs, entered)) {
-    parentSessionActive = true;
+    parentSession.value = true;
     return true;
   }
   if (!context.mounted) return false;
