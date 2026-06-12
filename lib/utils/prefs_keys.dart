@@ -17,6 +17,22 @@ abstract final class PrefsKeys {
   static const targetWeight = 'target_weight'; // 公制 kg // units-ok
   static const userActivityLevel = 'user_activity_level';
 
+  // ── 番茄鐘 ───────────────────────────────────────────────
+  static const timerFocusMinutes = 'timer_focus_minutes';
+  static const timerShortBreakMinutes = 'timer_short_break_minutes';
+  static const timerLongBreakMinutes = 'timer_long_break_minutes';
+  static const timerLongBreakEnabled = 'timer_long_break_enabled';
+  static const timerAutoStartBreak = 'timer_auto_start_break';
+  static const timerAutoStartFocus = 'timer_auto_start_focus';
+
+  // 帶日期的今日統計（date 格式 yyyy-MM-dd）
+  static const timerTomatoesPrefix = 'timer_tomatoes_';
+  static const timerFocusMinutesDayPrefix = 'timer_focus_min_';
+
+  static String timerTomatoes(String date) => '$timerTomatoesPrefix$date';
+  static String timerFocusMinutesDay(String date) =>
+      '$timerFocusMinutesDayPrefix$date';
+
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';
   static const waterEnabled = 'water_enabled';
