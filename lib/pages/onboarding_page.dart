@@ -15,6 +15,7 @@ import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 import '../widgets/audio_control_button.dart';
+import '../widgets/manual_date_dialog.dart';
 
 // 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
@@ -1681,7 +1682,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
           _targetWeightHint(),
           const SizedBox(height: 10),
-          // 生日（選填，點擊開啟日期選擇器）
+          // 生日（選填，點擊開啟日曆；鍵盤鈕開寬鬆手動輸入）
           InkWell(
             onTap: () async {
               _playOnboardingSfx(SfxCue.tap);
@@ -1691,6 +1692,8 @@ class _OnboardingPageState extends State<OnboardingPage>
                 initialDate: _birthday ?? DateTime(now.year - 20),
                 firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
                 lastDate: now,
+                // 自帶輸入模式解析太死板，手動輸入走 showManualDateDialog
+                initialEntryMode: DatePickerEntryMode.calendarOnly,
               );
               if (picked != null) {
                 _playOnboardingSfx(SfxCue.success);
@@ -1701,10 +1704,44 @@ class _OnboardingPageState extends State<OnboardingPage>
             child: InputDecorator(
               decoration: InputDecoration(
                 labelText: '生日',
-                suffixIcon: const Icon(
-                  Icons.calendar_today_outlined,
-                  size: 18,
-                  color: Colors.orange,
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.keyboard_alt_outlined,
+                        size: 18,
+                        color: Colors.orange,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: '直接輸入',
+                      onPressed: () async {
+                        _playOnboardingSfx(SfxCue.tap);
+                        final now = DateTime.now();
+                        final picked = await showManualDateDialog(
+                          context,
+                          initial: _birthday,
+                          firstDate: DateTime(
+                            now.year - UserRanges.birthdayMaxAgeYears,
+                          ),
+                          lastDate: now,
+                          title: '輸入生日',
+                        );
+                        if (picked != null) {
+                          _playOnboardingSfx(SfxCue.success);
+                          setState(() => _birthday = picked);
+                        }
+                      },
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12),
+                      child: Icon(
+                        Icons.calendar_today_outlined,
+                        size: 18,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
                 ),
                 filled: true,
                 fillColor: Colors.white,

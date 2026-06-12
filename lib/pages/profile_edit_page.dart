@@ -9,6 +9,7 @@ import '../utils/input_formatters.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
+import '../widgets/manual_date_dialog.dart';
 
 class ProfileEditPage extends StatefulWidget {
   const ProfileEditPage({super.key});
@@ -488,7 +489,20 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       '${d.month.toString().padLeft(2, '0')} 月 '
       '${d.day.toString().padLeft(2, '0')} 日';
 
-  // 生日選擇欄位（點擊開啟日期選擇器）
+  // 手動輸入生日（寬鬆解析：2000-1-1 / 20000101 / 2000年1月1日 都可）
+  Future<void> _manualBirthdayInput() async {
+    final now = DateTime.now();
+    final picked = await showManualDateDialog(
+      context,
+      initial: _birthday,
+      firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
+      lastDate: now,
+      title: '輸入生日',
+    );
+    if (picked != null) setState(() => _birthday = picked);
+  }
+
+  // 生日選擇欄位（點擊開啟日曆；鍵盤鈕開手動輸入）
   Widget _birthdayField() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -500,6 +514,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             initialDate: _birthday ?? DateTime(now.year - 20),
             firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
             lastDate: now,
+            // 自帶輸入模式解析太死板，手動輸入走 _manualBirthdayInput
+            initialEntryMode: DatePickerEntryMode.calendarOnly,
           );
           if (picked != null) setState(() => _birthday = picked);
         },
@@ -507,10 +523,28 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: '生日',
-            suffixIcon: const Icon(
-              Icons.calendar_today_outlined,
-              size: 18,
-              color: Colors.orange,
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.keyboard_alt_outlined,
+                    size: 18,
+                    color: Colors.orange,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '直接輸入',
+                  onPressed: _manualBirthdayInput,
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: Icon(
+                    Icons.calendar_today_outlined,
+                    size: 18,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
             ),
             filled: true,
             fillColor: Colors.white,
