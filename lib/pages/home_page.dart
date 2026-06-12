@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/coin_config.dart';
+import '../utils/coin_service.dart';
 import '../utils/input_formatters.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
@@ -117,6 +119,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (dailyHabits.isNotEmpty) {
         if (allDailyDone) {
           streak++;
+          // 連續達標每滿 7 天發里程碑獎勵（每日一次 key 防重複）
+          if (streak % 7 == 0) {
+            await CoinService.award(
+              CoinSource.weeklyStreak,
+              note: '連續 $streak 天',
+            );
+          }
         } else {
           streak = 0;
         }
@@ -375,15 +384,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         habit['weeklyDates'] = dates;
         habit['done'] = dates.where(weekSet.contains).length >= target;
       });
+      // 每週習慣每次累加都是一次打卡（減少時對稱扣回，刷不了幣）
+      CoinService.award(CoinSource.habitDone, note: habit['name'] as String?);
     } else {
       final wasDone = habit['done'] as bool;
       setState(() {
         habit['done'] = !wasDone;
       });
       if (wasDone) _showTransientMascot('sad');
+      // 打卡 +金幣／取消打卡對稱扣回
+      if (wasDone) {
+        CoinService.revoke(CoinSource.habitDone, note: habit['name'] as String?);
+      } else {
+        CoinService.award(CoinSource.habitDone, note: habit['name'] as String?);
+      }
     }
     saveHabits();
     if (!wasAllDone && allDone0) {
+      // 當日全完成加碼（每日一次，service 內建防重複）
+      CoinService.award(CoinSource.allHabitsDone, note: '今日全完成');
       playFeedback(SfxCue.complete);
       _celebCtrl.forward(from: 0);
       setState(() => _mascotReactionTick++);
@@ -420,6 +439,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       habit['weeklyDates'] = dates;
       habit['done'] = dates.where(weekSet.contains).length >= target;
     });
+    // 對稱扣回（對應 toggleHabit 的每週累加 +金幣）
+    CoinService.revoke(CoinSource.habitDone, note: habit['name'] as String?);
     saveHabits();
     playFeedback(SfxCue.cancel);
     _showTransientMascot('sad');

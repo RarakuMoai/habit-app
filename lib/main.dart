@@ -15,6 +15,7 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
+import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
@@ -175,6 +176,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureMainBgm();
+      _claimDailyLoginReward();
     });
   }
 
@@ -192,6 +194,24 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         state == AppLifecycleState.hidden) {
       parentSession.value = false;
     }
+    // 跨日後從背景回來也能領當天的登入獎勵（已領過會直接 no-op）
+    if (state == AppLifecycleState.resumed) {
+      _claimDailyLoginReward();
+    }
+  }
+
+  // 每日登入獎勵：兔咪報喜。延遲一拍讓開場問候先落地，再換成領獎台詞。
+  Future<void> _claimDailyLoginReward() async {
+    final reward = await CoinService.claimDailyLogin();
+    if (reward == null || !mounted) return;
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    final line = reward.graceUsed
+        ? '昨天我幫你看家了～金幣照領，+${reward.amount}！'
+        : reward.level >= CoinConfig.loginMaxLevel
+        ? '連續報到 Lv.${reward.level}！今天 +${reward.amount} 金幣。'
+        : '你來了！見面禮 +${reward.amount} 金幣。';
+    MascotPersona.set(MascotEmotion.happy.assetPath, line, force: true);
   }
 
   Future<void> _ensureMainBgm() async {
@@ -229,6 +249,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     if (reached) {
       await prefs.setString(PrefsKeys.waterGoalDate, _todayString());
+      // 當日喝水達標 +金幣（每日一次，service 內建防重複）
+      await CoinService.award(CoinSource.waterGoal, note: '喝水達標');
     } else {
       await prefs.remove(PrefsKeys.waterGoalDate);
     }

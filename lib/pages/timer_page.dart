@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/coin_config.dart';
+import '../utils/coin_service.dart';
 import '../utils/mascot.dart';
 import '../utils/notification_service.dart';
 import '../utils/prefs_keys.dart';
@@ -172,6 +174,8 @@ class _TimerPageState extends State<TimerPage>
     if (_phase == _Phase.focus) {
       _cycleCount++;
       _recordTomato(_phaseTotal ~/ 60);
+      // 完成一顆番茄 +金幣（跳過的階段不會走到這裡，刷不了）
+      CoinService.award(CoinSource.tomatoDone, note: '番茄 ${_phaseTotal ~/ 60} 分');
       _phase = _nextPhase(_Phase.focus, _cycleCount);
     } else {
       if (_phase == _Phase.longBreak) _cycleCount = 0;

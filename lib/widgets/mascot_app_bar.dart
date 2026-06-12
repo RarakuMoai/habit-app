@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 
 import '../pages/settings_page.dart';
 import '../utils/app_style.dart';
+import '../utils/coin_service.dart';
 import 'audio_control_button.dart';
 
 class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -60,6 +61,8 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       title: const SizedBox.shrink(),
       actions: [
+        const CoinPill(),
+        const SizedBox(width: 6),
         ...extraActions,
         AudioControlButton(style: AudioControlStyle.appBar, accent: accent),
         Padding(
@@ -110,6 +113,61 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 金幣餘額膠囊：監聽 [CoinService.notifier]，全頁 app bar 顯示；
+/// 餘額變動時 pop 一下吸引注意（入帳的小確幸時刻）。
+class CoinPill extends StatefulWidget {
+  const CoinPill({super.key});
+
+  @override
+  State<CoinPill> createState() => _CoinPillState();
+}
+
+class _CoinPillState extends State<CoinPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pop;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pop = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.22), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.22, end: 1.0), weight: 60),
+    ]).animate(CurvedAnimation(parent: _pop, curve: Curves.easeOut));
+    CoinService.notifier.addListener(_onCoinChanged);
+  }
+
+  @override
+  void dispose() {
+    CoinService.notifier.removeListener(_onCoinChanged);
+    _pop.dispose();
+    super.dispose();
+  }
+
+  void _onCoinChanged() {
+    if (mounted) _pop.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: ValueListenableBuilder<int>(
+        valueListenable: CoinService.notifier,
+        builder: (_, coins, _) => MascotPill(
+          icon: Icons.paid_rounded,
+          label: '$coins',
+          color: Colors.amber.shade700,
+        ),
+      ),
     );
   }
 }
