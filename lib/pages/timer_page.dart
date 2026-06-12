@@ -373,10 +373,11 @@ class _TimerPageState extends State<TimerPage>
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  // 番茄紅橘 / 嫩綠 / 湖水綠：比 Material 原色再暖一階，貼整體插畫調性
   Color get _phaseColor => switch (_phase) {
-    _Phase.focus => Colors.orange,
-    _Phase.shortBreak => Colors.green,
-    _Phase.longBreak => Colors.teal,
+    _Phase.focus => const Color(0xFFFF7043),
+    _Phase.shortBreak => const Color(0xFF66BB6A),
+    _Phase.longBreak => const Color(0xFF26A69A),
   };
 
   String get _phaseLabel => switch (_phase) {
@@ -418,104 +419,172 @@ class _TimerPageState extends State<TimerPage>
   }
 
   Widget _buildTimerContent(Color color) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 狀態標籤（換階段時縮放淡入交接）
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            switchInCurve: Curves.easeOutBack,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, anim) =>
-                ScaleTransition(scale: anim, child: child),
-            child: Container(
-              key: ValueKey(_phase),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withValues(alpha: 0.3)),
-              ),
-              child: Text(
-                _phaseLabel,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ),
+    // 依可用高度切換版面：兔咪面板展開時走緊湊並排版，
+    // 不捲動就能看到時間、按到開始 —— 修掉「展開時只剩半顆圓」的問題
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = constraints.maxHeight;
+        return h < 360
+            ? _buildCompactLayout(color, h)
+            : _buildFullLayout(color, h);
+      },
+    );
+  }
+
+  // 完整版面（面板收合）：環吸收剩餘高度置中，統計列釘在底部收尾
+  Widget _buildFullLayout(Color color, double h) {
+    final ringSize = (h - 305).clamp(140.0, 238.0);
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        _phaseChip(color),
+        if (_longBreakEnabled)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: _buildCycleDots(),
           ),
-
-          // 循環指示點：每 4 顆番茄一次長休息
-          if (_longBreakEnabled) ...[
-            const SizedBox(height: 10),
-            _buildCycleDots(),
-          ],
-
-          const SizedBox(height: 16),
-
-          // 計時圓圈：進度圓環 + 呼吸光暈（執行中才呼吸）
-          _buildTimerCircle(color),
-
-          const SizedBox(height: 18),
-
-          // 按鈕
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _sideButton(icon: Icons.refresh, onTap: _reset),
-              const SizedBox(width: 24),
-              _mainButton(color),
-              const SizedBox(width: 24),
-              _sideButton(icon: Icons.skip_next, onTap: _skipPhase),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
+        Expanded(child: Center(child: _buildTimerCircle(ringSize, color))),
+        _controlsRow(color),
+        const SizedBox(height: 10),
+        if (h > 440)
           Text(
             _statusLine(),
-            style: const TextStyle(color: AppInk.soft, fontSize: 14),
+            style: const TextStyle(
+              color: AppInk.soft,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
+        const SizedBox(height: 12),
+        _buildPresetRow(),
+        const SizedBox(height: 14),
+        _statsBar(),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
 
-          const SizedBox(height: 12),
-
-          // 時長預設組 + 自訂（計時中淡化停用）
-          _buildPresetRow(),
-
-          // 今日統計（有完成過才顯示，pop 一下增加成就感）
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            switchInCurve: Curves.easeOutBack,
-            transitionBuilder: (child, anim) =>
-                ScaleTransition(scale: anim, child: child),
-            child: _todayTomatoes == 0
-                ? const SizedBox(height: 8)
-                : Padding(
-                    key: ValueKey(_todayTomatoes),
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        '今日 🍅×$_todayTomatoes · $_todayFocusMin 分鐘',
-                        style: AppType.digits(
-                          fontSize: 13,
-                          color: Colors.orange.shade700,
-                        ),
-                      ),
+  // 緊湊版面（兔咪面板展開）：環和控制並排，一眼可見、一指可按
+  Widget _buildCompactLayout(Color color, double h) {
+    final ringSize = (h - 110).clamp(110.0, 170.0);
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildTimerCircle(ringSize, color),
+              const SizedBox(width: 22),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _phaseChip(color, small: true),
+                  if (_longBreakEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: _buildCycleDots(),
                     ),
-                  ),
+                  const SizedBox(height: 14),
+                  _controlsRow(color, compact: true),
+                ],
+              ),
+            ],
           ),
+        ),
+        _buildPresetRow(),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  // 狀態標籤（換階段時縮放淡入交接）
+  Widget _phaseChip(Color color, {bool small = false}) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) =>
+          ScaleTransition(scale: anim, child: child),
+      child: Container(
+        key: ValueKey(_phase),
+        padding: EdgeInsets.symmetric(
+          horizontal: small ? 14 : 20,
+          vertical: small ? 6 : 8,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          _phaseLabel,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: small ? 13 : 16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _controlsRow(Color color, {bool compact = false}) {
+    final gap = compact ? 16.0 : 24.0;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _sideButton(
+          icon: Icons.refresh_rounded,
+          onTap: _reset,
+          size: compact ? 44 : 54,
+        ),
+        SizedBox(width: gap),
+        _mainButton(color, size: compact ? 62 : 78),
+        SizedBox(width: gap),
+        _sideButton(
+          icon: Icons.skip_next_rounded,
+          onTap: _skipPhase,
+          size: compact ? 44 : 54,
+        ),
+      ],
+    );
+  }
+
+  // 今日統計列：固定顯示（沒有也給一句留白語，當頁面的底部收尾）
+  Widget _statsBar() {
+    final hasAny = _todayTomatoes > 0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: BoxDecoration(
+        color: hasAny
+            ? const Color(0xFFFF7043).withValues(alpha: 0.08)
+            : const Color(0xFFFAF7F2),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(hasAny ? '🍅' : '🌱', style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 8),
+          hasAny
+              ? Text(
+                  '今日 ×$_todayTomatoes · 專注 $_todayFocusMin 分鐘',
+                  style: AppType.digits(
+                    fontSize: 13.5,
+                    color: const Color(0xFFE25A33),
+                  ),
+                )
+              : const Text(
+                  '今天還沒種下番茄，按下開始吧',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppInk.soft,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
         ],
       ),
     );
@@ -535,23 +604,48 @@ class _TimerPageState extends State<TimerPage>
     return '好好休息，準備下一輪！';
   }
 
-  // 循環指示點：實心 = 本輪已完成的番茄
+  // 循環指示：小番茄（實心帶葉子 = 本輪已完成），比抽象圓點更有味道
   Widget _buildCycleDots() {
     final filled = _cycleCount.clamp(0, _longBreakEvery);
+    const tomato = Color(0xFFE8604C);
+    const leaf = Color(0xFF7CB163);
     return Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(_longBreakEvery, (i) {
         final active = i < filled;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: active ? 9 : 7,
-          height: active ? 9 : 7,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: active
-                ? Colors.orange
-                : Colors.orange.withValues(alpha: 0.22),
+        return SizedBox(
+          width: 18,
+          height: 16,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutBack,
+                width: active ? 11 : 9,
+                height: active ? 11 : 9,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: active ? tomato : tomato.withValues(alpha: 0.28),
+                ),
+              ),
+              if (active)
+                Positioned(
+                  top: 0.5,
+                  child: Transform.rotate(
+                    angle: -0.5,
+                    child: Container(
+                      width: 5.5,
+                      height: 2.6,
+                      decoration: BoxDecoration(
+                        color: leaf,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
       }),
@@ -569,17 +663,17 @@ class _TimerPageState extends State<TimerPage>
         children: [
           for (final p in _presets) ...[
             _presetChip(
-              label: '${p.label} ${p.focus}/${p.brk}',
-              selected: !isCustom &&
-                  p.focus == _focusMin &&
-                  p.brk == _shortMin,
+              name: p.label,
+              detail: '${p.focus}·${p.brk}',
+              selected:
+                  !isCustom && p.focus == _focusMin && p.brk == _shortMin,
               onTap: () => _applyPreset(p.focus, p.brk),
             ),
             const SizedBox(width: 8),
           ],
           _presetChip(
-            label: '自訂',
-            icon: Icons.tune_rounded,
+            name: '自訂',
+            detail: isCustom ? '$_focusMin·$_shortMin' : '自由配',
             selected: isCustom,
             onTap: _openSettingsSheet,
           ),
@@ -588,40 +682,45 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
+  // 預設組膠囊：名稱 + 時長兩行，選中走實色填底（對齊全 app 卡片語彙）
   Widget _presetChip({
-    required String label,
+    required String name,
+    required String detail,
     required bool selected,
     required VoidCallback onTap,
-    IconData? icon,
   }) {
+    const accent = Color(0xFFFF7043);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
-          ),
+          color: selected ? accent : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: selected ? null : AppCardStyle.hairline,
+          boxShadow: selected ? null : AppShadows.flat,
         ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                size: 13,
-                color: selected ? Colors.white : AppInk.soft,
-              ),
-              const SizedBox(width: 3),
-            ],
             Text(
-              label,
+              name,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: selected ? Colors.white : AppInk.strong,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              detail,
               style: AppType.digits(
-                color: selected ? Colors.white : AppInk.soft,
+                fontSize: 11,
+                color: selected
+                    ? Colors.white.withValues(alpha: 0.9)
+                    : AppInk.faint,
               ),
             ),
           ],
@@ -863,10 +962,26 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  Widget _buildTimerCircle(Color color) {
+  // 環內副標：執行中報結束時刻，暫停/待機給情境短語
+  String _ringSubtitle() {
+    final end = _endTime;
+    if (_isRunning && end != null) {
+      final hh = end.hour.toString().padLeft(2, '0');
+      final mm = end.minute.toString().padLeft(2, '0');
+      return '～$hh:$mm';
+    }
+    if (_secondsLeft < _phaseTotal) return '已暫停';
+    return switch (_phase) {
+      _Phase.focus => '第 ${(_cycleCount % _longBreakEvery) + 1} 顆番茄',
+      _Phase.shortBreak => '喘口氣',
+      _Phase.longBreak => '好好放鬆',
+    };
+  }
+
+  Widget _buildTimerCircle(double size, Color color) {
     return SizedBox(
-      width: 224,
-      height: 224,
+      width: size,
+      height: size,
       child: AnimatedBuilder(
         animation: _breath,
         builder: (context, child) {
@@ -879,9 +994,9 @@ class _TimerPageState extends State<TimerPage>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.18 + 0.14 * t),
-                  blurRadius: 26 + 14 * t,
-                  spreadRadius: 3 + 5 * t,
+                  color: color.withValues(alpha: 0.16 + 0.13 * t),
+                  blurRadius: 24 + 14 * t,
+                  spreadRadius: 2 + 5 * t,
                 ),
               ],
             ),
@@ -897,23 +1012,42 @@ class _TimerPageState extends State<TimerPage>
             child: child,
           ),
           child: Container(
-            margin: const EdgeInsets.all(14),
+            margin: EdgeInsets.all(size * 0.082),
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white,
+              // 暖白面 + 極淡髮絲圈，跟卡片語彙一致
+              color: Color(0xFFFFFDF9),
+              border: Border.fromBorderSide(
+                BorderSide(color: Color(0x0A46342B)),
+              ),
             ),
             child: Center(
-              child: Text(
-                _timeString,
-                style: TextStyle(
-                  fontSize: 46,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                  // 等寬數字：倒數時各位數不左右跳動。
-                  // 刻意不用 AppType.digits：Baloo 2 沒有 tabular figures，
-                  // 倒數會左右抖
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _timeString,
+                    style: TextStyle(
+                      fontSize: size * 0.205,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                      height: 1.05,
+                      // 等寬數字：倒數時各位數不左右跳動。
+                      // 刻意不用 AppType.digits：Baloo 2 沒有 tabular figures，
+                      // 倒數會左右抖
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  SizedBox(height: size * 0.02),
+                  Text(
+                    _ringSubtitle(),
+                    style: TextStyle(
+                      fontSize: math.max(11.0, size * 0.058),
+                      fontWeight: FontWeight.w600,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -923,7 +1057,7 @@ class _TimerPageState extends State<TimerPage>
   }
 
   // 主按鈕（開始/暫停）：Material ripple + 圖示縮放切換
-  Widget _mainButton(Color color) {
+  Widget _mainButton(Color color, {double size = 78}) {
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -942,18 +1076,18 @@ class _TimerPageState extends State<TimerPage>
           onTap: _startPause,
           customBorder: const CircleBorder(),
           child: SizedBox(
-            width: 80,
-            height: 80,
+            width: size,
+            height: size,
             child: Center(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 transitionBuilder: (child, anim) =>
                     ScaleTransition(scale: anim, child: child),
                 child: Icon(
-                  _isRunning ? Icons.pause : Icons.play_arrow,
+                  _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   key: ValueKey(_isRunning),
                   color: Colors.white,
-                  size: 40,
+                  size: size * 0.5,
                 ),
               ),
             ),
@@ -963,25 +1097,40 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  // 兩側小按鈕（重設/跳過）：Material ripple
-  Widget _sideButton({required IconData icon, required VoidCallback onTap}) {
-    return Material(
-      color: const Color(0xFFFAF7F2),
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 56,
-          height: 56,
-          child: Icon(icon, color: AppInk.soft),
+  // 兩側小按鈕（重設/跳過）：白底髮絲線 + flat 陰影，跟卡片語彙一致
+  Widget _sideButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    double size = 54,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        border: Border.fromBorderSide(
+          const BorderSide(color: Color(0x0A46342B)),
+        ),
+        boxShadow: AppShadows.flat,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(icon, color: AppInk.soft, size: size * 0.42),
+          ),
         ),
       ),
     );
   }
 }
 
-// 計時進度圓環：淡色軌道 + 實色圓頭進度弧（從 12 點鐘方向順時針）
+// 計時進度圓環：淡色軌道 + 實色圓頭進度弧（12 點鐘方向順時針）+
+// 弧端白心旋鈕（同首頁進度列的亮點語彙）
 class _RingPainter extends CustomPainter {
   final double progress;
   final Color color;
@@ -990,17 +1139,19 @@ class _RingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 7.0;
+    final stroke = math.max(8.0, size.width * 0.047);
     final center = size.center(Offset.zero);
     final radius = size.width / 2 - stroke / 2;
 
     final track = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
-      ..color = color.withValues(alpha: 0.15);
+      ..color = color.withValues(alpha: 0.13);
     canvas.drawCircle(center, radius, track);
 
-    if (progress <= 0) return;
+    final p = progress.clamp(0.0, 1.0);
+    if (p <= 0) return;
+    final sweep = 2 * math.pi * p;
     final arc = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
@@ -1009,9 +1160,30 @@ class _RingPainter extends CustomPainter {
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       -math.pi / 2,
-      2 * math.pi * progress.clamp(0.0, 1.0),
+      sweep,
       false,
       arc,
+    );
+
+    // 弧端旋鈕：白心 + accent 描邊 + 柔光，倒數的「現在」更有存在感
+    final angle = -math.pi / 2 + sweep;
+    final knob = center +
+        Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+    canvas.drawCircle(
+      knob,
+      stroke * 0.78,
+      Paint()
+        ..color = color.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+    canvas.drawCircle(knob, stroke * 0.62, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      knob,
+      stroke * 0.62,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = color,
     );
   }
 

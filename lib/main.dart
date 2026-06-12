@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -241,6 +242,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       _familyEnabled = prefs.getBool(PrefsKeys.familyEnabled) ?? false;
       _waterGoalReached =
           prefs.getString(PrefsKeys.waterGoalDate) == _todayString();
+      // debug 截圖用：指定啟動分頁（release 不讀）
+      if (kDebugMode) {
+        final tab = prefs.getInt(PrefsKeys.debugStartTab);
+        if (tab != null) _currentIndex = tab;
+      }
       _loaded = true;
     });
   }

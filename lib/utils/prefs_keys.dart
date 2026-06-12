@@ -101,4 +101,5 @@ abstract final class PrefsKeys {
 
   // ── Debug（僅 kDebugMode 讀取，截圖驗證用，release 不碰）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24
+  static const debugStartTab = 'debug_start_tab'; // int 啟動分頁 index
 }

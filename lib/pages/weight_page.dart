@@ -939,11 +939,8 @@ class _WeightPageState extends State<WeightPage> {
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFFFF8F0),
       appBar: MascotAppBar(accent: Colors.orange, onSettingsReturn: _loadData),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddSheet,
-        backgroundColor: Colors.orange,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      // 不用 FAB：捲動時會壓到目標/歷史卡，新增入口改放「今日數據」
+      // 節區標題右側的記錄鈕（空狀態卡本身也可點）
       body: Stack(
         children: [
           // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
@@ -961,70 +958,20 @@ class _WeightPageState extends State<WeightPage> {
               accent: Colors.orange,
               scene: const PersonaScene(accent: Colors.orange),
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
-                  // ── 折線圖卡片（含範圍切換按鈕） ──
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(AppCardStyle.radius),
-                      border: AppCardStyle.hairline,
-                      boxShadow: AppShadows.card,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 範圍切換按鈕列（本週 / 本月 / 三個月）
-                        Row(
-                          children: [
-                            _chartRangeButton('本週', 0),
-                            const SizedBox(width: 8),
-                            _chartRangeButton('本月', 1),
-                            const SizedBox(width: 8),
-                            _chartRangeButton('三個月', 2),
-                          ],
+                  // ── 今日數據放最前：面板展開時第一眼就是今天的體重 ──
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: HabitSectionHeader(
+                          label: '今日數據',
+                          icon: Icons.today_rounded,
+                          color: Colors.orange,
                         ),
-                        const SizedBox(height: 12),
-                        // 無資料時顯示友善提示，否則顯示折線圖
-                        chartData.spots.isEmpty
-                            ? SizedBox(
-                                height: 160,
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.show_chart,
-                                        size: 36,
-                                        color: Colors.orange.shade200,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        '此區間沒有紀錄',
-                                        style: TextStyle(
-                                          color: AppInk.faint,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : SizedBox(
-                                height: 160,
-                                child: _buildLineChart(chartData),
-                              ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── 今日數據（區段標題 + 卡片；沒紀錄時整卡可點直接開新增） ──
-                  const HabitSectionHeader(
-                    label: '今日數據',
-                    icon: Icons.today_rounded,
-                    color: Colors.orange,
+                      ),
+                      _addRecordPill(hasToday: todayRec != null),
+                    ],
                   ),
                   todayRec != null
                       ? Container(
@@ -1083,6 +1030,61 @@ class _WeightPageState extends State<WeightPage> {
                             ),
                           ),
                         ),
+
+                  const SizedBox(height: 16),
+
+                  // ── 趨勢圖卡片（範圍切換 + 折線圖） ──
+                  const HabitSectionHeader(
+                    label: '趨勢',
+                    icon: Icons.show_chart_rounded,
+                    color: Colors.orange,
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppCardStyle.radius),
+                      border: AppCardStyle.hairline,
+                      boxShadow: AppShadows.card,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _rangeSelector(),
+                        const SizedBox(height: 14),
+                        // 無資料時顯示友善提示，否則顯示折線圖
+                        chartData.spots.isEmpty
+                            ? SizedBox(
+                                height: 158,
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.show_chart,
+                                        size: 36,
+                                        color: Colors.orange.shade200,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        '此區間沒有紀錄',
+                                        style: TextStyle(
+                                          color: AppInk.faint,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : SizedBox(
+                                height: 158,
+                                child: _buildLineChart(chartData),
+                              ),
+                      ],
+                    ),
+                  ),
 
                   // ── 目標體重進度條（有設定目標才顯示） ──
                   if (targetProgressWidget != null) ...[
@@ -1182,12 +1184,18 @@ class _WeightPageState extends State<WeightPage> {
             ),
             barWidth: 3,
             dotData: FlDotData(
-              getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
-                radius: dotRadius,
-                color: Colors.white,
-                strokeWidth: 2,
-                strokeColor: Colors.deepOrange.shade300,
-              ),
+              // 最新一筆（最右）畫大一點，視覺錨點落在「現在」
+              getDotPainter: (spot, percent, bar, index) {
+                final isLatest = index == chartData.spots.length - 1;
+                return FlDotCirclePainter(
+                  radius: isLatest ? dotRadius + 1.5 : dotRadius,
+                  color: Colors.white,
+                  strokeWidth: isLatest ? 2.6 : 2,
+                  strokeColor: isLatest
+                      ? Colors.deepOrange.shade400
+                      : Colors.deepOrange.shade300,
+                );
+              },
             ),
             belowBarData: BarAreaData(
               show: true,
@@ -1268,27 +1276,92 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  // 圖表範圍切換按鈕（選中時橘底白字）
-  Widget _chartRangeButton(String label, int index) {
-    final selected = _chartRangeIndex == index;
-    return Material(
-      color: selected ? Colors.orange : Colors.orange.shade50,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
+  // 範圍切換：segmented 膠囊（選中浮白卡，未選沉在底色裡）
+  Widget _rangeSelector() {
+    const labels = ['本週', '本月', '三個月'];
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF7F2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(labels.length, (i) {
+          final selected = _chartRangeIndex == i;
+          return GestureDetector(
+            onTap: () {
+              if (_chartRangeIndex == i) return;
+              playHaptic(HapticLevel.selection);
+              setState(() => _chartRangeIndex = i);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: selected
+                  ? BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(9),
+                      border: AppCardStyle.hairline,
+                      boxShadow: AppShadows.flat,
+                    )
+                  : null,
+              child: Text(
+                labels[i],
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? Colors.orange.shade800 : AppInk.soft,
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  // 「今日數據」節區右側的記錄鈕（取代會壓內容的 FAB）
+  Widget _addRecordPill({required bool hasToday}) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.orange,
         borderRadius: BorderRadius.circular(20),
-        onTap: () {
-          if (_chartRangeIndex == index) return;
-          playHaptic(HapticLevel.selection);
-          setState(() => _chartRangeIndex = index);
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: selected ? Colors.white : Colors.orange.shade700,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withValues(alpha: 0.32),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: _openAddSheet,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  hasToday ? Icons.edit_rounded : Icons.add_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  hasToday ? '更新' : '記錄',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1314,18 +1387,36 @@ class _WeightPageState extends State<WeightPage> {
     final delta = _deltaBefore(rec);
 
     final items = <_StatItem>[
-      if (fat != null) _StatItem(label: '體脂率', value: '${_fmt(fat)} %'),
+      if (fat != null)
+        _StatItem(
+          label: '體脂率',
+          value: '${_fmt(fat)} %',
+          icon: Icons.water_drop_rounded,
+          iconColor: const Color(0xFF4FA8C7),
+        ),
       if (bmi != null)
         _StatItem(
           label: 'BMI',
           value: _fmt(bmi),
           sub: bmiCat!.$1,
           subColor: bmiCat.$2,
+          icon: Icons.monitor_weight_rounded,
+          iconColor: const Color(0xFFEF8E4E),
         ),
       if (bmr != null)
-        _StatItem(label: 'BMR', value: '${_fmt(bmr, decimal: 0)} kcal'),
+        _StatItem(
+          label: 'BMR',
+          value: '${_fmt(bmr, decimal: 0)} kcal',
+          icon: Icons.local_fire_department_rounded,
+          iconColor: const Color(0xFFFF7043),
+        ),
       if (tdee != null)
-        _StatItem(label: 'TDEE', value: '${_fmt(tdee, decimal: 0)} kcal'),
+        _StatItem(
+          label: 'TDEE',
+          value: '${_fmt(tdee, decimal: 0)} kcal',
+          icon: Icons.bolt_rounded,
+          iconColor: const Color(0xFFF2A93B),
+        ),
     ];
 
     return Column(
@@ -1375,7 +1466,7 @@ class _WeightPageState extends State<WeightPage> {
             mainAxisSpacing: 10,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.6,
+            childAspectRatio: 2.45,
             children: items
                 .map(
                   (item) => Container(
@@ -1384,46 +1475,79 @@ class _WeightPageState extends State<WeightPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 10,
                       vertical: 8,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Row(
                       children: [
-                        Text(
-                          item.label,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppInk.soft,
+                        // 小圖示泡泡：每個指標一個識別色，掃一眼就分得開
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: item.iconColor.withValues(alpha: 0.13),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            item.icon,
+                            size: 16,
+                            color: item.iconColor,
                           ),
                         ),
-                        const SizedBox(height: 1),
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                item.value,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppType.digits(
-                                  fontSize: 16,
-                                  color: AppInk.strong,
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                item.label,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppInk.soft,
                                 ),
                               ),
-                            ),
-                            if (item.sub != null) ...[
-                              const SizedBox(width: 5),
-                              Text(
-                                item.sub!,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: item.subColor,
-                                ),
+                              const SizedBox(height: 1),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      item.value,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppType.digits(
+                                        fontSize: 15.5,
+                                        color: AppInk.strong,
+                                      ),
+                                    ),
+                                  ),
+                                  if (item.sub != null) ...[
+                                    const SizedBox(width: 5),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: item.subColor!
+                                            .withValues(alpha: 0.12),
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        item.sub!,
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: item.subColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -1616,9 +1740,13 @@ class _StatItem {
   final String value;
   final String? sub; // 數值旁的小標籤（例：BMI 分類）
   final Color? subColor;
+  final IconData icon;
+  final Color iconColor;
   const _StatItem({
     required this.label,
     required this.value,
+    required this.icon,
+    required this.iconColor,
     this.sub,
     this.subColor,
   });
