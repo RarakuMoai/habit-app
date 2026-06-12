@@ -642,6 +642,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
         child: Stack(
           children: [
+            // 窗外景：墊在背景圖之下，透過挖掉的窗玻璃露出來
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MediaQuery.of(context).size.height * 0.56,
+              child: const WindowBackdrop(),
+            ),
             Positioned(
               top: 0,
               left: 0,
@@ -651,7 +659,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: Image.asset(
-                    'assets/scenes/home/home_bg.png',
+                    // 窗玻璃挖透明的版本（原圖保留為 home_bg.png）
+                    'assets/scenes/home/home_bg_glassless.png',
                     height: double.infinity,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -670,15 +679,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 color: _sceneTint,
               ),
             ),
-            // 動態光影層：窗光/塵埃/檯燈暈 + 窗外景，讓靜態房間活起來
+            // 動態光影層：窗光/塵埃/檯燈暈，讓靜態房間活起來
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               height: MediaQuery.of(context).size.height * 0.56,
-              child: RoomAmbientOverlay(
-                allDone: allDone0 && habits.isNotEmpty,
-              ),
+              child: const RoomAmbientOverlay(),
             ),
             // 互動狀態效果（完成星光、連續天數獎盃）
             Positioned.fill(
