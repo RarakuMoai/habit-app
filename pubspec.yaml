@@ -46,6 +46,13 @@ dependencies:
   just_audio: ^0.10.5
   audio_session: ^0.2.3
 
+# path_provider_foundation 2.6.0 改用 FFI（package:objective_c），其
+# objective_c.framework 走 native assets 簽名管線，實機安裝常出現
+# 0xE8008014 invalid signature（flutter/flutter#178563 等）。釘回最後一個
+# 傳統實作版本可整個移除該 framework；等上游簽名問題修復後再解除。
+dependency_overrides:
+  path_provider_foundation: 2.5.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
