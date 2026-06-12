@@ -437,31 +437,51 @@ class _MascotGroundShadowPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * 0.56);
+    final cx = size.width / 2;
+    // 三層（由淡到深）：ambient 大暈 → 中層 pool → 雙腳 contact kiss。
+    // 視角是斜俯視，暈的重心放在畫布下半（往觀者方向 pool）；
+    // kiss 貼在畫布上緣附近 = 兔咪腳底正下方，蓋掉 CG 腳掌白邊
+    // 與陰影之間的亮縫，才有「體重壓在地上」的感覺。
 
-    final ambientPaint = Paint()
-      ..color = color.withValues(alpha: opacity * 0.38)
-      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 14);
+    final ambient = Paint()
+      ..color = color.withValues(alpha: opacity * 0.34)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 11);
     canvas.drawOval(
       Rect.fromCenter(
-        center: center,
+        center: Offset(cx, size.height * 0.58),
         width: size.width * 0.96,
-        height: size.height * 0.72,
+        height: size.height * 0.62,
       ),
-      ambientPaint,
+      ambient,
     );
 
-    final contactPaint = Paint()
-      ..color = color.withValues(alpha: opacity)
+    final pool = Paint()
+      ..color = color.withValues(alpha: opacity * 0.70)
       ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6);
     canvas.drawOval(
       Rect.fromCenter(
-        center: center.translate(0, size.height * 0.08),
-        width: size.width * 0.66,
-        height: size.height * 0.34,
+        center: Offset(cx, size.height * 0.52),
+        width: size.width * 0.62,
+        height: size.height * 0.40,
       ),
-      contactPaint,
+      pool,
     );
+
+    // 左右腳各一個小接觸影（CG 站姿雙腳中心約在 ±12% 畫布寬），
+    // 比 base opacity 再深一階，蓋掉腳掌白邊下的亮縫
+    final kiss = Paint()
+      ..color = color.withValues(alpha: (opacity * 1.3).clamp(0.0, 1.0))
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 3.5);
+    for (final dx in [-size.width * 0.12, size.width * 0.12]) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(cx + dx, size.height * 0.27),
+          width: size.width * 0.26,
+          height: size.height * 0.26,
+        ),
+        kiss,
+      );
+    }
   }
 
   @override
