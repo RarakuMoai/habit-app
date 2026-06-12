@@ -15,6 +15,7 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
+import 'utils/coin_service.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
@@ -31,6 +32,8 @@ void main() async {
   final onboardingDone = prefs.getBool(PrefsKeys.onboardingDone) ?? false;
   // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
   await MascotPanelPrefs.load();
+  // 金幣餘額載進全域 notifier（UI 反應式讀取）
+  await CoinService.load();
   await AudioSettingsService.instance.init();
   // 初始化本機通知（番茄鐘倒數結束鈴用）；權限到第一次排通知才會跳 dialog
   await NotificationService.init();

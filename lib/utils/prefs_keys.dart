@@ -17,6 +17,17 @@ abstract final class PrefsKeys {
   static const targetWeight = 'target_weight'; // 公制 kg // units-ok
   static const userActivityLevel = 'user_activity_level';
 
+  // ── 金幣 ─────────────────────────────────────────────────
+  static const coinBalance = 'coin_balance';
+  static const coinLedger = 'coin_ledger';
+  static const coinLoginLevel = 'coin_login_level';
+  static const coinLastLoginDate = 'coin_last_login_date';
+
+  // 每日一次型來源的防重複 key（date 格式 yyyy-MM-dd）
+  static const coinClaimPrefix = 'coin_claim_';
+  static String coinClaim(String source, String date) =>
+      '$coinClaimPrefix${source}_$date';
+
   // ── 番茄鐘 ───────────────────────────────────────────────
   static const timerFocusMinutes = 'timer_focus_minutes';
   static const timerShortBreakMinutes = 'timer_short_break_minutes';
