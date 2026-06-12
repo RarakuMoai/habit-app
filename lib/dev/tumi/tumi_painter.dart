@@ -98,7 +98,7 @@ class TumiPainter extends CustomPainter {
     canvas.clipPath(body);
     canvas.drawOval(
         Rect.fromCenter(
-            center: const Offset(512, 655), width: 200, height: 236),
+            center: const Offset(511, 666), width: 200, height: 222),
         _fill(_white));
     canvas.restore();
 
@@ -133,19 +133,21 @@ class TumiPainter extends CustomPainter {
       Offset m(double x, double y) => _mx(Offset(x, y), mirror);
       canvas.save();
       canvas.clipPath(body);
-      final h = m(336, 690);
+      final h = m(350, 688);
       canvas.translate(h.dx, h.dy);
-      canvas.rotate((mirror ? -1 : 1) * 0.5);
+      canvas.rotate((mirror ? -1 : 1) * 0.35);
       canvas.drawOval(
-          Rect.fromCenter(center: Offset.zero, width: 58, height: 42),
+          Rect.fromCenter(center: Offset.zero, width: 54, height: 40),
           _fill(_white));
       canvas.restore();
       final innerArm = Path()
-        ..moveTo(m(432, 556).dx, 556)
-        ..cubicTo(m(424, 600).dx, 600, m(410, 658).dx, 658, m(392, 692).dx,
-            692)
-        ..cubicTo(m(378, 710).dx, 710, m(358, 717).dx, 717, m(346, 714).dx,
-            714);
+        ..moveTo(m(428, 548).dx, 548)
+        ..cubicTo(m(415, 580).dx, 580, m(405, 615).dx, 615, m(400, 645).dx,
+            645)
+        ..cubicTo(m(396, 668).dx, 668, m(388, 685).dx, 685, m(372, 697).dx,
+            697)
+        ..cubicTo(m(362, 704).dx, 704, m(350, 706).dx, 706, m(342, 702).dx,
+            702);
       canvas.drawPath(innerArm, _stroke(width: 3.5));
     }
   }
@@ -172,15 +174,16 @@ class TumiPainter extends CustomPainter {
   Path _tuftPath() {
     const spikes = [
       // [尖端, 瓣間凹口]
-      [Offset(441, 150), Offset(461, 168)],
-      [Offset(466, 134), Offset(485, 158)],
-      [Offset(491, 124), Offset(508, 154)],
-      [Offset(515, 121), Offset(532, 154)],
-      [Offset(540, 128), Offset(556, 160)],
-      [Offset(564, 140), Offset(577, 167)],
-      [Offset(583, 156), Offset(590, 190)],
+      [Offset(432, 150), Offset(452, 166)],
+      [Offset(458, 134), Offset(476, 158)],
+      [Offset(482, 124), Offset(500, 152)],
+      [Offset(507, 120), Offset(524, 152)],
+      [Offset(530, 126), Offset(547, 156)],
+      [Offset(553, 136), Offset(568, 162)],
+      [Offset(574, 148), Offset(585, 170)],
+      [Offset(590, 162), Offset(596, 192)],
     ];
-    final p = Path()..moveTo(436, 184);
+    final p = Path()..moveTo(424, 184);
     for (final s in spikes) {
       final tip = s[0], notch = s[1];
       p.cubicTo(tip.dx - 14, tip.dy + 22, tip.dx - 7, tip.dy + 3,
@@ -203,9 +206,17 @@ class TumiPainter extends CustomPainter {
       [const Offset(468, 436), const Offset(556, 436), const Offset(578, 420)],
       [const Offset(582, 330), const Offset(585, 240), const Offset(587, 125)],
     ]);
-    final muzzle = Path()
-      ..addOval(Rect.fromCenter(
-          center: const Offset(510, 486), width: 240, height: 144));
+    // 口鼻白區：上緣從臉帶喇叭狀外擴（眼下凹弧），
+    // 最寬 392-628@y490，下緣（下巴）~y544
+    final muzzle = _pathFrom(const Offset(446, 422), [
+      [const Offset(430, 448), const Offset(412, 455), const Offset(398, 472)],
+      [const Offset(391, 488), const Offset(391, 505), const Offset(398, 518)],
+      [const Offset(408, 535), const Offset(440, 543), const Offset(510, 544)],
+      [const Offset(580, 543), const Offset(612, 535), const Offset(622, 518)],
+      [const Offset(629, 505), const Offset(629, 488), const Offset(622, 472)],
+      [const Offset(608, 455), const Offset(590, 448), const Offset(574, 422)],
+      [const Offset(530, 418), const Offset(490, 418), const Offset(446, 422)],
+    ]);
     final blaze = Path.combine(PathOperation.union, band, muzzle);
     canvas.save();
     canvas.clipPath(headAndTuft);
@@ -214,11 +225,11 @@ class TumiPainter extends CustomPainter {
 
     canvas.drawPath(headAndTuft, _stroke());
 
-    // 下巴中央不描邊（白臉直通白胸）：用白色蓋掉中段弧線
-    final chinErase = Path()
-      ..moveTo(458, 556)
-      ..cubicTo(480, 559, 546, 559, 568, 556);
-    canvas.drawPath(chinErase, _stroke(width: 10, color: _white));
+    // 下巴是淡灰軟邊界（實測 #E4DCDA），不是硬描邊也不是無縫
+    final chinSoft = Path()
+      ..moveTo(452, 554)
+      ..cubicTo(478, 558, 548, 558, 574, 554);
+    canvas.drawPath(chinSoft, _stroke(width: 8, color: const Color(0xFFE4DCDA)));
   }
 
   // ---------------- 臉 ----------------
@@ -227,18 +238,18 @@ class TumiPainter extends CustomPainter {
     for (final mirror in [false, true]) {
       final c = _mx(const Offset(412, 399), mirror);
       canvas.drawOval(
-          Rect.fromCenter(center: c, width: 48, height: 56), _fill(_eyeBlack));
+          Rect.fromCenter(center: c, width: 53, height: 61), _fill(_eyeBlack));
       canvas.drawCircle(
-          c + Offset(mirror ? -5 : 5, -9), 8.5, _fill(Colors.white));
+          c + Offset(mirror ? -5 : 5, -10), 9.5, _fill(Colors.white));
     }
 
     // 腮紅：實測中心 (375,459)，52×38
     for (final mirror in [false, true]) {
       canvas.drawOval(
           Rect.fromCenter(
-              center: _mx(const Offset(375, 459), mirror),
-              width: 52,
-              height: 38),
+              center: _mx(const Offset(374, 460), mirror),
+              width: 58,
+              height: 43),
           _fill(_blush));
     }
 
@@ -290,14 +301,17 @@ class TumiPainter extends CustomPainter {
     ]);
     canvas.drawPath(ear, _fill(_grey));
 
-    // 內耳粉：佔耳長八成的長水滴，邊距均勻 ~15px，無描邊
-    final pink = _pathFrom(m(298, 348), [
-      [m(262, 390), m(228, 448), m(206, 510)],
-      [m(188, 565), m(180, 615), m(192, 648)],
-      [m(202, 670), m(224, 678), m(242, 668)],
-      [m(260, 654), m(272, 628), m(280, 594)],
-      [m(292, 538), m(298, 470), m(296, 420)],
-      [m(297, 380), m(298, 358), m(298, 348)],
+    // 內耳粉：逐列校準 — 外緣過 (280,450)(240,510)(210,570)(197,630)，
+    // 內緣過 (309,450)(308,510)(289,570)(255,630)，頂 (304,408) 底 ~y648
+    final pink = _pathFrom(m(304, 408), [
+      [m(288, 424), m(270, 462), m(250, 495)],
+      [m(232, 525), m(216, 558), m(206, 585)],
+      [m(199, 605), m(195, 625), m(200, 640)],
+      [m(205, 650), m(213, 652), m(222, 646)],
+      [m(244, 636), m(258, 618), m(272, 601)],
+      [m(285, 575), m(296, 548), m(302, 520)],
+      [m(309, 495), m(312, 470), m(311, 448)],
+      [m(310, 430), m(307, 415), m(304, 408)],
     ]);
     canvas.drawPath(pink, _fill(_pinkEar));
 
