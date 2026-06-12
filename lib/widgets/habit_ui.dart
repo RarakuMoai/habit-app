@@ -4,26 +4,28 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
 
-// 區段標題：圖示底框 + 名稱 + 計數膠囊，全完成時轉綠＋勾
+// 區段標題：圖示底框 + 名稱 + 計數膠囊，全完成時轉綠＋勾。
+// done/total 不傳就不顯示膠囊（給沒有完成概念的區段用，例如體重頁）。
 class HabitSectionHeader extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
-  final int done;
-  final int total;
+  final int? done;
+  final int? total;
 
   const HabitSectionHeader({
     super.key,
     required this.label,
     required this.icon,
     required this.color,
-    required this.done,
-    required this.total,
+    this.done,
+    this.total,
   });
 
   @override
   Widget build(BuildContext context) {
-    final allDone = total > 0 && done == total;
+    final hasCount = done != null && total != null;
+    final allDone = hasCount && total! > 0 && done == total;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, top: 8, left: 2),
       child: Row(
@@ -47,22 +49,24 @@ class HabitSectionHeader extends StatelessWidget {
               letterSpacing: 0.8,
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: allDone
-                  ? Colors.green.shade50
-                  : color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '$done / $total',
-              style: AppType.digits(
-                color: allDone ? Colors.green.shade700 : color,
+          if (hasCount) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: allDone
+                    ? Colors.green.shade50
+                    : color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$done / $total',
+                style: AppType.digits(
+                  color: allDone ? Colors.green.shade700 : color,
+                ),
               ),
             ),
-          ),
+          ],
           if (allDone) ...[
             const SizedBox(width: 6),
             Icon(
