@@ -47,7 +47,10 @@ double sceneHourNow() {
 }
 
 class RoomAmbientOverlay extends StatefulWidget {
-  const RoomAmbientOverlay({super.key});
+  /// 同步 _sceneTint 的全完成金色罩用（補畫的窗櫺要跟原圖框同色）。
+  final bool allDone;
+
+  const RoomAmbientOverlay({super.key, required this.allDone});
 
   @override
   State<RoomAmbientOverlay> createState() => _RoomAmbientOverlayState();
@@ -88,7 +91,7 @@ class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
           isComplex: true,
           willChange: true,
           size: Size.infinite,
-          painter: _RoomAmbientPainter(time: _time),
+          painter: _RoomAmbientPainter(time: _time, allDone: widget.allDone),
         ),
       ),
     );
@@ -102,8 +105,10 @@ double _smooth(double a, double b, double x) {
 
 class _RoomAmbientPainter extends CustomPainter {
   final ValueNotifier<double> time;
+  final bool allDone;
 
-  _RoomAmbientPainter({required this.time}) : super(repaint: time);
+  _RoomAmbientPainter({required this.time, required this.allDone})
+      : super(repaint: time);
 
   // 塵埃微粒：固定 seed，沿光束軸向參數化（s = 0~1 位置、off = 垂直偏移）
   static final List<({double s, double off, double r, double p1, double p2})>
@@ -158,9 +163,18 @@ class _RoomAmbientPainter extends CustomPainter {
   // 木色補畫回來（中央直櫺、彈簧線/中段橫櫺、拱頂兩根放射條）。
   static const _winL = 0.0107; // 玻璃內緣左
   static const _winR = 0.1996; // 玻璃內緣右
-  static const _winCrownY = 0.0599; // 拱頂內緣最高點
+  static const _winCrownY = 0.0549; // 玻璃頂緣（右端，頂邊左低右高微斜）
+  static const _winTopYL = 0.0620; // 玻璃頂緣左端
   static const _winSpringY = 0.1427; // 拱底（彈簧線中心）
-  static const _winSillY = 0.3224; // 玻璃底（窗台上緣）
+  // 原圖手繪帶透視：窗台與橫櫺都是左低右高的微斜線，
+  // 以下成對數值 = (左端, 右端) 的 y（顯示圖高比例）
+  static const _winSillYL = 0.3335, _winSillYR = 0.3205; // 玻璃底（窗台上緣）
+  static const _springBarY = (0.1462, 0.1416); // 彈簧線橫櫺中心
+  static const _midBarY = (0.2357, 0.2257); // 中段橫櫺中心
+  static const _barHalf = 0.0066; // 橫櫺半厚
+  // 拱頂放射條實測穿越點（左/右，圖寬與顯示圖高比例）
+  static const _spokeL = (0.0517, 0.1084);
+  static const _spokeR = (0.1551, 0.0949);
   static const _winWood = Color(0xFFE19D54); // 窗櫺木色（取樣平均）
   static const _winWoodEdge = Color(0xFFB97F42);
 
@@ -182,24 +196,20 @@ class _RoomAmbientPainter extends CustomPainter {
     final xR = w * _winR;
     final crownY = imgH * _winCrownY;
     final springY = imgH * _winSpringY;
-    final sillY = imgH * _winSillY;
-    final cx = (xL + xR) / 2;
+    final sillYL = imgH * _winSillYL;
+    final sillYR = imgH * _winSillYR;
+    final sillY = (sillYL + sillYR) / 2; // 場景佈局用中間值
 
-    // 拱形開口：左緣直上 → 半橢圓拱 → 右緣直下
+    // 玻璃開口（量測：頂邊近乎水平微斜 + 左右大圓角，不是半橢圓拱）：
+    // 頂邊 (0.0561w, topYL) → (0.1658w, crownY)，左角收到 (xL, 0.0999imgH)、
+    // 右角控制點由實測中點 (0.1872w, 0.0999imgH) 反推，底邊沿窗台微斜
     final opening = Path()
-      ..moveTo(xL, sillY)
-      ..lineTo(xL, springY)
-      ..arcTo(
-        Rect.fromCenter(
-          center: Offset(cx, springY),
-          width: xR - xL,
-          height: (springY - crownY) * 2,
-        ),
-        math.pi,
-        math.pi,
-        false,
-      )
-      ..lineTo(xR, sillY)
+      ..moveTo(xL, sillYL)
+      ..lineTo(xL, imgH * 0.0999)
+      ..quadraticBezierTo(xL, imgH * _winTopYL, w * 0.0561, imgH * _winTopYL)
+      ..lineTo(w * 0.1658, crownY)
+      ..quadraticBezierTo(w * 0.1925, imgH * 0.1023, xR, imgH * 0.1398)
+      ..lineTo(xR, sillYR)
       ..close();
 
     final pal = _windowPalette(h);
@@ -209,7 +219,7 @@ class _RoomAmbientPainter extends CustomPainter {
 
     // 1. 天空
     canvas.drawRect(
-      Rect.fromLTRB(xL, crownY, xR, sillY),
+      Rect.fromLTRB(xL, crownY, xR, sillYL + 2),
       Paint()
         ..shader = ui.Gradient.linear(
           Offset(0, crownY),
@@ -265,7 +275,7 @@ class _RoomAmbientPainter extends CustomPainter {
     final near = Color.lerp(
         const Color(0xFF86BB68), const Color(0xFF38485C), pal.nightness)!;
     final bushTop = crownY + (sillY - crownY) * 0.60;
-    final farPath = Path()..moveTo(xL, sillY)..lineTo(xL, bushTop + 8);
+    final farPath = Path()..moveTo(xL, sillYL)..lineTo(xL, bushTop + 8);
     // 圓潤的灌木輪廓：一排小弧
     const bumps = 4;
     for (var i = 0; i <= bumps; i++) {
@@ -279,12 +289,12 @@ class _RoomAmbientPainter extends CustomPainter {
       }
     }
     farPath
-      ..lineTo(xR, sillY)
+      ..lineTo(xR, sillYR)
       ..close();
     canvas.drawPath(farPath, Paint()..color = far);
 
     final nearTop = crownY + (sillY - crownY) * 0.76;
-    final nearPath = Path()..moveTo(xL, sillY)..lineTo(xL, nearTop + 6);
+    final nearPath = Path()..moveTo(xL, sillYL)..lineTo(xL, nearTop + 6);
     for (var i = 0; i <= bumps; i++) {
       final bx = xL + winW * (i / bumps);
       final by = nearTop + (i.isOdd ? 0 : 10) + 3 * math.sin(i * 1.7 + 1);
@@ -296,14 +306,15 @@ class _RoomAmbientPainter extends CustomPainter {
       }
     }
     nearPath
-      ..lineTo(xR, sillY)
+      ..lineTo(xR, sillYR)
       ..close();
     canvas.drawPath(nearPath, Paint()..color = near);
 
     canvas.restore();
 
-    // 6. 補畫窗櫺（蓋在新景之上）
-    _paintWindowMullions(canvas, w, imgH, xL, xR, crownY, springY, sillY, cx);
+    // 6. 補畫窗櫺（蓋在新景之上，clip 在開口內避免畫出框外）
+    _paintWindowMullions(
+        canvas, w, imgH, xL, xR, crownY, springY, sillYL, opening, h);
 
     // 7. 玻璃內緣一圈極淡內陰影，找回原圖的景深
     canvas.drawPath(
@@ -377,47 +388,78 @@ class _RoomAmbientPainter extends CustomPainter {
     double xR,
     double crownY,
     double springY,
-    double sillY,
-    double cx,
+    double sillMax,
+    Path opening,
+    double h,
   ) {
-    final wood = Paint()..color = _winWood;
+    canvas.save();
+    canvas.clipPath(opening); // 木條只准畫在玻璃開口內
+
+    final woodColor = _tintWood(_winWood, h);
+    final wood = Paint()..color = woodColor;
     final edge = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
-      ..color = _winWoodEdge.withValues(alpha: 0.55);
+      ..color = _tintWood(_winWoodEdge, h).withValues(alpha: 0.55);
+    // 上亮下暗的緣線，找回原圖手繪木條的立體感
+    final hi = Paint()
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = _tintWood(const Color(0xFFF2C088), h).withValues(alpha: 0.65);
+    final lo = Paint()
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = _tintWood(const Color(0xFFA06B36), h).withValues(alpha: 0.45);
 
-    void bar(Rect r) {
-      final rr = RRect.fromRectAndRadius(r, const Radius.circular(1.5));
-      canvas.drawRRect(rr, wood);
-      canvas.drawRRect(rr, edge);
+    // 兩條橫櫺：原圖左低右高微斜 → 用四邊形照量測斜率畫
+    final half = imgH * _barHalf;
+    for (final (yLf, yRf) in [_springBarY, _midBarY]) {
+      final yL = imgH * yLf;
+      final yR = imgH * yRf;
+      final quad = Path()
+        ..moveTo(xL - 2, yL - half)
+        ..lineTo(xR + 2, yR - half)
+        ..lineTo(xR + 2, yR + half)
+        ..lineTo(xL - 2, yL + half)
+        ..close();
+      canvas.drawPath(quad, wood);
+      canvas.drawPath(quad, edge);
+      canvas.drawLine(
+          Offset(xL, yL - half + 1.4), Offset(xR, yR - half + 1.4), hi);
+      canvas.drawLine(
+          Offset(xL, yL + half - 1.4), Offset(xR, yR + half - 1.4), lo);
     }
 
-    // 中央直櫺（從拱頂到窗台）+ 兩條橫櫺（量測座標）
-    bar(Rect.fromLTRB(w * 0.0865, crownY - 2, w * 0.1114, sillY));
-    bar(Rect.fromLTRB(xL - 2, imgH * 0.1355, xR + 2, imgH * 0.1533));
-    bar(Rect.fromLTRB(xL - 2, imgH * 0.2197, xR + 2, imgH * 0.2418));
+    // 中央直櫺（從拱頂到窗台，x 用量測的櫺心）
+    final mull = RRect.fromRectAndRadius(
+      Rect.fromLTRB(w * 0.0865, crownY - 2, w * 0.1114, sillMax + 2),
+      const Radius.circular(1.5),
+    );
+    canvas.drawRRect(mull, wood);
+    canvas.drawRRect(mull, edge);
+    canvas.drawLine(Offset(w * 0.0865 + 1.4, crownY),
+        Offset(w * 0.0865 + 1.4, sillMax), hi);
+    canvas.drawLine(Offset(w * 0.1114 - 1.4, crownY),
+        Offset(w * 0.1114 - 1.4, sillMax), lo);
 
-    // 拱頂兩根放射條：從彈簧線中心的軸心點射向拱緣
-    final hub = Offset(cx, springY - 2);
+    // 拱頂放射條：從直櫺頂端的軸心，穿過實測點延伸到拱緣
+    final hub = Offset(w * 0.0990, imgH * 0.1445);
     final spoke = Paint()
-      ..color = _winWood
-      ..strokeWidth = w * 0.016
+      ..color = woodColor
+      ..strokeWidth = w * 0.015
       ..strokeCap = StrokeCap.butt;
     final spokeEdge = Paint()
-      ..color = _winWoodEdge.withValues(alpha: 0.45)
-      ..strokeWidth = w * 0.016 + 2
+      ..color = _tintWood(_winWoodEdge, h).withValues(alpha: 0.45)
+      ..strokeWidth = w * 0.015 + 2
       ..strokeCap = StrokeCap.butt;
-    final rx = (xR - xL) / 2;
-    final ry = springY - crownY;
-    for (final ang in [math.pi * 0.72, math.pi * 0.28]) {
-      // 橢圓參數角 → 拱緣座標（略超出一點讓木條插進框裡）
-      final end = Offset(
-        cx + rx * 1.04 * math.cos(ang),
-        springY - ry * 1.04 * math.sin(ang),
-      );
+    for (final (px, py) in [_spokeL, _spokeR]) {
+      final p = Offset(w * px, imgH * py);
+      final end = hub + (p - hub) * 2.0; // 超出拱緣，由 clip 收邊
       canvas.drawLine(hub, end, spokeEdge);
       canvas.drawLine(hub, end, spoke);
     }
+
+    canvas.restore();
   }
 
   // 窗外景時段調色盤：keyframe 線性插值（與 _sceneTint 時段概念對齊）
@@ -603,6 +645,31 @@ class _RoomAmbientPainter extends CustomPainter {
     );
   }
 
+  /// 與 home_page._sceneTint 同一張表的時段色罩：補畫的窗櫺疊上同色罩，
+  /// 才會跟被罩著的原圖窗框一起變色（overlay 在色罩層之上，罩不到它）。
+  Color _tintWood(Color base, double h) {
+    final hour = h.floor();
+    Color tint;
+    double a;
+    if (allDone) {
+      tint = const Color(0xFFFFF3C4);
+      a = 0.10;
+    } else if (hour >= 22 || hour < 6) {
+      tint = const Color(0xFF3F456B);
+      a = 0.12;
+    } else if (hour < 9) {
+      tint = const Color(0xFFFFC4AD);
+      a = 0.10;
+    } else if (hour >= 17) {
+      tint = const Color(0xFFC9A1E8);
+      a = 0.10;
+    } else {
+      return base;
+    }
+    return Color.alphaBlend(tint.withValues(alpha: a), base);
+  }
+
   @override
-  bool shouldRepaint(covariant _RoomAmbientPainter old) => false;
+  bool shouldRepaint(covariant _RoomAmbientPainter old) =>
+      old.allDone != allDone;
 }

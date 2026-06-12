@@ -670,13 +670,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 color: _sceneTint,
               ),
             ),
-            // 動態光影層：窗光/塵埃/檯燈暈，讓靜態房間活起來
+            // 動態光影層：窗光/塵埃/檯燈暈 + 窗外景，讓靜態房間活起來
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               height: MediaQuery.of(context).size.height * 0.56,
-              child: const RoomAmbientOverlay(),
+              child: RoomAmbientOverlay(
+                allDone: allDone0 && habits.isNotEmpty,
+              ),
             ),
             // 互動狀態效果（完成星光、連續天數獎盃）
             Positioned.fill(
