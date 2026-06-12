@@ -23,6 +23,7 @@ import 'home/greeting_banner.dart';
 import 'home/habit_card.dart';
 import 'home/habit_sheets.dart';
 import 'home/home_presets.dart';
+import 'home/room_ambient_overlay.dart';
 import 'home/room_scene_painters.dart';
 
 class HomePage extends StatefulWidget {
@@ -86,6 +87,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
+    HomeSceneDebug.loadFromPrefs(prefs); // debug 截圖用時段覆寫，release no-op
     final today = todayString();
     final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
     streak = prefs.getInt(PrefsKeys.streak) ?? 0;
@@ -343,7 +345,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (ratio >= 0.5) return MascotEmotion.smile.assetPath;
     if (ratio > 0) return MascotEmotion.expect.assetPath;
 
-    final hour = DateTime.now().hour;
+    final hour = sceneHourNow().floor();
     return hour >= 22 || hour < 6
         ? MascotEmotion.night.assetPath
         : MascotEmotion.sleep.assetPath;
@@ -363,7 +365,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (ratio >= 0.5) return MascotContext.halfDone;
     if (ratio > 0) return MascotContext.completedOne;
 
-    final hour = DateTime.now().hour;
+    final hour = sceneHourNow().floor();
     if (hour >= 22 || hour < 6) return MascotContext.night;
     return MascotContext.notStarted;
   }
@@ -668,6 +670,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 color: _sceneTint,
               ),
             ),
+            // 動態光影層：窗光/塵埃/檯燈暈，讓靜態房間活起來
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MediaQuery.of(context).size.height * 0.56,
+              child: const RoomAmbientOverlay(),
+            ),
             // 互動狀態效果（完成星光、連續天數獎盃）
             Positioned.fill(
               child: CustomPaint(
@@ -804,7 +814,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // 房間背景圖上的時段色罩（順序與 _sceneColors 一致：全完成 > 夜 > 晨 > 暮）
   Color get _sceneTint {
-    final hour = DateTime.now().hour;
+    final hour = sceneHourNow().floor();
     if (allDone0 && habits.isNotEmpty) {
       return const Color(0xFFFFF3C4).withValues(alpha: 0.10);
     }
@@ -822,7 +832,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // 場景配色：全完成 > 夜晚(22-6) > 清晨(6-9 粉金) > 傍晚(17-22 橘紫) > 白天
   ({Color top, Color bottom, Color accent}) get _sceneColors {
-    final hour = DateTime.now().hour;
+    final hour = sceneHourNow().floor();
     if (allDone0 && habits.isNotEmpty) {
       return (
         top: const Color(0xFFE8F8E5),
