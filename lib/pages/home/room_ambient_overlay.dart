@@ -31,7 +31,9 @@ abstract final class HomeSceneDebug {
 
   static void loadFromPrefs(SharedPreferences prefs) {
     if (!kDebugMode) return;
-    hourOverride = prefs.getDouble(PrefsKeys.debugSceneHour);
+    // 只有 prefs 真的有值才覆蓋，避免把程式裡手動寫死的預覽值洗掉
+    final v = prefs.getDouble(PrefsKeys.debugSceneHour);
+    if (v != null) hourOverride = v;
   }
 }
 
@@ -135,6 +137,9 @@ class _RoomAmbientPainter extends CustomPainter {
     // 月光：22 點後 / 清晨 5 點前的極淡冷色窗光
     final moon = h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h));
 
+    // 窗外景先畫（光束/燈暈疊在它之上才像光從窗戶來）
+    _paintWindowScene(canvas, w, imgH, t, h);
+
     if (shaftStrength > 0.01) {
       _paintSunShafts(canvas, w, imgH, t, shaftStrength, dayness);
     }
@@ -144,6 +149,313 @@ class _RoomAmbientPainter extends CustomPainter {
     if (lamp > 0.01) {
       _paintLampGlow(canvas, w, imgH, t, lamp);
     }
+  }
+
+  // ── 窗外景：把原圖窗玻璃整片蓋掉，畫會跟時段走的室外場景 ──
+  //
+  // 幾何全部來自 home_bg.png 的色彩掃描量測（圖檔 1122×1402），
+  // 座標以 (寬度比例, 顯示圖高比例) 表達。窗櫺被蓋掉後用取樣的
+  // 木色補畫回來（中央直櫺、彈簧線/中段橫櫺、拱頂兩根放射條）。
+  static const _winL = 0.0107; // 玻璃內緣左
+  static const _winR = 0.1996; // 玻璃內緣右
+  static const _winCrownY = 0.0599; // 拱頂內緣最高點
+  static const _winSpringY = 0.1427; // 拱底（彈簧線中心）
+  static const _winSillY = 0.3224; // 玻璃底（窗台上緣）
+  static const _winWood = Color(0xFFE19D54); // 窗櫺木色（取樣平均）
+  static const _winWoodEdge = Color(0xFFB97F42);
+
+  // 夜空星點（窗內座標：x = 窗寬比例、y = 玻璃高比例的上半）
+  static const _winStars = <(double, double, double)>[
+    (0.16, 0.10, 1.1), (0.36, 0.05, 0.9), (0.55, 0.14, 1.3),
+    (0.74, 0.08, 0.9), (0.88, 0.18, 1.1), (0.27, 0.24, 0.8),
+    (0.64, 0.30, 1.0), (0.45, 0.38, 0.8),
+  ];
+
+  void _paintWindowScene(
+    Canvas canvas,
+    double w,
+    double imgH,
+    double t,
+    double h,
+  ) {
+    final xL = w * _winL;
+    final xR = w * _winR;
+    final crownY = imgH * _winCrownY;
+    final springY = imgH * _winSpringY;
+    final sillY = imgH * _winSillY;
+    final cx = (xL + xR) / 2;
+
+    // 拱形開口：左緣直上 → 半橢圓拱 → 右緣直下
+    final opening = Path()
+      ..moveTo(xL, sillY)
+      ..lineTo(xL, springY)
+      ..arcTo(
+        Rect.fromCenter(
+          center: Offset(cx, springY),
+          width: xR - xL,
+          height: (springY - crownY) * 2,
+        ),
+        math.pi,
+        math.pi,
+        false,
+      )
+      ..lineTo(xR, sillY)
+      ..close();
+
+    final pal = _windowPalette(h);
+
+    canvas.save();
+    canvas.clipPath(opening);
+
+    // 1. 天空
+    canvas.drawRect(
+      Rect.fromLTRB(xL, crownY, xR, sillY),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(0, crownY),
+          Offset(0, sillY),
+          [pal.top, pal.bot],
+        ),
+    );
+
+    // 2. 星星（夜間，各自相位眨眼）
+    if (pal.star > 0.01) {
+      final starPaint = Paint();
+      final winW = xR - xL;
+      final glassH = sillY - crownY;
+      for (var i = 0; i < _winStars.length; i++) {
+        final (sx, sy, sr) = _winStars[i];
+        final tw = 0.55 + 0.45 * math.sin(t * (1.3 + i * 0.31) + i * 2.1);
+        starPaint.color = const Color(0xFFFFF6DE)
+            .withValues(alpha: (pal.star * tw).clamp(0.0, 1.0));
+        canvas.drawCircle(
+          Offset(xL + winW * sx, crownY + glassH * sy),
+          sr,
+          starPaint,
+        );
+      }
+    }
+
+    // 3. 太陽（6~19）/ 月亮（19~6）沿窗內小弧移動
+    _paintWindowCelestial(canvas, xL, xR, crownY, sillY, h);
+
+    // 4. 兩朵小雲慢慢飄過（夜裡淡到幾乎看不見）
+    final winW = xR - xL;
+    final cloudPaint = Paint()
+      ..color = pal.cloud.withValues(alpha: 1.0 - pal.nightness * 0.55);
+    for (final (x0, cy, s, sp) in <(double, double, double, double)>[
+      (0.15, 0.30, 1.0, 0.011),
+      (0.65, 0.16, 0.72, 0.017),
+    ]) {
+      final fx = (x0 + t * sp) % 1.3 - 0.15;
+      final c = Offset(xL + winW * fx, crownY + (sillY - crownY) * cy);
+      canvas.drawOval(
+        Rect.fromCenter(center: c, width: winW * 0.34 * s, height: winW * 0.13 * s),
+        cloudPaint,
+      );
+      canvas.drawCircle(c.translate(-winW * 0.07 * s, -winW * 0.045 * s),
+          winW * 0.075 * s, cloudPaint);
+      canvas.drawCircle(c.translate(winW * 0.05 * s, -winW * 0.035 * s),
+          winW * 0.06 * s, cloudPaint);
+    }
+
+    // 5. 遠樹/灌木剪影帶（顏色隨時段入夜變深）
+    final far = Color.lerp(
+        const Color(0xFFA7CF8B), const Color(0xFF46566E), pal.nightness)!;
+    final near = Color.lerp(
+        const Color(0xFF86BB68), const Color(0xFF38485C), pal.nightness)!;
+    final bushTop = crownY + (sillY - crownY) * 0.60;
+    final farPath = Path()..moveTo(xL, sillY)..lineTo(xL, bushTop + 8);
+    // 圓潤的灌木輪廓：一排小弧
+    const bumps = 4;
+    for (var i = 0; i <= bumps; i++) {
+      final bx = xL + winW * (i / bumps);
+      final by = bushTop + (i.isEven ? 0 : 14) + 4 * math.sin(i * 2.1);
+      if (i == 0) {
+        farPath.lineTo(bx, by);
+      } else {
+        farPath.quadraticBezierTo(
+            bx - winW / bumps / 2, by - 16, bx, by);
+      }
+    }
+    farPath
+      ..lineTo(xR, sillY)
+      ..close();
+    canvas.drawPath(farPath, Paint()..color = far);
+
+    final nearTop = crownY + (sillY - crownY) * 0.76;
+    final nearPath = Path()..moveTo(xL, sillY)..lineTo(xL, nearTop + 6);
+    for (var i = 0; i <= bumps; i++) {
+      final bx = xL + winW * (i / bumps);
+      final by = nearTop + (i.isOdd ? 0 : 10) + 3 * math.sin(i * 1.7 + 1);
+      if (i == 0) {
+        nearPath.lineTo(bx, by);
+      } else {
+        nearPath.quadraticBezierTo(
+            bx - winW / bumps / 2, by - 14, bx, by);
+      }
+    }
+    nearPath
+      ..lineTo(xR, sillY)
+      ..close();
+    canvas.drawPath(nearPath, Paint()..color = near);
+
+    canvas.restore();
+
+    // 6. 補畫窗櫺（蓋在新景之上）
+    _paintWindowMullions(canvas, w, imgH, xL, xR, crownY, springY, sillY, cx);
+
+    // 7. 玻璃內緣一圈極淡內陰影，找回原圖的景深
+    canvas.drawPath(
+      opening,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = const Color(0xFF5B4436).withValues(alpha: 0.13)
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 1.6),
+    );
+  }
+
+  void _paintWindowCelestial(
+    Canvas canvas,
+    double xL,
+    double xR,
+    double crownY,
+    double sillY,
+    double h,
+  ) {
+    final winW = xR - xL;
+    final isMoon = !(h >= 6 && h < 19);
+    final tArc = isMoon ? ((h - 19) % 24) / 11 : (h - 6) / 13;
+    final lift = math.sin(math.pi * tArc.clamp(0.0, 1.0));
+    final c = Offset(
+      xL + winW * ui.lerpDouble(0.18, 0.82, tArc)!,
+      ui.lerpDouble(sillY - (sillY - crownY) * 0.32,
+          crownY + (sillY - crownY) * 0.14, lift)!,
+    );
+    if (!isMoon) {
+      final disc =
+          Color.lerp(const Color(0xFFFFB36B), const Color(0xFFFFE9A8), lift)!;
+      canvas.drawCircle(
+        c,
+        winW * 0.30,
+        Paint()
+          ..shader = ui.Gradient.radial(c, winW * 0.30, [
+            disc.withValues(alpha: 0.40),
+            disc.withValues(alpha: 0),
+          ]),
+      );
+      canvas.drawCircle(c, winW * 0.10, Paint()..color = disc);
+    } else {
+      const moon = Color(0xFFF6F1DE);
+      canvas.drawCircle(
+        c,
+        winW * 0.24,
+        Paint()
+          ..shader = ui.Gradient.radial(c, winW * 0.24, [
+            moon.withValues(alpha: 0.30),
+            moon.withValues(alpha: 0),
+          ]),
+      );
+      final r = winW * 0.085;
+      final crescent = Path.combine(
+        PathOperation.difference,
+        Path()..addOval(Rect.fromCircle(center: c, radius: r)),
+        Path()
+          ..addOval(
+              Rect.fromCircle(center: c.translate(r * 0.45, -r * 0.25), radius: r * 0.88)),
+      );
+      canvas.drawPath(crescent, Paint()..color = moon);
+    }
+  }
+
+  void _paintWindowMullions(
+    Canvas canvas,
+    double w,
+    double imgH,
+    double xL,
+    double xR,
+    double crownY,
+    double springY,
+    double sillY,
+    double cx,
+  ) {
+    final wood = Paint()..color = _winWood;
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = _winWoodEdge.withValues(alpha: 0.55);
+
+    void bar(Rect r) {
+      final rr = RRect.fromRectAndRadius(r, const Radius.circular(1.5));
+      canvas.drawRRect(rr, wood);
+      canvas.drawRRect(rr, edge);
+    }
+
+    // 中央直櫺（從拱頂到窗台）+ 兩條橫櫺（量測座標）
+    bar(Rect.fromLTRB(w * 0.0865, crownY - 2, w * 0.1114, sillY));
+    bar(Rect.fromLTRB(xL - 2, imgH * 0.1355, xR + 2, imgH * 0.1533));
+    bar(Rect.fromLTRB(xL - 2, imgH * 0.2197, xR + 2, imgH * 0.2418));
+
+    // 拱頂兩根放射條：從彈簧線中心的軸心點射向拱緣
+    final hub = Offset(cx, springY - 2);
+    final spoke = Paint()
+      ..color = _winWood
+      ..strokeWidth = w * 0.016
+      ..strokeCap = StrokeCap.butt;
+    final spokeEdge = Paint()
+      ..color = _winWoodEdge.withValues(alpha: 0.45)
+      ..strokeWidth = w * 0.016 + 2
+      ..strokeCap = StrokeCap.butt;
+    final rx = (xR - xL) / 2;
+    final ry = springY - crownY;
+    for (final ang in [math.pi * 0.72, math.pi * 0.28]) {
+      // 橢圓參數角 → 拱緣座標（略超出一點讓木條插進框裡）
+      final end = Offset(
+        cx + rx * 1.04 * math.cos(ang),
+        springY - ry * 1.04 * math.sin(ang),
+      );
+      canvas.drawLine(hub, end, spokeEdge);
+      canvas.drawLine(hub, end, spoke);
+    }
+  }
+
+  // 窗外景時段調色盤：keyframe 線性插值（與 _sceneTint 時段概念對齊）
+  static ({Color top, Color bot, Color cloud, double star, double nightness})
+  _windowPalette(double h) {
+    const stops = <(double, (int, int, int, double, double))>[
+      // (hour, (skyTop, skyBot, cloud, star, nightness))
+      (0.0, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
+      (5.0, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
+      (6.6, (0xFFB8B5E0, 0xFFFFD9B3, 0xFFFFE7DC, 0.2, 0.15)),
+      (8.5, (0xFF8FC9EC, 0xFFD6EFF7, 0xFFFFFFFF, 0.0, 0.0)),
+      (16.8, (0xFF8FC9EC, 0xFFD6EFF7, 0xFFFFFFFF, 0.0, 0.0)),
+      (18.6, (0xFF8F8BC9, 0xFFFFC08A, 0xFFF4CDC2, 0.1, 0.2)),
+      (20.4, (0xFF5D5C96, 0xFFB98FB4, 0xFFB9AED6, 0.55, 0.55)),
+      (22.4, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
+      (24.0, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
+    ];
+    for (var i = 0; i < stops.length - 1; i++) {
+      final (h0, a) = stops[i];
+      final (h1, b) = stops[i + 1];
+      if (h >= h0 && h <= h1) {
+        final t = (h - h0) / (h1 - h0);
+        return (
+          top: Color.lerp(Color(a.$1), Color(b.$1), t)!,
+          bot: Color.lerp(Color(a.$2), Color(b.$2), t)!,
+          cloud: Color.lerp(Color(a.$3), Color(b.$3), t)!,
+          star: ui.lerpDouble(a.$4, b.$4, t)!,
+          nightness: ui.lerpDouble(a.$5, b.$5, t)!,
+        );
+      }
+    }
+    return (
+      top: const Color(0xFF3D4673),
+      bot: const Color(0xFF6E78AC),
+      cloud: const Color(0xFF9FA8CE),
+      star: 1.0,
+      nightness: 1.0,
+    );
   }
 
   // ── 窗光光束 + 地板光池 + 塵埃 ──────────────────────────────
