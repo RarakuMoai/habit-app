@@ -104,6 +104,9 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     final name = widget.habit['name'] as String;
     _syncCheckAnim(done);
 
+    // 完成卡「洩氣」壓縮（68→52）：把視覺重量讓給還沒做的事
+    final minH = done ? 52.0 : 68.0;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: AnimatedContainer(
@@ -129,149 +132,158 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
               highlightColor: (done ? Colors.grey : Colors.green).withValues(
                 alpha: 0.06,
               ),
-              child: IntrinsicHeight(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 68),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 內縮圓角色條：只表「類別」（橘=一般、藍=連動），
-                      // 完成狀態交給圓圈/底色表達，色條僅淡出讓位
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 14, 0, 14),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          width: 4,
-                          decoration: BoxDecoration(
-                            color:
-                                (widget.isLinked
-                                        ? Colors.blue.shade400
-                                        : Colors.orange.shade400)
-                                    .withValues(alpha: done ? 0.30 : 1.0),
-                            borderRadius: BorderRadius.circular(2),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 340),
+                curve: Curves.easeOutCubic,
+                child: IntrinsicHeight(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: minH),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 內縮圓角色條：只表「類別」（橘=一般、藍=連動），
+                        // 完成狀態交給圓圈/底色表達，色條僅淡出讓位
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            12,
+                            done ? 10 : 14,
+                            0,
+                            done ? 10 : 14,
+                          ),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            width: 4,
+                            decoration: BoxDecoration(
+                              color:
+                                  (widget.isLinked
+                                          ? Colors.blue.shade400
+                                          : Colors.orange.shade400)
+                                      .withValues(alpha: done ? 0.30 : 1.0),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: ListTile(
-                          // ListTile 對 leading 的置中是用「內部算出的內容高度」
-                          // （單行=56），不是被外層撐開後的實際高度（68），
-                          // 所以要用 minTileHeight 讓內外高度一致圓圈才會置中；
-                          // titleAlignment 再保證有副標（連動喝水）時也走同一規則
-                          minTileHeight: 68,
-                          titleAlignment: ListTileTitleAlignment.center,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 2,
-                          ),
-                        leading: ScaleTransition(
-                          scale: _scale,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              gradient: done
-                                  ? LinearGradient(
-                                      colors: [
-                                        Colors.green.shade400,
-                                        Colors.green.shade500,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    )
-                                  : null,
-                              color: done ? null : const Color(0xFFFAF7F2),
-                              border: done
-                                  ? null
-                                  : Border.all(
-                                      color: const Color(0xFFDDD0C4),
-                                      width: 1.8,
-                                    ),
-                              shape: BoxShape.circle,
-                              boxShadow: done
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.green.withValues(
-                                          alpha: 0.3,
-                                        ),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
+                        Expanded(
+                          child: ListTile(
+                            // ListTile 對 leading 的置中是用「內部算出的內容高度」
+                            // （單行=56），不是被外層撐開後的實際高度（68），
+                            // 所以要用 minTileHeight 讓內外高度一致圓圈才會置中；
+                            // titleAlignment 再保證有副標（連動喝水）時也走同一規則
+                            minTileHeight: minH,
+                            titleAlignment: ListTileTitleAlignment.center,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: done ? 0 : 2,
                             ),
-                            child: done
-                                ? AnimatedBuilder(
-                                    animation: _checkAnim,
-                                    builder: (_, _) => CustomPaint(
-                                      painter: _CheckDrawPainter(
-                                        _checkAnim.value,
-                                      ),
+                            leading: ScaleTransition(
+                              scale: _scale,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                width: done ? 28 : 34,
+                                height: done ? 28 : 34,
+                                decoration: BoxDecoration(
+                                  gradient: done
+                                      ? LinearGradient(
+                                          colors: [
+                                            Colors.green.shade400,
+                                            Colors.green.shade500,
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        )
+                                      : null,
+                                  color: done ? null : const Color(0xFFFAF7F2),
+                                  border: done
+                                      ? null
+                                      : Border.all(
+                                          color: const Color(0xFFDDD0C4),
+                                          width: 1.8,
+                                        ),
+                                  shape: BoxShape.circle,
+                                  boxShadow: done
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.green.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: done
+                                    ? AnimatedBuilder(
+                                        animation: _checkAnim,
+                                        builder: (_, _) => CustomPaint(
+                                          painter: _CheckDrawPainter(
+                                            _checkAnim.value,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                            title: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 250),
+                              style: TextStyle(
+                                fontSize: done ? 13.5 : 15,
+                                height: 1.3,
+                                fontWeight: FontWeight.w600,
+                                decoration: done
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                                decorationColor: AppInk.faint,
+                                color: done ? AppInk.faint : AppInk.strong,
+                              ),
+                              child: Text(
+                                name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            subtitle: widget.isLinked
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.link,
+                                          size: 11,
+                                          color: Colors.blue.shade400,
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          '連動喝水頁面',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.blue.shade500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   )
                                 : null,
+                            trailing: PopupMenuButton<String>(
+                              icon: Icon(
+                                Icons.more_vert,
+                                size: 20,
+                                color: AppInk.iconFaint,
+                              ),
+                              itemBuilder: (_) => _habitMenuItems(),
+                              onSelected: (v) {
+                                if (v == 'edit') {
+                                  widget.onEdit();
+                                } else {
+                                  widget.onDelete();
+                                }
+                              },
+                            ),
                           ),
                         ),
-                        title: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 250),
-                          style: TextStyle(
-                            fontSize: 15,
-                            height: 1.3,
-                            fontWeight: FontWeight.w600,
-                            decoration: done
-                                ? TextDecoration.lineThrough
-                                : TextDecoration.none,
-                            decorationColor: AppInk.faint,
-                            color: done ? AppInk.faint : AppInk.strong,
-                          ),
-                          child: Text(
-                            name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        subtitle: widget.isLinked
-                            ? Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.link,
-                                      size: 11,
-                                      color: Colors.blue.shade400,
-                                    ),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      '連動喝水頁面',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.blue.shade500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : null,
-                        trailing: PopupMenuButton<String>(
-                          icon: Icon(
-                            Icons.more_vert,
-                            size: 20,
-                            color: AppInk.iconFaint,
-                          ),
-                          itemBuilder: (_) => _habitMenuItems(),
-                          onSelected: (v) {
-                            if (v == 'edit') {
-                              widget.onEdit();
-                            } else {
-                              widget.onDelete();
-                            }
-                          },
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -476,7 +488,11 @@ List<PopupMenuItem<String>> _habitMenuItems() => [
     value: 'delete',
     child: Row(
       children: [
-        Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red.shade400),
+        Icon(
+          Icons.delete_outline_rounded,
+          size: 18,
+          color: Colors.red.shade400,
+        ),
         const SizedBox(width: 10),
         Text('刪除', style: TextStyle(color: Colors.red.shade400)),
       ],
