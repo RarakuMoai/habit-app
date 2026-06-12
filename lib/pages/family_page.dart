@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/app_style.dart';
 import '../utils/mascot.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
@@ -194,18 +195,18 @@ class _FamilyPageState extends State<FamilyPage> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: Colors.black87,
+                    color: AppInk.strong,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   '新增小孩後，就能一起記小任務、累積積分',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade500,
+                    color: AppInk.soft,
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -262,9 +263,7 @@ class _FamilyPageState extends State<FamilyPage> {
               onPressed: _addChildAction,
               icon: const Icon(Icons.person_add_outlined, size: 18),
               label: const Text('新增小孩'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey.shade600,
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppInk.soft),
             ),
           );
         }
@@ -308,7 +307,7 @@ class _ChildCard extends StatelessWidget {
         ),
         leading: CircleAvatar(
           radius: 24,
-          backgroundColor: Colors.grey.shade100,
+          backgroundColor: const Color(0xFFFAF7F2),
           child: Text(
             child.avatar.isNotEmpty ? child.avatar : '🐼',
             style: const TextStyle(fontSize: 24),
@@ -320,9 +319,9 @@ class _ChildCard extends StatelessWidget {
         ),
         subtitle: Text(
           '積分：${child.points}',
-          style: TextStyle(color: Colors.grey.shade600),
+          style: const TextStyle(color: AppInk.soft),
         ),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+        trailing: const Icon(Icons.chevron_right, color: AppInk.iconFaint),
         onTap: onTap,
       ),
     );

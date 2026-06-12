@@ -1697,7 +1697,8 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
+              // 規範：陰影不用純黑；用頁面墨色帶藍調
+              color: _kInk.withValues(alpha: 0.16),
               blurRadius: 22,
               offset: const Offset(0, 8),
             ),
@@ -1775,7 +1776,10 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
             const SizedBox(height: 8),
             Text(
               '這是日常提醒用估算值；天氣、運動、健康狀況都會影響需求。',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              style: TextStyle(
+                color: _kInkSoft.withValues(alpha: 0.85),
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 18),
             SizedBox(
@@ -2060,7 +2064,8 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
+                // 規範：陰影不用純黑；用頁面墨色帶藍調
+                color: _kInk.withValues(alpha: 0.16),
                 blurRadius: 22,
                 offset: const Offset(0, 8),
               ),
@@ -2072,12 +2077,16 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
             children: [
               const Text(
                 '喝了多少？',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: _kInk,
+                ),
               ),
               const SizedBox(height: 4),
-              Text(
+              const Text(
                 '快速選擇 或自己輸入',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 13, color: _kInkSoft),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -2113,13 +2122,17 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
                 children: [
                   const Text(
                     '今日紀錄',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: _kInk,
+                    ),
                   ),
                   const Spacer(),
                   Text(
                     '${_localEntries.length} 筆',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
+                    style: const TextStyle(
+                      color: _kInkSoft,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2136,11 +2149,11 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
                           color: _kChipBg.withValues(alpha: 0.62),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Text(
+                        child: const Text(
                           '今天還沒有補水紀錄',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: _kInkSoft,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -2253,15 +2266,17 @@ class _CustomCupInputDisplay extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: hasInput ? _kInk : Colors.grey.shade400,
+                    color: hasInput
+                        ? _kInk
+                        : _kInkSoft.withValues(alpha: 0.55),
                   ),
                 ),
               ),
               Text(
                 unitLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
-                  color: Colors.grey.shade600,
+                  color: _kInkSoft,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -2345,7 +2360,7 @@ class _CustomCupKeypad extends StatelessWidget {
             onPressed: submitEnabled ? onSubmit : null,
             style: FilledButton.styleFrom(
               backgroundColor: _kInk,
-              disabledBackgroundColor: Colors.grey.shade300,
+              disabledBackgroundColor: _kInkSoft.withValues(alpha: 0.35),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
@@ -2379,7 +2394,7 @@ class _KeyButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: muted ? Colors.grey.shade100 : _kChipBg,
+      color: muted ? _kChipBg.withValues(alpha: 0.45) : _kChipBg,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -2463,8 +2478,8 @@ class _WaterHistoryTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   type,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
+                  style: const TextStyle(
+                    color: _kInkSoft,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     height: 1.1,
