@@ -3,6 +3,8 @@
 // 問候橫幅、共用小元件與場景 painter。
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -694,15 +696,46 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
     final progress = habits.isEmpty ? 0.0 : displayDone / displayTotal;
 
+    final hour = DateTime.now().hour;
     return MascotPageShell(
       accent: colors.accent,
-      scene: ScaleTransition(
-        scale: _celebScale,
-        child: PersonaScene(
-          accent: colors.accent,
-          reactionTick: _mascotReactionTick,
-          onTap: _onMascotTap,
-        ),
+      scene: Stack(
+        children: [
+          // 概念版：天空進度弧 — 每日進度化作太陽（夜晚是星星）在
+          // 天空的位置，全完成時光芒迸發。進度不再是一條 UI bar，
+          // 而是兔咪世界的一部分。畫在兔咪/對話框下層，避開 app bar。
+          if (habits.isNotEmpty)
+            Positioned(
+              top: 46,
+              left: 22,
+              right: 22,
+              height: 62,
+              child: IgnorePointer(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: progress),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, v, _) => CustomPaint(
+                    painter: _SkyArcPainter(
+                      progress: v,
+                      accent: colors.accent,
+                      night: hour >= 22 || hour < 6,
+                      done: displayDone,
+                      total: displayTotal,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ScaleTransition(
+            scale: _celebScale,
+            child: PersonaScene(
+              accent: colors.accent,
+              reactionTick: _mascotReactionTick,
+              onTap: _onMascotTap,
+            ),
+          ),
+        ],
       ),
       child: _habitCardContent(
         progress: progress,
@@ -729,74 +762,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required int displayTotal,
     required Color accent,
   }) {
-    final reached = displayTotal > 0 && displayDone >= displayTotal;
-    // 達標時亮點呼吸，未達標時停住歸零（在 build 同步狀態，含載入時）
-    if (reached && !_glowCtrl.isAnimating) {
-      _glowCtrl.repeat(reverse: true);
-    } else if (!reached && _glowCtrl.isAnimating) {
-      _glowCtrl
-        ..stop()
-        ..value = 0;
-    }
+    // 概念版：進度視覺整個交給場景天空弧，卡片區直接從清單開始；
+    // 新增鈕沉到清單底部成幽靈卡，把頂部讓給內容
     return Column(
       children: [
-        if (habits.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.0, end: progress),
-                    duration: const Duration(milliseconds: 700),
-                    curve: Curves.easeOut,
-                    builder: (_, value, _) => _ProgressBar(
-                      value: value,
-                      accent: accent,
-                      glow: _glowCtrl,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // 達標時數字升級成綠色膠囊＋勾，給一個小小的完成獎勵
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: reached ? Colors.green.shade50 : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (reached) ...[
-                        Icon(
-                          Icons.check_circle_rounded,
-                          size: 13,
-                          color: Colors.green.shade500,
-                        ),
-                        const SizedBox(width: 3),
-                      ],
-                      Text(
-                        '$displayDone / $displayTotal',
-                        style: AppType.digits(
-                          color: reached ? Colors.green.shade700 : accent,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 8),
-        _buildAddButton(),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
         Expanded(child: _buildHabitList()),
       ],
     );
@@ -860,53 +830,44 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAddButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _showAddHabitSheet,
-          borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.orange.withValues(alpha: 0.15),
-          highlightColor: Colors.orange.withValues(alpha: 0.08),
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFF8EC), Color(0xFFFFEFDA)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.orange.withValues(alpha: 0.35),
-              ),
+  // 概念版幽靈新增卡：沉在清單最底，存在感低但永遠在手邊
+  Widget _buildGhostAddCard() {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: _showAddHabitSheet,
+        borderRadius: BorderRadius.circular(24),
+        splashColor: Colors.orange.withValues(alpha: 0.12),
+        highlightColor: Colors.orange.withValues(alpha: 0.06),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.orange.withValues(alpha: 0.30),
+              width: 1.4,
             ),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade400,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.add, size: 16, color: Colors.white),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_circle_outline_rounded,
+                size: 18,
+                color: Colors.orange.shade400,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '新增習慣',
+                style: TextStyle(
+                  color: Colors.orange.shade700,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  letterSpacing: 0.5,
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  '新增習慣',
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -914,7 +875,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildHabitList() {
-    if (habits.isEmpty) return _buildEmptyState();
+    if (habits.isEmpty) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildGhostAddCard(),
+          ),
+          Expanded(child: _buildEmptyState()),
+        ],
+      );
+    }
 
     final dailyEntries = habits
         .asMap()
@@ -991,6 +962,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           ...weeklyEntries.map(buildCard),
         ],
+        const SizedBox(height: 8),
+        _buildGhostAddCard(),
         const SizedBox(height: 24),
       ],
     );
@@ -1057,76 +1030,148 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 }
 
-// 進度列：漸層填色 + 尾端亮點；達標時亮點隨 [glow] 呼吸發光
-class _ProgressBar extends StatelessWidget {
-  final double value;
+// 概念版：天空進度弧。
+// 每日進度 = 太陽（夜晚是星星）沿著天空軌道的位置；走過的軌跡上色，
+// 全完成時太陽抵達頂點、光芒迸發。把「進度條」還給世界觀。
+class _SkyArcPainter extends CustomPainter {
+  final double progress; // 0~1
   final Color accent;
-  final Animation<double> glow;
+  final bool night;
+  final int done;
+  final int total;
 
-  const _ProgressBar({
-    required this.value,
+  const _SkyArcPainter({
+    required this.progress,
     required this.accent,
-    required this.glow,
+    required this.night,
+    required this.done,
+    required this.total,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 14,
-      child: LayoutBuilder(
-        builder: (_, constraints) {
-          final w = constraints.maxWidth;
-          final x = (w * value).clamp(0.0, w);
-          return Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.centerLeft,
-            children: [
-              Container(
-                height: 6,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              Container(
-                height: 6,
-                width: x,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [accent.withValues(alpha: 0.72), accent],
-                  ),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              if (value > 0.03)
-                AnimatedBuilder(
-                  animation: glow,
-                  builder: (_, _) => Positioned(
-                    left: (x - 5).clamp(0.0, w - 10),
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: accent, width: 2.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accent.withValues(
-                              alpha: 0.35 + 0.30 * glow.value,
-                            ),
-                            blurRadius: 4 + 6 * glow.value,
-                            spreadRadius: 0.5 + 1.5 * glow.value,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    // 上升弧：左下 → 右上爬升（quadratic）。太陽跟著進度往上爬，
+    // 100% 時在頂端迸發光芒 —「今天走到最高處」
+    final path = Path()
+      ..moveTo(w * 0.04, h * 0.88)
+      ..quadraticBezierTo(w * 0.60, h * 0.84, w * 0.90, h * 0.32);
+    final metric = path.computeMetrics().first;
+
+    // 柔光緞帶底：把弧從豐富的房間背景里抬出來（寬模糊白帶）
+    final ribbon = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 16
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.42)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6);
+    canvas.drawPath(path, ribbon);
+
+    // 軌道（白底襯 + accent 淡彩，柔和不搶兔咪）
+    final track = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.9);
+    canvas.drawPath(path, track);
+    final trackTint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..color = accent.withValues(alpha: 0.35);
+    canvas.drawPath(path, trackTint);
+
+    final p = progress.clamp(0.0, 1.0);
+    final reached = total > 0 && done >= total;
+
+    // 已走過的軌跡
+    if (p > 0.01) {
+      final trail = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.4
+        ..strokeCap = StrokeCap.round
+        ..color = accent.withValues(alpha: 0.85);
+      canvas.drawPath(metric.extractPath(0, metric.length * p), trail);
+    }
+
+    // 太陽 / 星星位置
+    final tangent = metric.getTangentForOffset(metric.length * p);
+    if (tangent == null) return;
+    final pos = tangent.position;
+
+    // 達標光芒
+    if (reached) {
+      final ray = Paint()
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..color = accent.withValues(alpha: 0.75);
+      for (var i = 0; i < 8; i++) {
+        final a = i * math.pi / 4 + math.pi / 8;
+        canvas.drawLine(
+          pos + Offset(math.cos(a), math.sin(a)) * 13,
+          pos + Offset(math.cos(a), math.sin(a)) * 19,
+          ray,
+        );
+      }
+    }
+
+    // 本體：白心 + accent 邊 + 柔光（夜晚改四芒星）
+    final glow = Paint()
+      ..color = accent.withValues(alpha: reached ? 0.60 : 0.42)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8);
+    canvas.drawCircle(pos, 11, glow);
+    if (night) {
+      final star = Path();
+      const r1 = 8.0, r2 = 3.2;
+      for (var i = 0; i < 8; i++) {
+        final r = i.isEven ? r1 : r2;
+        final a = -math.pi / 2 + i * math.pi / 4;
+        final v = pos + Offset(math.cos(a), math.sin(a)) * r;
+        i == 0 ? star.moveTo(v.dx, v.dy) : star.lineTo(v.dx, v.dy);
+      }
+      star.close();
+      canvas.drawPath(star, Paint()..color = Colors.white);
+      canvas.drawPath(
+        star,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = accent,
+      );
+    } else {
+      canvas.drawCircle(pos, 8.5, Paint()..color = Colors.white);
+      canvas.drawCircle(
+        pos,
+        8.5,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.6
+          ..color = accent,
+      );
+    }
+
+    // 進度數字（跟著太陽走，貼在下方）
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '$done/$total',
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          color: accent,
+          shadows: const [Shadow(color: Colors.white, blurRadius: 6)],
+        ),
       ),
-    );
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, pos + Offset(-tp.width / 2, 13));
   }
+
+  @override
+  bool shouldRepaint(_SkyArcPainter old) =>
+      old.progress != progress ||
+      old.accent != accent ||
+      old.done != done ||
+      old.total != total ||
+      old.night != night;
 }
