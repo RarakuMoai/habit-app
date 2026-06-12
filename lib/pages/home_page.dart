@@ -670,6 +670,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 color: _sceneTint,
               ),
             ),
+            // 概念版：房間下緣融入地面色（原本由白色面板蓋住的接縫）
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.56 - 130,
+              left: 0,
+              right: 0,
+              height: 132,
+              child: IgnorePointer(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 600),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        colors.bottom.withValues(alpha: 0.0),
+                        colors.bottom.withValues(alpha: 0.55),
+                        colors.bottom,
+                      ],
+                      stops: const [0.0, 0.62, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             // 互動狀態效果（完成星光、連續天數獎盃）
             Positioned.fill(
               child: CustomPaint(
@@ -681,12 +705,232 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               ),
             ),
-            // 內容
-            SafeArea(child: _buildMascotScene()),
+            // 內容（概念版：小徑世界，無面板）
+            SafeArea(child: _buildPathWorld()),
           ],
         ),
       ),
     );
+  }
+
+  // ── 概念版「兔咪的小徑」：整頁就是世界，習慣是小徑上的石頭 ──
+  Widget _buildPathWorld() {
+    final colors = _sceneColors;
+    final w = MediaQuery.of(context).size.width;
+    final entries = habits.asMap().entries.toList();
+    const headerH = 270.0;
+    const stepH = 104.0;
+    final contentH = headerH + entries.length * stepH + 170;
+
+    // 石頭節點座標（左右交錯），painter 與石頭共用
+    final nodes = <Offset>[
+      for (var i = 0; i < entries.length; i++)
+        Offset(w * (i.isEven ? 0.28 : 0.72), headerH + 46 + i * stepH),
+    ];
+    final addPos = Offset(
+      w * (entries.length.isEven ? 0.28 : 0.72),
+      headerH + 46 + entries.length * stepH,
+    );
+
+    return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      child: SizedBox(
+        height: contentH,
+        width: double.infinity,
+        child: Stack(
+          children: [
+            // 小徑（最底層）
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _TrailPainter(
+                    accent: colors.accent,
+                    start: Offset(w * 0.5, headerH - 34),
+                    nodes: [...nodes, addPos],
+                  ),
+                ),
+              ),
+            ),
+            // 兔咪 + 對話框
+            SizedBox(
+              height: headerH,
+              width: double.infinity,
+              child: PersonaScene(
+                accent: colors.accent,
+                reactionTick: _mascotReactionTick,
+                onTap: _onMascotTap,
+              ),
+            ),
+            // 習慣石
+            for (var i = 0; i < entries.length; i++)
+              ..._stoneNode(entries[i].key, entries[i].value, nodes[i], w),
+            ..._addStone(addPos, w),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 一顆習慣石 + 名字牌（回傳兩個 Positioned）
+  List<Widget> _stoneNode(
+    int index,
+    Map<String, dynamic> habit,
+    Offset pos,
+    double w,
+  ) {
+    final isWeekly = (habit['frequency'] ?? 'daily') == 'weekly';
+    final done = habit['done'] == true;
+    final name = habit['name'] as String;
+    final weeklyCount = _weeklyCount(habit);
+    final weeklyTarget = (habit['weeklyTarget'] as int?) ?? 3;
+    final size = done ? 40.0 : 58.0;
+    final leftSide = pos.dx < w / 2;
+
+    void onTap() => toggleHabit(index);
+    void onLong() => _editHabitSheet(index);
+
+    final stone = GestureDetector(
+      onTap: onTap,
+      onLongPress: onLong,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: done
+              ? LinearGradient(
+                  colors: [Colors.green.shade400, Colors.green.shade500],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: done ? null : Colors.white,
+          border: done
+              ? null
+              : Border.all(color: const Color(0xFFDDD0C4), width: 2),
+          boxShadow: done
+              ? [
+                  BoxShadow(
+                    color: Colors.green.withValues(alpha: 0.30),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : AppShadows.card,
+        ),
+        child: Center(
+          child: done
+              ? const Icon(Icons.check_rounded, color: Colors.white, size: 22)
+              : isWeekly
+              ? Text(
+                  '$weeklyCount/$weeklyTarget',
+                  style: AppType.digits(
+                    color: Colors.indigo.shade400,
+                    fontWeight: FontWeight.w800,
+                  ),
+                )
+              : Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.orange.withValues(alpha: 0.22),
+                  ),
+                ),
+        ),
+      ),
+    );
+
+    final pill = GestureDetector(
+      onTap: onTap,
+      onLongPress: onLong,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 320),
+        constraints: BoxConstraints(maxWidth: w * 0.44),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: done ? 0.55 : 0.95),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: done ? null : AppShadows.flat,
+        ),
+        child: Text(
+          name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: done ? 12.5 : 14.5,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+            decoration: done ? TextDecoration.lineThrough : null,
+            decorationColor: AppInk.faint,
+            color: done ? AppInk.faint : AppInk.strong,
+          ),
+        ),
+      ),
+    );
+
+    return [
+      Positioned(
+        left: pos.dx - size / 2,
+        top: pos.dy - size / 2,
+        child: stone,
+      ),
+      Positioned(
+        top: pos.dy - 19,
+        left: leftSide ? pos.dx + size / 2 + 10 : null,
+        right: leftSide ? null : w - pos.dx + size / 2 + 10,
+        child: pill,
+      ),
+    ];
+  }
+
+  // 路徑盡頭的「+」幽靈石
+  List<Widget> _addStone(Offset pos, double w) {
+    final leftSide = pos.dx < w / 2;
+    return [
+      Positioned(
+        left: pos.dx - 24,
+        top: pos.dy - 24,
+        child: GestureDetector(
+          onTap: _showAddHabitSheet,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.55),
+              border: Border.all(
+                color: Colors.orange.withValues(alpha: 0.40),
+                width: 1.6,
+              ),
+            ),
+            child: Icon(
+              Icons.add_rounded,
+              color: Colors.orange.shade400,
+              size: 24,
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        top: pos.dy - 14,
+        left: leftSide ? pos.dx + 34 : null,
+        right: leftSide ? null : w - pos.dx + 34,
+        child: GestureDetector(
+          onTap: _showAddHabitSheet,
+          child: Text(
+            '新增習慣',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.orange.withValues(alpha: 0.75),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _buildMascotScene() {
@@ -1028,6 +1272,84 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+// 概念版：兔咪的小徑。柔光路徑帶 + 點點中線，從兔咪腳下蜿蜒
+// 連起所有習慣石；accent 跟著時段/全完成配色走。
+class _TrailPainter extends CustomPainter {
+  final Color accent;
+  final Offset start;
+  final List<Offset> nodes;
+
+  const _TrailPainter({
+    required this.accent,
+    required this.start,
+    required this.nodes,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (nodes.isEmpty) return;
+    final path = Path()..moveTo(start.dx, start.dy);
+    var prev = start;
+    for (final n in nodes) {
+      final midY = (prev.dy + n.dy) / 2;
+      path.cubicTo(prev.dx, midY, n.dx, midY, n.dx, n.dy);
+      prev = n;
+    }
+
+    // 柔光路徑帶
+    final ribbon = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 24
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.65)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 5);
+    canvas.drawPath(path, ribbon);
+    final tint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 24
+      ..strokeCap = StrokeCap.round
+      ..color = accent.withValues(alpha: 0.10);
+    canvas.drawPath(path, tint);
+
+    // 點點中線（散步感）
+    final dot = Paint()..color = accent.withValues(alpha: 0.45);
+    for (final metric in path.computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += 17) {
+        final t = metric.getTangentForOffset(d);
+        if (t != null) canvas.drawCircle(t.position, 2.1, dot);
+      }
+    }
+
+    // 路邊小花（固定 pattern 的偽隨機，避免每次 repaint 跳動）
+    final petal = Paint()..color = accent.withValues(alpha: 0.30);
+    final core = Paint()..color = Colors.white.withValues(alpha: 0.85);
+    for (final metric in path.computeMetrics()) {
+      for (var d = 60.0; d < metric.length - 40; d += 96) {
+        final t = metric.getTangentForOffset(d);
+        if (t == null) continue;
+        // 垂直於路徑方向偏移到路邊，左右交替、距離微變化
+        final side = (d ~/ 96).isEven ? 1.0 : -1.0;
+        final wobble = 30 + (d % 53) * 0.35;
+        final n = Offset(-t.vector.dy, t.vector.dx) / t.vector.distance;
+        final c = t.position + n * side * wobble;
+        for (var i = 0; i < 5; i++) {
+          final a = i * 2 * math.pi / 5;
+          canvas.drawCircle(
+            c + Offset(math.cos(a), math.sin(a)) * 3.4,
+            2.2,
+            petal,
+          );
+        }
+        canvas.drawCircle(c, 1.9, core);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TrailPainter old) =>
+      old.accent != accent || old.nodes.length != nodes.length;
 }
 
 // 概念版：天空進度弧。
