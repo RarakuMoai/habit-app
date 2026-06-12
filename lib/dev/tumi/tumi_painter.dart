@@ -25,7 +25,7 @@ class TumiPainter extends CustomPainter {
 
     final stroke = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
+      ..strokeWidth = 3.6
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..color = _outline;

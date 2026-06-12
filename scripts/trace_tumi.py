@@ -90,7 +90,7 @@ for y in range(H):
                         q.append((nx, ny))
         comps.append((c, pix))
 
-comps = [(c, p) for c, p in comps if len(p) >= 80]
+comps = [(c, p) for c, p in comps if len(p) >= 40]
 comps.sort(key=lambda cp: -len(cp[1]))
 print('components:', [(c, len(p)) for c, p in comps[:24]])
 
@@ -151,24 +151,53 @@ def near_outline(x, y, r=3):
 
 shapes = []   # (argb, [scaled pts], area)
 stroke_polys = []  # 區域邊界中有描邊的分段
+claimed = set()  # 已描過的邊界格（4px 網格），避免相鄰色塊重複描 → 鉛筆重線
+
+def is_claimed(x, y):
+    return (int(x)//4, int(y)//4) in claimed
+
+def claim(x, y):
+    claimed.add((int(x)//4, int(y)//4))
+
+NO_STROKE_CLASSES = {'eye', 'blush', 'nose'}
+
 for c, pixlist in comps:
     pixset = set(pixlist)
+    area = len(pixlist)
+    # 鼻嘴小記號太細，膨脹 1px 加粗
+    if c == 'nose' and area < 600:
+        grown = set(pixset)
+        for (x, y) in pixset:
+            grown.update([(x-1,y),(x+1,y),(x,y-1),(x,y+1)])
+        pixset = grown
     path = outer_boundary(pixset)
-    simp = rdp(path, 1.4)
+    # 小形狀（眼睛/高光/鼻嘴）用更細的簡化容差，避免多邊形感
+    eps = 1.4 if area >= 10000 else (0.8 if area >= 2000 else 0.5)
+    simp = rdp(path, eps)
     if len(simp) < 3: continue
     pts = [(round(x*SCALE, 1), round(y*SCALE, 1)) for x, y in simp]
-    shapes.append((COLOR_OUT[c], pts, len(pixlist)))
-    # 邊界描邊分段（沿簡化前 path 取樣）
+    shapes.append((COLOR_OUT[c], pts, area))
+    if c in NO_STROKE_CLASSES or area < 1500:
+        continue  # 細小色塊與五官不描邊（參考圖該處是柔邊）
+    # 邊界描邊分段：沿簡化前 path 走，要求「附近有描邊」且「沒被描過」
     seg = []
-    step = max(1, len(path)//400)
+    step = max(1, len(path)//600)
     for i in range(0, len(path), step):
         x, y = path[i]
-        if near_outline(x, y):
-            seg.append((round(x*SCALE, 1), round(y*SCALE, 1)))
+        if near_outline(x, y) and not is_claimed(x, y):
+            seg.append((x, y))
         else:
-            if len(seg) >= 6: stroke_polys.append(rdp(seg, 1.4))
+            if len(seg) >= 14:
+                for sx, sy in seg: claim(sx, sy)
+                stroke_polys.append(
+                    [(round(px_*SCALE, 1), round(py_*SCALE, 1))
+                     for px_, py_ in rdp(seg, 1.4)])
             seg = []
-    if len(seg) >= 6: stroke_polys.append(rdp(seg, 1.4))
+    if len(seg) >= 14:
+        for sx, sy in seg: claim(sx, sy)
+        stroke_polys.append(
+            [(round(px_*SCALE, 1), round(py_*SCALE, 1))
+             for px_, py_ in rdp(seg, 1.4)])
 
 # ---- 5. 內部線（嘴/人中/腳趾縫/手臂內線）：周圍同類的 outline 像素 ----
 def interior_line_pixels():
@@ -200,7 +229,7 @@ while iset:
             for dx in range(-2, 3):
                 p = (cx+dx, cy+dy)
                 if p in iset: iset.discard(p); q.append(p)
-    if len(blob) < 25: continue
+    if len(blob) < 14: continue
     # 從極端點開始貪婪走訪取中軸近似
     start = max(blob, key=lambda p: max(math.hypot(p[0]-q2[0], p[1]-q2[1]) for q2 in blob[::7] or blob))
     remain = set(blob); cur = start; poly = [cur]; remain.discard(cur)
@@ -228,9 +257,7 @@ with open(DST, 'w') as f:
     f.write('];\n\n')
     f.write('const List<List<double>> tumiTracedStrokes = [\n')
     for poly in stroke_polys:
-        spts = [(round(x*SCALE,1), round(y*SCALE,1)) for x, y in poly] \
-            if poly and isinstance(poly[0][0], int) else poly
-        f.write(f'  [{fmt(spts)}],\n')
+        f.write(f'  [{fmt(poly)}],\n')
     for poly in lines:
         f.write(f'  [{fmt(poly)}],\n')
     f.write('];\n')
