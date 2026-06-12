@@ -218,6 +218,14 @@ class _MascotStageState extends State<MascotStage>
   late final AnimationController _reactionCtrl;
   late final Animation<double> _reactionScale;
   late final Animation<double> _reactionLift;
+  late final AnimationController _breathCtrl;
+  late final Animation<double> _breath;
+
+  // 眨眼：閉眼差分換圖。只有 MascotEmotion.blinkAssetForPath 有對應圖的
+  // 情緒會眨；其他情緒 timer 照走但跳過，等換回有差分的圖自然恢復。
+  final math.Random _rng = math.Random();
+  Timer? _blinkTimer;
+  bool _eyesClosed = false;
 
   @override
   void initState() {
@@ -239,6 +247,41 @@ class _MascotStageState extends State<MascotStage>
       TweenSequenceItem(tween: Tween(begin: 0, end: -6), weight: 38),
       TweenSequenceItem(tween: Tween(begin: -6, end: 0), weight: 62),
     ]).animate(curved);
+
+    // idle 呼吸：以腳底為錨點的細微縱向縮放，一吸一吐 ~2.6 秒
+    _breathCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    )..repeat(reverse: true);
+    _breath = CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut);
+
+    _scheduleNextBlink();
+  }
+
+  void _scheduleNextBlink() {
+    _blinkTimer?.cancel();
+    // 人類眨眼間隔大約 2~6 秒，取隨機避免機械感
+    _blinkTimer = Timer(
+      Duration(milliseconds: 2400 + _rng.nextInt(3200)),
+      () async {
+        if (!mounted) return;
+        if (MascotEmotion.blinkAssetForPath(widget.asset) != null) {
+          await _blinkOnce();
+          // 偶爾連眨兩下，更像活的
+          if (mounted && _rng.nextDouble() < 0.22) {
+            await Future<void>.delayed(const Duration(milliseconds: 140));
+            if (mounted) await _blinkOnce();
+          }
+        }
+        if (mounted) _scheduleNextBlink();
+      },
+    );
+  }
+
+  Future<void> _blinkOnce() async {
+    setState(() => _eyesClosed = true);
+    await Future<void>.delayed(const Duration(milliseconds: 130));
+    if (mounted) setState(() => _eyesClosed = false);
   }
 
   @override
@@ -251,8 +294,32 @@ class _MascotStageState extends State<MascotStage>
 
   @override
   void dispose() {
+    _blinkTimer?.cancel();
+    _breathCtrl.dispose();
     _reactionCtrl.dispose();
     super.dispose();
+  }
+
+  /// 兔咪本體。有閉眼差分時把兩張圖都放進樹裡（用 opacity 切換），
+  /// 讓差分圖保持解碼狀態，第一次眨眼才不會閃白。
+  Widget _buildBunnyImage() {
+    final blinkAsset = MascotEmotion.blinkAssetForPath(widget.asset);
+    if (blinkAsset == null) {
+      return Image.asset(widget.asset, fit: BoxFit.contain);
+    }
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        Opacity(
+          opacity: _eyesClosed ? 0 : 1,
+          child: Image.asset(widget.asset, fit: BoxFit.contain),
+        ),
+        Opacity(
+          opacity: _eyesClosed ? 1 : 0,
+          child: Image.asset(blinkAsset, fit: BoxFit.contain),
+        ),
+      ],
+    );
   }
 
   @override
@@ -341,7 +408,16 @@ class _MascotStageState extends State<MascotStage>
             child: Padding(
               key: ValueKey(widget.asset),
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-              child: Image.asset(widget.asset, fit: BoxFit.contain),
+              child: AnimatedBuilder(
+                animation: _breath,
+                builder: (context, bunny) => Transform.scale(
+                  scaleY: 1 + 0.013 * _breath.value,
+                  scaleX: 1 - 0.005 * _breath.value,
+                  alignment: Alignment.bottomCenter,
+                  child: bunny,
+                ),
+                child: _buildBunnyImage(),
+              ),
             ),
           ),
         ),

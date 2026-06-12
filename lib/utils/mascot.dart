@@ -41,6 +41,21 @@ enum MascotEmotion {
       ? 'assets/mascot/core/tumi_$assetKey.png'
       // 還沒生 CG 的情緒（目前只剩 streak），暫時用 happy 代替避免破圖
       : 'assets/mascot/core/tumi_happy.png';
+
+  // 有閉眼差分圖（tumi_<key>_blink.png）的情緒。
+  // 眨眼動畫由 MascotStage 處理；新增差分圖後把情緒加進這裡即可生效。
+  static const Set<MascotEmotion> _hasBlink = {MascotEmotion.neutralFront};
+
+  /// 由 asset 路徑反查對應的閉眼差分；沒有差分圖回 null（不眨眼）。
+  /// 給只拿得到路徑字串的 widget（MascotStage）用。
+  static String? blinkAssetForPath(String assetPath) {
+    for (final e in _hasBlink) {
+      if (e.assetPath == assetPath) {
+        return 'assets/mascot/core/tumi_${e.assetKey}_blink.png';
+      }
+    }
+    return null;
+  }
 }
 
 // 兔咪陪伴情境。每個情境對應一組台詞與預設情緒。
