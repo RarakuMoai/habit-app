@@ -28,7 +28,7 @@ Future<String?> showPinDialog(
           autofocus: true,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(4),
+            LengthLimitingTextInputFormatter(digits),
           ],
           decoration: InputDecoration(
             hintText: '請輸入 $digits 位數字密碼',
