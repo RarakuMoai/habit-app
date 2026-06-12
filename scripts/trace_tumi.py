@@ -143,10 +143,11 @@ sys.setrecursionlimit(10000)
 # outline 像素集合（描邊判定用）
 outline_set = {(i % W, i // W) for i in range(W*H) if cls[i] == 'outline'}
 
-def near_outline(x, y, r=3):
+def near_outline(x, y, r=6):
+    xi, yi = int(x), int(y)
     for dy in range(-r, r+1):
         for dx in range(-r, r+1):
-            if (x+dx, y+dy) in outline_set: return True
+            if (xi+dx, yi+dy) in outline_set: return True
     return False
 
 shapes = []   # (argb, [scaled pts], area)
@@ -161,16 +162,31 @@ def claim(x, y):
 
 NO_STROKE_CLASSES = {'eye', 'blush', 'nose'}
 
+def smooth_closed(path, win=7):
+    """閉合路徑移動平均，消 JPEG 噪點鋸齒（呆毛等尖刺形狀勿用）。"""
+    n = len(path)
+    if n < win * 2: return path
+    half = win // 2
+    out = []
+    for i in range(n):
+        sx = sy = 0.0
+        for k in range(-half, half + 1):
+            x, y = path[(i + k) % n]
+            sx += x; sy += y
+        out.append((sx / win, sy / win))
+    return out
+
 for c, pixlist in comps:
     pixset = set(pixlist)
     area = len(pixlist)
-    # 鼻嘴小記號太細，膨脹 1px 加粗
+    # 鼻嘴記號改由 painter 手繪 × 型，描圖版捨棄
     if c == 'nose' and area < 600:
-        grown = set(pixset)
-        for (x, y) in pixset:
-            grown.update([(x-1,y),(x+1,y),(x,y-1),(x,y+1)])
-        pixset = grown
+        continue
     path = outer_boundary(pixset)
+    # 灰色大色塊與肚白輪廓平滑化（白臉帶含呆毛尖刺，不平滑）
+    ys = [p[1] for p in pixlist[::37]]
+    if area >= 5000 and (c == 'grey' or (c == 'white' and min(ys) * SCALE > 400)):
+        path = smooth_closed(path, 9)
     # 小形狀（眼睛/高光/鼻嘴）用更細的簡化容差，避免多邊形感
     eps = 1.4 if area >= 10000 else (0.8 if area >= 2000 else 0.5)
     simp = rdp(path, eps)

@@ -33,7 +33,24 @@ class TumiPainter extends CustomPainter {
       canvas.drawPath(_poly(pts, close: false), stroke);
     }
 
+    _drawMouth(canvas);
+
     canvas.restore();
+  }
+
+  /// × 型嘴（手繪，不用描圖數據；位置取自參考圖鼻嘴記號區域）。
+  void _drawMouth(Canvas canvas) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFC98F9B);
+    final x = Path()
+      ..moveTo(497, 448)
+      ..quadraticBezierTo(509, 461, 521, 472)
+      ..moveTo(521, 448)
+      ..quadraticBezierTo(509, 461, 497, 472);
+    canvas.drawPath(x, paint);
   }
 
   Path _poly(List<double> pts, {required bool close}) {
