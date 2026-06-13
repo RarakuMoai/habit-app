@@ -3,7 +3,9 @@
 // 問候橫幅、共用小元件與場景 painter。
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -56,8 +58,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late Animation<double> _celebScale;
   // 進度列尾端亮點的呼吸光暈（達標時 repeat，未達標停在 0）
   late AnimationController _glowCtrl;
+  // 編輯模式所有卡片共用的抖動驅動（一條 ticker，各卡片用不同相位）。
+  // 不放在每張卡上，避免被拖曳 reparent 時帶著正在跑的 ticker 撞 element 生命週期。
+  late AnimationController _jiggleCtrl;
 
   final Set<String> _animatedIn = {};
+  // 抖動排序模式（像 iOS 主畫面長按 App）：全卡片抖動＋可拖，底部換成完成鈕。
+  // 進入＝長按任一卡片或「⋯」選單的「移動」；退出＝點「完成」。
+  bool _editMode = false;
 
   @override
   void initState() {
@@ -74,6 +82,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
+    _jiggleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 620),
+    );
 
     loadHabits();
   }
@@ -82,6 +94,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     _celebCtrl.dispose();
     _glowCtrl.dispose();
+    _jiggleCtrl.dispose();
     super.dispose();
   }
 
@@ -234,6 +247,54 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Future<void> saveHabits() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+  }
+
+  void _startMovingHabits() {
+    if (_editMode) return;
+    setState(() => _editMode = true);
+    _jiggleCtrl.repeat();
+    playFeedback(SfxCue.tap);
+  }
+
+  void _finishMovingHabits() {
+    if (!_editMode) return;
+    setState(() => _editMode = false);
+    _jiggleCtrl
+      ..stop()
+      ..value = 0;
+    playFeedback(SfxCue.tap);
+  }
+
+  void _reorderHabitSection({
+    required bool weekly,
+    required int oldIndex,
+    required int newIndex,
+  }) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    final sectionHabits = habits
+        .where((h) => ((h['frequency'] ?? 'daily') == 'weekly') == weekly)
+        .toList();
+    if (oldIndex < 0 ||
+        oldIndex >= sectionHabits.length ||
+        newIndex < 0 ||
+        newIndex >= sectionHabits.length) {
+      return;
+    }
+
+    final moved = sectionHabits.removeAt(oldIndex);
+    sectionHabits.insert(newIndex, moved);
+
+    var sectionIndex = 0;
+    setState(() {
+      for (var i = 0; i < habits.length; i++) {
+        final isSameSection =
+            ((habits[i]['frequency'] ?? 'daily') == 'weekly') == weekly;
+        if (isSameSection) {
+          habits[i] = sectionHabits[sectionIndex++];
+        }
+      }
+    });
+    unawaited(saveHabits());
   }
 
   @override
@@ -396,7 +457,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (wasDone) _showTransientMascot('sad');
       // 打卡 +金幣／取消打卡對稱扣回
       if (wasDone) {
-        CoinService.revoke(CoinSource.habitDone, note: habit['name'] as String?);
+        CoinService.revoke(
+          CoinSource.habitDone,
+          note: habit['name'] as String?,
+        );
       } else {
         CoinService.award(CoinSource.habitDone, note: habit['name'] as String?);
       }
@@ -814,7 +878,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
         const SizedBox(height: 8),
-        _buildAddButton(),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _editMode ? _buildMoveDoneBar() : _buildAddButton(),
+        ),
         const SizedBox(height: 12),
         Expanded(child: _buildHabitList()),
       ],
@@ -897,9 +964,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 end: Alignment.bottomCenter,
               ),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.orange.withValues(alpha: 0.35),
-              ),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
             ),
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Row(
@@ -920,6 +985,67 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   style: TextStyle(
                     color: Colors.orange.shade800,
                     fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 編輯模式下「新增習慣」鈕原地換成的完成鈕：外框／大小與 _buildAddButton
+  // 完全一致（同 gradient／border／radius／padding），只有 icon＋文字內容不同。
+  // 整顆可點＝退出排序。
+  Widget _buildMoveDoneBar() {
+    return Padding(
+      key: const ValueKey('move_done_bar'),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _finishMovingHabits,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: Colors.white.withValues(alpha: 0.18),
+          highlightColor: Colors.white.withValues(alpha: 0.10),
+          child: Ink(
+            // 外框（圓角 16／尺寸／padding）與新增習慣鈕一致；填色換成綠色：
+            // 綠＝「完成/確認」且和橘色系首頁對比強，最醒目、和新增鈕徹底區分。
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade500, Colors.green.shade600],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.40)),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_rounded,
+                    size: 16,
+                    color: Colors.green.shade600,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  '完成排序',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
                     fontSize: 14,
                     letterSpacing: 0.5,
                   ),
@@ -982,35 +1108,119 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           isLinked: kHomePresets.any(
             (p) => p.linkedSetting != null && habit['name'] == p.name,
           ),
+          isMoving: _editMode,
+          onMove: _startMovingHabits,
         ),
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      children: [
-        if (dailyEntries.isNotEmpty) ...[
-          HabitSectionHeader(
-            label: '每日習慣',
-            icon: Icons.wb_sunny_rounded,
-            color: Colors.orange,
-            done: dailyDoneCount,
-            total: _dailyHabits.length,
+    // 拖曳代理：被抬起的卡片放大 + 投影
+    Widget proxyDecorator(
+      Widget child,
+      int index,
+      Animation<double> animation,
+    ) {
+      return AnimatedBuilder(
+        animation: animation,
+        builder: (_, _) => Transform.scale(
+          scale: 1 + animation.value * 0.035,
+          child: Material(
+            color: Colors.transparent,
+            elevation: 10 * animation.value,
+            shadowColor: Colors.black.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
+            child: child,
           ),
-          ...dailyEntries.map(buildCard),
+        ),
+      );
+    }
+
+    // 每段獨立的 sliver reorderable。拖曳辨識器一直存在：未進編輯模式時走
+    // 「長按啟動拖曳」（同一手勢長按完直接滑，不必放手重抓），進模式後即時拖。
+    // 進入抖動模式由 onReorderStart 觸發。拖到上下緣會帶外層自動捲動；daily/weekly 不互拖。
+    Widget sectionSliver({
+      required bool weekly,
+      required List<MapEntry<int, Map<String, dynamic>>> entries,
+    }) {
+      return SliverReorderableList(
+        itemCount: entries.length,
+        proxyDecorator: proxyDecorator,
+        onReorderStart: (_) {
+          if (_editMode) {
+            playFeedback(SfxCue.tap);
+          } else {
+            // 首次長按拖曳：本幀後再翻成編輯模式，避免拖曳啟動當下重建清單
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _startMovingHabits();
+            });
+          }
+        },
+        onReorder: (oldIndex, newIndex) => _reorderHabitSection(
+          weekly: weekly,
+          oldIndex: oldIndex,
+          newIndex: newIndex,
+        ),
+        itemBuilder: (_, i) {
+          final entry = entries[i];
+          final habit = entry.value;
+          return _HabitDragListener(
+            key: ValueKey(
+              'reorder_${weekly ? 'weekly' : 'daily'}_${habit['name']}',
+            ),
+            index: i,
+            immediate: _editMode,
+            child: _Jiggle(
+              animation: _jiggleCtrl,
+              enabled: _editMode,
+              seed: (habit['name'] as String).hashCode,
+              child: buildCard(entry),
+            ),
+          );
+        },
+      );
+    }
+
+    return CustomScrollView(
+      slivers: [
+        if (dailyEntries.isNotEmpty) ...[
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: HabitSectionHeader(
+                label: '每日習慣',
+                icon: Icons.wb_sunny_rounded,
+                color: Colors.orange,
+                done: dailyDoneCount,
+                total: _dailyHabits.length,
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: sectionSliver(weekly: false, entries: dailyEntries),
+          ),
         ],
         if (weeklyEntries.isNotEmpty) ...[
-          if (dailyEntries.isNotEmpty) const SizedBox(height: 20),
-          HabitSectionHeader(
-            label: '每週習慣',
-            icon: Icons.calendar_view_week_rounded,
-            color: Colors.indigo,
-            done: weeklyMetCount,
-            total: _weeklyHabits.length,
+          if (dailyEntries.isNotEmpty)
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: HabitSectionHeader(
+                label: '每週習慣',
+                icon: Icons.calendar_view_week_rounded,
+                color: Colors.indigo,
+                done: weeklyMetCount,
+                total: _weeklyHabits.length,
+              ),
+            ),
           ),
-          ...weeklyEntries.map(buildCard),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: sectionSliver(weekly: true, entries: weeklyEntries),
+          ),
         ],
-        const SizedBox(height: 24),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
   }
@@ -1073,6 +1283,76 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+}
+
+// 編輯模式下每張卡片的「Q 版抖動」：監聽 _HomePageState 共用的 _jiggleCtrl
+// （無自己的 ticker），依名字 hash 給不同相位/方向，看起來像 iOS 主畫面長按 App
+// 那樣整列在輕輕晃。enabled=false 時零成本直通。共用 ticker 讓被拖曳的卡片
+// reparent 時不會帶著正在跑的 ticker，避開 element 生命週期崩潰。
+class _Jiggle extends StatelessWidget {
+  final Animation<double> animation;
+  final bool enabled;
+  final int seed;
+  final Widget child;
+
+  const _Jiggle({
+    required this.animation,
+    required this.enabled,
+    required this.seed,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final direction = seed.isEven ? 1.0 : -1.0;
+    final phaseOffset = (seed.abs() % 100) / 100 * math.pi * 2;
+    // AnimatedBuilder 永遠存在（結構穩定）：停用時 builder 直接回傳 child、
+    // controller 停在 0 不重繪；啟用時才套抖動 transform。
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (_, child) {
+        if (!enabled) return child!;
+        final phase = animation.value * math.pi * 2 + phaseOffset;
+        final sway = math.sin(phase);
+        final bounce = math.sin(phase + math.pi / 2);
+        final squash = math.sin(phase + math.pi);
+        // 抖動幅度：旋轉是主要訊號（~0.8°），位移/擠壓小幅跟上
+        return Transform.translate(
+          offset: Offset(direction * sway * 0.5, bounce * 0.9),
+          child: Transform.rotate(
+            angle: direction * sway * 0.014,
+            child: Transform.scale(
+              scaleX: 1 + squash * 0.005,
+              scaleY: 1 - squash * 0.0035,
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// 拖曳啟動辨識器：未進編輯模式用 Delayed（長按啟動，同一手勢直接拖）；
+// 進模式後用 Immediate（觸碰即拖）。同一 widget 型別、只換 recognizer，
+// 不會在拖曳途中替換 element 破壞 SliverReorderableList 的 GlobalKey reparent。
+class _HabitDragListener extends ReorderableDragStartListener {
+  final bool immediate;
+
+  const _HabitDragListener({
+    super.key,
+    required super.child,
+    required super.index,
+    required this.immediate,
+  });
+
+  @override
+  MultiDragGestureRecognizer createRecognizer() {
+    return immediate
+        ? ImmediateMultiDragGestureRecognizer(debugOwner: this)
+        : DelayedMultiDragGestureRecognizer(debugOwner: this);
   }
 }
 

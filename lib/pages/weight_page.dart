@@ -25,6 +25,8 @@ class WeightPage extends StatefulWidget {
   State<WeightPage> createState() => _WeightPageState();
 }
 
+enum _WeightSheetField { weight, fat }
+
 class _WeightPageState extends State<WeightPage> {
   // 所有體重紀錄（按日期降序）
   List<Map<String, dynamic>> _records = [];
@@ -484,6 +486,7 @@ class _WeightPageState extends State<WeightPage> {
         : '';
     String? weightError;
     String? fatError;
+    var activeField = _WeightSheetField.weight;
 
     showModalBottomSheet<void>(
       context: context,
@@ -504,6 +507,76 @@ class _WeightPageState extends State<WeightPage> {
                   ? next.round().toString()
                   : _fmt(next);
               setSheetState(() => weightError = null);
+              playHaptic(HapticLevel.selection);
+            }
+
+            TextEditingController activeController() =>
+                activeField == _WeightSheetField.weight
+                ? _weightCtrl
+                : _fatCtrl;
+
+            void pressDigit(String digit) {
+              final ctrl = activeController();
+              final maxLength = activeField == _WeightSheetField.weight ? 6 : 5;
+              var text = ctrl.text.trim();
+              if (text.length >= maxLength) return;
+              if (text == '0') text = '';
+              ctrl.text = '$text$digit';
+              setSheetState(() {
+                if (activeField == _WeightSheetField.weight) {
+                  weightError = null;
+                } else {
+                  fatError = null;
+                }
+              });
+              playHaptic(HapticLevel.selection);
+            }
+
+            void pressDecimal() {
+              if (activeField == _WeightSheetField.weight &&
+                  _unit == UnitSystem.imperial) {
+                return;
+              }
+              final ctrl = activeController();
+              final text = ctrl.text.trim();
+              if (text.contains('.')) return;
+              ctrl.text = text.isEmpty ? '0.' : '$text.';
+              setSheetState(() {
+                if (activeField == _WeightSheetField.weight) {
+                  weightError = null;
+                } else {
+                  fatError = null;
+                }
+              });
+              playHaptic(HapticLevel.selection);
+            }
+
+            void pressBackspace() {
+              final ctrl = activeController();
+              final text = ctrl.text.trim();
+              if (text.isEmpty) return;
+              ctrl.text = text.substring(0, text.length - 1);
+              setSheetState(() {
+                if (activeField == _WeightSheetField.weight) {
+                  weightError = null;
+                } else {
+                  fatError = null;
+                }
+              });
+              playHaptic(HapticLevel.selection);
+            }
+
+            void pressClear() {
+              final ctrl = activeController();
+              if (ctrl.text.isEmpty) return;
+              ctrl.clear();
+              setSheetState(() {
+                if (activeField == _WeightSheetField.weight) {
+                  weightError = null;
+                } else {
+                  fatError = null;
+                }
+              });
               playHaptic(HapticLevel.selection);
             }
 
@@ -550,202 +623,180 @@ class _WeightPageState extends State<WeightPage> {
             }
 
             return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFF8F0),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.86,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 標題列（新增 vs 編輯）
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.monitor_weight_outlined,
-                          color: Colors.orange,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          existing != null ? '編輯體重紀錄' : '新增體重紀錄',
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: AppInk.iconFaint),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // 日期選擇（點擊開啟日期選擇器）
-                    InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime.now(),
-                        );
-                        if (picked != null) {
-                          setSheetState(() => selectedDate = picked);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: '日期',
-                          suffixIcon: const Icon(
-                            Icons.calendar_today_outlined,
-                            size: 18,
-                            color: Colors.orange,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                        child: Text(
-                          _dateLabel(selectedDate),
-                          style: const TextStyle(fontSize: 15),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // 體重（必填）＋ ± 微調鈕
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _weightCtrl,
-                            autofocus: true,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            textInputAction: TextInputAction.done,
-                            onChanged: (_) {
-                              if (weightError != null) {
-                                setSheetState(() => weightError = null);
-                              }
-                            },
-                            onSubmitted: (_) => submit(),
-                            decoration: InputDecoration(
-                              labelText: '體重 *',
-                              suffixText: _wLabel,
-                              errorText: weightError,
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Colors.orange,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 7),
-                          child: Row(
-                            children: [
-                              _stepButton(
-                                Icons.remove,
-                                () => stepWeight(
-                                  _unit == UnitSystem.imperial ? -1 : -0.1,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              _stepButton(
-                                Icons.add,
-                                () => stepWeight(
-                                  _unit == UnitSystem.imperial ? 1 : 0.1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // 體脂（選填，依 weight_tracking_enabled 控制顯示）
-                    if (_weightTrackingEnabled) ...[
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _fatCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        textInputAction: TextInputAction.done,
-                        onChanged: (_) {
-                          if (fatError != null) {
-                            setSheetState(() => fatError = null);
-                          }
-                        },
-                        onSubmitted: (_) => submit(),
-                        decoration: InputDecoration(
-                          labelText: '體脂率（選填）',
-                          suffixText: '%',
-                          errorText: fatError,
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.orange),
-                          ),
-                        ),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.orange.withValues(alpha: 0.18),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
                       ),
                     ],
-
-                    const SizedBox(height: 20),
-
-                    // 儲存按鈕
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text(
-                          '儲存',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8DDD4),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Icon(
+                                Icons.monitor_weight_rounded,
+                                color: Colors.orange,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    existing != null ? '編輯體重紀錄' : '新增體重紀錄',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppInk.strong,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    '留下一筆今天的身體讀數',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: AppInk.soft,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: AppInk.iconFaint,
+                              ),
+                              onPressed: () => Navigator.pop(ctx),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _sheetSummaryCard(existing: existing),
+                        const SizedBox(height: 14),
+                        _sheetSectionLabel(
+                          icon: Icons.event_rounded,
+                          label: '日期',
+                        ),
+                        const SizedBox(height: 8),
+                        _datePickCard(
+                          dateLabel: _dateLabel(selectedDate),
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: ctx,
+                              initialDate: selectedDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime.now(),
+                            );
+                            if (picked != null) {
+                              setSheetState(() => selectedDate = picked);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _sheetSectionLabel(
+                          icon: Icons.speed_rounded,
+                          label: '身體讀數',
+                        ),
+                        const SizedBox(height: 8),
+                        _WeightInputCard(
+                          value: _weightCtrl.text,
+                          unitLabel: _wLabel,
+                          errorText: weightError,
+                          active: activeField == _WeightSheetField.weight,
+                          onTap: () {
+                            setSheetState(
+                              () => activeField = _WeightSheetField.weight,
+                            );
+                          },
+                          onDecrease: () => stepWeight(
+                            _unit == UnitSystem.imperial ? -1 : -0.1,
+                          ),
+                          onIncrease: () => stepWeight(
+                            _unit == UnitSystem.imperial ? 1 : 0.1,
+                          ),
+                        ),
+                        if (_weightTrackingEnabled) ...[
+                          const SizedBox(height: 10),
+                          _BodyFatInputCard(
+                            value: _fatCtrl.text,
+                            errorText: fatError,
+                            active: activeField == _WeightSheetField.fat,
+                            onTap: () {
+                              setSheetState(
+                                () => activeField = _WeightSheetField.fat,
+                              );
+                            },
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        _WeightSheetKeypad(
+                          decimalEnabled:
+                              activeField == _WeightSheetField.fat ||
+                              _unit == UnitSystem.metric,
+                          onDigit: pressDigit,
+                          onDecimal: pressDecimal,
+                          onBackspace: pressBackspace,
+                          onClear: pressClear,
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: submit,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            icon: const Icon(Icons.check_rounded, size: 19),
+                            label: const Text(
+                              '儲存紀錄',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             );
@@ -755,18 +806,143 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  // 體重 ± 微調圓鈕（sheet 內用）
-  Widget _stepButton(IconData icon, VoidCallback onTap) {
+  Widget _sheetSummaryCard({Map<String, dynamic>? existing}) {
+    final latest = existing != null
+        ? (existing['weight'] as num).toDouble()
+        : _records.isNotEmpty
+        ? (_records.first['weight'] as num).toDouble()
+        : null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.orange.withValues(alpha: 0.14),
+            const Color(0xFFFFF3E0),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.stacked_line_chart_rounded,
+              color: Colors.orange,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  latest == null
+                      ? '開始第一筆紀錄'
+                      : '目前 ${_fmtWeight(latest)} $_wLabel',
+                  style: latest == null
+                      ? const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
+                        )
+                      : AppType.digits(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
+                        ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  existing != null ? '更新這一天的體重資料' : '微調數字後按儲存即可',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppInk.soft,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sheetSectionLabel({required IconData icon, required String label}) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: Colors.orange),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: AppInk.strong,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _datePickCard({
+    required String dateLabel,
+    required VoidCallback onTap,
+  }) {
     return Material(
-      color: Colors.white,
-      shape: CircleBorder(side: BorderSide(color: Colors.orange.shade200)),
+      color: const Color(0xFFFFFCF8),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, size: 20, color: Colors.orange.shade600),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x0A46342B)),
+            boxShadow: AppShadows.flat,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.calendar_today_rounded,
+                  color: Colors.orange,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  dateLabel,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppInk.strong,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppInk.iconFaint),
+            ],
+          ),
         ),
       ),
     );
@@ -939,8 +1115,8 @@ class _WeightPageState extends State<WeightPage> {
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFFFF8F0),
       appBar: MascotAppBar(accent: Colors.orange, onSettingsReturn: _loadData),
-      // 不用 FAB：捲動時會壓到目標/歷史卡，新增入口改放「今日數據」
-      // 節區標題右側的記錄鈕（空狀態卡本身也可點）
+      // 不用 FAB：核心動作鈕（記錄今天／更新今日）釘在捲動區外的最上方，
+      // 跟習慣頁「新增習慣」一致，常駐明顯、不被捲動蓋掉。
       body: Stack(
         children: [
           // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
@@ -957,25 +1133,56 @@ class _WeightPageState extends State<WeightPage> {
             child: MascotPageShell(
               accent: Colors.orange,
               scene: const PersonaScene(accent: Colors.orange),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              // 核心動作鈕釘在捲動區外（與習慣頁「新增習慣」一致）：
+              // 永遠在最上面明顯處，不會因捲動而消失。
+              child: Column(
                 children: [
-                  // ── 今日數據放最前：面板展開時第一眼就是今天的體重 ──
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: HabitSectionHeader(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _TodayActionButton(
+                      label: todayRec != null ? '更新今日' : '記錄今天',
+                      icon: todayRec != null
+                          ? Icons.edit_rounded
+                          : Icons.add_rounded,
+                      onTap: _openAddSheet,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      children: [
+                        // ── 今日數據放最前：面板展開時第一眼就是今天的體重 ──
+                        const HabitSectionHeader(
                           label: '今日數據',
                           icon: Icons.today_rounded,
                           color: Colors.orange,
                         ),
-                      ),
-                      _addRecordPill(hasToday: todayRec != null),
-                    ],
-                  ),
-                  todayRec != null
-                      ? Container(
-                          padding: const EdgeInsets.all(16),
+                        todayRec != null
+                            ? Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(
+                                    AppCardStyle.radius,
+                                  ),
+                                  border: AppCardStyle.hairline,
+                                  boxShadow: AppShadows.card,
+                                ),
+                                child: _buildStatGrid(todayRec),
+                              )
+                            : _buildTodayEmptyCard(),
+
+                        const SizedBox(height: 16),
+
+                        // ── 趨勢圖卡片（範圍切換 + 折線圖） ──
+                        const HabitSectionHeader(
+                          label: '趨勢',
+                          icon: Icons.show_chart_rounded,
+                          color: Colors.orange,
+                        ),
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(
@@ -984,134 +1191,74 @@ class _WeightPageState extends State<WeightPage> {
                             border: AppCardStyle.hairline,
                             boxShadow: AppShadows.card,
                           ),
-                          child: _buildStatGrid(todayRec),
-                        )
-                      : DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(
-                              AppCardStyle.radius,
-                            ),
-                            border: AppCardStyle.hairline,
-                            boxShadow: AppShadows.flat,
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(
-                                AppCardStyle.radius,
-                              ),
-                              onTap: _openAddSheet,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 26,
-                                ),
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      '今天還沒量體重喔',
-                                      style: TextStyle(
-                                        color: AppInk.soft,
-                                        fontSize: 15,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _rangeSelector(),
+                              const SizedBox(height: 14),
+                              // 無資料時顯示友善提示，否則顯示折線圖
+                              chartData.spots.isEmpty
+                                  ? SizedBox(
+                                      height: 158,
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.show_chart,
+                                              size: 36,
+                                              color: Colors.orange.shade200,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            const Text(
+                                              '此區間沒有紀錄',
+                                              style: TextStyle(
+                                                color: AppInk.faint,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
+                                    )
+                                  : SizedBox(
+                                      height: 158,
+                                      child: _buildLineChart(chartData),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '點這裡記錄今天的體重',
-                                      style: TextStyle(
-                                        color: Colors.orange.shade400,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                            ],
                           ),
                         ),
 
-                  const SizedBox(height: 16),
+                        // ── 目標體重進度條（有設定目標才顯示） ──
+                        if (targetProgressWidget != null) ...[
+                          const SizedBox(height: 12),
+                          targetProgressWidget,
+                        ],
 
-                  // ── 趨勢圖卡片（範圍切換 + 折線圖） ──
-                  const HabitSectionHeader(
-                    label: '趨勢',
-                    icon: Icons.show_chart_rounded,
-                    color: Colors.orange,
-                  ),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(AppCardStyle.radius),
-                      border: AppCardStyle.hairline,
-                      boxShadow: AppShadows.card,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _rangeSelector(),
-                        const SizedBox(height: 14),
-                        // 無資料時顯示友善提示，否則顯示折線圖
-                        chartData.spots.isEmpty
-                            ? SizedBox(
-                                height: 158,
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.show_chart,
-                                        size: 36,
-                                        color: Colors.orange.shade200,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        '此區間沒有紀錄',
-                                        style: TextStyle(
-                                          color: AppInk.faint,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : SizedBox(
-                                height: 158,
-                                child: _buildLineChart(chartData),
+                        const SizedBox(height: 12),
+
+                        // ── 歷史紀錄列表 ──
+                        const HabitSectionHeader(
+                          label: '歷史紀錄',
+                          icon: Icons.history_rounded,
+                          color: Colors.orange,
+                        ),
+                        if (_records.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                '還沒有體重紀錄',
+                                style: TextStyle(color: AppInk.faint),
                               ),
+                            ),
+                          )
+                        else
+                          ..._records.map(_buildHistoryTile),
                       ],
                     ),
                   ),
-
-                  // ── 目標體重進度條（有設定目標才顯示） ──
-                  if (targetProgressWidget != null) ...[
-                    const SizedBox(height: 12),
-                    targetProgressWidget,
-                  ],
-
-                  const SizedBox(height: 12),
-
-                  // ── 歷史紀錄列表 ──
-                  const HabitSectionHeader(
-                    label: '歷史紀錄',
-                    icon: Icons.history_rounded,
-                    color: Colors.orange,
-                  ),
-                  if (_records.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text(
-                          '還沒有體重紀錄',
-                          style: TextStyle(color: AppInk.faint),
-                        ),
-                      ),
-                    )
-                  else
-                    ..._records.map(_buildHistoryTile),
                 ],
               ),
             ),
@@ -1322,47 +1469,55 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  // 「今日數據」節區右側的記錄鈕（取代會壓內容的 FAB）
-  Widget _addRecordPill({required bool hasToday}) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.orange,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.32),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _buildTodayEmptyCard() {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppCardStyle.radius),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        onTap: _openAddSheet,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
+            border: AppCardStyle.hairline,
+            boxShadow: AppShadows.flat,
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: _openAddSheet,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  hasToday ? Icons.edit_rounded : Icons.add_rounded,
-                  size: 14,
-                  color: Colors.white,
+          child: Column(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  hasToday ? '更新' : '記錄',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
+                child: const Icon(
+                  Icons.monitor_weight_rounded,
+                  color: Colors.orange,
+                  size: 28,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '今天還沒量體重喔',
+                style: TextStyle(
+                  color: AppInk.strong,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '記錄一筆，趨勢圖就會更準',
+                style: TextStyle(
+                  color: AppInk.soft,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1529,10 +1684,10 @@ class _WeightPageState extends State<WeightPage> {
                                         vertical: 1,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: item.subColor!
-                                            .withValues(alpha: 0.12),
-                                        borderRadius:
-                                            BorderRadius.circular(8),
+                                        color: item.subColor!.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
                                         item.sub!,
@@ -1572,10 +1727,7 @@ class _WeightPageState extends State<WeightPage> {
                   Expanded(
                     child: Text(
                       message,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppInk.faint,
-                      ),
+                      style: const TextStyle(fontSize: 11, color: AppInk.faint),
                     ),
                   ),
                 ],
@@ -1659,9 +1811,7 @@ class _WeightPageState extends State<WeightPage> {
                     children: [
                       if (delta != null && delta.abs() >= 0.05) ...[
                         Icon(
-                          delta < 0
-                              ? Icons.south_rounded
-                              : Icons.north_rounded,
+                          delta < 0 ? Icons.south_rounded : Icons.north_rounded,
                           size: 11,
                           color: _deltaColor(delta, weight - delta),
                         ),
@@ -1709,6 +1859,487 @@ class _WeightPageState extends State<WeightPage> {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeightInputCard extends StatelessWidget {
+  final String value;
+  final String unitLabel;
+  final String? errorText;
+  final bool active;
+  final VoidCallback onTap;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+
+  const _WeightInputCard({
+    required this.value,
+    required this.unitLabel,
+    required this.errorText,
+    required this.active,
+    required this.onTap,
+    required this.onDecrease,
+    required this.onIncrease,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = errorText != null;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: hasError
+              ? Colors.red.shade300
+              : active
+              ? Colors.orange.withValues(alpha: 0.46)
+              : const Color(0x0A46342B),
+          width: active || hasError ? 1.4 : 1,
+        ),
+        boxShadow: AppShadows.flat,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _NumericDisplayBox(
+                  label: '體重',
+                  value: value,
+                  suffix: unitLabel,
+                  active: active,
+                  color: Colors.orange,
+                  placeholder: '輸入體重',
+                  onTap: onTap,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                children: [
+                  _SheetRoundButton(
+                    icon: Icons.add_rounded,
+                    onTap: onIncrease,
+                    color: Colors.orange,
+                  ),
+                  const SizedBox(height: 8),
+                  _SheetRoundButton(
+                    icon: Icons.remove_rounded,
+                    onTap: onDecrease,
+                    color: Colors.orange,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (hasError) ...[
+            const SizedBox(height: 6),
+            Text(
+              errorText!,
+              style: TextStyle(
+                color: Colors.red.shade700,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BodyFatInputCard extends StatelessWidget {
+  final String value;
+  final String? errorText;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _BodyFatInputCard({
+    required this.value,
+    required this.errorText,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = errorText != null;
+    const accent = Color(0xFF4FA8C7);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: hasError
+              ? Colors.red.shade300
+              : active
+              ? accent.withValues(alpha: 0.46)
+              : const Color(0x0A46342B),
+          width: active || hasError ? 1.4 : 1,
+        ),
+        boxShadow: AppShadows.flat,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.water_drop_rounded,
+              color: accent,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _NumericDisplayBox(
+                  label: '體脂率（選填）',
+                  value: value,
+                  suffix: '%',
+                  active: active,
+                  color: accent,
+                  placeholder: '未輸入',
+                  onTap: onTap,
+                ),
+                if (hasError) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    errorText!,
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NumericDisplayBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final String suffix;
+  final bool active;
+  final Color color;
+  final String placeholder;
+  final VoidCallback onTap;
+
+  const _NumericDisplayBox({
+    required this.label,
+    required this.value,
+    required this.suffix,
+    required this.active,
+    required this.color,
+    required this.placeholder,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasValue = value.trim().isNotEmpty;
+    return Material(
+      color: active ? color.withValues(alpha: 0.08) : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: active
+                  ? color.withValues(alpha: 0.34)
+                  : const Color(0x0A46342B),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: active ? color : AppInk.soft,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Text(
+                      hasValue ? value : placeholder,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: hasValue
+                          ? AppType.digits(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: AppInk.strong,
+                            )
+                          : const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: AppInk.faint,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(
+                      suffix,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppInk.soft,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeightSheetKeypad extends StatelessWidget {
+  final bool decimalEnabled;
+  final void Function(String digit) onDigit;
+  final VoidCallback onDecimal;
+  final VoidCallback onBackspace;
+  final VoidCallback onClear;
+
+  const _WeightSheetKeypad({
+    required this.decimalEnabled,
+    required this.onDigit,
+    required this.onDecimal,
+    required this.onBackspace,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final row in const [
+          ['1', '2', '3'],
+          ['4', '5', '6'],
+          ['7', '8', '9'],
+        ])
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                for (final digit in row) ...[
+                  Expanded(
+                    child: _WeightKeyButton(
+                      label: digit,
+                      onTap: () => onDigit(digit),
+                    ),
+                  ),
+                  if (digit != row.last) const SizedBox(width: 6),
+                ],
+              ],
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: _WeightKeyButton(label: 'C', onTap: onClear, muted: true),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _WeightKeyButton(label: '0', onTap: () => onDigit('0')),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _WeightKeyButton(
+                label: '.',
+                onTap: decimalEnabled ? onDecimal : null,
+                muted: true,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _WeightKeyButton(
+                icon: Icons.backspace_outlined,
+                onTap: onBackspace,
+                muted: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _WeightKeyButton extends StatelessWidget {
+  final String? label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool muted;
+
+  const _WeightKeyButton({
+    this.label,
+    this.icon,
+    required this.onTap,
+    this.muted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final fg = enabled
+        ? muted
+              ? AppInk.soft
+              : AppInk.strong
+        : AppInk.faint;
+    return Material(
+      color: enabled
+          ? muted
+                ? const Color(0xFFFAF7F2)
+                : Colors.white
+          : const Color(0xFFF5EEE8),
+      borderRadius: BorderRadius.circular(13),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: SizedBox(
+          height: 42,
+          child: Center(
+            child: icon != null
+                ? Icon(icon, size: 19, color: fg)
+                : Text(
+                    label!,
+                    style: AppType.digits(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: fg,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetRoundButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _SheetRoundButton({
+    required this.icon,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.12),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(icon, size: 20, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class _TodayActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _TodayActionButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 與習慣頁「新增習慣」鈕同一視覺：淡橘漸層膠囊＋橘圈圈圖示＋橘字，
+    // 比實心橘更明顯易點、也跟兩頁的新增入口語言一致。
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: Colors.orange.withValues(alpha: 0.15),
+          highlightColor: Colors.orange.withValues(alpha: 0.08),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFF8EC), Color(0xFFFFEFDA)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade400,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 16, color: Colors.white),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
