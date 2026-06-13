@@ -368,9 +368,10 @@ class _TimerPageState extends State<TimerPage>
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
   }
 
-  // 套用預設組（計時中不可用；待機時更新第一顆專注預覽）
+  // 套用預設組：只在待機/完成可切換。進行或暫停中要先按停止(重設)回待機，
+  // 否則會改了設定卻對不上已組好的當前那節。
   void _applyPreset(int focus, int brk, int rounds) {
-    if (_isRunning) {
+    if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
       return;
     }
@@ -864,10 +865,11 @@ class _TimerPageState extends State<TimerPage>
     final isCustom = !_presets.any(
       (p) => p.focus == _focusMin && p.brk == _shortMin && p.rounds == _rounds,
     );
+    final locked = !_idle && !_finished; // 進行/暫停中鎖住，要先停止
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Opacity(
-        opacity: _isRunning ? 0.45 : 1,
+        opacity: locked ? 0.45 : 1,
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Row(
@@ -958,7 +960,8 @@ class _TimerPageState extends State<TimerPage>
   // ── 自訂設定 sheet ──
 
   void _openSettingsSheet() {
-    if (_isRunning) {
+    // 同預設：只在待機/完成可調，進行/暫停中先停止回待機
+    if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
       return;
     }
