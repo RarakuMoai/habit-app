@@ -110,6 +110,9 @@ class CoinService {
     String? note,
     DateTime? now,
   }) async {
+    // 暫停中的來源不發放（呼叫端保留，集中由 enabledSources 控制）
+    if (!CoinConfig.enabledSources.contains(source)) return 0;
+
     final prefs = await SharedPreferences.getInstance();
     final ts = now ?? DateTime.now();
 
@@ -131,6 +134,9 @@ class CoinService {
     String? note,
     DateTime? now,
   }) async {
+    // 與 award 對稱：暫停中的來源沒發過，也就不撤銷
+    if (!CoinConfig.enabledSources.contains(source)) return;
+
     final prefs = await SharedPreferences.getInstance();
     final cur = prefs.getInt(PrefsKeys.coinBalance) ?? 0;
     // 餘額不足就只扣到 0（理論上只在使用者已花掉金幣時發生）

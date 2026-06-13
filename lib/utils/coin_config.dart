@@ -15,6 +15,9 @@ enum CoinSource {
   /// 完成一顆番茄（專注時段）
   tomatoDone,
 
+  /// 完成一段運動間歇訓練
+  exerciseDone,
+
   /// 當日喝水達標
   waterGoal,
 
@@ -23,10 +26,21 @@ enum CoinSource {
 }
 
 abstract final class CoinConfig {
+  /// 目前實際發放的來源；不在此集合的 award/revoke 一律 no-op。
+  /// （2026-06-13 與用戶定案：先只給「每日登入」「習慣全達成」，其餘暫停。
+  /// 要重新開放某來源，把它加回這裡即可，呼叫端都還在。）
+  static const Set<CoinSource> enabledSources = {
+    CoinSource.dailyLogin, // 每日登入（金額隨連續登入等級遞增）
+    CoinSource.allHabitsDone, // 當日習慣全達成
+    CoinSource.weeklyStreak, // 連續達標滿 7 天里程碑
+  };
+
+
   // ── 固定金額來源 ──
   static const int habitDone = 2;
   static const int allHabitsDone = 5;
   static const int tomatoDone = 2;
+  static const int exerciseDone = 3;
   static const int waterGoal = 5;
   static const int weeklyStreak = 20;
 
@@ -35,6 +49,7 @@ abstract final class CoinConfig {
     CoinSource.habitDone => habitDone,
     CoinSource.allHabitsDone => allHabitsDone,
     CoinSource.tomatoDone => tomatoDone,
+    CoinSource.exerciseDone => exerciseDone,
     CoinSource.waterGoal => waterGoal,
     CoinSource.weeklyStreak => weeklyStreak,
     // dailyLogin 金額依等級，呼叫端用 loginRewardAt(level)
