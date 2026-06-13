@@ -1,10 +1,10 @@
-// 本機通知服務（番茄鐘倒數結束鈴）。
+// 本機通知服務（計時頁：專注番茄鐘 / 運動間歇 的階段結束鈴）。
 //
 // 設計：
 //   - App 啟動時呼叫 [init]，初始化 plugin + timezone
 //   - 第一次需要排程通知時呼叫 [ensurePermission]，跳系統 dialog
-//   - 番茄鐘按下開始 → [scheduleAt(endTime)] 把通知排到結束時刻
-//   - 番茄鐘暫停 / 重設 / 跳過 → [cancel] 取消已排程通知
+//   - 計時按下開始 → [scheduleAt(endTime)] 把通知排到結束時刻
+//   - 暫停 / 重設 / 跳過 → [cancel] 取消已排程通知
 //
 // 限制：iOS 開靜音/勿擾會被擋；通知音量 = 系統通知音量，不是媒體音量。
 // 第三方 app 無法穿透靜音（這是 Apple 給系統 AlarmManager 的特權）。
@@ -91,9 +91,11 @@ class NotificationService {
       scheduledDate: zonedTime,
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
+          // id 保留 pomodoro_channel：改 id 會孤立舊頻道與使用者既有通知偏好。
+          // 顯示名稱/說明改成「計時」，因為專注與運動的階段通知都走這條。
           'pomodoro_channel',
-          '番茄鐘',
-          channelDescription: '番茄鐘倒數結束時的鈴聲提醒',
+          '計時',
+          channelDescription: '計時（專注 / 運動）階段結束時的提醒',
           importance: Importance.high,
           priority: Priority.high,
           category: AndroidNotificationCategory.alarm,

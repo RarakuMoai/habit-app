@@ -99,12 +99,12 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
           ? ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                // 番茄鐘開關
+                // 計時頁開關（專注番茄鐘 + 運動間歇）
                 _toggleTile(
                   icon: Icons.timer_outlined,
                   iconColor: Colors.red.shade400,
-                  title: '番茄鐘',
-                  subtitle: '顯示底部番茄鐘頁籤',
+                  title: '計時',
+                  subtitle: '顯示底部計時頁籤（專注 + 運動）',
                   value: _timerEnabled,
                   onChanged: (v) async {
                     setState(() => _timerEnabled = v);

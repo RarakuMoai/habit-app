@@ -28,13 +28,12 @@ abstract final class PrefsKeys {
   static String coinClaim(String source, String date) =>
       '$coinClaimPrefix${source}_$date';
 
-  // ── 番茄鐘 ───────────────────────────────────────────────
+  // ── 計時頁：專注（番茄鐘）──────────────────────────────────
   static const timerFocusMinutes = 'timer_focus_minutes';
   static const timerShortBreakMinutes = 'timer_short_break_minutes';
   static const timerLongBreakMinutes = 'timer_long_break_minutes';
-  static const timerLongBreakEnabled = 'timer_long_break_enabled';
-  static const timerAutoStartBreak = 'timer_auto_start_break';
-  static const timerAutoStartFocus = 'timer_auto_start_focus';
+  static const timerLongBreakEnabled = 'timer_long_break_enabled'; // 結尾長休息
+  static const timerRounds = 'timer_rounds'; // 一節幾顆番茄（1–8）
 
   // 帶日期的今日統計（date 格式 yyyy-MM-dd）
   static const timerTomatoesPrefix = 'timer_tomatoes_';
@@ -43,6 +42,26 @@ abstract final class PrefsKeys {
   static String timerTomatoes(String date) => '$timerTomatoesPrefix$date';
   static String timerFocusMinutesDay(String date) =>
       '$timerFocusMinutesDayPrefix$date';
+
+  // ── 計時頁：上層模式（專注/運動）與運動子模式 ──────────────
+  static const timerMode = 'timer_mode'; // 'focus' | 'exercise'
+  static const exerciseSubMode = 'exercise_submode'; // tabata/hiit/emom/gym
+
+  // 各運動子模式的設定，key 由 子模式 id + 欄位 組成（id：tabata/hiit/emom/gym）
+  static String _ex(String id, String field) => 'exercise_${id}_$field';
+  static String exerciseWork(String id) => _ex(id, 'work'); // 每組運動秒數
+  static String exerciseRest(String id) => _ex(id, 'rest'); // 每組休息秒數
+  static String exerciseRounds(String id) => _ex(id, 'rounds'); // 總組數
+  static String exercisePrep(String id) => _ex(id, 'prep'); // 開始前準備秒數
+  static String exerciseWarmupOn(String id) => _ex(id, 'warmup_on');
+  static String exerciseWarmup(String id) => _ex(id, 'warmup'); // 暖身秒數
+
+  // 帶日期的今日運動統計
+  static const exerciseSessionsPrefix = 'exercise_sessions_';
+  static const exerciseMinutesDayPrefix = 'exercise_min_';
+  static String exerciseSessions(String date) => '$exerciseSessionsPrefix$date';
+  static String exerciseMinutesDay(String date) =>
+      '$exerciseMinutesDayPrefix$date';
 
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';

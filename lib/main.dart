@@ -37,7 +37,7 @@ void main() async {
   // 金幣餘額載進全域 notifier（UI 反應式讀取）
   await CoinService.load();
   await AudioSettingsService.instance.init();
-  // 初始化本機通知（番茄鐘倒數結束鈴用）；權限到第一次排通知才會跳 dialog
+  // 初始化本機通知（計時頁倒數結束鈴用）；權限到第一次排通知才會跳 dialog
   await NotificationService.init();
   // App 冷啟動：兔咪從 openApp 池隨機抽一句問候，每次打開都有變化
   MascotPersona.resetToOpening();
@@ -402,7 +402,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     ];
     if (_timerEnabled) {
       list.add(
-        _TabItem(page: const TimerPage(), icon: Icons.timer, label: '番茄鐘'),
+        _TabItem(page: const TimerPage(), icon: Icons.timer, label: '計時'),
       );
     }
     if (_waterEnabled) {

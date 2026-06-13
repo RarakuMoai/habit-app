@@ -427,7 +427,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     subtitle: Text(
-                      '番茄鐘、喝水、體重、家庭模式…',
+                      '計時、喝水、體重、家庭模式…',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade500,

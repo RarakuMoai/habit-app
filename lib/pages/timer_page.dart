@@ -12,18 +12,28 @@ import '../utils/mascot.dart';
 import '../utils/notification_service.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import 'timer/exercise_timer.dart';
 
-// 番茄鐘三階段。長休息：每完成 [_TimerPageState._longBreakEvery] 顆番茄一次。
-enum _Phase { focus, shortBreak, longBreak }
+// 計時頁上層模式：專注（番茄鐘）／運動（間歇訓練）
+enum _TimerMode { focus, exercise }
 
-// 時長預設組（分鐘）。「自訂」不在列表內，由設定 sheet 調出任意組合。
+// 專注模式階段。idle=待機、finished=整節完成；長休息只在整節最後（可關）。
+enum _Phase { idle, focus, shortBreak, longBreak, finished }
+
+// 階段序列的一個項目（round：第幾顆番茄，休息沿用前一顆的編號）
+typedef _Step = ({_Phase phase, int dur, int round});
+
+// （已移除 _TimerSettingField：自訂改純步進器，不再有自製鍵盤與作用中欄位）
+
+// 時長預設組（分鐘 + 回合數）。「自訂」不在列表內，由設定 sheet 調出任意組合。
 const _presets = [
-  (label: '經典', focus: 25, brk: 5),
-  (label: '深度', focus: 50, brk: 10),
-  (label: '輕量', focus: 15, brk: 3),
+  (label: '經典', focus: 25, brk: 5, rounds: 4),
+  (label: '深度', focus: 50, brk: 10, rounds: 3),
+  (label: '輕量', focus: 15, brk: 3, rounds: 4),
 ];
 
 class TimerPage extends StatefulWidget {
@@ -35,32 +45,34 @@ class TimerPage extends StatefulWidget {
 
 class _TimerPageState extends State<TimerPage>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
-  static const int _longBreakEvery = 4;
   // 通知 id 區段：鏈式排程最多 _maxChainNotifs 則，id 從 base 遞增
   static const int _notifIdBase = 1001;
-  static const int _maxChainNotifs = 6;
+  static const int _maxChainNotifs = 20;
+
+  // 上層模式（專注/運動），記住上次選擇
+  _TimerMode _topMode = _TimerMode.focus;
 
   // ── 設定（持久化）──
   int _focusMin = 25;
   int _shortMin = 5;
   int _longMin = 15;
-  bool _longBreakEnabled = true;
-  bool _autoStartBreak = true; // 專注結束自動開始休息
-  bool _autoStartFocus = false; // 休息結束自動開始下一輪專注
+  int _rounds = 4; // 一節幾顆番茄（1–8）
+  bool _longBreakEnabled = true; // 結尾長休息（整節最後）
 
-  // ── 計時狀態 ──
-  _Phase _phase = _Phase.focus;
-  int _secondsLeft = 25 * 60;
+  // ── 計時狀態（有限一節：[專注→短休息]×(N-1)→專注→(長休息)→完成）──
+  // 階段序列在按下開始時組好，背景回來用 wall-clock 逐段補算。
+  List<_Step> _seq = const [];
+  int _idx = 0;
+  _Phase _phase = _Phase.idle;
+  int _round = 1; // 目前第幾顆番茄（1..N）
+  int _secondsLeft = 0;
   // 當前階段總秒數快照：計時中改設定不影響本階段的進度環
-  int _phaseTotal = 25 * 60;
+  int _phaseTotal = 0;
   bool _isRunning = false;
   Timer? _timer;
   // 執行中才有值：當前階段絕對結束時刻。
   // 用 wall-clock 算 remaining，app 切到背景再回來時間還是對的。
   DateTime? _endTime;
-
-  // 循環位置：自上次長休息以來完成的番茄數（0~4）
-  int _cycleCount = 0;
 
   // ── 今日統計（持久化，per-day key）──
   String _statsDate = '';
@@ -104,18 +116,21 @@ class _TimerPageState extends State<TimerPage>
     final prefs = await SharedPreferences.getInstance();
     final today = _dateStr(DateTime.now());
     setState(() {
+      _topMode = prefs.getString(PrefsKeys.timerMode) == 'exercise'
+          ? _TimerMode.exercise
+          : _TimerMode.focus;
       _focusMin = prefs.getInt(PrefsKeys.timerFocusMinutes) ?? 25;
       _shortMin = prefs.getInt(PrefsKeys.timerShortBreakMinutes) ?? 5;
       _longMin = prefs.getInt(PrefsKeys.timerLongBreakMinutes) ?? 15;
-      _longBreakEnabled = prefs.getBool(PrefsKeys.timerLongBreakEnabled) ?? true;
-      _autoStartBreak = prefs.getBool(PrefsKeys.timerAutoStartBreak) ?? true;
-      _autoStartFocus = prefs.getBool(PrefsKeys.timerAutoStartFocus) ?? false;
+      _rounds = (prefs.getInt(PrefsKeys.timerRounds) ?? 4).clamp(1, 8);
+      _longBreakEnabled =
+          prefs.getBool(PrefsKeys.timerLongBreakEnabled) ?? true;
       _statsDate = today;
       _todayTomatoes = prefs.getInt(PrefsKeys.timerTomatoes(today)) ?? 0;
-      _todayFocusMin =
-          prefs.getInt(PrefsKeys.timerFocusMinutesDay(today)) ?? 0;
-      _secondsLeft = _phaseSeconds(_phase);
-      _phaseTotal = _secondsLeft;
+      _todayFocusMin = prefs.getInt(PrefsKeys.timerFocusMinutesDay(today)) ?? 0;
+      // 待機預覽第一顆專注的時長
+      _phaseTotal = _focusMin * 60;
+      _secondsLeft = _phaseTotal;
     });
   }
 
@@ -124,9 +139,8 @@ class _TimerPageState extends State<TimerPage>
     await prefs.setInt(PrefsKeys.timerFocusMinutes, _focusMin);
     await prefs.setInt(PrefsKeys.timerShortBreakMinutes, _shortMin);
     await prefs.setInt(PrefsKeys.timerLongBreakMinutes, _longMin);
+    await prefs.setInt(PrefsKeys.timerRounds, _rounds);
     await prefs.setBool(PrefsKeys.timerLongBreakEnabled, _longBreakEnabled);
-    await prefs.setBool(PrefsKeys.timerAutoStartBreak, _autoStartBreak);
-    await prefs.setBool(PrefsKeys.timerAutoStartFocus, _autoStartFocus);
   }
 
   // 完成一顆番茄：寫進今日統計（跨日自動歸零換 key）
@@ -141,53 +155,51 @@ class _TimerPageState extends State<TimerPage>
     _todayFocusMin += minutes;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(PrefsKeys.timerTomatoes(today), _todayTomatoes);
-    await prefs.setInt(
-      PrefsKeys.timerFocusMinutesDay(today),
-      _todayFocusMin,
-    );
+    await prefs.setInt(PrefsKeys.timerFocusMinutesDay(today), _todayFocusMin);
   }
 
-  // ── 階段邏輯 ──
+  // ── 階段序列（有限一節）──
 
-  int _phaseSeconds(_Phase p) => switch (p) {
-    _Phase.focus => _focusMin * 60,
-    _Phase.shortBreak => _shortMin * 60,
-    _Phase.longBreak => _longMin * 60,
-  };
+  bool get _idle => _phase == _Phase.idle;
+  bool get _finished => _phase == _Phase.finished;
+
+  // 一節：[專注→短休息]×(N-1) → 第N顆專注 → (結尾長休息) → 完成
+  List<_Step> _buildSequence() {
+    final seq = <_Step>[];
+    final n = _rounds.clamp(1, 8);
+    for (var r = 1; r <= n; r++) {
+      seq.add((phase: _Phase.focus, dur: _focusMin * 60, round: r));
+      if (r < n) {
+        seq.add((phase: _Phase.shortBreak, dur: _shortMin * 60, round: r));
+      }
+    }
+    if (_longBreakEnabled) {
+      seq.add((phase: _Phase.longBreak, dur: _longMin * 60, round: n));
+    }
+    return seq;
+  }
 
   // 當前階段已完成比例 0~1（給進度圓環用）
   double get _progress =>
       1 - (_secondsLeft / math.max(_phaseTotal, 1)).clamp(0.0, 1.0);
 
-  // 指定階段完成後的下一階段（cycleAfter = 完成後的番茄數）
-  _Phase _nextPhase(_Phase p, int cycleAfter) {
-    if (p == _Phase.focus) {
-      return (_longBreakEnabled && cycleAfter >= _longBreakEvery)
-          ? _Phase.longBreak
-          : _Phase.shortBreak;
-    }
-    return _Phase.focus;
+  void _enterStep(int idx) {
+    final s = _seq[idx];
+    _idx = idx;
+    _phase = s.phase;
+    _round = s.round;
+    _phaseTotal = s.dur;
+    _secondsLeft = s.dur;
   }
 
-  /// 完成當前階段並推進狀態；回傳下一階段是否自動開始。
-  bool _completePhase() {
-    if (_phase == _Phase.focus) {
-      _cycleCount++;
-      _recordTomato(_phaseTotal ~/ 60);
-      // 完成一顆番茄 +金幣（跳過的階段不會走到這裡，刷不了）
-      CoinService.award(CoinSource.tomatoDone, note: '番茄 ${_phaseTotal ~/ 60} 分');
-      _phase = _nextPhase(_Phase.focus, _cycleCount);
-    } else {
-      if (_phase == _Phase.longBreak) _cycleCount = 0;
-      _phase = _Phase.focus;
-    }
-    _secondsLeft = _phaseSeconds(_phase);
-    _phaseTotal = _secondsLeft;
-    return _phase == _Phase.focus ? _autoStartFocus : _autoStartBreak;
+  // 完成一個專注階段 → 記番茄 + 給金幣（跳過不算，所以只在自然完成時呼叫）
+  void _awardIfFocus(_Step step) {
+    if (step.phase != _Phase.focus) return;
+    _recordTomato(step.dur ~/ 60);
+    CoinService.award(CoinSource.tomatoDone, note: '番茄 ${step.dur ~/ 60} 分');
   }
 
-  // 由絕對結束時刻反推剩餘秒數。背景期間可能跨了多個自動接續的階段，
-  // 用 while 逐段補算到「現在還在進行中」或「停在某階段起點」為止。
+  // 由絕對結束時刻反推剩餘秒數；背景期間跨了多個階段就逐段補算（含給幣）。
   void _refreshFromEndTime() {
     var end = _endTime;
     if (end == null) return;
@@ -195,16 +207,12 @@ class _TimerPageState extends State<TimerPage>
     var crossed = false;
     while (remaining <= 0) {
       crossed = true;
-      final continues = _completePhase();
-      if (!continues) {
-        _stopTicker();
-        setState(() {
-          _isRunning = false;
-          _endTime = null;
-        });
-        _boundaryFeedback();
+      _awardIfFocus(_seq[_idx]);
+      if (_idx + 1 >= _seq.length) {
+        _finishSession();
         return;
       }
+      _enterStep(_idx + 1);
       end = end!.add(Duration(seconds: _phaseTotal));
       remaining = end.difference(DateTime.now()).inSeconds;
     }
@@ -215,7 +223,20 @@ class _TimerPageState extends State<TimerPage>
     });
   }
 
-  // 跨階段的回饋：音效 + 兔咪換情緒（多階段一次補算也只播一次）
+  void _finishSession() {
+    _stopTicker();
+    _cancelAllNotifs();
+    setState(() {
+      _isRunning = false;
+      _phase = _Phase.finished;
+      _secondsLeft = 0;
+      _endTime = null;
+    });
+    MascotPersona.interact(MascotContext.allDone);
+    playFeedback(SfxCue.success);
+  }
+
+  // 跨階段回饋：音效 + 兔咪換情緒（多階段一次補算也只播一次）
   void _boundaryFeedback() {
     MascotPersona.interact(
       _phase == _Phase.focus
@@ -236,43 +257,38 @@ class _TimerPageState extends State<TimerPage>
     }
   }
 
-  // 沿著自動接續鏈把每個階段結束通知排好（最多 _maxChainNotifs 則）。
-  // 鏈在「下一階段不自動開始」處截斷 —— 與 _completePhase 行為一致。
-  Future<void> _scheduleChainNotifications(DateTime firstEnd) async {
-    // 第一次排程才會跳系統權限 dialog；拒絕的話通知不響，倒數照走
+  // 把目前序列剩下的每個階段結束都排好通知（鎖屏/背景時提醒）
+  Future<void> _scheduleNotifs() async {
     final ok = await NotificationService.ensurePermission();
-    if (!ok) return;
-    var end = firstEnd;
-    var phase = _phase;
-    var cycle = _cycleCount;
-    for (var i = 0; i < _maxChainNotifs; i++) {
-      final endingFocus = phase == _Phase.focus;
+    if (!ok || _endTime == null) return;
+    var fireAt = _endTime!;
+    for (var i = _idx; i < _seq.length && (i - _idx) < _maxChainNotifs; i++) {
+      final isLast = i == _seq.length - 1;
+      final (title, body) = isLast
+          ? ('🎉 完成這一節', '$_rounds 顆番茄達成，辛苦了！')
+          : _notifFor(_seq[i + 1]);
       await NotificationService.scheduleAt(
-        end,
-        id: _notifIdBase + i,
-        title: endingFocus ? '🍅 專注時間結束' : '☕ 休息結束',
-        body: endingFocus ? '辛苦了，休息一下吧。' : '回來開始下一輪專注。',
+        fireAt,
+        id: _notifIdBase + (i - _idx),
+        title: title,
+        body: body,
       );
-      // 推進到下一階段；不自動接續就停
-      if (endingFocus) {
-        cycle++;
-      } else if (phase == _Phase.longBreak) {
-        cycle = 0;
-      }
-      final next = _nextPhase(phase, cycle);
-      final autoNext =
-          next == _Phase.focus ? _autoStartFocus : _autoStartBreak;
-      if (!autoNext) break;
-      phase = next;
-      end = end.add(Duration(seconds: _phaseSeconds(phase)));
+      if (isLast) break;
+      fireAt = fireAt.add(Duration(seconds: _seq[i + 1].dur));
     }
   }
+
+  (String, String) _notifFor(_Step next) => switch (next.phase) {
+    _Phase.focus => ('🍅 開始專注', '第 ${next.round} / $_rounds 顆'),
+    _Phase.shortBreak => ('☕ 休息一下', '喘口氣，等等繼續'),
+    _Phase.longBreak => ('🛋️ 長休息', '這一節快結束了'),
+    _ => ('開始', ''),
+  };
 
   // ── 操作 ──
 
   void _startPause() {
     if (_isRunning) {
-      // 暫停：留下當前剩餘秒數、取消整條通知鏈
       final remaining = _endTime != null
           ? _endTime!.difference(DateTime.now()).inSeconds.clamp(0, _phaseTotal)
           : _secondsLeft;
@@ -284,63 +300,66 @@ class _TimerPageState extends State<TimerPage>
         _endTime = null;
       });
       playFeedback(SfxCue.tap);
-    } else {
-      if (_secondsLeft <= 0) {
-        _secondsLeft = _phaseSeconds(_phase);
-        _phaseTotal = _secondsLeft;
-      }
-      final end = DateTime.now().add(Duration(seconds: _secondsLeft));
-      setState(() {
-        _endTime = end;
-        _isRunning = true;
-      });
-      _breath.repeat(reverse: true);
-      _scheduleChainNotifications(end);
-      _timer = Timer.periodic(
-        const Duration(seconds: 1),
-        (_) => _refreshFromEndTime(),
-      );
-      MascotPersona.interact(
-        _phase == _Phase.focus
-            ? MascotContext.openApp
-            : MascotContext.halfDone,
-      );
-      playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
+      return;
     }
+    // 從待機 / 完成 → 重新組序列從頭開始
+    if (_idle || _finished) {
+      _seq = _buildSequence();
+      _enterStep(0);
+    }
+    final end = DateTime.now().add(Duration(seconds: _secondsLeft));
+    setState(() {
+      _endTime = end;
+      _isRunning = true;
+    });
+    _breath.repeat(reverse: true);
+    _scheduleNotifs();
+    _timer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _refreshFromEndTime(),
+    );
+    MascotPersona.interact(
+      _phase == _Phase.focus ? MascotContext.openApp : MascotContext.halfDone,
+    );
+    playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
   }
 
-  // 重設：停止並回到全新循環（專注階段、循環歸零）
+  // 重設：停止並回到待機（第一顆專注的預覽）
   void _reset() {
     _stopTicker();
     _cancelAllNotifs();
     setState(() {
       _isRunning = false;
-      _phase = _Phase.focus;
-      _cycleCount = 0;
-      _secondsLeft = _phaseSeconds(_Phase.focus);
-      _phaseTotal = _secondsLeft;
+      _phase = _Phase.idle;
+      _round = 1;
+      _idx = 0;
+      _phaseTotal = _focusMin * 60;
+      _secondsLeft = _phaseTotal;
       _endTime = null;
     });
     MascotPersona.interact(MascotContext.notStarted);
     playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
   }
 
-  // 跳過當前階段：不計番茄；跳過長休息視同休息結束（循環歸零）
+  // 跳過當前階段（不計番茄）：前進到序列下一項，到底就完成
   void _skipPhase() {
+    if (_idle || _finished) return;
     _stopTicker();
     _cancelAllNotifs();
-    setState(() {
-      if (_phase == _Phase.focus) {
-        _phase = _Phase.shortBreak;
-      } else {
-        if (_phase == _Phase.longBreak) _cycleCount = 0;
-        _phase = _Phase.focus;
-      }
-      _secondsLeft = _phaseSeconds(_phase);
-      _phaseTotal = _secondsLeft;
-      _isRunning = false;
-      _endTime = null;
-    });
+    if (_idx + 1 >= _seq.length) {
+      _finishSession();
+      return;
+    }
+    setState(() => _enterStep(_idx + 1));
+    if (_isRunning) {
+      _endTime = DateTime.now().add(Duration(seconds: _secondsLeft));
+      _breath.repeat(reverse: true);
+      _scheduleNotifs();
+      _timer = Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => _refreshFromEndTime(),
+      );
+    }
     MascotPersona.interact(
       _phase == _Phase.focus
           ? MascotContext.openApp
@@ -349,8 +368,8 @@ class _TimerPageState extends State<TimerPage>
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
   }
 
-  // 套用時長預設組（計時中不可用；待機/暫停會重設當前階段倒數）
-  void _applyPreset(int focus, int brk) {
+  // 套用預設組（計時中不可用；待機時更新第一顆專注預覽）
+  void _applyPreset(int focus, int brk, int rounds) {
     if (_isRunning) {
       playHaptic(HapticLevel.light);
       return;
@@ -358,8 +377,12 @@ class _TimerPageState extends State<TimerPage>
     setState(() {
       _focusMin = focus;
       _shortMin = brk;
-      _secondsLeft = _phaseSeconds(_phase);
-      _phaseTotal = _secondsLeft;
+      _rounds = rounds;
+      if (_idle || _finished) {
+        _phase = _Phase.idle;
+        _phaseTotal = _focusMin * 60;
+        _secondsLeft = _phaseTotal;
+      }
     });
     _persistSettings();
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
@@ -378,17 +401,44 @@ class _TimerPageState extends State<TimerPage>
     _Phase.focus => const Color(0xFFFF7043),
     _Phase.shortBreak => const Color(0xFF66BB6A),
     _Phase.longBreak => const Color(0xFF26A69A),
+    _Phase.finished => const Color(0xFF66BB6A),
+    _Phase.idle => const Color(0xFFFF7043),
   };
 
   String get _phaseLabel => switch (_phase) {
-    _Phase.focus => '🍅 專注時間',
-    _Phase.shortBreak => '☕ 短休息',
-    _Phase.longBreak => '🌿 長休息',
+    _Phase.focus => '專注時間',
+    _Phase.shortBreak => '短休息',
+    _Phase.longBreak => '長休息',
+    _Phase.finished => '完成',
+    _Phase.idle => '準備開始',
   };
+
+  IconData get _phaseIcon => switch (_phase) {
+    _Phase.focus => Icons.local_fire_department_rounded,
+    _Phase.shortBreak => Icons.local_cafe_rounded,
+    _Phase.longBreak => Icons.spa_rounded,
+    _Phase.finished => Icons.emoji_events_rounded,
+    _Phase.idle => Icons.local_fire_department_rounded,
+  };
+
+  static const Color _exerciseAccent = Color(0xFF26A69A);
+
+  void _switchMode(_TimerMode mode) {
+    if (mode == _topMode) return;
+    setState(() => _topMode = mode);
+    SharedPreferences.getInstance().then(
+      (p) => p.setString(
+        PrefsKeys.timerMode,
+        mode == _TimerMode.exercise ? 'exercise' : 'focus',
+      ),
+    );
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final color = _phaseColor;
+    // 頁面主色隨模式切換：專注用番茄色、運動用青綠
+    final color = _topMode == _TimerMode.focus ? _phaseColor : _exerciseAccent;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -410,9 +460,94 @@ class _TimerPageState extends State<TimerPage>
             child: MascotPageShell(
               accent: color,
               scene: PersonaScene(accent: color),
-              child: _buildTimerContent(color),
+              child: Column(
+                children: [
+                  const SizedBox(height: 6),
+                  _buildModeSwitch(color),
+                  const SizedBox(height: 4),
+                  // 兩模式都常駐（IndexedStack）：切換時各自計時狀態不會被丟掉
+                  Expanded(
+                    child: IndexedStack(
+                      index: _topMode == _TimerMode.focus ? 0 : 1,
+                      sizing: StackFit.expand,
+                      children: [
+                        _buildTimerContent(_phaseColor),
+                        const ExerciseTimer(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // 專注 / 運動 分段切換（玻璃膠囊風，跟全 app 卡片語彙一致）
+  Widget _buildModeSwitch(Color color) {
+    Widget seg(_TimerMode mode, IconData icon, String label) {
+      final selected = _topMode == mode;
+      final segColor = mode == _TimerMode.focus ? _phaseColor : _exerciseAccent;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => _switchMode(mode),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: selected ? segColor : Colors.transparent,
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: segColor.withValues(alpha: 0.28),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 17,
+                  color: selected ? Colors.white : AppInk.soft,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? Colors.white : AppInk.soft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(16),
+        border: AppCardStyle.hairline,
+        boxShadow: AppShadows.flat,
+      ),
+      child: Row(
+        children: [
+          seg(_TimerMode.focus, Icons.psychology_rounded, '專注'),
+          const SizedBox(width: 4),
+          seg(_TimerMode.exercise, Icons.directions_run_rounded, '運動'),
         ],
       ),
     );
@@ -433,16 +568,15 @@ class _TimerPageState extends State<TimerPage>
 
   // 完整版面（面板收合）：環吸收剩餘高度置中，統計列釘在底部收尾
   Widget _buildFullLayout(Color color, double h) {
-    final ringSize = (h - 305).clamp(140.0, 238.0);
+    final ringSize = (h - 312).clamp(148.0, 246.0);
     return Column(
       children: [
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _phaseChip(color),
-        if (_longBreakEnabled)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: _buildCycleDots(),
-          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: _buildCycleDots(),
+        ),
         Expanded(child: Center(child: _buildTimerCircle(ringSize, color))),
         _controlsRow(color),
         const SizedBox(height: 10),
@@ -455,9 +589,9 @@ class _TimerPageState extends State<TimerPage>
               fontWeight: FontWeight.w500,
             ),
           ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _buildPresetRow(),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         _statsBar(),
         const SizedBox(height: 10),
       ],
@@ -479,11 +613,10 @@ class _TimerPageState extends State<TimerPage>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _phaseChip(color, small: true),
-                  if (_longBreakEnabled)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: _buildCycleDots(),
-                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _buildCycleDots(),
+                  ),
                   const SizedBox(height: 14),
                   _controlsRow(color, compact: true),
                 ],
@@ -508,21 +641,35 @@ class _TimerPageState extends State<TimerPage>
       child: Container(
         key: ValueKey(_phase),
         padding: EdgeInsets.symmetric(
-          horizontal: small ? 14 : 20,
+          horizontal: small ? 12 : 16,
           vertical: small ? 6 : 8,
         ),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withValues(alpha: 0.20)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
-        child: Text(
-          _phaseLabel,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: small ? 13 : 16,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_phaseIcon, size: small ? 15 : 17, color: color),
+            SizedBox(width: small ? 5 : 7),
+            Text(
+              _phaseLabel,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w800,
+                fontSize: small ? 13 : 15.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -538,6 +685,7 @@ class _TimerPageState extends State<TimerPage>
           icon: Icons.refresh_rounded,
           onTap: _reset,
           size: compact ? 44 : 54,
+          faded: _idle,
         ),
         SizedBox(width: gap),
         _mainButton(color, size: compact ? 62 : 78),
@@ -546,6 +694,7 @@ class _TimerPageState extends State<TimerPage>
           icon: Icons.skip_next_rounded,
           onTap: _skipPhase,
           size: compact ? 44 : 54,
+          faded: _idle || _finished,
         ),
       ],
     );
@@ -557,37 +706,97 @@ class _TimerPageState extends State<TimerPage>
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: hasAny
-            ? const Color(0xFFFF7043).withValues(alpha: 0.08)
-            : const Color(0xFFFAF7F2),
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.white.withValues(alpha: hasAny ? 0.92 : 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: hasAny
+              ? const Color(0xFFFF7043).withValues(alpha: 0.16)
+              : const Color(0x0A46342B),
+        ),
+        boxShadow: AppShadows.flat,
+      ),
+      child: hasAny
+          ? Row(
+              children: [
+                Expanded(
+                  child: _statPill(
+                    icon: Icons.eco_rounded,
+                    label: '今日番茄',
+                    value: '×$_todayTomatoes',
+                    color: const Color(0xFFFF7043),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _statPill(
+                    icon: Icons.hourglass_bottom_rounded,
+                    label: '專注時間',
+                    value: '$_todayFocusMin 分',
+                    color: const Color(0xFF66BB6A),
+                  ),
+                ),
+              ],
+            )
+          : const Center(
+              child: Text(
+                '今天還沒種下番茄，按下開始吧',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppInk.soft,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _statPill({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(13),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(hasAny ? '🍅' : '🌱', style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 8),
-          hasAny
-              ? Text(
-                  '今日 ×$_todayTomatoes · 專注 $_todayFocusMin 分鐘',
-                  style: AppType.digits(
-                    fontSize: 13.5,
-                    color: const Color(0xFFE25A33),
-                  ),
-                )
-              : const Text(
-                  '今天還沒種下番茄，按下開始吧',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppInk.soft,
-                    fontWeight: FontWeight.w500,
-                  ),
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '$label $value',
+                maxLines: 1,
+                style: AppType.digits(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: color,
                 ),
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  // 這一節已完成的番茄數（= 已通過的 focus 階段數）
+  int _completedTomatoes() {
+    if (_finished) return _rounds;
+    if (_idle) return 0;
+    var c = 0;
+    for (var i = 0; i < _idx && i < _seq.length; i++) {
+      if (_seq[i].phase == _Phase.focus) c++;
+    }
+    return c;
   }
 
   // 計時狀態說明：執行中顯示預計結束時刻，比固定口號更有「進行中」的感覺
@@ -596,23 +805,22 @@ class _TimerPageState extends State<TimerPage>
     if (_isRunning && end != null) {
       final hh = end.hour.toString().padLeft(2, '0');
       final mm = end.minute.toString().padLeft(2, '0');
-      return _phase == _Phase.focus
-          ? '專注中 · $hh:$mm 結束'
-          : '休息中 · $hh:$mm 結束';
+      return _phase == _Phase.focus ? '專注中 · $hh:$mm 結束' : '休息中 · $hh:$mm 結束';
     }
-    if (_phase == _Phase.focus) return '專注 $_focusMin 分鐘 · 休息 $_shortMin 分鐘';
-    return '好好休息，準備下一輪！';
+    if (_finished) return '這一節完成了 🎉';
+    if (_idle) return '專注 $_focusMin 分 · 一節 $_rounds 顆番茄';
+    return '已暫停 · 按開始繼續';
   }
 
-  // 循環指示：小番茄（實心帶葉子 = 本輪已完成），比抽象圓點更有味道
+  // 進度小番茄（實心帶葉子 = 已完成），共 N 顆 = 這一節的回合數
   Widget _buildCycleDots() {
-    final filled = _cycleCount.clamp(0, _longBreakEvery);
+    final filled = _completedTomatoes().clamp(0, _rounds);
     const tomato = Color(0xFFE8604C);
     const leaf = Color(0xFF7CB163);
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(_longBreakEvery, (i) {
+      children: List.generate(_rounds, (i) {
         final active = i < filled;
         return SizedBox(
           width: 18,
@@ -654,30 +862,39 @@ class _TimerPageState extends State<TimerPage>
 
   Widget _buildPresetRow() {
     final isCustom = !_presets.any(
-      (p) => p.focus == _focusMin && p.brk == _shortMin,
+      (p) => p.focus == _focusMin && p.brk == _shortMin && p.rounds == _rounds,
     );
-    return Opacity(
-      opacity: _isRunning ? 0.45 : 1,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final p in _presets) ...[
-            _presetChip(
-              name: p.label,
-              detail: '${p.focus}·${p.brk}',
-              selected:
-                  !isCustom && p.focus == _focusMin && p.brk == _shortMin,
-              onTap: () => _applyPreset(p.focus, p.brk),
-            ),
-            const SizedBox(width: 8),
-          ],
-          _presetChip(
-            name: '自訂',
-            detail: isCustom ? '$_focusMin·$_shortMin' : '自由配',
-            selected: isCustom,
-            onTap: _openSettingsSheet,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Opacity(
+        opacity: _isRunning ? 0.45 : 1,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final p in _presets) ...[
+                _presetChip(
+                  name: p.label,
+                  detail: '${p.focus}/${p.brk} ×${p.rounds}',
+                  selected:
+                      !isCustom &&
+                      p.focus == _focusMin &&
+                      p.brk == _shortMin &&
+                      p.rounds == _rounds,
+                  onTap: () => _applyPreset(p.focus, p.brk, p.rounds),
+                ),
+                const SizedBox(width: 8),
+              ],
+              _presetChip(
+                name: '自訂',
+                detail: isCustom ? '$_focusMin/$_shortMin ×$_rounds' : '自由配',
+                selected: isCustom,
+                onTap: _openSettingsSheet,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -695,12 +912,21 @@ class _TimerPageState extends State<TimerPage>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        constraints: const BoxConstraints(minWidth: 60),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? accent : Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          color: selected ? accent : Colors.white.withValues(alpha: 0.86),
+          borderRadius: BorderRadius.circular(16),
           border: selected ? null : AppCardStyle.hairline,
-          boxShadow: selected ? null : AppShadows.flat,
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.24),
+                    blurRadius: 13,
+                    offset: const Offset(0, 5),
+                  ),
+                ]
+              : AppShadows.flat,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -741,150 +967,400 @@ class _TimerPageState extends State<TimerPage>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          // sheet 內改值：同步父頁 state + 持久化；待機時同步重設倒數
-          void apply(VoidCallback change) {
-            setSheet(() {});
-            setState(() {
-              change();
-              if (!_isRunning) {
-                _secondsLeft = _phaseSeconds(_phase);
-                _phaseTotal = _secondsLeft;
-              }
-            });
-            _persistSettings();
-          }
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            // sheet 內改值：同步父頁 state + 持久化；待機時更新第一顆專注預覽。
+            // 設定只在「下次開始」組序列時生效，所以暫停中改值不動當前倒數。
+            void apply(VoidCallback change) {
+              setState(() {
+                change();
+                if (_idle || _finished) {
+                  _phase = _Phase.idle;
+                  _phaseTotal = _focusMin * 60;
+                  _secondsLeft = _phaseTotal;
+                }
+              });
+              setSheet(() {});
+              _persistSettings();
+            }
 
-          return Container(
-            padding: EdgeInsets.fromLTRB(
-              24,
-              20,
-              24,
-              24 + MediaQuery.of(ctx).viewInsets.bottom,
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.86,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _phaseColor.withValues(alpha: 0.18),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8DDD4),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFFF7043,
+                                ).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Icon(
+                                Icons.tune_rounded,
+                                color: Color(0xFFFF7043),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '番茄鐘設定',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppInk.strong,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    '安排你的專注節奏',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: AppInk.soft,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: AppInk.iconFaint,
+                              ),
+                              onPressed: () => Navigator.pop(ctx),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _settingsSummaryCard(),
+                        const SizedBox(height: 14),
+                        _settingsSectionTitle(
+                          icon: Icons.av_timer_rounded,
+                          title: '時間長度',
+                        ),
+                        const SizedBox(height: 8),
+                        _timerStepperCard(
+                          label: '專注',
+                          sub: '進入安靜工作段',
+                          icon: Icons.local_fire_department_rounded,
+                          color: const Color(0xFFFF7043),
+                          value: _focusMin,
+                          min: 5,
+                          max: 120,
+                          step: 1,
+                          onChanged: (v) => apply(() => _focusMin = v),
+                        ),
+                        const SizedBox(height: 8),
+                        _timerStepperCard(
+                          label: '短休息',
+                          sub: '番茄之間喘口氣',
+                          icon: Icons.local_cafe_rounded,
+                          color: const Color(0xFF66BB6A),
+                          value: _shortMin,
+                          min: 1,
+                          max: 30,
+                          step: 1,
+                          onChanged: (v) => apply(() => _shortMin = v),
+                        ),
+                        const SizedBox(height: 8),
+                        _timerStepperCard(
+                          label: '回合數',
+                          sub: '這一節做幾顆番茄',
+                          icon: Icons.tag_rounded,
+                          color: const Color(0xFFFF7043),
+                          value: _rounds,
+                          min: 1,
+                          max: 8,
+                          step: 1,
+                          unit: '顆',
+                          onChanged: (v) => apply(() => _rounds = v),
+                        ),
+                        const SizedBox(height: 16),
+                        _settingsSectionTitle(
+                          icon: Icons.spa_rounded,
+                          title: '結尾長休息',
+                        ),
+                        const SizedBox(height: 8),
+                        _timerSwitchTile(
+                          label: '結尾長休息',
+                          sub: '整節最後加一段較長的放鬆',
+                          icon: Icons.spa_rounded,
+                          value: _longBreakEnabled,
+                          onChanged: (v) => apply(() => _longBreakEnabled = v),
+                        ),
+                        const SizedBox(height: 8),
+                        _timerStepperCard(
+                          label: '長休息',
+                          sub: '一節結束後放鬆',
+                          icon: Icons.self_improvement_rounded,
+                          color: const Color(0xFF26A69A),
+                          value: _longMin,
+                          min: 5,
+                          max: 60,
+                          step: 1,
+                          enabled: _longBreakEnabled,
+                          onChanged: (v) => apply(() => _longMin = v),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF7043),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.check_rounded, size: 19),
+                            label: const Text(
+                              '完成',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _settingsSummaryCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFFF7043).withValues(alpha: 0.14),
+            const Color(0xFF66BB6A).withValues(alpha: 0.10),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFFF7043).withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              shape: BoxShape.circle,
             ),
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFF8F0),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            child: const Icon(
+              Icons.timer_rounded,
+              color: Color(0xFFFF7043),
+              size: 24,
             ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.tune_rounded, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    const Text(
-                      '番茄鐘設定',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: AppInk.iconFaint),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
+                Text(
+                  '$_focusMin / $_shortMin 分 ×$_rounds',
+                  style: AppType.digits(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                _stepperRow(
-                  label: '專注時長',
-                  value: _focusMin,
-                  min: 5,
-                  max: 120,
-                  step: 5,
-                  onChanged: (v) => apply(() => _focusMin = v),
-                ),
-                _stepperRow(
-                  label: '短休息',
-                  value: _shortMin,
-                  min: 1,
-                  max: 30,
-                  step: 1,
-                  onChanged: (v) => apply(() => _shortMin = v),
-                ),
-                _stepperRow(
-                  label: '長休息',
-                  value: _longMin,
-                  min: 5,
-                  max: 60,
-                  step: 5,
-                  enabled: _longBreakEnabled,
-                  onChanged: (v) => apply(() => _longMin = v),
-                ),
-                const SizedBox(height: 4),
-                _switchRow(
-                  label: '長休息循環',
-                  sub: '每 $_longBreakEvery 顆番茄後進長休息',
-                  value: _longBreakEnabled,
-                  onChanged: (v) => apply(() => _longBreakEnabled = v),
-                ),
-                _switchRow(
-                  label: '專注結束自動休息',
-                  sub: '番茄完成後直接開始倒數休息',
-                  value: _autoStartBreak,
-                  onChanged: (v) => apply(() => _autoStartBreak = v),
-                ),
-                _switchRow(
-                  label: '休息結束自動專注',
-                  sub: '不想被推著走就關著，自己按開始',
-                  value: _autoStartFocus,
-                  onChanged: (v) => apply(() => _autoStartFocus = v),
+                const SizedBox(height: 2),
+                Text(
+                  _longBreakEnabled
+                      ? '一節 $_rounds 顆 · 結尾長休 $_longMin 分'
+                      : '一節 $_rounds 顆番茄',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppInk.soft,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _stepperRow({
+  Widget _settingsSectionTitle({
+    required IconData icon,
+    required String title,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: const Color(0xFFFF7043)),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: AppInk.strong,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _timerStepperCard({
     required String label,
+    required String sub,
+    required IconData icon,
+    required Color color,
     required int value,
     required int min,
     required int max,
     required int step,
     required ValueChanged<int> onChanged,
+    String unit = '分鐘',
     bool enabled = true,
   }) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.4,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+    final canDecrease = enabled && value > min;
+    final canIncrease = enabled && value < max;
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: enabled ? 1 : 0.46,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFCF8),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0x0A46342B)),
+          boxShadow: AppShadows.flat,
+        ),
         child: Row(
           children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: color, size: 19),
+            ),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppInk.strong,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                ],
               ),
             ),
-            _stepBtn(
-              Icons.remove_rounded,
-              enabled && value > min
+            _stepButton(
+              icon: Icons.remove_rounded,
+              color: color,
+              onTap: canDecrease
                   ? () => onChanged(math.max(min, value - step))
                   : null,
             ),
-            SizedBox(
-              width: 64,
-              child: Text(
-                '$value 分',
-                textAlign: TextAlign.center,
-                style: AppType.digits(fontSize: 16, color: AppInk.strong),
+            Container(
+              width: 66,
+              margin: const EdgeInsets.symmetric(horizontal: 7),
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '$value',
+                    textAlign: TextAlign.center,
+                    style: AppType.digits(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: color,
+                    ),
+                  ),
+                  Text(
+                    unit,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: color.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ],
               ),
             ),
-            _stepBtn(
-              Icons.add_rounded,
-              enabled && value < max
+            _stepButton(
+              icon: Icons.add_rounded,
+              color: color,
+              onTap: canIncrease
                   ? () => onChanged(math.min(max, value + step))
                   : null,
             ),
@@ -894,87 +1370,122 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  Widget _stepBtn(IconData icon, VoidCallback? onTap) {
+  // 加減鈕：點一下 ±step；按住連發（HoldRepeatButton），到極值自動停用
+  Widget _stepButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
     final active = onTap != null;
-    return Material(
-      color: active ? Colors.orange.withValues(alpha: 0.10) : const Color(0xFFFAF7F2),
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap == null
-            ? null
-            : () {
-                playHaptic(HapticLevel.selection);
-                onTap();
-              },
-        customBorder: const CircleBorder(),
+    return HoldRepeatButton(
+      onTrigger: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: active
+              ? color.withValues(alpha: 0.12)
+              : const Color(0xFFF5EEE8),
+          shape: BoxShape.circle,
+        ),
         child: SizedBox(
-          width: 36,
-          height: 36,
-          child: Icon(
-            icon,
-            size: 19,
-            color: active ? Colors.orange.shade600 : AppInk.iconFaint,
+          width: 34,
+          height: 34,
+          child: Icon(icon, size: 18, color: active ? color : AppInk.iconFaint),
+        ),
+      ),
+    );
+  }
+
+  Widget _timerSwitchTile({
+    required String label,
+    required String sub,
+    required IconData icon,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    const accent = Color(0xFFFF7043);
+    return Material(
+      color: const Color(0xFFFFFCF8),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          playHaptic(HapticLevel.selection);
+          onChanged(!value);
+        },
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x0A46342B)),
+            boxShadow: AppShadows.flat,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: (value ? accent : AppInk.faint).withValues(
+                    alpha: value ? 0.12 : 0.10,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: value ? accent : AppInk.faint,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                        color: AppInk.strong,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      sub,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppInk.soft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: value,
+                activeTrackColor: accent,
+                onChanged: (v) {
+                  playHaptic(HapticLevel.selection);
+                  onChanged(v);
+                },
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _switchRow({
-    required String label,
-    required String sub,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppInk.strong,
-                  ),
-                ),
-                Text(
-                  sub,
-                  style: const TextStyle(fontSize: 12, color: AppInk.soft),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: value,
-            activeTrackColor: Colors.orange,
-            onChanged: (v) {
-              playHaptic(HapticLevel.selection);
-              onChanged(v);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   // 環內副標：執行中報結束時刻，暫停/待機給情境短語
   String _ringSubtitle() {
-    final end = _endTime;
-    if (_isRunning && end != null) {
-      final hh = end.hour.toString().padLeft(2, '0');
-      final mm = end.minute.toString().padLeft(2, '0');
-      return '～$hh:$mm';
-    }
-    if (_secondsLeft < _phaseTotal) return '已暫停';
+    if (_idle) return '一節 $_rounds 顆';
+    if (_finished) return '這一節完成 🎉';
+    if (!_isRunning) return '已暫停';
     return switch (_phase) {
-      _Phase.focus => '第 ${(_cycleCount % _longBreakEvery) + 1} 顆番茄',
+      _Phase.focus => '第 $_round / $_rounds 顆',
       _Phase.shortBreak => '喘口氣',
       _Phase.longBreak => '好好放鬆',
+      _ => '',
     };
   }
 
@@ -1008,28 +1519,46 @@ class _TimerPageState extends State<TimerPage>
           tween: Tween(begin: 0, end: _progress),
           duration: const Duration(milliseconds: 1000),
           builder: (context, p, child) => CustomPaint(
-            painter: _RingPainter(progress: p, color: color),
+            painter: _TomatoDialPainter(
+              progress: p,
+              color: color,
+              phase: _phase,
+            ),
             child: child,
           ),
           child: Container(
-            margin: EdgeInsets.all(size * 0.082),
-            decoration: const BoxDecoration(
+            margin: EdgeInsets.all(size * 0.155),
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              // 暖白面 + 極淡髮絲圈，跟卡片語彙一致
-              color: Color(0xFFFFFDF9),
-              border: Border.fromBorderSide(
-                BorderSide(color: Color(0x0A46342B)),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFFFFF), Color(0xFFFFF5EB)],
               ),
+              border: Border.all(color: const Color(0x12A85A3A)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.10),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
+                ),
+              ],
             ),
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(
+                    _phaseIcon,
+                    color: color.withValues(alpha: 0.62),
+                    size: size * 0.085,
+                  ),
+                  SizedBox(height: size * 0.015),
                   Text(
                     _timeString,
                     style: TextStyle(
-                      fontSize: size * 0.205,
-                      fontWeight: FontWeight.bold,
+                      fontSize: size * 0.18,
+                      fontWeight: FontWeight.w900,
                       color: color,
                       height: 1.05,
                       // 等寬數字：倒數時各位數不左右跳動。
@@ -1038,7 +1567,7 @@ class _TimerPageState extends State<TimerPage>
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
-                  SizedBox(height: size * 0.02),
+                  SizedBox(height: size * 0.014),
                   Text(
                     _ringSubtitle(),
                     style: TextStyle(
@@ -1102,26 +1631,30 @@ class _TimerPageState extends State<TimerPage>
     required IconData icon,
     required VoidCallback onTap,
     double size = 54,
+    bool faded = false,
   }) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.fromBorderSide(
-          const BorderSide(color: Color(0x0A46342B)),
+    return Opacity(
+      opacity: faded ? 0.35 : 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          border: Border.fromBorderSide(
+            const BorderSide(color: Color(0x0A46342B)),
+          ),
+          boxShadow: AppShadows.flat,
         ),
-        boxShadow: AppShadows.flat,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Icon(icon, color: AppInk.soft, size: size * 0.42),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            onTap: faded ? null : onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Icon(icon, color: AppInk.soft, size: size * 0.42),
+            ),
           ),
         ),
       ),
@@ -1129,34 +1662,137 @@ class _TimerPageState extends State<TimerPage>
   }
 }
 
-// 計時進度圓環：淡色軌道 + 實色圓頭進度弧（12 點鐘方向順時針）+
-// 弧端白心旋鈕（同首頁進度列的亮點語彙）
-class _RingPainter extends CustomPainter {
+// 番茄儀表盤：外圈保留精準倒數，內層用柔和果實量感承接背景插畫。
+class _TomatoDialPainter extends CustomPainter {
   final double progress;
   final Color color;
+  final _Phase phase;
 
-  const _RingPainter({required this.progress, required this.color});
+  const _TomatoDialPainter({
+    required this.progress,
+    required this.color,
+    required this.phase,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = math.max(8.0, size.width * 0.047);
     final center = size.center(Offset.zero);
-    final radius = size.width / 2 - stroke / 2;
+    final shortest = math.min(size.width, size.height);
+    final stroke = math.max(8.0, shortest * 0.048);
+    final radius = shortest / 2 - stroke * 0.8;
+    final bodyRadius = radius - stroke * 1.05;
+
+    final bodyRect = Rect.fromCircle(center: center, radius: bodyRadius);
+    final bodyPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.36, -0.42),
+        radius: 0.95,
+        colors: [
+          Colors.white.withValues(alpha: 0.96),
+          color.withValues(alpha: phase == _Phase.focus ? 0.15 : 0.10),
+          color.withValues(alpha: phase == _Phase.focus ? 0.25 : 0.18),
+        ],
+        stops: const [0.0, 0.58, 1.0],
+      ).createShader(bodyRect);
+    canvas.drawCircle(center, bodyRadius, bodyPaint);
+
+    final groovePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.2, shortest * 0.007)
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: 0.08);
+    for (final angle in [-0.70, 0.0, 0.70]) {
+      final path = Path()
+        ..moveTo(
+          center.dx + math.sin(angle) * bodyRadius * 0.18,
+          center.dy - bodyRadius * 0.76,
+        )
+        ..quadraticBezierTo(
+          center.dx + math.sin(angle) * bodyRadius * 0.40,
+          center.dy,
+          center.dx + math.sin(angle) * bodyRadius * 0.22,
+          center.dy + bodyRadius * 0.74,
+        );
+      canvas.drawPath(path, groovePaint);
+    }
+
+    final leafPaint = Paint()..color = const Color(0xFF79B66A);
+    for (var i = 0; i < 5; i++) {
+      final angle = -math.pi / 2 + (i - 2) * 0.38;
+      final leafCenter =
+          center +
+          Offset(
+            math.cos(angle) * bodyRadius * 0.50,
+            math.sin(angle) * bodyRadius * 0.50,
+          );
+      canvas.save();
+      canvas.translate(leafCenter.dx, leafCenter.dy);
+      canvas.rotate(angle + math.pi / 2);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: bodyRadius * 0.18,
+          height: bodyRadius * 0.36,
+        ),
+        leafPaint,
+      );
+      canvas.restore();
+    }
+
+    final highlight = Paint()
+      ..color = Colors.white.withValues(alpha: 0.58)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center + Offset(-bodyRadius * 0.34, -bodyRadius * 0.30),
+        width: bodyRadius * 0.38,
+        height: bodyRadius * 0.18,
+      ),
+      highlight,
+    );
 
     final track = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
-      ..color = color.withValues(alpha: 0.13);
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: 0.12);
     canvas.drawCircle(center, radius, track);
 
+    final tickPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = math.max(1.2, stroke * 0.16)
+      ..color = color.withValues(alpha: 0.16);
+    for (var i = 0; i < 12; i++) {
+      final a = -math.pi / 2 + i * math.pi / 6;
+      final outer = center + Offset(math.cos(a) * radius, math.sin(a) * radius);
+      final inner =
+          center +
+          Offset(
+            math.cos(a) * (radius - stroke * (i % 3 == 0 ? 1.18 : 0.82)),
+            math.sin(a) * (radius - stroke * (i % 3 == 0 ? 1.18 : 0.82)),
+          );
+      canvas.drawLine(inner, outer, tickPaint);
+    }
+
     final p = progress.clamp(0.0, 1.0);
-    if (p <= 0) return;
+    if (p <= 0) {
+      return;
+    }
     final sweep = 2 * math.pi * p;
     final arc = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round
-      ..color = color;
+      ..shader = SweepGradient(
+        startAngle: -math.pi / 2,
+        endAngle: math.pi * 1.5,
+        colors: [
+          color.withValues(alpha: 0.62),
+          color,
+          color.withValues(alpha: 0.74),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       -math.pi / 2,
@@ -1167,8 +1803,8 @@ class _RingPainter extends CustomPainter {
 
     // 弧端旋鈕：白心 + accent 描邊 + 柔光，倒數的「現在」更有存在感
     final angle = -math.pi / 2 + sweep;
-    final knob = center +
-        Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+    final knob =
+        center + Offset(math.cos(angle) * radius, math.sin(angle) * radius);
     canvas.drawCircle(
       knob,
       stroke * 0.78,
@@ -1188,6 +1824,6 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) =>
-      old.progress != progress || old.color != color;
+  bool shouldRepaint(_TomatoDialPainter old) =>
+      old.progress != progress || old.color != color || old.phase != phase;
 }
