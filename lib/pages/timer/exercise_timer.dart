@@ -202,6 +202,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
   bool _phaseCompleteHold = false;
   bool _advancingBoundary = false;
   int _completedWorkSeconds = 0;
+  // 本階段已經嗶過的「剩餘秒數」（3→2→1 各一次，換階段歸零）
+  int _lastCueSec = 0;
 
   // ── 今日統計（per-day key）──
   String _statsDate = '';
@@ -444,6 +446,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _phaseTotal = step.dur;
     _secondsLeft = step.dur;
     _phaseCompleteHold = false;
+    _lastCueSec = 0; // 換階段重置倒數提示音
   }
 
   // ── 計時推進 ──
@@ -475,7 +478,19 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _endTime = end;
       _secondsLeft = remaining;
     });
+    _maybeCountdownCue(remaining);
     _syncMetronome();
+  }
+
+  // 階段倒數最後 3 秒嗶提示（3→2→1 各一次，第 1 秒那聲較強）。
+  // 沿用節拍器預設短音（溫和鼓聲）；番茄鐘不呼叫，所以只有運動會嗶。
+  void _maybeCountdownCue(int remaining) {
+    if (!_isRunning || remaining < 1 || remaining > 3) return;
+    if (remaining == _lastCueSec) return;
+    _lastCueSec = remaining;
+    final last = remaining == 1;
+    MetronomeService.instance.play(volume: last ? 1.0 : 0.55);
+    playHaptic(last ? HapticLevel.medium : HapticLevel.light);
   }
 
   void _holdCompletedPhase(DateTime endedAt) {
@@ -646,6 +661,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (_kind == ExerciseKind.jog && _cfg.metronomeSoundOn) {
       unawaited(MetronomeService.instance.init(tone: _cfg.metronomeTone));
     }
+    // 預載倒數提示音，避免第一聲（剩 3 秒）才 lazy init 而延遲
+    unawaited(MetronomeService.instance.init());
     final end = DateTime.now().add(Duration(seconds: _secondsLeft));
     setState(() {
       _isRunning = true;
