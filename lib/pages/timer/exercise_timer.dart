@@ -176,7 +176,7 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     metronomeOn: true,
     metronomeSoundOn: true,
     metronomeVolume: 0.75,
-    metronomeTone: MetronomeTone.kick,
+    metronomeTone: MetronomeTone.wood,
     loop: true,
   ),
 };
@@ -735,11 +735,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
       return;
     }
 
-    // 啟動前先取得鎖：若專注計時正在跑，會自動暫停它（保留進度），跳提示告知
-    if (TimerMutex.acquire(ActiveTimer.exercise) == ActiveTimer.focus) {
+    // 啟動前先取得鎖：若另一個計時器正在跑，會自動暫停它（保留進度），跳提示告知
+    final paused = TimerMutex.acquire(ActiveTimer.exercise);
+    if (paused != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('專注計時已暫停')));
+        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage)));
     }
 
     // 從待機 / 完成開始：重新組序列
@@ -1182,7 +1183,6 @@ class ExerciseTimerState extends State<ExerciseTimer>
       MetronomeTone.wood => Icons.forest_rounded,
       MetronomeTone.lowWood => Icons.spa_rounded,
       MetronomeTone.bell => Icons.notifications_none_rounded,
-      MetronomeTone.clap => Icons.back_hand_rounded,
     };
 
     return LayoutBuilder(

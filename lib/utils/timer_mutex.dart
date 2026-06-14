@@ -12,7 +12,16 @@ import 'package:flutter/foundation.dart';
 //
 // 各計時器在 initState 用 [register] 掛上「暫停自己」的回呼，dispose 時
 // [unregister]。暫停 / 重設 / 完成都要 [release]。
-enum ActiveTimer { focus, exercise }
+enum ActiveTimer { focus, exercise, metronome }
+
+extension ActiveTimerLabel on ActiveTimer {
+  /// 被搶鎖暫停時給使用者看的提示字。
+  String get pausedMessage => switch (this) {
+    ActiveTimer.focus => '專注計時已暫停',
+    ActiveTimer.exercise => '運動計時已暫停',
+    ActiveTimer.metronome => '節拍器已暫停',
+  };
+}
 
 class TimerMutex {
   TimerMutex._();

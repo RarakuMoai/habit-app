@@ -5,11 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/app_style.dart';
 import '../utils/input_formatters.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
-import '../widgets/manual_date_dialog.dart';
+import '../widgets/birthday_picker.dart';
 
 class ProfileEditPage extends StatefulWidget {
   const ProfileEditPage({super.key});
@@ -19,6 +20,9 @@ class ProfileEditPage extends StatefulWidget {
 }
 
 class _ProfileEditPageState extends State<ProfileEditPage> {
+  // 全頁主色（暖橘，沿用個人/體重系；版面語彙比照番茄鐘設定頁）
+  static const Color _accent = Color(0xFFFF9800);
+
   final TextEditingController _nicknameCtrl = TextEditingController();
   final TextEditingController _mascotCtrl = TextEditingController();
   // 身高：metric 時是 cm；imperial 時是 ft（搭配 _heightInCtrl 的 in）
@@ -33,6 +37,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   String _activityLevel = ''; // 活動量（內部為久坐/輕度/中度/高度），用於計算 TDEE
   UnitSystem _unit = UnitSystem.metric;
   bool _loaded = false;
+
+  static const List<String> _genders = ['男', '女', '不透露'];
 
   // 畫面顯示為一週運動天數，內部仍存既有活動量值。
   static const Map<String, String> _activityDayLabels = {
@@ -193,8 +199,6 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       UserValidators.targetWeightIn(_targetWeightCtrl.text, _unit);
 
   // BMI 比例檢查（用公制換算後判斷）
-  // 兩個值都進到合理範圍才比對比例（同 onboarding 的 _bmiOddOnboarding），
-  // 避免使用者還在改身高/體重的中間值就被誤判
   String? get _bmiError {
     final cm = _heightCmFromInputs();
     final kg = _weightKgFromInput(_weightCtrl);
@@ -218,161 +222,204 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       UserValidators.birthday(_birthday) == null &&
       _bmiError == null;
 
-  // 單選 Chip（性別 / 活動量共用）：ripple + 觸覺回饋
-  Widget _choiceChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onSelected,
-  }) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: selected ? Colors.orange : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: selected ? Colors.orange : Colors.grey.shade300,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          splashColor: Colors.orange.withValues(alpha: 0.18),
-          highlightColor: Colors.orange.withValues(alpha: 0.08),
-          onTap: () {
-            if (!selected) playHaptic(HapticLevel.selection);
-            onSelected();
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : Colors.grey.shade600,
-                fontSize: 14,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // ── 共用版型（比照番茄鐘設定頁：圓角卡 + 區塊標題 + 暖色）──
 
-  // 性別選擇 Chip
-  Widget _genderChip(String label) => _choiceChip(
-    label: label,
-    selected: _gender == label,
-    onSelected: () => setState(() => _gender = label),
-  );
-
-  // 活動量選擇 Chip（顯示為一週運動天數）
-  Widget _activityChip(String label) => _choiceChip(
-    label: _activityDayLabels[label] ?? label,
-    selected: _activityLevel == label,
-    onSelected: () => setState(() => _activityLevel = label),
-  );
-
-  // 活動量選擇區（用於計算每日總消耗 TDEE）
-  Widget _activitySelector() {
+  Widget _sectionTitle(IconData icon, String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+      child: Row(
         children: [
+          Icon(icon, size: 17, color: _accent),
+          const SizedBox(width: 6),
           Text(
-            '一週大概運動幾天？',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _activityDayLabels.keys.map(_activityChip).toList(),
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: AppInk.strong,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // 身高 ft/in 兩格並排（imperial 模式專用）
-  Widget _ftInFieldRow({
-    required TextEditingController ftCtrl,
-    required TextEditingController inCtrl,
+  // 卡片外殼：白底、圓角、髮絲邊、扁平陰影
+  Widget _card({required Widget child, EdgeInsets? padding}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: padding ?? const EdgeInsets.fromLTRB(14, 11, 12, 13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x0A46342B)),
+        boxShadow: AppShadows.flat,
+      ),
+      child: child,
+    );
+  }
+
+  // 含圖示與標籤的文字輸入卡
+  Widget _textCard({
+    required IconData icon,
+    required String label,
+    required TextEditingController controller,
+    bool required = false,
+    TextInputType keyboardType = TextInputType.text,
+    String? suffix,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
     String? errorText,
+    Widget? trailing,
+    String? hint,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+    return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Icon(icon, size: 18, color: _accent),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w900,
+                  color: AppInk.strong,
+                ),
+              ),
+              if (required)
+                Text(
+                  ' *',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.red.shade400,
+                  ),
+                ),
+              const Spacer(),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 2),
+          TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            maxLength: maxLength,
+            inputFormatters: inputFormatters,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppInk.strong,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              counterText: '',
+              hintText: hint,
+              hintStyle: const TextStyle(color: AppInk.faint, fontSize: 15),
+              suffixText: suffix,
+              suffixStyle: const TextStyle(
+                color: AppInk.soft,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+            ),
+          ),
+          if (errorText != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                errorText,
+                style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // 身高 ft/in 兩格並排（imperial 模式專用），同卡片風格
+  Widget _ftInCard({String? errorText}) {
+    InputDecoration deco(String suffix) => InputDecoration(
+      isDense: true,
+      counterText: '',
+      suffixText: suffix,
+      suffixStyle: const TextStyle(
+        color: AppInk.soft,
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+      ),
+      filled: true,
+      fillColor: const Color(0xFFFAF7F2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE8DDD4)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE8DDD4)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _accent, width: 1.6),
+      ),
+    );
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.straighten_rounded, size: 18, color: _accent),
+              const SizedBox(width: 8),
+              const Text(
+                '身高',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w900,
+                  color: AppInk.strong,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
               Expanded(
                 child: TextField(
-                  controller: ftCtrl,
+                  controller: _heightCtrl,
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(2),
                   ],
-                  decoration: InputDecoration(
-                    labelText: '身高',
-                    suffixText: 'ft',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.orange),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
+                  decoration: deco('ft'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: TextField(
-                  controller: inCtrl,
+                  controller: _heightInCtrl,
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(2),
                   ],
-                  decoration: InputDecoration(
-                    labelText: ' ',
-                    suffixText: 'in',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.orange),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
+                  decoration: deco('in'),
                 ),
               ),
             ],
           ),
           if (errorText != null)
             Padding(
-              padding: const EdgeInsets.only(top: 6, left: 4),
+              padding: const EdgeInsets.only(top: 6),
               child: Text(
                 errorText,
-                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                style: TextStyle(color: Colors.red.shade400, fontSize: 12),
               ),
             ),
         ],
@@ -380,47 +427,69 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     );
   }
 
-  // 通用輸入欄位
-  Widget _inputField({
+  // 單選 Chip（性別 / 活動量共用）
+  Widget _choiceChip({
     required String label,
-    required TextEditingController controller,
-    TextInputType keyboardType = TextInputType.text,
-    String? suffix,
-    bool required = false,
-    int? maxLength,
-    List<TextInputFormatter>? inputFormatters,
-    String? errorText,
-    Widget? suffixWidget,
+    required bool selected,
+    required VoidCallback onSelected,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        maxLength: maxLength,
-        inputFormatters: inputFormatters,
-        decoration: InputDecoration(
-          labelText: required ? '$label *' : label,
-          suffixText: suffixWidget == null ? suffix : null,
-          suffixIcon: suffixWidget,
-          suffixIconConstraints: const BoxConstraints(),
-          counterText: '',
-          errorText: errorText,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+    return Material(
+      color: selected ? _accent : const Color(0xFFFAF7F2),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          if (!selected) playHaptic(HapticLevel.selection);
+          onSelected();
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? _accent : const Color(0xFFE8DDD4),
+            ),
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.orange),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : AppInk.soft,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  // 性別 / 活動量卡（標籤 + 一排 chip）
+  Widget _chipsCard({
+    required IconData icon,
+    required String label,
+    required List<Widget> chips,
+  }) {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: _accent),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w900,
+                  color: AppInk.strong,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: chips),
+        ],
       ),
     );
   }
@@ -433,51 +502,30 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     system: _unit,
   );
 
-  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
-  // 需先填身高才顯示；點欄位右側「建議」可一鍵套用
-  Widget _targetWeightHint() {
-    final suggestion = _targetWeightSuggestion;
-    if (suggestion == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          Icon(Icons.favorite_outline, size: 14, color: Colors.orange.shade400),
-          const SizedBox(width: 5),
-          Expanded(
-            child: Text(
-              '健康體重約 ${suggestion.low}–${suggestion.high} ${suggestion.unit}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget? _targetWeightSuggestSuffix() {
     final suggestion = _targetWeightSuggestion;
     if (suggestion == null) return null;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: TextButton(
-        onPressed: () => setState(
-          () => _targetWeightCtrl.text = suggestion.suggest.toString(),
-        ),
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.orange.shade800,
-          backgroundColor: Colors.orange.shade50,
+    return Material(
+      color: _accent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          playHaptic(HapticLevel.selection);
+          setState(
+            () => _targetWeightCtrl.text = suggestion.suggest.toString(),
+          );
+        },
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.orange.shade200),
+          child: Text(
+            '建議 ${suggestion.suggest}${suggestion.unit}',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFFD9820A),
+            ),
           ),
-        ),
-        child: Text(
-          '建議 ${suggestion.suggest}${suggestion.unit}',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -489,83 +537,57 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       '${d.month.toString().padLeft(2, '0')} 月 '
       '${d.day.toString().padLeft(2, '0')} 日';
 
-  // 手動輸入生日（寬鬆解析：2000-1-1 / 20000101 / 2000年1月1日 都可）
-  Future<void> _manualBirthdayInput() async {
+  // 生日卡：點擊開啟「月曆 + 手動輸入」單一畫面選擇器
+  Widget _birthdayCard() {
     final now = DateTime.now();
-    final picked = await showManualDateDialog(
-      context,
-      initial: _birthday,
-      firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
-      lastDate: now,
-      title: '輸入生日',
-    );
-    if (picked != null) setState(() => _birthday = picked);
-  }
-
-  // 生日選擇欄位（點擊開啟日曆；鍵盤鈕開手動輸入）
-  Widget _birthdayField() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () async {
-          final now = DateTime.now();
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: _birthday ?? DateTime(now.year - 20),
-            firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
-            lastDate: now,
-            // 自帶輸入模式解析太死板，手動輸入走 _manualBirthdayInput
-            initialEntryMode: DatePickerEntryMode.calendarOnly,
-          );
-          if (picked != null) setState(() => _birthday = picked);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: '生日',
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
+    return _card(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () async {
+            final picked = await showBirthdayPicker(
+              context,
+              initial: _birthday,
+              firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
+              lastDate: now,
+              accent: _accent,
+            );
+            if (picked != null) setState(() => _birthday = picked);
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+            child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.keyboard_alt_outlined,
-                    size: 18,
-                    color: Colors.orange,
+                const Icon(Icons.cake_rounded, size: 18, color: _accent),
+                const SizedBox(width: 8),
+                const Text(
+                  '生日',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
                   ),
-                  visualDensity: VisualDensity.compact,
-                  tooltip: '直接輸入',
-                  onPressed: _manualBirthdayInput,
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(right: 12),
-                  child: Icon(
-                    Icons.calendar_today_outlined,
-                    size: 18,
-                    color: Colors.orange,
+                const Spacer(),
+                Text(
+                  _birthday == null ? '未設定' : _formatDate(_birthday!),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _birthday == null ? AppInk.faint : AppInk.strong,
                   ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.calendar_today_rounded,
+                  size: 18,
+                  color: _accent,
                 ),
               ],
             ),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.orange),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-          // isEmpty=true 時 label 停在中間（未選狀態）
-          isEmpty: _birthday == null,
-          child: Text(
-            _birthday == null ? '' : _formatDate(_birthday!),
-            style: const TextStyle(fontSize: 16),
           ),
         ),
       ),
@@ -577,81 +599,69 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8F0),
       appBar: AppBar(
-        backgroundColor: Colors.orange,
-        title: const Text('基本資料', style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFFFFF8F0),
+        elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppInk.strong),
+        title: const Text(
+          '基本資料',
+          style: TextStyle(
+            color: AppInk.strong,
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
       ),
-      body: _loaded
-          ? Column(
+      body: !_loaded
+          ? const Center(child: CircularProgressIndicator(color: _accent))
+          : Column(
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     children: [
-                      // 暱稱（必填）
-                      _inputField(
+                      _sectionTitle(Icons.badge_rounded, '稱呼'),
+                      _textCard(
+                        icon: Icons.person_rounded,
                         label: '暱稱',
                         controller: _nicknameCtrl,
                         required: true,
                         maxLength: 12,
+                        hint: '想被怎麼稱呼？',
+                        errorText: _nicknameCtrl.text.trim().isEmpty
+                            ? '暱稱不能為空'
+                            : null,
                       ),
-                      // 暱稱為空時顯示提示（其他欄位的錯誤各自在欄位下方顯示）
-                      if (_nicknameCtrl.text.trim().isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            '暱稱不能為空',
-                            style: TextStyle(
-                              color: Colors.red.shade400,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-
-                      // 吉祥物名字
-                      _inputField(
+                      _textCard(
+                        icon: Icons.pets_rounded,
                         label: '吉祥物名字',
                         controller: _mascotCtrl,
                         maxLength: 12,
+                        hint: '兔咪',
                       ),
 
-                      // 性別選擇
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '性別',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 13,
-                              ),
+                      _sectionTitle(Icons.face_rounded, '基本'),
+                      _chipsCard(
+                        icon: Icons.wc_rounded,
+                        label: '性別',
+                        chips: [
+                          for (final g in _genders)
+                            _choiceChip(
+                              label: g,
+                              selected: _gender == g,
+                              onSelected: () => setState(() => _gender = g),
                             ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                _genderChip('男'),
-                                const SizedBox(width: 8),
-                                _genderChip('女'),
-                                const SizedBox(width: 8),
-                                _genderChip('不透露'),
-                              ],
-                            ),
-                          ],
-                        ),
+                        ],
                       ),
+                      _birthdayCard(),
 
-                      // 身高（依單位顯示一格或兩格）
+                      _sectionTitle(Icons.straighten_rounded, '身體數據'),
                       if (_unit == UnitSystem.imperial)
-                        _ftInFieldRow(
-                          ftCtrl: _heightCtrl,
-                          inCtrl: _heightInCtrl,
-                          errorText: _heightError,
-                        )
+                        _ftInCard(errorText: _heightError)
                       else
-                        _inputField(
+                        _textCard(
+                          icon: Icons.straighten_rounded,
                           label: '身高',
                           controller: _heightCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
@@ -660,10 +670,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           suffix: 'cm',
                           inputFormatters: [maxValueFormatter(999)],
                           errorText: _heightError,
+                          hint: '170',
                         ),
-
-                      // 體重
-                      _inputField(
+                      _textCard(
+                        icon: Icons.monitor_weight_rounded,
                         label: '體重',
                         controller: _weightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(
@@ -671,58 +681,65 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         ),
                         suffix: UnitFormat.weightLabel(_unit),
                         inputFormatters: [maxValueFormatter(999)],
-                        // 個別範圍錯誤優先；都過了才顯示 BMI 比例錯誤
                         errorText: _weightError ?? _bmiError,
+                        hint: '60',
                       ),
-
-                      // 目標體重（選填）
-                      _inputField(
+                      _textCard(
+                        icon: Icons.flag_rounded,
                         label: '目標體重',
                         controller: _targetWeightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
                         suffix: UnitFormat.weightLabel(_unit),
-                        suffixWidget: _targetWeightSuggestSuffix(),
                         inputFormatters: [maxValueFormatter(999)],
                         errorText: _targetWeightError,
+                        trailing: _targetWeightSuggestSuffix(),
+                        hint: '選填',
                       ),
 
-                      // 目標體重建議（依身高的健康範圍）
-                      _targetWeightHint(),
-
-                      // 生日（選填，點擊開啟日期選擇器）
-                      _birthdayField(),
-
-                      // 活動量（用於計算每日總消耗 TDEE）
-                      _activitySelector(),
+                      _sectionTitle(Icons.directions_run_rounded, '活動量'),
+                      _chipsCard(
+                        icon: Icons.local_fire_department_rounded,
+                        label: '一週大概運動幾天？',
+                        chips: [
+                          for (final k in _activityDayLabels.keys)
+                            _choiceChip(
+                              label: _activityDayLabels[k]!,
+                              selected: _activityLevel == k,
+                              onSelected: () =>
+                                  setState(() => _activityLevel = k),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                     ],
                   ),
                 ),
 
-                // 底部儲存按鈕
+                // 底部儲存按鈕（固定）
                 SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
                     child: SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
-                        // 暱稱為空時 disabled
+                      child: FilledButton.icon(
                         onPressed: _canSave ? _save : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          disabledBackgroundColor: Colors.grey.shade300,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _accent,
+                          disabledBackgroundColor: const Color(0xFFE6DACE),
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
-                        child: const Text(
+                        icon: const Icon(Icons.check_rounded, size: 20),
+                        label: const Text(
                           '儲存',
                           style: TextStyle(
-                            color: Colors.white,
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),
@@ -730,8 +747,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   ),
                 ),
               ],
-            )
-          : const Center(child: CircularProgressIndicator()),
+            ),
     );
   }
 }

@@ -19,9 +19,10 @@ import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/timer_ring_painter.dart';
 import 'timer/exercise_timer.dart';
+import 'timer/metronome_timer.dart';
 
-// 計時頁上層模式：專注（番茄鐘）／運動（間歇訓練）
-enum _TimerMode { focus, exercise }
+// 計時頁上層模式：專注（番茄鐘）／運動（間歇訓練）／節拍器（單純打拍）
+enum _TimerMode { focus, exercise, metronome }
 
 // 專注模式階段。idle=待機、finished=整節完成；長休息只在整節最後（可關）。
 enum _Phase { idle, focus, shortBreak, longBreak, finished }
@@ -138,9 +139,11 @@ class _TimerPageState extends State<TimerPage>
     final prefs = await SharedPreferences.getInstance();
     final today = _dateStr(DateTime.now());
     setState(() {
-      _topMode = prefs.getString(PrefsKeys.timerMode) == 'exercise'
-          ? _TimerMode.exercise
-          : _TimerMode.focus;
+      _topMode = switch (prefs.getString(PrefsKeys.timerMode)) {
+        'exercise' => _TimerMode.exercise,
+        'metronome' => _TimerMode.metronome,
+        _ => _TimerMode.focus,
+      };
       // 3 個自訂槽：槽0 讀不到新 key 就回退舊單槽 key（向後相容遷移）。
       for (var i = 0; i < _customSlots; i++) {
         final fF = i == 0
@@ -390,11 +393,12 @@ class _TimerPageState extends State<TimerPage>
       playFeedback(SfxCue.tap);
       return;
     }
-    // 啟動前先取得鎖：若運動計時正在跑，會自動暫停它（保留進度），跳提示告知
-    if (TimerMutex.acquire(ActiveTimer.focus) == ActiveTimer.exercise) {
+    // 啟動前先取得鎖：若另一個計時器正在跑，會自動暫停它（保留進度），跳提示告知
+    final paused = TimerMutex.acquire(ActiveTimer.focus);
+    if (paused != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('運動計時已暫停')));
+        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage)));
     }
     // 從待機 / 完成 → 重新組序列從頭開始
     if (_idle || _finished) {
@@ -518,22 +522,30 @@ class _TimerPageState extends State<TimerPage>
 
   static const Color _exerciseAccent = Color(0xFF26A69A);
 
+  // 各模式主色：專注=番茄色（隨階段變）、運動=青綠、節拍器=紫
+  Color _accentFor(_TimerMode mode) => switch (mode) {
+    _TimerMode.focus => _phaseColor,
+    _TimerMode.exercise => _exerciseAccent,
+    _TimerMode.metronome => kMetronomeAccent,
+  };
+
   void _switchMode(_TimerMode mode) {
     if (mode == _topMode) return;
     setState(() => _topMode = mode);
     SharedPreferences.getInstance().then(
-      (p) => p.setString(
-        PrefsKeys.timerMode,
-        mode == _TimerMode.exercise ? 'exercise' : 'focus',
-      ),
+      (p) => p.setString(PrefsKeys.timerMode, switch (mode) {
+        _TimerMode.exercise => 'exercise',
+        _TimerMode.metronome => 'metronome',
+        _TimerMode.focus => 'focus',
+      }),
     );
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
   }
 
   @override
   Widget build(BuildContext context) {
-    // 頁面主色隨模式切換：專注用番茄色、運動用青綠
-    final color = _topMode == _TimerMode.focus ? _phaseColor : _exerciseAccent;
+    // 頁面主色隨模式切換：專注用番茄色、運動用青綠、節拍器用紫
+    final color = _accentFor(_topMode);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -560,14 +572,19 @@ class _TimerPageState extends State<TimerPage>
                   const SizedBox(height: 6),
                   _buildModeSwitch(color),
                   const SizedBox(height: 4),
-                  // 兩模式都常駐（IndexedStack）：切換時各自計時狀態不會被丟掉
+                  // 三模式都常駐（IndexedStack）：切換時各自計時狀態不會被丟掉
                   Expanded(
                     child: IndexedStack(
-                      index: _topMode == _TimerMode.focus ? 0 : 1,
+                      index: switch (_topMode) {
+                        _TimerMode.focus => 0,
+                        _TimerMode.exercise => 1,
+                        _TimerMode.metronome => 2,
+                      },
                       sizing: StackFit.expand,
                       children: [
                         _buildTimerContent(_phaseColor),
                         const ExerciseTimer(),
+                        const MetronomeTimer(),
                       ],
                     ),
                   ),
@@ -582,9 +599,10 @@ class _TimerPageState extends State<TimerPage>
 
   // 專注 / 運動 分段切換（玻璃膠囊風，跟全 app 卡片語彙一致）
   Widget _buildModeSwitch(Color color) {
+    // 三欄較擠：圖示縮小、字距收緊，SE 也排得下
     Widget seg(_TimerMode mode, IconData icon, String label) {
       final selected = _topMode == mode;
-      final segColor = mode == _TimerMode.focus ? _phaseColor : _exerciseAccent;
+      final segColor = _accentFor(mode);
       return Expanded(
         child: GestureDetector(
           onTap: () => _switchMode(mode),
@@ -610,16 +628,21 @@ class _TimerPageState extends State<TimerPage>
               children: [
                 Icon(
                   icon,
-                  size: 17,
+                  size: 16,
                   color: selected ? Colors.white : AppInk.soft,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: selected ? Colors.white : AppInk.soft,
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: selected ? Colors.white : AppInk.soft,
+                    ),
                   ),
                 ),
               ],
@@ -643,6 +666,8 @@ class _TimerPageState extends State<TimerPage>
           seg(_TimerMode.focus, Icons.psychology_rounded, '專注'),
           const SizedBox(width: 4),
           seg(_TimerMode.exercise, Icons.directions_run_rounded, '運動'),
+          const SizedBox(width: 4),
+          seg(_TimerMode.metronome, Icons.av_timer_rounded, '節拍器'),
         ],
       ),
     );

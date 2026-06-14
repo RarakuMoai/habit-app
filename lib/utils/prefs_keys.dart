@@ -51,8 +51,8 @@ abstract final class PrefsKeys {
   static String timerFocusMinutesDay(String date) =>
       '$timerFocusMinutesDayPrefix$date';
 
-  // ── 計時頁：上層模式（專注/運動）與運動子模式 ──────────────
-  static const timerMode = 'timer_mode'; // 'focus' | 'exercise'
+  // ── 計時頁：上層模式（專注/運動/節拍器）與運動子模式 ──────────────
+  static const timerMode = 'timer_mode'; // 'focus' | 'exercise' | 'metronome'
   static const exerciseSubMode = 'exercise_submode'; // tabata/hiit/emom/gym/jog
 
   // 各運動子模式的設定，key 由 子模式 id + 欄位 組成（id：tabata/hiit/emom/gym/jog）
@@ -79,6 +79,14 @@ abstract final class PrefsKeys {
   static String exerciseSessions(String date) => '$exerciseSessionsPrefix$date';
   static String exerciseMinutesDay(String date) =>
       '$exerciseMinutesDayPrefix$date';
+
+  // ── 計時頁：單純節拍器（與運動的超慢跑節拍器各存各的）──────────
+  static const metronomeBpm = 'metronome_bpm';
+  static const metronomeTone = 'metronome_tone';
+  static const metronomeVolume = 'metronome_volume';
+  static const metronomeBeats = 'metronome_beats'; // 每小節拍數（拍號分子）
+  static const metronomeAccent = 'metronome_accent'; // 第一拍重音
+  static const metronomeHaptic = 'metronome_haptic'; // 觸覺跟拍
 
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';
