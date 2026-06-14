@@ -877,9 +877,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
               child: child,
             ),
           ),
-          child: KeyedSubtree(
+          // 淡出中的舊版面用 OverflowBox 維持「當初建立時的高度」量測，避免被
+          // 縮小中的格子壓到 overflow；多出的部分用 ClipRect 裁掉而非報錯。
+          child: ClipRect(
             key: ValueKey(compact),
-            child: compact ? _buildCompactLayout(h) : _buildFullLayout(),
+            child: OverflowBox(
+              minHeight: h,
+              maxHeight: h,
+              alignment: Alignment.topCenter,
+              child: compact ? _buildCompactLayout(h) : _buildFullLayout(),
+            ),
           ),
         );
       },
