@@ -606,9 +606,31 @@ class _TimerPageState extends State<TimerPage>
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        return h < 470
-            ? _buildCompactLayout(color, h)
-            : _buildFullLayout(color);
+        final compact = h < 470;
+        // 跨過門檻時，完整↔緊湊版面用淡入＋微縮放交接，避免瞬間 pop。
+        // 同一版面內隨高度變化（拖曳/彈簧）的縮放不觸發切換（key 不變）。
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeIn,
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topCenter,
+            children: [...previous, ?current],
+          ),
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.96, end: 1).animate(anim),
+              child: child,
+            ),
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(compact),
+            child: compact
+                ? _buildCompactLayout(color, h)
+                : _buildFullLayout(color),
+          ),
+        );
       },
     );
   }

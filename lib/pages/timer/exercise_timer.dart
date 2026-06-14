@@ -860,7 +860,28 @@ class ExerciseTimerState extends State<ExerciseTimer>
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        return h < 470 ? _buildCompactLayout(h) : _buildFullLayout();
+        final compact = h < 470;
+        // 跨過門檻時，完整↔緊湊版面用淡入＋微縮放交接，避免瞬間 pop。
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeIn,
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topCenter,
+            children: [...previous, ?current],
+          ),
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.96, end: 1).animate(anim),
+              child: child,
+            ),
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(compact),
+            child: compact ? _buildCompactLayout(h) : _buildFullLayout(),
+          ),
+        );
       },
     );
   }
