@@ -34,6 +34,9 @@ abstract final class PrefsKeys {
   static const timerLongBreakMinutes = 'timer_long_break_minutes';
   static const timerLongBreakEnabled = 'timer_long_break_enabled'; // 結尾長休息
   static const timerRounds = 'timer_rounds'; // 一節幾顆番茄（1–8）
+  // 上次選的方案：0/1/2=預設組、3=自訂（重開 app 記憶用）。
+  // 自訂槽的數值沿用上面 focus/short/rounds 三個 key（自訂是唯一可自由編輯的槽）。
+  static const timerSelectedPreset = 'timer_selected_preset';
 
   // 帶日期的今日統計（date 格式 yyyy-MM-dd）
   static const timerTomatoesPrefix = 'timer_tomatoes_';
@@ -45,9 +48,9 @@ abstract final class PrefsKeys {
 
   // ── 計時頁：上層模式（專注/運動）與運動子模式 ──────────────
   static const timerMode = 'timer_mode'; // 'focus' | 'exercise'
-  static const exerciseSubMode = 'exercise_submode'; // tabata/hiit/emom/gym
+  static const exerciseSubMode = 'exercise_submode'; // tabata/hiit/emom/gym/jog
 
-  // 各運動子模式的設定，key 由 子模式 id + 欄位 組成（id：tabata/hiit/emom/gym）
+  // 各運動子模式的設定，key 由 子模式 id + 欄位 組成（id：tabata/hiit/emom/gym/jog）
   static String _ex(String id, String field) => 'exercise_${id}_$field';
   static String exerciseWork(String id) => _ex(id, 'work'); // 每組運動秒數
   static String exerciseRest(String id) => _ex(id, 'rest'); // 每組休息秒數
@@ -55,6 +58,15 @@ abstract final class PrefsKeys {
   static String exercisePrep(String id) => _ex(id, 'prep'); // 開始前準備秒數
   static String exerciseWarmupOn(String id) => _ex(id, 'warmup_on');
   static String exerciseWarmup(String id) => _ex(id, 'warmup'); // 暖身秒數
+  static String exerciseCooldownOn(String id) => _ex(id, 'cooldown_on');
+  static String exerciseCooldown(String id) => _ex(id, 'cooldown'); // 收操秒數
+  static String exerciseBpm(String id) => _ex(id, 'bpm');
+  static String exerciseMetronomeOn(String id) => _ex(id, 'metronome_on');
+  static String exerciseMetronomeSoundOn(String id) =>
+      _ex(id, 'metronome_sound_on');
+  static String exerciseMetronomeVolume(String id) =>
+      _ex(id, 'metronome_volume');
+  static String exerciseMetronomeTone(String id) => _ex(id, 'metronome_tone');
 
   // 帶日期的今日運動統計
   static const exerciseSessionsPrefix = 'exercise_sessions_';

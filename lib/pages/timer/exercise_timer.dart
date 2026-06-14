@@ -25,7 +25,7 @@ import '../../widgets/timer_ring_painter.dart';
 
 enum ExerciseKind { tabata, hiit, emom, gym, jog }
 
-enum _ExPhase { idle, prep, warmup, work, rest, finished }
+enum _ExPhase { idle, prep, warmup, work, rest, cooldown, finished }
 
 // 子模式靜態資訊（名稱/說明/圖示/主色）
 typedef _ExMeta = ({String name, String desc, IconData icon, Color color});
@@ -71,6 +71,8 @@ class _ExConfig {
   int prep;
   bool warmupOn;
   int warmup;
+  bool cooldownOn;
+  int cooldown;
   int bpm;
   bool metronomeOn;
   bool metronomeSoundOn;
@@ -85,6 +87,8 @@ class _ExConfig {
     required this.prep,
     required this.warmupOn,
     required this.warmup,
+    required this.cooldownOn,
+    required this.cooldown,
     required this.bpm,
     required this.metronomeOn,
     required this.metronomeSoundOn,
@@ -102,6 +106,8 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: false,
     warmup: 60,
+    cooldownOn: false,
+    cooldown: 60,
     bpm: 0,
     metronomeOn: false,
     metronomeSoundOn: false,
@@ -116,6 +122,8 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: true,
     warmup: 120,
+    cooldownOn: true,
+    cooldown: 60,
     bpm: 0,
     metronomeOn: false,
     metronomeSoundOn: false,
@@ -130,6 +138,8 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: false,
     warmup: 60,
+    cooldownOn: false,
+    cooldown: 60,
     bpm: 0,
     metronomeOn: false,
     metronomeSoundOn: false,
@@ -144,6 +154,8 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: false,
     warmup: 0,
+    cooldownOn: false,
+    cooldown: 60,
     bpm: 0,
     metronomeOn: false,
     metronomeSoundOn: false,
@@ -158,6 +170,8 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: true,
     warmup: 180,
+    cooldownOn: true,
+    cooldown: 120,
     bpm: 180,
     metronomeOn: true,
     metronomeSoundOn: true,
@@ -285,6 +299,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
         prep: prefs.getInt(PrefsKeys.exercisePrep(id)) ?? d.prep,
         warmupOn: prefs.getBool(PrefsKeys.exerciseWarmupOn(id)) ?? d.warmupOn,
         warmup: prefs.getInt(PrefsKeys.exerciseWarmup(id)) ?? d.warmup,
+        cooldownOn:
+            prefs.getBool(PrefsKeys.exerciseCooldownOn(id)) ?? d.cooldownOn,
+        cooldown: prefs.getInt(PrefsKeys.exerciseCooldown(id)) ?? d.cooldown,
         bpm: prefs.getInt(PrefsKeys.exerciseBpm(id)) ?? d.bpm,
         metronomeOn:
             prefs.getBool(PrefsKeys.exerciseMetronomeOn(id)) ?? d.metronomeOn,
@@ -324,6 +341,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
     await prefs.setInt(PrefsKeys.exercisePrep(id), c.prep);
     await prefs.setBool(PrefsKeys.exerciseWarmupOn(id), c.warmupOn);
     await prefs.setInt(PrefsKeys.exerciseWarmup(id), c.warmup);
+    await prefs.setBool(PrefsKeys.exerciseCooldownOn(id), c.cooldownOn);
+    await prefs.setInt(PrefsKeys.exerciseCooldown(id), c.cooldown);
     await prefs.setInt(PrefsKeys.exerciseBpm(id), c.bpm);
     await prefs.setBool(PrefsKeys.exerciseMetronomeOn(id), c.metronomeOn);
     await prefs.setBool(
@@ -421,6 +440,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
       if (!c.loop && c.rest > 0 && !isLast) {
         seq.add((phase: _ExPhase.rest, dur: c.rest, round: r));
       }
+    }
+    if (c.cooldownOn && c.cooldown > 0) {
+      seq.add((phase: _ExPhase.cooldown, dur: c.cooldown, round: 0));
     }
     return seq;
   }
@@ -681,6 +703,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
           : ('💪 開始運動', '第 ${next.round} / ${_cfg.rounds} 組'),
     _ExPhase.rest => ('😮‍💨 休息一下', '深呼吸，準備下一組'),
     _ExPhase.warmup => ('🤸 開始暖身', '先動一動身體'),
+    _ExPhase.cooldown => ('🧘 收操緩和', '放鬆伸展，慢慢收尾'),
     _ => ('開始', ''),
   };
 
@@ -831,6 +854,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _ExPhase.work => _exMeta[_kind]!.color,
     _ExPhase.rest => const Color(0xFF66BB6A),
     _ExPhase.warmup => const Color(0xFFFFA726),
+    _ExPhase.cooldown => const Color(0xFF4DD0E1),
     _ExPhase.finished => const Color(0xFF42A5F5),
     _ => const Color(0xFF26A69A),
   };
@@ -841,6 +865,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _ExPhase.warmup => '暖身',
     _ExPhase.work => _kind == ExerciseKind.jog ? '保持節奏' : '運動',
     _ExPhase.rest => '休息',
+    _ExPhase.cooldown => '收操',
     _ExPhase.finished => '完成',
   };
 
@@ -848,6 +873,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _ExPhase.work => _exMeta[_kind]!.icon,
     _ExPhase.rest => Icons.self_improvement_rounded,
     _ExPhase.warmup => Icons.accessibility_new_rounded,
+    _ExPhase.cooldown => Icons.spa_rounded,
     _ExPhase.finished => Icons.emoji_events_rounded,
     _ => _exMeta[_kind]!.icon,
   };
@@ -938,10 +964,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
           Positioned.fill(
             child: IgnorePointer(
               child: RepaintBoundary(
-                child: Align(
-                  alignment: ringAlign,
-                  child: _buildRing(ringSize),
-                ),
+                child: Align(alignment: ringAlign, child: _buildRing(ringSize)),
               ),
             ),
           ),
@@ -970,7 +993,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
             child: LayoutBuilder(
               builder: (context, c) {
                 final ring = math.min(math.min(c.maxWidth, c.maxHeight), 246.0);
-                return showRing ? _buildRing(ring) : SizedBox.square(dimension: ring);
+                return showRing
+                    ? _buildRing(ring)
+                    : SizedBox.square(dimension: ring);
               },
             ),
           ),
@@ -1972,6 +1997,38 @@ class ExerciseTimerState extends State<ExerciseTimer>
                       max: 600,
                       onChanged: (v) => apply(() => c.warmup = v),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            '收操',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppInk.strong,
+                            ),
+                          ),
+                        ),
+                        Switch(
+                          value: c.cooldownOn,
+                          activeThumbColor: meta.color,
+                          onChanged: (v) => apply(() => c.cooldownOn = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (c.cooldownOn)
+                    _stepRow(
+                      label: '收操時間',
+                      value: c.cooldown,
+                      unit: '秒',
+                      step: 10,
+                      min: 0,
+                      max: 600,
+                      onChanged: (v) => apply(() => c.cooldown = v),
+                    ),
                   const SizedBox(height: 6),
                   Center(
                     child: TextButton(
@@ -1983,6 +2040,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
                         c.prep = d.prep;
                         c.warmupOn = d.warmupOn;
                         c.warmup = d.warmup;
+                        c.cooldownOn = d.cooldownOn;
+                        c.cooldown = d.cooldown;
                         c.bpm = d.bpm;
                         c.metronomeOn = d.metronomeOn;
                         c.metronomeSoundOn = d.metronomeSoundOn;
