@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/app_feedback.dart';
@@ -197,9 +198,6 @@ class ExerciseTimerState extends State<ExerciseTimer>
   bool _isRunning = false;
   Timer? _timer;
   Timer? _boundaryTimer;
-  // 節拍器：自我重排的單發 timer（每拍等速；改 BPM 下一拍自動套用，免重啟）
-  Timer? _beatTimer;
-  bool _beatRunning = false;
   DateTime? _endTime;
   bool _phaseCompleteHold = false;
   bool _advancingBoundary = false;
@@ -207,14 +205,24 @@ class ExerciseTimerState extends State<ExerciseTimer>
   // 本階段已經嗶過的「剩餘秒數」（3→2→1 各一次，換階段歸零）
   int _lastCueSec = 0;
 
+  // ── 節拍器（超慢跑）──
+  // 聲音走 MetronomeService 的無縫循環（音訊引擎等速）；擺錘＋觸覺走這個 Ticker
+  // 的連續正弦相位（每幀讀當下 BPM，改速平順不跳）。兩者開跑時對齊。
+  bool _metroRunning = false;
+  Ticker? _metroTicker;
+  final ValueNotifier<double> _pendAngle = ValueNotifier<double>(0);
+  double _pendPhase = math.pi / 2; // 起手在極端＝第一拍
+  Duration _lastTickElapsed = Duration.zero;
+  int _lastBeatIndex = -1;
+  Timer? _loopRegenDebounce; // 改 BPM 連按時，延遲重生音訊循環
+  static const double _pendMaxAngle = 0.46; // 擺幅 ±約 26°
+
   // ── 今日統計（per-day key）──
   String _statsDate = '';
   int _todaySessions = 0;
   int _todayMinutes = 0;
 
   late final AnimationController _breath;
-  // 節拍器擺錘：0=左極端、1=右極端，端點＝一拍。只在超慢跑運動段擺動。
-  late final AnimationController _pendulum;
 
   _ExConfig get _cfg => _configs[_kind]!;
   bool get _idle => _phase == _ExPhase.idle;
@@ -230,19 +238,18 @@ class ExerciseTimerState extends State<ExerciseTimer>
       vsync: this,
       duration: const Duration(milliseconds: 2200),
     );
-    _pendulum = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 333),
-    );
+    _metroTicker = createTicker(_onMetroTick);
     _loadPrefs();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _loopRegenDebounce?.cancel();
     _stopMetronome();
+    _metroTicker?.dispose();
+    _pendAngle.dispose();
     _breath.dispose();
-    _pendulum.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -562,62 +569,73 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   void _stopMetronome() {
-    _beatRunning = false;
-    _beatTimer?.cancel();
-    _beatTimer = null;
-    _pendulum.stop();
+    // 已停就不重複動作（prep/warmup 期間 _syncMetronome 每 100ms 會呼到這）
+    if (!_metroRunning && !(_metroTicker?.isActive ?? false)) return;
+    _metroRunning = false;
+    _metroTicker?.stop();
+    _pendAngle.value = 0;
+    unawaited(MetronomeService.instance.stopLoop());
   }
 
-  Duration get _beatInterval =>
-      Duration(milliseconds: (60000 / _cfg.bpm.clamp(30, 240)).round());
-
-  // 啟動/維持節拍器。聲音由自我重排的 timer 等速驅動（不靠動畫 frame，所以穩）；
-  // 擺錘動畫同步到同一拍。視覺一律擺；聲音/觸覺各自由開關決定（_emitBeat 內）。
+  // 啟動/維持節拍器。聲音＝音訊引擎無縫循環（取樣級等速）；擺錘＋觸覺＝Ticker
+  // 連續正弦相位（每幀讀當下 BPM）。兩者開跑時都從「極端＝第一拍」對齊。
   void _syncMetronome() {
     if (!_jogWorkActive) {
       _stopMetronome();
       return;
     }
-    if (_beatRunning) return; // 已在跑，避免每次 tick 重啟
-    _beatRunning = true;
-    _pendulum.value = 0; // 從左極端起手
-    _emitBeat();
-    _scheduleNextBeat();
-  }
-
-  // 排下一拍：每拍重讀 _beatInterval，所以改 BPM 會在下一拍自動套用（免重啟）。
-  void _scheduleNextBeat() {
-    _beatTimer?.cancel();
-    _beatTimer = Timer(_beatInterval, () {
-      if (!mounted || !_jogWorkActive) {
-        _stopMetronome();
-        return;
-      }
-      _emitBeat();
-      _scheduleNextBeat();
-    });
-  }
-
-  // 一拍：聲音 + 觸覺 + 擺錘擺向另一端（在下一拍前剛好到位＝音畫同步）。
-  void _emitBeat() {
+    if (_metroRunning) return; // 已在跑，避免每次 tick 重啟
+    _metroRunning = true;
+    _pendPhase = math.pi / 2; // 起手在極端
+    _lastTickElapsed = Duration.zero;
+    _lastBeatIndex = -1;
+    if (_metroTicker != null && !_metroTicker!.isActive) {
+      _metroTicker!.start();
+    }
     if (_cfg.metronomeSoundOn) {
-      MetronomeService.instance.play(
-        volume: _cfg.metronomeVolume,
-        tone: _cfg.metronomeTone,
+      unawaited(
+        MetronomeService.instance.startOrUpdateLoop(
+          bpm: _cfg.bpm,
+          tone: _cfg.metronomeTone,
+          volume: _cfg.metronomeVolume,
+        ),
       );
     }
-    if (_cfg.metronomeOn) playHaptic(HapticLevel.selection);
-    final target = _pendulum.value < 0.5 ? 1.0 : 0.0;
-    // animateTo 預設線性；視覺的緩入緩出在 _PendulumPainter 套用
-    _pendulum.animateTo(target, duration: _beatInterval);
   }
 
-  // 環內即時改 BPM：只更新數值＋持久化；timer 與擺錘下一拍自動讀新速，免重啟。
+  // 每幀：相位前進 π/拍（讀當下 BPM→改速平順）；越過極端時觸發觸覺。
+  void _onMetroTick(Duration elapsed) {
+    if (!_metroRunning) return;
+    final dtSec = (elapsed - _lastTickElapsed).inMicroseconds / 1e6;
+    _lastTickElapsed = elapsed;
+    final bpm = _cfg.bpm.clamp(30, 240);
+    _pendPhase += math.pi * bpm / 60 * dtSec;
+    _pendAngle.value = _pendMaxAngle * math.sin(_pendPhase);
+    final idx = ((_pendPhase - math.pi / 2) / math.pi).floor();
+    if (idx != _lastBeatIndex) {
+      _lastBeatIndex = idx;
+      if (_cfg.metronomeOn) playHaptic(HapticLevel.selection);
+    }
+  }
+
+  // 環內即時改 BPM：擺速每幀即時跟上；音訊循環 debounce 後重生（避免連按狂寫檔）。
   void _setBpm(int v) {
     final nv = v.clamp(30, 240);
     if (nv == _cfg.bpm) return;
     setState(() => _cfg.bpm = nv);
     _persistConfig();
+    if (!_jogWorkActive || !_cfg.metronomeSoundOn) return;
+    _loopRegenDebounce?.cancel();
+    _loopRegenDebounce = Timer(const Duration(milliseconds: 200), () {
+      if (!mounted || !_jogWorkActive || !_cfg.metronomeSoundOn) return;
+      unawaited(
+        MetronomeService.instance.startOrUpdateLoop(
+          bpm: _cfg.bpm,
+          tone: _cfg.metronomeTone,
+          volume: _cfg.metronomeVolume,
+        ),
+      );
+    });
   }
 
   void _previewMetronome() {
@@ -690,10 +708,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _completedWorkSeconds = 0;
       _enterStep(0);
     }
-    if (_kind == ExerciseKind.jog && _cfg.metronomeSoundOn) {
-      unawaited(MetronomeService.instance.init(tone: _cfg.metronomeTone));
-    }
-    // 預載倒數提示音，避免第一聲（剩 3 秒）才 lazy init 而延遲
+    // 預載倒數提示音（一次性 player），避免第一聲（剩 3 秒）才 lazy init 而延遲
     unawaited(MetronomeService.instance.init());
     final end = DateTime.now().add(Duration(seconds: _secondsLeft));
     setState(() {
@@ -1317,13 +1332,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
                 // 節拍器擺錘：只在超慢跑運動段顯示，疊在文字後方
                 if (_jogWorkActive)
                   Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _pendulum,
-                      builder: (context, _) => CustomPaint(
-                        painter: _PendulumPainter(
-                          t: _pendulum.value,
-                          color: color,
-                        ),
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _pendAngle,
+                      builder: (context, angle, _) => CustomPaint(
+                        painter: _PendulumPainter(angle: angle, color: color),
                       ),
                     ),
                   ),
@@ -2014,18 +2026,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
 // 節拍器擺錘：支點在圓心略下方，桿往上、頂端發光球隨拍左右擺（疊在數字後方）。
 class _PendulumPainter extends CustomPainter {
-  final double t; // 擺錘相位 0..1（0=左極端、1=右極端）
+  final double angle; // 擺桿角度（弧度，0=正上、±為左右）
   final Color color;
 
-  const _PendulumPainter({required this.t, required this.color});
+  const _PendulumPainter({required this.angle, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
     final center = Offset(w / 2, h / 2);
-    const maxAngle = 0.46; // 約 ±26°
-    final angle = (Curves.easeInOut.transform(t) * 2 - 1) * maxAngle;
 
     final pivot = Offset(center.dx, center.dy + h * 0.17);
     final armLen = h * 0.45;
@@ -2071,5 +2081,6 @@ class _PendulumPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PendulumPainter old) => old.t != t || old.color != color;
+  bool shouldRepaint(_PendulumPainter old) =>
+      old.angle != angle || old.color != color;
 }
