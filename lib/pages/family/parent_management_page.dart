@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_style.dart';
 import '../../utils/prefs_keys.dart';
 import 'add_children_sheet.dart';
 import 'deduction_sheets.dart';
@@ -459,14 +460,29 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         if (!didPop) Navigator.of(context).pop(_changed);
       },
       child: Scaffold(
+        backgroundColor: const Color(0xFFFFFBF7),
         appBar: AppBar(
-          title: const Text('家長管理'),
+          title: const Text(
+            '家長管理',
+            style: TextStyle(color: AppInk.strong, fontWeight: FontWeight.w800),
+          ),
           centerTitle: true,
-          leading: BackButton(
+          backgroundColor: const Color(0xFFFFFBF7),
+          foregroundColor: AppInk.strong,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            // M3 IconButton 不吃 AppBar iconTheme，會用淺灰 onSurfaceVariant
+            // 導致返回鍵淡到看不見，明確指定深色。
+            color: AppInk.strong,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            tooltip: '返回',
             onPressed: () => Navigator.of(context).pop(_changed),
           ),
           actions: [
             IconButton(
+              color: AppInk.strong,
               icon: const Icon(Icons.person_add_outlined),
               tooltip: '新增小孩',
               onPressed: _addChild,
@@ -478,25 +494,145 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             : _children.isEmpty
             ? _buildEmpty()
             : _buildContent(),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _addChild,
-          tooltip: '新增小孩',
-          child: const Icon(Icons.add),
-        ),
       ),
     );
   }
 
   Widget _buildEmpty() {
     return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.child_care_rounded,
+                size: 38,
+                color: Colors.orange.shade700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '還沒有小孩資料',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppInk.strong,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '先新增小孩，再建立習慣、扣分理由和獎勵。',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppInk.soft,
+                fontSize: 13,
+                height: 1.45,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: _addChild,
+              icon: const Icon(Icons.person_add_outlined),
+              label: const Text('新增小孩'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverview() {
+    final assignedRewards = _rewards
+        .where((reward) => reward.childIds.isNotEmpty)
+        .length;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: AppCardStyle.hairline,
+        boxShadow: AppShadows.flat,
+      ),
+      child: Row(
+        children: [
+          _overviewStat(
+            icon: Icons.child_care_rounded,
+            label: '小孩',
+            value: '${_children.length}',
+            color: Colors.orange.shade700,
+          ),
+          _overviewDivider(),
+          _overviewStat(
+            icon: Icons.check_circle_outline,
+            label: '習慣',
+            value: '${_habits.length}',
+            color: Colors.green.shade700,
+          ),
+          _overviewDivider(),
+          _overviewStat(
+            icon: Icons.remove_circle_outline,
+            label: '扣分',
+            value: '${_deductions.length}',
+            color: Colors.red.shade600,
+          ),
+          _overviewDivider(),
+          _overviewStat(
+            icon: Icons.card_giftcard_outlined,
+            label: '獎勵',
+            value: '$assignedRewards',
+            color: Colors.amber.shade800,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewDivider() {
+    return Container(
+      width: 1,
+      height: 36,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      color: const Color(0x0F000000),
+    );
+  }
+
+  Widget _overviewStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.child_care, size: 72, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 4),
           Text(
-            '尚無小孩，點擊 + 新增',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+            value,
+            style: AppType.digits(
+              color: AppInk.strong,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppInk.soft,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -507,8 +643,15 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       children: [
+        _buildOverview(),
+
         // ── 小孩管理區塊 ──
-        _sectionTitle('小孩管理', Icons.child_care, Colors.orange),
+        _sectionTitle(
+          '小孩管理',
+          Icons.child_care,
+          Colors.orange,
+          trailing: '${_children.length} 位',
+        ),
         ..._children.asMap().entries.map((entry) {
           final i = entry.key;
           final child = entry.value;
@@ -519,7 +662,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         const SizedBox(height: 24),
 
         // ── 習慣管理區塊 ──
-        _sectionTitle('習慣管理', Icons.check_circle_outline, Colors.green),
+        _sectionTitle(
+          '習慣管理',
+          Icons.check_circle_outline,
+          Colors.green,
+          trailing: '${_habits.length} 項',
+        ),
         const SizedBox(height: 8),
         ..._buildHabitSection(),
         _addButton('新增習慣', Icons.add, Colors.green, _addHabit),
@@ -527,7 +675,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         const SizedBox(height: 24),
 
         // ── 扣分項目區塊 ──
-        _sectionTitle('扣分預設理由', Icons.remove_circle_outline, Colors.red),
+        _sectionTitle(
+          '扣分預設理由',
+          Icons.remove_circle_outline,
+          Colors.red,
+          trailing: '${_deductions.length} 項',
+        ),
         const SizedBox(height: 8),
         ..._buildDeductionSection(),
         _addButton('新增扣分項目', Icons.add, Colors.red, _addDeduction),
@@ -539,6 +692,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           '獎勵管理',
           Icons.card_giftcard_outlined,
           Colors.amber.shade700,
+          trailing: '${_rewards.length} 項',
         ),
         const SizedBox(height: 8),
         ..._buildRewardSection(),
@@ -548,21 +702,52 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   }
 
   // 區塊標題
-  Widget _sectionTitle(String title, IconData icon, Color color) {
+  Widget _sectionTitle(
+    String title,
+    IconData icon,
+    Color color, {
+    String? trailing,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: color),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 17, color: color),
+          ),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: color,
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppInk.strong,
+              ),
             ),
           ),
+          if (trailing != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                trailing,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -581,18 +766,25 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
-        side: BorderSide(color: color.withValues(alpha: 0.5)),
+        backgroundColor: Colors.white.withValues(alpha: 0.82),
+        side: BorderSide(color: color.withValues(alpha: 0.28)),
         padding: const EdgeInsets.symmetric(vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
       ),
     );
   }
 
   // 小孩卡片（含名稱、積分、重置、刪除）
   Widget _buildChildCard(ChildData child, int index) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: AppCardStyle.hairline,
+        boxShadow: AppShadows.flat,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -617,14 +809,16 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         child.name,
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w800,
+                          color: AppInk.strong,
                         ),
                       ),
                       Text(
                         '積分：${child.points}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
+                          color: AppInk.soft,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -645,8 +839,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             const Divider(height: 16, thickness: 1),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
+              child: TextButton.icon(
                 onPressed: () => _clearChildData(index),
+                icon: Icon(
+                  Icons.cleaning_services_outlined,
+                  size: 14,
+                  color: Colors.red.shade400,
+                ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -655,7 +854,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: Text(
+                label: Text(
                   '清空資料',
                   style: TextStyle(fontSize: 12, color: Colors.red.shade400),
                 ),
@@ -710,8 +909,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         widgets.add(
           Card(
             key: ValueKey(habit.id),
+            elevation: 0,
+            color: Colors.white.withValues(alpha: 0.94),
             margin: const EdgeInsets.only(bottom: 6),
             shape: RoundedRectangleBorder(
+              side: const BorderSide(color: Color(0x0A46342B)),
               borderRadius: BorderRadius.circular(12),
             ),
             child: ListTile(
@@ -796,8 +998,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         widgets.add(
           Card(
             key: ValueKey(item.id),
+            elevation: 0,
+            color: Colors.white.withValues(alpha: 0.94),
             margin: const EdgeInsets.only(bottom: 6),
             shape: RoundedRectangleBorder(
+              side: const BorderSide(color: Color(0x0A46342B)),
               borderRadius: BorderRadius.circular(12),
             ),
             child: ListTile(
@@ -863,8 +1068,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
       return Card(
         key: ValueKey(reward.id),
+        elevation: 0,
+        color: Colors.white.withValues(alpha: 0.94),
         margin: const EdgeInsets.only(bottom: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: Color(0x0A46342B)),
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: ListTile(
           dense: true,
           leading: Icon(Icons.card_giftcard_outlined, color: amber, size: 20),
