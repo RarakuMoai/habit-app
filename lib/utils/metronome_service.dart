@@ -51,15 +51,21 @@ class MetronomeService {
 
   Future<void> _play(double volume, MetronomeTone tone) async {
     try {
-      await init(tone: tone);
       final players = _players[tone];
-      if (players == null || players.isEmpty) return;
+      if (players == null || players.isEmpty) {
+        // 尚未預載：補 init（含 ensureConfigured 已 setActive），但這拍可能略晚
+        await init(tone: tone);
+      }
+      final ready = _players[tone];
+      if (ready == null || ready.isEmpty) return;
       final cursor = _cursors[tone] ?? 0;
-      final player = players[cursor];
-      _cursors[tone] = (cursor + 1) % players.length;
-      await AppAudioSession.activate();
-      await player.seek(Duration.zero);
+      final player = ready[cursor];
+      _cursors[tone] = (cursor + 1) % ready.length;
+      // session 在 init 時已 active；這裡不要 await activate（setActive 平台呼叫
+      // 偶爾卡頓會把這拍拖慢、節奏聽起來忽快忽慢）。非阻塞補一刀確保仍 active。
+      unawaited(AppAudioSession.activate());
       await player.setVolume(volume);
+      await player.seek(Duration.zero);
       unawaited(player.play());
     } catch (e) {
       debugPrint('Metronome play failed: $e');
