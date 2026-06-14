@@ -62,12 +62,20 @@ class _TimerPageState extends State<TimerPage>
   int _rounds = 4; // 一節幾顆番茄（1–8）
   bool _longBreakEnabled = true; // 結尾長休息（全域，跨方案共用）
 
-  // 自訂槽：跟預設組互不影響，點預設不會被改寫；自訂值記在這
-  int _customFocus = 25;
-  int _customShort = 5;
-  int _customRounds = 4;
+  // 自訂槽：3 個可命名槽，跟預設組互不影響。_customSlot = 目前生效的槽。
+  // 槽0 向後相容舊的單一自訂 key。
+  static const int _customSlots = 3;
+  final List<int> _customFocus = [25, 25, 25];
+  final List<int> _customShort = [5, 5, 5];
+  final List<int> _customRounds = [4, 4, 4];
+  final List<String> _customName = ['', '', ''];
+  int _customSlot = 0;
 
-  // 目前選的方案：0/1/2=_presets、_customIndex=自訂。重開 app 記憶上次選擇。
+  // 槽顯示名：空白就顯示「自訂N」
+  String _customLabel(int i) =>
+      _customName[i].trim().isEmpty ? '自訂${i + 1}' : _customName[i].trim();
+
+  // 目前選的方案：0/1/2=_presets、_customIndex=自訂（哪一槽看 _customSlot）。
   static const int _customIndex = 3;
   int _selected = 0;
 
@@ -133,23 +141,40 @@ class _TimerPageState extends State<TimerPage>
       _topMode = prefs.getString(PrefsKeys.timerMode) == 'exercise'
           ? _TimerMode.exercise
           : _TimerMode.focus;
-      // 自訂槽（沿用 focus/short/rounds 三個 key）＋全域長休息設定
-      _customFocus = prefs.getInt(PrefsKeys.timerFocusMinutes) ?? 25;
-      _customShort = prefs.getInt(PrefsKeys.timerShortBreakMinutes) ?? 5;
-      _customRounds = (prefs.getInt(PrefsKeys.timerRounds) ?? 4).clamp(1, 8);
+      // 3 個自訂槽：槽0 讀不到新 key 就回退舊單槽 key（向後相容遷移）。
+      for (var i = 0; i < _customSlots; i++) {
+        final fF = i == 0
+            ? (prefs.getInt(PrefsKeys.timerFocusMinutes) ?? 25)
+            : 25;
+        final fS = i == 0
+            ? (prefs.getInt(PrefsKeys.timerShortBreakMinutes) ?? 5)
+            : 5;
+        final fR = i == 0 ? (prefs.getInt(PrefsKeys.timerRounds) ?? 4) : 4;
+        _customFocus[i] = (prefs.getInt(PrefsKeys.timerCustomFocus(i)) ?? fF)
+            .clamp(5, 120);
+        _customShort[i] = (prefs.getInt(PrefsKeys.timerCustomShort(i)) ?? fS)
+            .clamp(1, 30);
+        _customRounds[i] = (prefs.getInt(PrefsKeys.timerCustomRounds(i)) ?? fR)
+            .clamp(1, 8);
+        _customName[i] = prefs.getString(PrefsKeys.timerCustomName(i)) ?? '';
+      }
+      _customSlot = (prefs.getInt(PrefsKeys.timerCustomSlot) ?? 0).clamp(
+        0,
+        _customSlots - 1,
+      );
       _longMin = prefs.getInt(PrefsKeys.timerLongBreakMinutes) ?? 15;
       _longBreakEnabled =
           prefs.getBool(PrefsKeys.timerLongBreakEnabled) ?? true;
-      // 上次選的方案；舊版沒存過就用「自訂槽是否剛好等於某個預設」推回，否則自訂
+      // 上次選的方案；舊版沒存過就用「槽0 是否剛好等於某個預設」推回，否則自訂
       final savedSel = prefs.getInt(PrefsKeys.timerSelectedPreset);
       if (savedSel != null) {
         _selected = savedSel.clamp(0, _customIndex);
       } else {
         final i = _presets.indexWhere(
           (p) =>
-              p.focus == _customFocus &&
-              p.brk == _customShort &&
-              p.rounds == _customRounds,
+              p.focus == _customFocus[0] &&
+              p.brk == _customShort[0] &&
+              p.rounds == _customRounds[0],
         );
         _selected = i >= 0 ? i : _customIndex;
       }
@@ -166,9 +191,9 @@ class _TimerPageState extends State<TimerPage>
   // 把目前選中那一格的數值灌進生效中的設定（自訂槽或預設組）
   void _applySelected() {
     if (_selected == _customIndex) {
-      _focusMin = _customFocus;
-      _shortMin = _customShort;
-      _rounds = _customRounds;
+      _focusMin = _customFocus[_customSlot];
+      _shortMin = _customShort[_customSlot];
+      _rounds = _customRounds[_customSlot];
     } else {
       final p = _presets[_selected];
       _focusMin = p.focus;
@@ -177,13 +202,21 @@ class _TimerPageState extends State<TimerPage>
     }
   }
 
-  // 持久化：自訂槽（focus/short/rounds key）＋全域長休息＋選中的方案
+  // 持久化：3 個自訂槽（含名稱）＋目前槽＋全域長休息＋選中的方案。
+  // 槽0 同時回寫舊 key，維持向後相容。
   Future<void> _persistSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(PrefsKeys.timerFocusMinutes, _customFocus);
-    await prefs.setInt(PrefsKeys.timerShortBreakMinutes, _customShort);
+    for (var i = 0; i < _customSlots; i++) {
+      await prefs.setInt(PrefsKeys.timerCustomFocus(i), _customFocus[i]);
+      await prefs.setInt(PrefsKeys.timerCustomShort(i), _customShort[i]);
+      await prefs.setInt(PrefsKeys.timerCustomRounds(i), _customRounds[i]);
+      await prefs.setString(PrefsKeys.timerCustomName(i), _customName[i]);
+    }
+    await prefs.setInt(PrefsKeys.timerCustomSlot, _customSlot);
+    await prefs.setInt(PrefsKeys.timerFocusMinutes, _customFocus[0]);
+    await prefs.setInt(PrefsKeys.timerShortBreakMinutes, _customShort[0]);
+    await prefs.setInt(PrefsKeys.timerRounds, _customRounds[0]);
     await prefs.setInt(PrefsKeys.timerLongBreakMinutes, _longMin);
-    await prefs.setInt(PrefsKeys.timerRounds, _customRounds);
     await prefs.setBool(PrefsKeys.timerLongBreakEnabled, _longBreakEnabled);
     await prefs.setInt(PrefsKeys.timerSelectedPreset, _selected);
   }
@@ -1048,8 +1081,9 @@ class _TimerPageState extends State<TimerPage>
                   ],
                   // 自訂永遠顯示自己記住的配置，點預設不會被改寫
                   _presetChip(
-                    name: '自訂',
-                    detail: '$_customFocus/$_customShort ×$_customRounds',
+                    name: _customLabel(_customSlot),
+                    detail:
+                        '${_customFocus[_customSlot]}/${_customShort[_customSlot]} ×${_customRounds[_customSlot]}',
                     selected: _selected == _customIndex,
                     onTap: _openSettingsSheet,
                   ),
@@ -1151,9 +1185,7 @@ class _TimerPageState extends State<TimerPage>
               setState(() {
                 change();
                 _selected = _customIndex;
-                _focusMin = _customFocus;
-                _shortMin = _customShort;
-                _rounds = _customRounds;
+                _applySelected();
                 if (_idle || _finished) {
                   _phase = _Phase.idle;
                   _phaseTotal = _focusMin * 60;
@@ -1162,6 +1194,61 @@ class _TimerPageState extends State<TimerPage>
               });
               setSheet(() {});
               _persistSettings();
+            }
+
+            // 切換槽＝選它當生效方案（沿用 apply：換 slot 後 _applySelected 會
+            // 把生效設定指向該槽）。
+            void selectSlot(int i) => apply(() => _customSlot = i);
+
+            // 槽分頁：名稱 + 配置小字，選中走實色。
+            Widget slotTab(int i) {
+              final sel = _customSlot == i;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => selectSlot(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: sel
+                          ? const Color(0xFFFF7043)
+                          : const Color(0xFFFFF3EE),
+                      borderRadius: BorderRadius.circular(13),
+                      border: sel
+                          ? null
+                          : Border.all(color: const Color(0xFFFFE0D4)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _customLabel(i),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: sel ? Colors.white : AppInk.strong,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_customFocus[i]}/${_customShort[i]} ×${_customRounds[i]}',
+                          style: AppType.digits(
+                            fontSize: 10.5,
+                            color: sel
+                                ? Colors.white.withValues(alpha: 0.9)
+                                : AppInk.faint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
             }
 
             return Padding(
@@ -1183,165 +1270,230 @@ class _TimerPageState extends State<TimerPage>
                       ),
                     ],
                   ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8DDD4),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFFF7043,
-                                ).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(13),
+                  // 內容捲動、「完成」固定在底（footer），面板再長也按得到。
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Center(
+                                child: Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE8DDD4),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.tune_rounded,
-                                color: Color(0xFFFF7043),
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              const SizedBox(height: 14),
+                              Row(
                                 children: [
-                                  Text(
-                                    '番茄鐘設定',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      color: AppInk.strong,
+                                  Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFFF7043,
+                                      ).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(13),
+                                    ),
+                                    child: const Icon(
+                                      Icons.tune_rounded,
+                                      color: Color(0xFFFF7043),
+                                      size: 20,
                                     ),
                                   ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    '安排你的專注節奏',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: AppInk.soft,
-                                      fontWeight: FontWeight.w600,
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '番茄鐘設定',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w900,
+                                            color: AppInk.strong,
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          '安排你的專注節奏',
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            color: AppInk.soft,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      color: AppInk.iconFaint,
+                                    ),
+                                    onPressed: () => Navigator.pop(ctx),
                                   ),
                                 ],
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: AppInk.iconFaint,
+                              const SizedBox(height: 14),
+                              // 3 個自訂槽分頁（你的「上面三個選項」）
+                              Row(
+                                children: [
+                                  slotTab(0),
+                                  const SizedBox(width: 8),
+                                  slotTab(1),
+                                  const SizedBox(width: 8),
+                                  slotTab(2),
+                                ],
                               ),
-                              onPressed: () => Navigator.pop(ctx),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        _settingsSummaryCard(),
-                        const SizedBox(height: 14),
-                        _settingsSectionTitle(
-                          icon: Icons.av_timer_rounded,
-                          title: '時間長度',
-                        ),
-                        const SizedBox(height: 8),
-                        _timerStepperCard(
-                          label: '專注',
-                          sub: '進入安靜工作段',
-                          icon: Icons.local_fire_department_rounded,
-                          color: const Color(0xFFFF7043),
-                          value: _customFocus,
-                          min: 5,
-                          max: 120,
-                          step: 1,
-                          onChanged: (v) => apply(() => _customFocus = v),
-                        ),
-                        const SizedBox(height: 8),
-                        _timerStepperCard(
-                          label: '短休息',
-                          sub: '番茄之間喘口氣',
-                          icon: Icons.local_cafe_rounded,
-                          color: const Color(0xFF66BB6A),
-                          value: _customShort,
-                          min: 1,
-                          max: 30,
-                          step: 1,
-                          onChanged: (v) => apply(() => _customShort = v),
-                        ),
-                        const SizedBox(height: 8),
-                        _timerStepperCard(
-                          label: '回合數',
-                          sub: '這一節做幾顆番茄',
-                          icon: Icons.tag_rounded,
-                          color: const Color(0xFFFF7043),
-                          value: _customRounds,
-                          min: 1,
-                          max: 8,
-                          step: 1,
-                          unit: '顆',
-                          onChanged: (v) => apply(() => _customRounds = v),
-                        ),
-                        const SizedBox(height: 16),
-                        _settingsSectionTitle(
-                          icon: Icons.spa_rounded,
-                          title: '結尾長休息',
-                        ),
-                        const SizedBox(height: 8),
-                        _timerSwitchTile(
-                          label: '結尾長休息',
-                          sub: '整節最後加一段較長的放鬆',
-                          icon: Icons.spa_rounded,
-                          value: _longBreakEnabled,
-                          onChanged: (v) => apply(() => _longBreakEnabled = v),
-                        ),
-                        const SizedBox(height: 8),
-                        _timerStepperCard(
-                          label: '長休息',
-                          sub: '一節結束後放鬆',
-                          icon: Icons.self_improvement_rounded,
-                          color: const Color(0xFF26A69A),
-                          value: _longMin,
-                          min: 5,
-                          max: 60,
-                          step: 1,
-                          enabled: _longBreakEnabled,
-                          onChanged: (v) => apply(() => _longMin = v),
-                        ),
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF7043),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                // 換槽時 key 變 → 重建帶入該槽名稱當初值
+                                key: ValueKey('slotname_$_customSlot'),
+                                initialValue: _customName[_customSlot],
+                                onChanged: (v) =>
+                                    apply(() => _customName[_customSlot] = v),
+                                maxLength: 8,
+                                textInputAction: TextInputAction.done,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppInk.strong,
+                                ),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  counterText: '',
+                                  hintText: '幫這個自訂取名（例如 工作 / 讀書）',
+                                  hintStyle: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppInk.faint,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.drive_file_rename_outline_rounded,
+                                    size: 18,
+                                    color: Color(0xFFFF7043),
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFFFAF6F2),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 8,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(13),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
                               ),
-                            ),
-                            onPressed: () => Navigator.pop(ctx),
-                            icon: const Icon(Icons.check_rounded, size: 19),
-                            label: const Text(
-                              '完成',
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
+                              const SizedBox(height: 14),
+                              _settingsSummaryCard(),
+                              const SizedBox(height: 14),
+                              _settingsSectionTitle(
+                                icon: Icons.av_timer_rounded,
+                                title: '時間長度',
+                              ),
+                              const SizedBox(height: 8),
+                              _timerStepperCard(
+                                label: '專注',
+                                sub: '進入安靜工作段',
+                                icon: Icons.local_fire_department_rounded,
+                                color: const Color(0xFFFF7043),
+                                value: _customFocus[_customSlot],
+                                min: 5,
+                                max: 120,
+                                step: 1,
+                                onChanged: (v) =>
+                                    apply(() => _customFocus[_customSlot] = v),
+                              ),
+                              const SizedBox(height: 8),
+                              _timerStepperCard(
+                                label: '短休息',
+                                sub: '番茄之間喘口氣',
+                                icon: Icons.local_cafe_rounded,
+                                color: const Color(0xFF66BB6A),
+                                value: _customShort[_customSlot],
+                                min: 1,
+                                max: 30,
+                                step: 1,
+                                onChanged: (v) =>
+                                    apply(() => _customShort[_customSlot] = v),
+                              ),
+                              const SizedBox(height: 8),
+                              _timerStepperCard(
+                                label: '回合數',
+                                sub: '這一節做幾顆番茄',
+                                icon: Icons.tag_rounded,
+                                color: const Color(0xFFFF7043),
+                                value: _customRounds[_customSlot],
+                                min: 1,
+                                max: 8,
+                                step: 1,
+                                unit: '顆',
+                                onChanged: (v) =>
+                                    apply(() => _customRounds[_customSlot] = v),
+                              ),
+                              const SizedBox(height: 16),
+                              _settingsSectionTitle(
+                                icon: Icons.spa_rounded,
+                                title: '結尾長休息',
+                              ),
+                              const SizedBox(height: 8),
+                              _timerSwitchTile(
+                                label: '結尾長休息',
+                                sub: '整節最後加一段較長的放鬆',
+                                icon: Icons.spa_rounded,
+                                value: _longBreakEnabled,
+                                onChanged: (v) =>
+                                    apply(() => _longBreakEnabled = v),
+                              ),
+                              const SizedBox(height: 8),
+                              _timerStepperCard(
+                                label: '長休息',
+                                sub: '一節結束後放鬆',
+                                icon: Icons.self_improvement_rounded,
+                                color: const Color(0xFF26A69A),
+                                value: _longMin,
+                                min: 5,
+                                max: 60,
+                                step: 1,
+                                enabled: _longBreakEnabled,
+                                onChanged: (v) => apply(() => _longMin = v),
+                              ),
+                              const SizedBox(height: 4),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF7043),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.check_rounded, size: 19),
+                          label: const Text(
+                            '完成',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

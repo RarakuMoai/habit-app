@@ -35,8 +35,13 @@ abstract final class PrefsKeys {
   static const timerLongBreakEnabled = 'timer_long_break_enabled'; // 結尾長休息
   static const timerRounds = 'timer_rounds'; // 一節幾顆番茄（1–8）
   // 上次選的方案：0/1/2=預設組、3=自訂（重開 app 記憶用）。
-  // 自訂槽的數值沿用上面 focus/short/rounds 三個 key（自訂是唯一可自由編輯的槽）。
   static const timerSelectedPreset = 'timer_selected_preset';
+  // 自訂改為 3 個可命名槽。槽0 向後相容上面舊的 focus/short/rounds key。
+  static String timerCustomFocus(int i) => 'timer_custom_${i}_focus';
+  static String timerCustomShort(int i) => 'timer_custom_${i}_short';
+  static String timerCustomRounds(int i) => 'timer_custom_${i}_rounds';
+  static String timerCustomName(int i) => 'timer_custom_${i}_name';
+  static const timerCustomSlot = 'timer_custom_slot'; // 目前生效的自訂槽 0–2
 
   // 帶日期的今日統計（date 格式 yyyy-MM-dd）
   static const timerTomatoesPrefix = 'timer_tomatoes_';
