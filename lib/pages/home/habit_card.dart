@@ -405,6 +405,9 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
           boxShadow: done ? AppShadows.flat : AppShadows.card,
         ),
         child: Listener(
+          // opaque：整張卡（含透明空隙）都算命中，否則按在留白處不會觸發。
+          // 子層按鈕/選單仍先被命中、照常運作；拖曳辨識器是祖先也不受影響。
+          behavior: HitTestBehavior.opaque,
           // 按住蓄力波紋；isMoving（已在排序模式）時即時拖曳、不需蓄力。
           onPointerDown: widget.isMoving
               ? null
