@@ -959,7 +959,14 @@ class _TimerPageState extends State<TimerPage>
       return _phase == _Phase.focus ? '專注中 · $hh:$mm 結束' : '休息中 · $hh:$mm 結束';
     }
     if (_finished) return '這一節完成了 🎉';
-    if (_idle) return '專注 $_focusMin 分 · 一節 $_rounds 顆番茄';
+    if (_idle) {
+      // 分鐘為主、講白節奏：專注×次數 · 休息 · 結尾長休（依設定條件顯示）。
+      // 只有 1 顆時沒有中間休息；休息 0 分或關閉長休都略過。
+      final parts = <String>['專注 $_focusMin 分 ×$_rounds'];
+      if (_rounds > 1 && _shortMin > 0) parts.add('休息 $_shortMin 分');
+      if (_longBreakEnabled && _longMin > 0) parts.add('結尾長休 $_longMin 分');
+      return parts.join(' · ');
+    }
     return '已暫停 · 按開始繼續';
   }
 
