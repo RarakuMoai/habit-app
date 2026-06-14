@@ -197,17 +197,15 @@ class ExerciseTimerState extends State<ExerciseTimer>
   bool _isRunning = false;
   Timer? _timer;
   Timer? _boundaryTimer;
-  Timer? _bpmApplyDebounce; // 環內即時改 BPM 後，延遲套用擺速避免連按狂重啟
+  // 節拍器：自我重排的單發 timer（每拍等速；改 BPM 下一拍自動套用，免重啟）
+  Timer? _beatTimer;
+  bool _beatRunning = false;
   DateTime? _endTime;
   bool _phaseCompleteHold = false;
   bool _advancingBoundary = false;
   int _completedWorkSeconds = 0;
   // 本階段已經嗶過的「剩餘秒數」（3→2→1 各一次，換階段歸零）
   int _lastCueSec = 0;
-  // 上次擺錘端點觸發音效的時刻（限速，避免改 BPM 重啟時連續補拍）
-  DateTime _lastBeatAt = DateTime.fromMillisecondsSinceEpoch(0);
-  // 擺錘乒乓是否啟動中（取代 isAnimating 判斷，避免端點瞬間 isAnimating=false 的競態）
-  bool _pendulumOn = false;
 
   // ── 今日統計（per-day key）──
   String _statsDate = '';
@@ -236,26 +234,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
       vsync: this,
       duration: const Duration(milliseconds: 333),
     );
-    // 用 forward/reverse 乒乓（不能用 repeat(reverse:true)——它不會在兩端發
-    // completed/dismissed 狀態，端點 listener 收不到＝沒節拍音）。每到端點＝一拍：
-    // 觸發音效/觸覺後反向，達成音畫同步。
-    _pendulum.addStatusListener((status) {
-      if (!_pendulumOn || !_jogWorkActive) return;
-      if (status == AnimationStatus.completed) {
-        _onBeat();
-        _pendulum.reverse();
-      } else if (status == AnimationStatus.dismissed) {
-        _onBeat();
-        _pendulum.forward();
-      }
-    });
     _loadPrefs();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _bpmApplyDebounce?.cancel();
     _stopMetronome();
     _breath.dispose();
     _pendulum.dispose();
@@ -578,32 +562,44 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   void _stopMetronome() {
-    _pendulumOn = false;
+    _beatRunning = false;
+    _beatTimer?.cancel();
+    _beatTimer = null;
     _pendulum.stop();
   }
 
-  // 啟動/維持節拍擺錘（音畫同步）。視覺擺錘在超慢跑運動段一律擺動；
-  // 聲音/觸覺各自由開關決定（在 _onBeat 內），所以全關時擺錘仍是純視覺節拍器。
+  Duration get _beatInterval =>
+      Duration(milliseconds: (60000 / _cfg.bpm.clamp(30, 240)).round());
+
+  // 啟動/維持節拍器。聲音由自我重排的 timer 等速驅動（不靠動畫 frame，所以穩）；
+  // 擺錘動畫同步到同一拍。視覺一律擺；聲音/觸覺各自由開關決定（_emitBeat 內）。
   void _syncMetronome() {
     if (!_jogWorkActive) {
       _stopMetronome();
       return;
     }
-    if (_pendulumOn) return; // 已在擺，避免每次 tick 重啟
-    _pendulumOn = true;
-    final bpm = _cfg.bpm.clamp(30, 240);
-    _pendulum.duration = Duration(milliseconds: (60000 / bpm).round());
-    _onBeat(); // 起手對齊一拍（左極端）
-    _pendulum.forward(from: 0); // 端點由 statusListener 接力反向＝下一拍
+    if (_beatRunning) return; // 已在跑，避免每次 tick 重啟
+    _beatRunning = true;
+    _pendulum.value = 0; // 從左極端起手
+    _emitBeat();
+    _scheduleNextBeat();
   }
 
-  // 擺到端點觸發：限速半拍，避免改 BPM 重啟時連續補拍。
-  void _onBeat() {
-    if (!_jogWorkActive) return;
-    final now = DateTime.now();
-    final minGapMs = 60000 / _cfg.bpm.clamp(30, 240) * 0.5;
-    if (now.difference(_lastBeatAt).inMilliseconds < minGapMs) return;
-    _lastBeatAt = now;
+  // 排下一拍：每拍重讀 _beatInterval，所以改 BPM 會在下一拍自動套用（免重啟）。
+  void _scheduleNextBeat() {
+    _beatTimer?.cancel();
+    _beatTimer = Timer(_beatInterval, () {
+      if (!mounted || !_jogWorkActive) {
+        _stopMetronome();
+        return;
+      }
+      _emitBeat();
+      _scheduleNextBeat();
+    });
+  }
+
+  // 一拍：聲音 + 觸覺 + 擺錘擺向另一端（在下一拍前剛好到位＝音畫同步）。
+  void _emitBeat() {
     if (_cfg.metronomeSoundOn) {
       MetronomeService.instance.play(
         volume: _cfg.metronomeVolume,
@@ -611,21 +607,17 @@ class ExerciseTimerState extends State<ExerciseTimer>
       );
     }
     if (_cfg.metronomeOn) playHaptic(HapticLevel.selection);
+    final target = _pendulum.value < 0.5 ? 1.0 : 0.0;
+    // animateTo 預設線性；視覺的緩入緩出在 _PendulumPainter 套用
+    _pendulum.animateTo(target, duration: _beatInterval);
   }
 
-  // 環內即時改 BPM：先更新數值＋持久化，debounce 後才重啟擺錘套新速。
+  // 環內即時改 BPM：只更新數值＋持久化；timer 與擺錘下一拍自動讀新速，免重啟。
   void _setBpm(int v) {
     final nv = v.clamp(30, 240);
     if (nv == _cfg.bpm) return;
     setState(() => _cfg.bpm = nv);
     _persistConfig();
-    if (!_jogWorkActive) return;
-    _bpmApplyDebounce?.cancel();
-    _bpmApplyDebounce = Timer(const Duration(milliseconds: 220), () {
-      if (!mounted || !_jogWorkActive) return;
-      _pendulum.stop();
-      _syncMetronome();
-    });
   }
 
   void _previewMetronome() {
