@@ -1098,21 +1098,30 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   // 子模式選擇列（執行中鎖定），位置與專注模式的預設列對齊。
+  // 固定高度槽：與專注 _buildPresetRow 的 _pickerRowHeight 等高（兩處數值務必一致），
+  // 切換模式時版面不位移。
+  static const double _pickerRowHeight = 52;
+
   Widget _kindPicker() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Opacity(
-        opacity: _isRunning ? 0.45 : 1,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final k in ExerciseKind.values) ...[
-                _kindChip(k),
-                if (k != ExerciseKind.values.last) const SizedBox(width: 8),
-              ],
-            ],
+    return SizedBox(
+      height: _pickerRowHeight,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Opacity(
+            opacity: _isRunning ? 0.45 : 1,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (final k in ExerciseKind.values) ...[
+                    _kindChip(k),
+                    if (k != ExerciseKind.values.last) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -1390,6 +1399,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     final hasAny = _todaySessions > 0;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
+      height: 50, // 與專注統計列等高，切換模式不位移（兩處需一致）
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -1891,4 +1901,3 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 }
-

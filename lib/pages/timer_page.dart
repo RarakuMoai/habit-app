@@ -772,6 +772,7 @@ class _TimerPageState extends State<TimerPage>
     final hasAny = _todayTomatoes > 0;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
+      height: 50, // 與運動統計列等高，切換模式不位移（兩處需一致）
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -927,35 +928,44 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
+  // 方案/子模式選擇列的固定高度槽：與運動 _kindPicker 等高，FittedBox 縮放後
+  // 高度也固定，切換模式時版面不位移（兩處數值務必一致）。
+  static const double _pickerRowHeight = 52;
+
   Widget _buildPresetRow() {
     final locked = !_idle && !_finished; // 進行/暫停中鎖住，要先停止
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Opacity(
-        opacity: locked ? 0.45 : 1,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 0; i < _presets.length; i++) ...[
-                _presetChip(
-                  name: _presets[i].label,
-                  detail:
-                      '${_presets[i].focus}/${_presets[i].brk} ×${_presets[i].rounds}',
-                  selected: _selected == i,
-                  onTap: () => _selectPreset(i),
-                ),
-                const SizedBox(width: 8),
-              ],
-              // 自訂永遠顯示自己記住的配置，點預設不會被改寫
-              _presetChip(
-                name: '自訂',
-                detail: '$_customFocus/$_customShort ×$_customRounds',
-                selected: _selected == _customIndex,
-                onTap: _openSettingsSheet,
+    return SizedBox(
+      height: _pickerRowHeight,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Opacity(
+            opacity: locked ? 0.45 : 1,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < _presets.length; i++) ...[
+                    _presetChip(
+                      name: _presets[i].label,
+                      detail:
+                          '${_presets[i].focus}/${_presets[i].brk} ×${_presets[i].rounds}',
+                      selected: _selected == i,
+                      onTap: () => _selectPreset(i),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  // 自訂永遠顯示自己記住的配置，點預設不會被改寫
+                  _presetChip(
+                    name: '自訂',
+                    detail: '$_customFocus/$_customShort ×$_customRounds',
+                    selected: _selected == _customIndex,
+                    onTap: _openSettingsSheet,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1760,4 +1770,3 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 }
-
