@@ -98,6 +98,7 @@ class _TimerPageState extends State<TimerPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    TimerMutex.register(ActiveTimer.focus, _pauseForOther);
     _breath = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
@@ -109,6 +110,7 @@ class _TimerPageState extends State<TimerPage>
   void dispose() {
     _timer?.cancel();
     _breath.dispose();
+    TimerMutex.unregister(ActiveTimer.focus);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -333,29 +335,33 @@ class _TimerPageState extends State<TimerPage>
 
   // ── 操作 ──
 
+  // 被另一個計時器搶走時自動暫停自己（保留剩餘秒數），不發音效。
+  void _pauseForOther() {
+    if (!_isRunning) return;
+    final remaining = _endTime != null
+        ? _endTime!.difference(DateTime.now()).inSeconds.clamp(0, _phaseTotal)
+        : _secondsLeft;
+    _stopTicker();
+    _cancelAllNotifs();
+    setState(() {
+      _secondsLeft = remaining;
+      _isRunning = false;
+      _endTime = null;
+    });
+    TimerMutex.release(ActiveTimer.focus);
+  }
+
   void _startPause() {
     if (_isRunning) {
-      final remaining = _endTime != null
-          ? _endTime!.difference(DateTime.now()).inSeconds.clamp(0, _phaseTotal)
-          : _secondsLeft;
-      _stopTicker();
-      _cancelAllNotifs();
-      setState(() {
-        _secondsLeft = remaining;
-        _isRunning = false;
-        _endTime = null;
-      });
-      TimerMutex.release(ActiveTimer.focus);
+      _pauseForOther();
       playFeedback(SfxCue.tap);
       return;
     }
-    // 另一個計時器（運動）正在跑就先擋下，避免兩邊通知 / 音效打架
-    if (!TimerMutex.tryAcquire(ActiveTimer.focus)) {
-      playHaptic(HapticLevel.light);
+    // 啟動前先取得鎖：若運動計時正在跑，會自動暫停它（保留進度），跳提示告知
+    if (TimerMutex.acquire(ActiveTimer.focus) == ActiveTimer.exercise) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('運動計時進行中，請先停止')));
-      return;
+        ..showSnackBar(const SnackBar(content: Text('運動計時已暫停')));
     }
     // 從待機 / 完成 → 重新組序列從頭開始
     if (_idle || _finished) {
