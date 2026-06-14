@@ -16,6 +16,7 @@ import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/timer_ring_painter.dart';
 import 'timer/exercise_timer.dart';
 
 // 計時頁上層模式：專注（番茄鐘）／運動（間歇訓練）
@@ -1599,15 +1600,12 @@ class _TimerPageState extends State<TimerPage>
           tween: Tween(begin: 0, end: _progress),
           duration: const Duration(milliseconds: 1000),
           builder: (context, p, child) => CustomPaint(
-            painter: _TomatoDialPainter(
-              progress: p,
-              color: color,
-              phase: _phase,
-            ),
+            // 與運動模式共用同一顆圓環外觀，只差傳入的番茄配色
+            painter: TimerRingPainter(progress: p, color: color),
             child: child,
           ),
           child: Container(
-            margin: EdgeInsets.all(size * 0.155),
+            margin: EdgeInsets.all(size * 0.14),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const LinearGradient(
@@ -1630,14 +1628,14 @@ class _TimerPageState extends State<TimerPage>
                 children: [
                   Icon(
                     _phaseIcon,
-                    color: color.withValues(alpha: 0.62),
-                    size: size * 0.085,
+                    color: color.withValues(alpha: 0.7),
+                    size: size * 0.1,
                   ),
-                  SizedBox(height: size * 0.015),
+                  SizedBox(height: size * 0.01),
                   Text(
                     _timeString,
                     style: TextStyle(
-                      fontSize: size * 0.18,
+                      fontSize: size * 0.2,
                       fontWeight: FontWeight.w900,
                       color: color,
                       height: 1.05,
@@ -1647,11 +1645,11 @@ class _TimerPageState extends State<TimerPage>
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
-                  SizedBox(height: size * 0.014),
+                  SizedBox(height: size * 0.015),
                   Text(
                     _ringSubtitle(),
                     style: TextStyle(
-                      fontSize: math.max(11.0, size * 0.058),
+                      fontSize: math.max(11.0, size * 0.056),
                       fontWeight: FontWeight.w600,
                       color: AppInk.soft,
                     ),
@@ -1763,168 +1761,3 @@ class _TimerPageState extends State<TimerPage>
   }
 }
 
-// 番茄儀表盤：外圈保留精準倒數，內層用柔和果實量感承接背景插畫。
-class _TomatoDialPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-  final _Phase phase;
-
-  const _TomatoDialPainter({
-    required this.progress,
-    required this.color,
-    required this.phase,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final shortest = math.min(size.width, size.height);
-    final stroke = math.max(8.0, shortest * 0.048);
-    final radius = shortest / 2 - stroke * 0.8;
-    final bodyRadius = radius - stroke * 1.05;
-
-    final bodyRect = Rect.fromCircle(center: center, radius: bodyRadius);
-    final bodyPaint = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.36, -0.42),
-        radius: 0.95,
-        colors: [
-          Colors.white.withValues(alpha: 0.96),
-          color.withValues(alpha: phase == _Phase.focus ? 0.15 : 0.10),
-          color.withValues(alpha: phase == _Phase.focus ? 0.25 : 0.18),
-        ],
-        stops: const [0.0, 0.58, 1.0],
-      ).createShader(bodyRect);
-    canvas.drawCircle(center, bodyRadius, bodyPaint);
-
-    final groovePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1.2, shortest * 0.007)
-      ..strokeCap = StrokeCap.round
-      ..color = color.withValues(alpha: 0.08);
-    for (final angle in [-0.70, 0.0, 0.70]) {
-      final path = Path()
-        ..moveTo(
-          center.dx + math.sin(angle) * bodyRadius * 0.18,
-          center.dy - bodyRadius * 0.76,
-        )
-        ..quadraticBezierTo(
-          center.dx + math.sin(angle) * bodyRadius * 0.40,
-          center.dy,
-          center.dx + math.sin(angle) * bodyRadius * 0.22,
-          center.dy + bodyRadius * 0.74,
-        );
-      canvas.drawPath(path, groovePaint);
-    }
-
-    final leafPaint = Paint()..color = const Color(0xFF79B66A);
-    for (var i = 0; i < 5; i++) {
-      final angle = -math.pi / 2 + (i - 2) * 0.38;
-      final leafCenter =
-          center +
-          Offset(
-            math.cos(angle) * bodyRadius * 0.50,
-            math.sin(angle) * bodyRadius * 0.50,
-          );
-      canvas.save();
-      canvas.translate(leafCenter.dx, leafCenter.dy);
-      canvas.rotate(angle + math.pi / 2);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset.zero,
-          width: bodyRadius * 0.18,
-          height: bodyRadius * 0.36,
-        ),
-        leafPaint,
-      );
-      canvas.restore();
-    }
-
-    final highlight = Paint()
-      ..color = Colors.white.withValues(alpha: 0.58)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: center + Offset(-bodyRadius * 0.34, -bodyRadius * 0.30),
-        width: bodyRadius * 0.38,
-        height: bodyRadius * 0.18,
-      ),
-      highlight,
-    );
-
-    final track = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round
-      ..color = color.withValues(alpha: 0.12);
-    canvas.drawCircle(center, radius, track);
-
-    final tickPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = math.max(1.2, stroke * 0.16)
-      ..color = color.withValues(alpha: 0.16);
-    for (var i = 0; i < 12; i++) {
-      final a = -math.pi / 2 + i * math.pi / 6;
-      final outer = center + Offset(math.cos(a) * radius, math.sin(a) * radius);
-      final inner =
-          center +
-          Offset(
-            math.cos(a) * (radius - stroke * (i % 3 == 0 ? 1.18 : 0.82)),
-            math.sin(a) * (radius - stroke * (i % 3 == 0 ? 1.18 : 0.82)),
-          );
-      canvas.drawLine(inner, outer, tickPaint);
-    }
-
-    final p = progress.clamp(0.0, 1.0);
-    if (p <= 0) {
-      return;
-    }
-    final sweep = 2 * math.pi * p;
-    final arc = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        startAngle: -math.pi / 2,
-        endAngle: math.pi * 1.5,
-        colors: [
-          color.withValues(alpha: 0.62),
-          color,
-          color.withValues(alpha: 0.74),
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      sweep,
-      false,
-      arc,
-    );
-
-    // 弧端旋鈕：白心 + accent 描邊 + 柔光，倒數的「現在」更有存在感
-    final angle = -math.pi / 2 + sweep;
-    final knob =
-        center + Offset(math.cos(angle) * radius, math.sin(angle) * radius);
-    canvas.drawCircle(
-      knob,
-      stroke * 0.78,
-      Paint()
-        ..color = color.withValues(alpha: 0.35)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-    );
-    canvas.drawCircle(knob, stroke * 0.62, Paint()..color = Colors.white);
-    canvas.drawCircle(
-      knob,
-      stroke * 0.62,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = color,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_TomatoDialPainter old) =>
-      old.progress != progress || old.color != color || old.phase != phase;
-}
