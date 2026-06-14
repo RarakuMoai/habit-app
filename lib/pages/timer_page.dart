@@ -53,11 +53,21 @@ class _TimerPageState extends State<TimerPage>
   _TimerMode _topMode = _TimerMode.focus;
 
   // ── 設定（持久化）──
+  // 目前生效中的設定（驅動計時，等於「選中那一格」的值）
   int _focusMin = 25;
   int _shortMin = 5;
   int _longMin = 15;
   int _rounds = 4; // 一節幾顆番茄（1–8）
-  bool _longBreakEnabled = true; // 結尾長休息（整節最後）
+  bool _longBreakEnabled = true; // 結尾長休息（全域，跨方案共用）
+
+  // 自訂槽：跟預設組互不影響，點預設不會被改寫；自訂值記在這
+  int _customFocus = 25;
+  int _customShort = 5;
+  int _customRounds = 4;
+
+  // 目前選的方案：0/1/2=_presets、_customIndex=自訂。重開 app 記憶上次選擇。
+  static const int _customIndex = 3;
+  int _selected = 0;
 
   // ── 計時狀態（有限一節：[專注→短休息]×(N-1)→專注→(長休息)→完成）──
   // 階段序列在按下開始時組好，背景回來用 wall-clock 逐段補算。
@@ -119,12 +129,27 @@ class _TimerPageState extends State<TimerPage>
       _topMode = prefs.getString(PrefsKeys.timerMode) == 'exercise'
           ? _TimerMode.exercise
           : _TimerMode.focus;
-      _focusMin = prefs.getInt(PrefsKeys.timerFocusMinutes) ?? 25;
-      _shortMin = prefs.getInt(PrefsKeys.timerShortBreakMinutes) ?? 5;
+      // 自訂槽（沿用 focus/short/rounds 三個 key）＋全域長休息設定
+      _customFocus = prefs.getInt(PrefsKeys.timerFocusMinutes) ?? 25;
+      _customShort = prefs.getInt(PrefsKeys.timerShortBreakMinutes) ?? 5;
+      _customRounds = (prefs.getInt(PrefsKeys.timerRounds) ?? 4).clamp(1, 8);
       _longMin = prefs.getInt(PrefsKeys.timerLongBreakMinutes) ?? 15;
-      _rounds = (prefs.getInt(PrefsKeys.timerRounds) ?? 4).clamp(1, 8);
       _longBreakEnabled =
           prefs.getBool(PrefsKeys.timerLongBreakEnabled) ?? true;
+      // 上次選的方案；舊版沒存過就用「自訂槽是否剛好等於某個預設」推回，否則自訂
+      final savedSel = prefs.getInt(PrefsKeys.timerSelectedPreset);
+      if (savedSel != null) {
+        _selected = savedSel.clamp(0, _customIndex);
+      } else {
+        final i = _presets.indexWhere(
+          (p) =>
+              p.focus == _customFocus &&
+              p.brk == _customShort &&
+              p.rounds == _customRounds,
+        );
+        _selected = i >= 0 ? i : _customIndex;
+      }
+      _applySelected();
       _statsDate = today;
       _todayTomatoes = prefs.getInt(PrefsKeys.timerTomatoes(today)) ?? 0;
       _todayFocusMin = prefs.getInt(PrefsKeys.timerFocusMinutesDay(today)) ?? 0;
@@ -134,13 +159,29 @@ class _TimerPageState extends State<TimerPage>
     });
   }
 
+  // 把目前選中那一格的數值灌進生效中的設定（自訂槽或預設組）
+  void _applySelected() {
+    if (_selected == _customIndex) {
+      _focusMin = _customFocus;
+      _shortMin = _customShort;
+      _rounds = _customRounds;
+    } else {
+      final p = _presets[_selected];
+      _focusMin = p.focus;
+      _shortMin = p.brk;
+      _rounds = p.rounds;
+    }
+  }
+
+  // 持久化：自訂槽（focus/short/rounds key）＋全域長休息＋選中的方案
   Future<void> _persistSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(PrefsKeys.timerFocusMinutes, _focusMin);
-    await prefs.setInt(PrefsKeys.timerShortBreakMinutes, _shortMin);
+    await prefs.setInt(PrefsKeys.timerFocusMinutes, _customFocus);
+    await prefs.setInt(PrefsKeys.timerShortBreakMinutes, _customShort);
     await prefs.setInt(PrefsKeys.timerLongBreakMinutes, _longMin);
-    await prefs.setInt(PrefsKeys.timerRounds, _rounds);
+    await prefs.setInt(PrefsKeys.timerRounds, _customRounds);
     await prefs.setBool(PrefsKeys.timerLongBreakEnabled, _longBreakEnabled);
+    await prefs.setInt(PrefsKeys.timerSelectedPreset, _selected);
   }
 
   // 完成一顆番茄：寫進今日統計（跨日自動歸零換 key）
@@ -180,8 +221,10 @@ class _TimerPageState extends State<TimerPage>
   }
 
   // 當前階段已完成比例 0~1（給進度圓環用）
-  double get _progress =>
-      1 - (_secondsLeft / math.max(_phaseTotal, 1)).clamp(0.0, 1.0);
+  double get _progress {
+    if (_idle || _finished || _phaseTotal <= 0) return 0;
+    return 1 - (_secondsLeft / _phaseTotal).clamp(0.0, 1.0);
+  }
 
   void _enterStep(int idx) {
     final s = _seq[idx];
@@ -368,17 +411,16 @@ class _TimerPageState extends State<TimerPage>
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
   }
 
-  // 套用預設組：只在待機/完成可切換。進行或暫停中要先按停止(重設)回待機，
-  // 否則會改了設定卻對不上已組好的當前那節。
-  void _applyPreset(int focus, int brk, int rounds) {
+  // 選方案（預設組或自訂）：只在待機/完成可切換。進行或暫停中要先按停止(重設)
+  // 回待機，否則會改了設定卻對不上已組好的當前那節。自訂槽的數值不受影響。
+  void _selectPreset(int index) {
     if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
       return;
     }
     setState(() {
-      _focusMin = focus;
-      _shortMin = brk;
-      _rounds = rounds;
+      _selected = index;
+      _applySelected();
       if (_idle || _finished) {
         _phase = _Phase.idle;
         _phaseTotal = _focusMin * 60;
@@ -556,20 +598,22 @@ class _TimerPageState extends State<TimerPage>
 
   Widget _buildTimerContent(Color color) {
     // 依可用高度切換版面：兔咪面板展開時走緊湊並排版，
-    // 不捲動就能看到時間、按到開始 —— 修掉「展開時只剩半顆圓」的問題
+    // 不捲動就能看到時間、按到開始 —— 修掉「展開時只剩半顆圓」的問題。
+    // 門檻設在 470：完整版面的固定元件（標籤+控制+狀態+方案+統計）約 390px 高，
+    // 留約 80px 餘裕（含放大字體）才用它，拖曳/彈簧過程中就不會出現固定元件
+    // 擠不下的瞬間 overflow；不夠高就走緊湊並排版。
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        return h < 360
+        return h < 470
             ? _buildCompactLayout(color, h)
-            : _buildFullLayout(color, h);
+            : _buildFullLayout(color);
       },
     );
   }
 
   // 完整版面（面板收合）：環吸收剩餘高度置中，統計列釘在底部收尾
-  Widget _buildFullLayout(Color color, double h) {
-    final ringSize = (h - 312).clamp(148.0, 246.0);
+  Widget _buildFullLayout(Color color) {
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -578,18 +622,30 @@ class _TimerPageState extends State<TimerPage>
           padding: const EdgeInsets.only(top: 8),
           child: _buildCycleDots(),
         ),
-        Expanded(child: Center(child: _buildTimerCircle(ringSize, color))),
-        _controlsRow(color),
-        const SizedBox(height: 10),
-        if (h > 440)
-          Text(
-            _statusLine(),
-            style: const TextStyle(
-              color: AppInk.soft,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+        // 環吃掉中間剩餘空間，但用實際格子尺寸決定大小（不再用固定下限），
+        // 拖曳到中間高度時環會自然縮小而非撐破版面 → 不再 overflow
+        Expanded(
+          child: Center(
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final ring = math.min(math.min(c.maxWidth, c.maxHeight), 246.0);
+                return _buildTimerCircle(ring, color);
+              },
             ),
           ),
+        ),
+        _controlsRow(color),
+        const SizedBox(height: 10),
+        // 完整版面只在 h≥430 出現，狀態行常駐即可，不再依高度開關（避免拖曳時行
+        // 忽隱忽現、環跟著一跳一跳）
+        Text(
+          _statusLine(),
+          style: const TextStyle(
+            color: AppInk.soft,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         const SizedBox(height: 10),
         _buildPresetRow(),
         const SizedBox(height: 12),
@@ -683,16 +739,25 @@ class _TimerPageState extends State<TimerPage>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _sideButton(
-          icon: Icons.refresh_rounded,
+          icon: Icons.replay_rounded,
+          label: '重設',
           onTap: _reset,
           size: compact ? 44 : 54,
           faded: _idle,
         ),
         SizedBox(width: gap),
-        _mainButton(color, size: compact ? 62 : 78),
+        // 主鈕比兩側大；下方補一格與側鈕文字同高的留白，三顆圓心對齊
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _mainButton(color, size: compact ? 62 : 78),
+            const SizedBox(height: _sideLabelGap + _sideLabelHeight),
+          ],
+        ),
         SizedBox(width: gap),
         _sideButton(
           icon: Icons.skip_next_rounded,
+          label: '跳過',
           onTap: _skipPhase,
           size: compact ? 44 : 54,
           faded: _idle || _finished,
@@ -862,9 +927,6 @@ class _TimerPageState extends State<TimerPage>
   }
 
   Widget _buildPresetRow() {
-    final isCustom = !_presets.any(
-      (p) => p.focus == _focusMin && p.brk == _shortMin && p.rounds == _rounds,
-    );
     final locked = !_idle && !_finished; // 進行/暫停中鎖住，要先停止
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -875,23 +937,21 @@ class _TimerPageState extends State<TimerPage>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              for (final p in _presets) ...[
+              for (var i = 0; i < _presets.length; i++) ...[
                 _presetChip(
-                  name: p.label,
-                  detail: '${p.focus}/${p.brk} ×${p.rounds}',
-                  selected:
-                      !isCustom &&
-                      p.focus == _focusMin &&
-                      p.brk == _shortMin &&
-                      p.rounds == _rounds,
-                  onTap: () => _applyPreset(p.focus, p.brk, p.rounds),
+                  name: _presets[i].label,
+                  detail:
+                      '${_presets[i].focus}/${_presets[i].brk} ×${_presets[i].rounds}',
+                  selected: _selected == i,
+                  onTap: () => _selectPreset(i),
                 ),
                 const SizedBox(width: 8),
               ],
+              // 自訂永遠顯示自己記住的配置，點預設不會被改寫
               _presetChip(
                 name: '自訂',
-                detail: isCustom ? '$_focusMin/$_shortMin ×$_rounds' : '自由配',
-                selected: isCustom,
+                detail: '$_customFocus/$_customShort ×$_customRounds',
+                selected: _selected == _customIndex,
                 onTap: _openSettingsSheet,
               ),
             ],
@@ -965,6 +1025,17 @@ class _TimerPageState extends State<TimerPage>
       playHaptic(HapticLevel.light);
       return;
     }
+    // 點自訂＝選中自訂槽，預覽立刻換成記住的自訂配置
+    setState(() {
+      _selected = _customIndex;
+      _applySelected();
+      if (_idle || _finished) {
+        _phase = _Phase.idle;
+        _phaseTotal = _focusMin * 60;
+        _secondsLeft = _phaseTotal;
+      }
+    });
+    _persistSettings();
     playFeedback(SfxCue.tap);
     showModalBottomSheet<void>(
       context: context,
@@ -973,11 +1044,15 @@ class _TimerPageState extends State<TimerPage>
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheet) {
-            // sheet 內改值：同步父頁 state + 持久化；待機時更新第一顆專注預覽。
-            // 設定只在「下次開始」組序列時生效，所以暫停中改值不動當前倒數。
+            // sheet 內改值：寫進自訂槽 + 同步生效中的設定 + 持久化；
+            // 待機時更新第一顆專注預覽。改值也代表「選中自訂」。
             void apply(VoidCallback change) {
               setState(() {
                 change();
+                _selected = _customIndex;
+                _focusMin = _customFocus;
+                _shortMin = _customShort;
+                _rounds = _customRounds;
                 if (_idle || _finished) {
                   _phase = _Phase.idle;
                   _phaseTotal = _focusMin * 60;
@@ -1087,11 +1162,11 @@ class _TimerPageState extends State<TimerPage>
                           sub: '進入安靜工作段',
                           icon: Icons.local_fire_department_rounded,
                           color: const Color(0xFFFF7043),
-                          value: _focusMin,
+                          value: _customFocus,
                           min: 5,
                           max: 120,
                           step: 1,
-                          onChanged: (v) => apply(() => _focusMin = v),
+                          onChanged: (v) => apply(() => _customFocus = v),
                         ),
                         const SizedBox(height: 8),
                         _timerStepperCard(
@@ -1099,11 +1174,11 @@ class _TimerPageState extends State<TimerPage>
                           sub: '番茄之間喘口氣',
                           icon: Icons.local_cafe_rounded,
                           color: const Color(0xFF66BB6A),
-                          value: _shortMin,
+                          value: _customShort,
                           min: 1,
                           max: 30,
                           step: 1,
-                          onChanged: (v) => apply(() => _shortMin = v),
+                          onChanged: (v) => apply(() => _customShort = v),
                         ),
                         const SizedBox(height: 8),
                         _timerStepperCard(
@@ -1111,12 +1186,12 @@ class _TimerPageState extends State<TimerPage>
                           sub: '這一節做幾顆番茄',
                           icon: Icons.tag_rounded,
                           color: const Color(0xFFFF7043),
-                          value: _rounds,
+                          value: _customRounds,
                           min: 1,
                           max: 8,
                           step: 1,
                           unit: '顆',
-                          onChanged: (v) => apply(() => _rounds = v),
+                          onChanged: (v) => apply(() => _customRounds = v),
                         ),
                         const SizedBox(height: 16),
                         _settingsSectionTitle(
@@ -1519,6 +1594,8 @@ class _TimerPageState extends State<TimerPage>
         },
         // 進度圓環：每秒 tick 之間用 1 秒線性補間，看起來是連續掃過
         child: TweenAnimationBuilder<double>(
+          // 換階段時用 _idx 重建，從 0 起新進度，避免進度弧由滿「倒帶」回 0
+          key: ValueKey(_idx),
           tween: Tween(begin: 0, end: _progress),
           duration: const Duration(milliseconds: 1000),
           builder: (context, p, child) => CustomPaint(
@@ -1629,37 +1706,58 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  // 兩側小按鈕（重設/跳過）：白底髮絲線 + flat 陰影，跟卡片語彙一致
+  // 兩側小按鈕（重設/跳過）：白底髮絲線 + flat 陰影，跟卡片語彙一致；
+  // 圓鈕下方掛一行小文字，避免單看圖示猜不出意圖
+  static const double _sideLabelGap = 6;
+  static const double _sideLabelHeight = 16;
   Widget _sideButton({
     required IconData icon,
+    required String label,
     required VoidCallback onTap,
     double size = 54,
     bool faded = false,
   }) {
     return Opacity(
       opacity: faded ? 0.35 : 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-          border: Border.fromBorderSide(
-            const BorderSide(color: Color(0x0A46342B)),
-          ),
-          boxShadow: AppShadows.flat,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            onTap: faded ? null : onTap,
-            customBorder: const CircleBorder(),
-            child: SizedBox(
-              width: size,
-              height: size,
-              child: Icon(icon, color: AppInk.soft, size: size * 0.42),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.fromBorderSide(
+                const BorderSide(color: Color(0x0A46342B)),
+              ),
+              boxShadow: AppShadows.flat,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: faded ? null : onTap,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: size,
+                  height: size,
+                  child: Icon(icon, color: AppInk.soft, size: size * 0.42),
+                ),
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: _sideLabelGap),
+          SizedBox(
+            height: _sideLabelHeight,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppInk.soft,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -9,6 +9,7 @@ import '../../utils/app_style.dart';
 import '../../utils/coin_config.dart';
 import '../../utils/coin_service.dart';
 import '../../utils/mascot.dart';
+import '../../utils/metronome_service.dart';
 import '../../utils/notification_service.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
@@ -16,11 +17,10 @@ import '../../widgets/hold_repeat_button.dart';
 
 // 計時頁「運動」模式：間歇訓練計時器。
 // 引擎沿用番茄鐘那套 wall-clock（用 endTime 反推剩餘）＋背景回來補算多階段
-// ＋鏈式通知，所以鎖屏也準。四種子模式（Tabata / HIIT / EMOM / 重訓），
+// ＋鏈式通知，所以鎖屏也準。五種子模式（Tabata / HIIT / EMOM / 重訓 / 超慢跑），
 // 階段序列：準備 →（暖身）→ [運動 → 休息]×回合 → 完成。
-// 超慢跑＋節拍器之後另做（不在此版）。
 
-enum ExerciseKind { tabata, hiit, emom, gym }
+enum ExerciseKind { tabata, hiit, emom, gym, jog }
 
 enum _ExPhase { idle, prep, warmup, work, rest, finished }
 
@@ -52,6 +52,12 @@ const Map<ExerciseKind, _ExMeta> _exMeta = {
     icon: Icons.fitness_center_rounded,
     color: Color(0xFF42A5F5),
   ),
+  ExerciseKind.jog: (
+    name: '超慢跑',
+    desc: '180 BPM 輕鬆節拍',
+    icon: Icons.directions_run_rounded,
+    color: Color(0xFFAB47BC),
+  ),
 };
 
 // 可調設定（會持久化）。loop=true（EMOM）時沒有獨立休息段。
@@ -62,6 +68,11 @@ class _ExConfig {
   int prep;
   bool warmupOn;
   int warmup;
+  int bpm;
+  bool metronomeOn;
+  bool metronomeSoundOn;
+  double metronomeVolume;
+  MetronomeTone metronomeTone;
   final bool loop;
 
   _ExConfig({
@@ -71,6 +82,11 @@ class _ExConfig {
     required this.prep,
     required this.warmupOn,
     required this.warmup,
+    required this.bpm,
+    required this.metronomeOn,
+    required this.metronomeSoundOn,
+    required this.metronomeVolume,
+    required this.metronomeTone,
     required this.loop,
   });
 }
@@ -83,6 +99,11 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: false,
     warmup: 60,
+    bpm: 0,
+    metronomeOn: false,
+    metronomeSoundOn: false,
+    metronomeVolume: 0.0,
+    metronomeTone: MetronomeTone.kick,
     loop: false,
   ),
   ExerciseKind.hiit => _ExConfig(
@@ -92,6 +113,11 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: true,
     warmup: 120,
+    bpm: 0,
+    metronomeOn: false,
+    metronomeSoundOn: false,
+    metronomeVolume: 0.0,
+    metronomeTone: MetronomeTone.kick,
     loop: false,
   ),
   ExerciseKind.emom => _ExConfig(
@@ -101,6 +127,11 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: false,
     warmup: 60,
+    bpm: 0,
+    metronomeOn: false,
+    metronomeSoundOn: false,
+    metronomeVolume: 0.0,
+    metronomeTone: MetronomeTone.kick,
     loop: true,
   ),
   ExerciseKind.gym => _ExConfig(
@@ -110,7 +141,26 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     prep: 5,
     warmupOn: false,
     warmup: 0,
+    bpm: 0,
+    metronomeOn: false,
+    metronomeSoundOn: false,
+    metronomeVolume: 0.0,
+    metronomeTone: MetronomeTone.kick,
     loop: false,
+  ),
+  ExerciseKind.jog => _ExConfig(
+    work: 1800,
+    rest: 0,
+    rounds: 1,
+    prep: 5,
+    warmupOn: true,
+    warmup: 180,
+    bpm: 180,
+    metronomeOn: true,
+    metronomeSoundOn: true,
+    metronomeVolume: 0.75,
+    metronomeTone: MetronomeTone.kick,
+    loop: true,
   ),
 };
 
@@ -129,6 +179,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
   // 通知 id 區段（與番茄鐘 1001..1006 分開）
   static const int _notifIdBase = 1100;
   static const int _maxNotifs = 40;
+  static const Duration _tickerInterval = Duration(milliseconds: 100);
 
   ExerciseKind _kind = ExerciseKind.tabata;
   final Map<ExerciseKind, _ExConfig> _configs = {
@@ -144,7 +195,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
   int _phaseTotal = 0;
   bool _isRunning = false;
   Timer? _timer;
+  Timer? _metronomeTimer;
+  Timer? _boundaryTimer;
   DateTime? _endTime;
+  bool _phaseCompleteHold = false;
+  bool _advancingBoundary = false;
+  int _completedWorkSeconds = 0;
 
   // ── 今日統計（per-day key）──
   String _statsDate = '';
@@ -156,6 +212,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
   _ExConfig get _cfg => _configs[_kind]!;
   bool get _idle => _phase == _ExPhase.idle;
   bool get _finished => _phase == _ExPhase.finished;
+  bool get _jogWorkActive =>
+      _kind == ExerciseKind.jog && _phase == _ExPhase.work && _isRunning;
 
   @override
   void initState() {
@@ -171,6 +229,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
   @override
   void dispose() {
     _timer?.cancel();
+    _stopMetronome();
     _breath.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -178,8 +237,13 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _stopMetronome();
+    }
     if (state == AppLifecycleState.resumed && _isRunning) {
       _refreshFromEndTime();
+      _syncMetronome();
     }
   }
 
@@ -199,6 +263,19 @@ class ExerciseTimerState extends State<ExerciseTimer>
         prep: prefs.getInt(PrefsKeys.exercisePrep(id)) ?? d.prep,
         warmupOn: prefs.getBool(PrefsKeys.exerciseWarmupOn(id)) ?? d.warmupOn,
         warmup: prefs.getInt(PrefsKeys.exerciseWarmup(id)) ?? d.warmup,
+        bpm: prefs.getInt(PrefsKeys.exerciseBpm(id)) ?? d.bpm,
+        metronomeOn:
+            prefs.getBool(PrefsKeys.exerciseMetronomeOn(id)) ?? d.metronomeOn,
+        metronomeSoundOn:
+            prefs.getBool(PrefsKeys.exerciseMetronomeSoundOn(id)) ??
+            d.metronomeSoundOn,
+        metronomeVolume:
+            prefs.getDouble(PrefsKeys.exerciseMetronomeVolume(id)) ??
+            d.metronomeVolume,
+        metronomeTone: MetronomeTone.fromId(
+          prefs.getString(PrefsKeys.exerciseMetronomeTone(id)) ??
+              d.metronomeTone.id,
+        ),
         loop: d.loop,
       );
     }
@@ -225,20 +302,82 @@ class ExerciseTimerState extends State<ExerciseTimer>
     await prefs.setInt(PrefsKeys.exercisePrep(id), c.prep);
     await prefs.setBool(PrefsKeys.exerciseWarmupOn(id), c.warmupOn);
     await prefs.setInt(PrefsKeys.exerciseWarmup(id), c.warmup);
+    await prefs.setInt(PrefsKeys.exerciseBpm(id), c.bpm);
+    await prefs.setBool(PrefsKeys.exerciseMetronomeOn(id), c.metronomeOn);
+    await prefs.setBool(
+      PrefsKeys.exerciseMetronomeSoundOn(id),
+      c.metronomeSoundOn,
+    );
+    await prefs.setDouble(
+      PrefsKeys.exerciseMetronomeVolume(id),
+      c.metronomeVolume,
+    );
+    await prefs.setString(
+      PrefsKeys.exerciseMetronomeTone(id),
+      c.metronomeTone.id,
+    );
   }
 
   Future<void> _recordSession(int workSeconds) async {
+    if (workSeconds < 30) return;
     final today = _dateStr(DateTime.now());
     if (_statsDate != today) {
       _statsDate = today;
       _todaySessions = 0;
       _todayMinutes = 0;
     }
-    _todaySessions++;
-    _todayMinutes += (workSeconds / 60).round();
+    final addedMinutes = math.max(1, (workSeconds / 60).round()).toInt();
+    final nextSessions = _todaySessions + 1;
+    final nextMinutes = _todayMinutes + addedMinutes;
+    if (mounted) {
+      setState(() {
+        _todaySessions = nextSessions;
+        _todayMinutes = nextMinutes;
+      });
+    } else {
+      _todaySessions = nextSessions;
+      _todayMinutes = nextMinutes;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(PrefsKeys.exerciseSessions(today), _todaySessions);
     await prefs.setInt(PrefsKeys.exerciseMinutesDay(today), _todayMinutes);
+  }
+
+  Future<void> _clearTodayStats() async {
+    final ok = await _confirmClearTodayStats();
+    if (!ok) return;
+    final today = _dateStr(DateTime.now());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(PrefsKeys.exerciseSessions(today));
+    await prefs.remove(PrefsKeys.exerciseMinutesDay(today));
+    if (!mounted) return;
+    setState(() {
+      _statsDate = today;
+      _todaySessions = 0;
+      _todayMinutes = 0;
+    });
+    playFeedback(SfxCue.cancel, haptic: HapticLevel.selection);
+  }
+
+  Future<bool> _confirmClearTodayStats() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清除今日運動成果？'),
+        content: const Text('會把今天的運動次數與累計分鐘歸零。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   // ── 階段序列 ──
@@ -264,13 +403,36 @@ class ExerciseTimerState extends State<ExerciseTimer>
     return seq;
   }
 
-  int get _totalWorkSeconds {
-    final c = _cfg;
-    return math.max(1, c.work) * math.max(1, c.rounds);
+  int _currentWorkElapsedSeconds({bool full = false}) {
+    if (_phase != _ExPhase.work || _phaseTotal <= 0) return 0;
+    if (full) return _phaseTotal;
+    final end = _endTime;
+    if (_isRunning && end != null) {
+      final leftMs = end.difference(DateTime.now()).inMilliseconds;
+      final elapsedMs = (_phaseTotal * 1000 - leftMs).clamp(
+        0,
+        _phaseTotal * 1000,
+      );
+      return elapsedMs ~/ 1000;
+    }
+    return (_phaseTotal - _secondsLeft).clamp(0, _phaseTotal);
   }
 
-  double get _progress =>
-      1 - (_secondsLeft / math.max(_phaseTotal, 1)).clamp(0.0, 1.0);
+  void _addCurrentWorkElapsed({bool full = false}) {
+    _completedWorkSeconds += _currentWorkElapsedSeconds(full: full);
+  }
+
+  double get _progress {
+    if (_idle || _finished || _phaseTotal <= 0) return 0;
+    if (_phaseCompleteHold) return 1;
+    final end = _endTime;
+    if (_isRunning && end != null) {
+      final leftMs = end.difference(DateTime.now()).inMilliseconds;
+      final totalMs = _phaseTotal * 1000;
+      return 1 - (leftMs.clamp(0, totalMs) / totalMs);
+    }
+    return 1 - (_secondsLeft / _phaseTotal).clamp(0.0, 1.0);
+  }
 
   // 進入某序列項目（設定當前階段並重置倒數，不負責排計時器）
   void _enterStep(int idx) {
@@ -280,29 +442,78 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _round = step.round;
     _phaseTotal = step.dur;
     _secondsLeft = step.dur;
+    _phaseCompleteHold = false;
   }
 
   // ── 計時推進 ──
 
   void _refreshFromEndTime() {
+    if (_advancingBoundary) return;
     var end = _endTime;
     if (end == null) return;
-    var remaining = end.difference(DateTime.now()).inSeconds;
+    final remainingMs = end.difference(DateTime.now()).inMilliseconds;
+    if (remainingMs <= 0 && remainingMs > -900) {
+      _holdCompletedPhase(end);
+      return;
+    }
+    var remaining = (remainingMs / 1000).ceil();
     var crossed = false;
     while (remaining <= 0) {
       crossed = true;
+      _addCurrentWorkElapsed(full: true);
       if (_idx + 1 >= _seq.length) {
         _finish();
         return;
       }
       _enterStep(_idx + 1);
       end = end!.add(Duration(seconds: _phaseTotal));
-      remaining = end.difference(DateTime.now()).inSeconds;
+      remaining = (end.difference(DateTime.now()).inMilliseconds / 1000).ceil();
     }
     if (crossed) _boundaryFeedback();
     setState(() {
       _endTime = end;
       _secondsLeft = remaining;
+    });
+    _syncMetronome();
+  }
+
+  void _holdCompletedPhase(DateTime endedAt) {
+    if (_advancingBoundary) return;
+    _advancingBoundary = true;
+    _stopMetronome();
+    setState(() {
+      _secondsLeft = 0;
+      _phaseCompleteHold = true;
+    });
+    _boundaryTimer?.cancel();
+    _boundaryTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted || !_isRunning || _endTime != endedAt) {
+        _advancingBoundary = false;
+        _phaseCompleteHold = false;
+        return;
+      }
+      if (_idx + 1 >= _seq.length) {
+        _addCurrentWorkElapsed(full: true);
+        _advancingBoundary = false;
+        _phaseCompleteHold = false;
+        _finish();
+        return;
+      }
+      _addCurrentWorkElapsed(full: true);
+      _enterStep(_idx + 1);
+      final nextEnd = endedAt.add(Duration(seconds: _phaseTotal));
+      final remaining =
+          (nextEnd.difference(DateTime.now()).inMilliseconds / 1000)
+              .ceil()
+              .clamp(0, _phaseTotal);
+      _boundaryFeedback();
+      setState(() {
+        _endTime = nextEnd;
+        _secondsLeft = remaining;
+        _phaseCompleteHold = false;
+      });
+      _advancingBoundary = false;
+      _syncMetronome();
     });
   }
 
@@ -317,7 +528,54 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
   void _stopTicker() {
     _timer?.cancel();
+    _boundaryTimer?.cancel();
+    _boundaryTimer = null;
+    _advancingBoundary = false;
+    _phaseCompleteHold = false;
     _breath.stop();
+    _stopMetronome();
+  }
+
+  void _stopMetronome() {
+    _metronomeTimer?.cancel();
+    _metronomeTimer = null;
+  }
+
+  void _syncMetronome() {
+    if (!_jogWorkActive) {
+      _stopMetronome();
+      return;
+    }
+    // 聲音與觸覺都關時不必空轉一個每拍 timer（節省喚醒）
+    if (!_cfg.metronomeSoundOn && !_cfg.metronomeOn) {
+      _stopMetronome();
+      return;
+    }
+    if (_metronomeTimer != null) return;
+    final bpm = _cfg.bpm.clamp(30, 240);
+    final interval = Duration(milliseconds: (60000 / bpm).round());
+    void beat() {
+      if (!_jogWorkActive) {
+        _stopMetronome();
+        return;
+      }
+      if (_cfg.metronomeSoundOn) {
+        MetronomeService.instance.play(
+          volume: _cfg.metronomeVolume,
+          tone: _cfg.metronomeTone,
+        );
+      }
+      if (_cfg.metronomeOn) playHaptic(HapticLevel.selection);
+    }
+
+    beat();
+    _metronomeTimer = Timer.periodic(interval, (_) => beat());
+  }
+
+  void _previewMetronome() {
+    final volume = _cfg.metronomeVolume <= 0 ? 0.75 : _cfg.metronomeVolume;
+    MetronomeService.instance.play(volume: volume, tone: _cfg.metronomeTone);
+    playHaptic(HapticLevel.selection);
   }
 
   Future<void> _cancelAllNotifs() async {
@@ -348,7 +606,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   (String, String) _notifFor(_Step next) => switch (next.phase) {
-    _ExPhase.work => ('💪 開始運動', '第 ${next.round} / ${_cfg.rounds} 組'),
+    _ExPhase.work =>
+      _kind == ExerciseKind.jog
+          ? ('🏃 保持節奏', '${_cfg.bpm} BPM，輕鬆跑起來')
+          : ('💪 開始運動', '第 ${next.round} / ${_cfg.rounds} 組'),
     _ExPhase.rest => ('😮‍💨 休息一下', '深呼吸，準備下一組'),
     _ExPhase.warmup => ('🤸 開始暖身', '先動一動身體'),
     _ => ('開始', ''),
@@ -359,7 +620,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
   void _startPause() {
     if (_isRunning) {
       final remaining = _endTime != null
-          ? _endTime!.difference(DateTime.now()).inSeconds.clamp(0, _phaseTotal)
+          ? (_endTime!.difference(DateTime.now()).inMilliseconds / 1000)
+                .ceil()
+                .clamp(0, _phaseTotal)
           : _secondsLeft;
       _stopTicker();
       _cancelAllNotifs();
@@ -368,6 +631,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
         _isRunning = false;
         _endTime = null;
       });
+      _stopMetronome();
       playFeedback(SfxCue.tap);
       return;
     }
@@ -375,7 +639,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
     // 從待機 / 完成開始：重新組序列
     if (_idle || _finished) {
       _seq = _buildSequence(_cfg);
+      _completedWorkSeconds = 0;
       _enterStep(0);
+    }
+    if (_kind == ExerciseKind.jog && _cfg.metronomeSoundOn) {
+      unawaited(MetronomeService.instance.init(tone: _cfg.metronomeTone));
     }
     final end = DateTime.now().add(Duration(seconds: _secondsLeft));
     setState(() {
@@ -384,10 +652,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
     });
     _breath.repeat(reverse: true);
     _scheduleNotifs();
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => _refreshFromEndTime(),
-    );
+    _timer = Timer.periodic(_tickerInterval, (_) => _refreshFromEndTime());
+    _syncMetronome();
     MascotPersona.interact(MascotContext.halfDone);
     playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
   }
@@ -403,6 +669,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _secondsLeft = 0;
       _phaseTotal = 0;
       _endTime = null;
+      _completedWorkSeconds = 0;
     });
     MascotPersona.interact(MascotContext.notStarted);
     playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
@@ -410,6 +677,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
   void _skip() {
     if (_idle) return;
+    _addCurrentWorkElapsed();
     _stopTicker();
     _cancelAllNotifs();
     if (_idx + 1 >= _seq.length) {
@@ -422,10 +690,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _endTime = end;
       _breath.repeat(reverse: true);
       _scheduleNotifs();
-      _timer = Timer.periodic(
-        const Duration(seconds: 1),
-        (_) => _refreshFromEndTime(),
-      );
+      _timer = Timer.periodic(_tickerInterval, (_) => _refreshFromEndTime());
+      _syncMetronome();
     }
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
   }
@@ -433,18 +699,21 @@ class ExerciseTimerState extends State<ExerciseTimer>
   void _finish() {
     _stopTicker();
     _cancelAllNotifs();
-    final workSeconds = _totalWorkSeconds;
+    final workSeconds = _completedWorkSeconds;
     setState(() {
       _isRunning = false;
       _phase = _ExPhase.finished;
       _secondsLeft = 0;
       _endTime = null;
     });
+    _stopMetronome();
     _recordSession(workSeconds);
-    CoinService.award(
-      CoinSource.exerciseDone,
-      note: '${_exMeta[_kind]!.name} 完成',
-    );
+    if (workSeconds >= 30) {
+      CoinService.award(
+        CoinSource.exerciseDone,
+        note: '${_exMeta[_kind]!.name} 完成',
+      );
+    }
     MascotPersona.interact(MascotContext.allDone);
     playFeedback(SfxCue.success);
   }
@@ -457,7 +726,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _idx = 0;
       _secondsLeft = 0;
       _phaseTotal = 0;
+      _completedWorkSeconds = 0;
     });
+    _stopMetronome();
     SharedPreferences.getInstance().then(
       (p) => p.setString(PrefsKeys.exerciseSubMode, k.name),
     );
@@ -478,7 +749,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _ExPhase.idle => _exMeta[_kind]!.name,
     _ExPhase.prep => '準備',
     _ExPhase.warmup => '暖身',
-    _ExPhase.work => '運動',
+    _ExPhase.work => _kind == ExerciseKind.jog ? '保持節奏' : '運動',
     _ExPhase.rest => '休息',
     _ExPhase.finished => '完成',
   };
@@ -500,11 +771,17 @@ class ExerciseTimerState extends State<ExerciseTimer>
   String _ringSubtitle() {
     if (_idle) {
       final c = _cfg;
+      if (_kind == ExerciseKind.jog) {
+        return '${c.bpm} BPM · ${c.work ~/ 60} 分';
+      }
       return c.loop
           ? '${c.work}s × ${c.rounds} 組'
           : '${c.work}s / ${c.rest}s × ${c.rounds}';
     }
     if (_finished) return '今天又動了一次';
+    if (_kind == ExerciseKind.jog && _phase == _ExPhase.work) {
+      return '${_cfg.bpm} BPM · 小步頻';
+    }
     if (_phase == _ExPhase.work || _phase == _ExPhase.rest) {
       return '第 $_round / ${_cfg.rounds} 組';
     }
@@ -513,33 +790,47 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
   @override
   Widget build(BuildContext context) {
+    // 與專注模式相同：完整版面固定元件約 380px 高，留餘裕到 470 才用它，
+    // 拖曳/彈簧時不會出現固定元件擠不下的瞬間 overflow；不夠高就走緊湊並排版。
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        return h < 360 ? _buildCompactLayout(h) : _buildFullLayout(h);
+        return h < 470 ? _buildCompactLayout(h) : _buildFullLayout();
       },
     );
   }
 
   // 完整版面：對齊專注模式的「徽章 → 圓盤 → 控制 → 狀態 → 預設 → 統計」節奏。
-  Widget _buildFullLayout(double h) {
-    final ringSize = (h - 312).clamp(148.0, 246.0);
+  Widget _buildFullLayout() {
     return Column(
       children: [
         const SizedBox(height: 8),
         _phaseChip(),
-        Expanded(child: Center(child: _buildRing(ringSize))),
-        _controlsRow(),
-        const SizedBox(height: 10),
-        if (h > 440)
-          Text(
-            _statusLine(),
-            style: const TextStyle(
-              color: AppInk.soft,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: _buildExerciseDots(),
+        ),
+        // 環依實際剩餘空間決定大小（不再用固定下限），拖曳到中間高度也不撐破
+        Expanded(
+          child: Center(
+            child: LayoutBuilder(
+              builder: (context, c) => _buildRing(
+                math.min(math.min(c.maxWidth, c.maxHeight), 246.0),
+              ),
             ),
           ),
+        ),
+        _controlsRow(),
+        const SizedBox(height: 10),
+        // 完整版面只在 h≥470 出現，狀態行常駐即可（避免拖曳時忽隱忽現、環一跳一跳）
+        Text(
+          _statusLine(),
+          style: const TextStyle(
+            color: AppInk.soft,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         const SizedBox(height: 10),
         _kindPicker(),
         const SizedBox(height: 12),
@@ -564,6 +855,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _phaseChip(small: true),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _buildExerciseDots(),
+                  ),
                   const SizedBox(height: 14),
                   _controlsRow(compact: true),
                 ],
@@ -622,6 +917,63 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
+  int _completedWorkSteps() {
+    if (_finished) return math.max(1, _cfg.rounds);
+    if (_idle) return 0;
+    var count = 0;
+    for (var i = 0; i < _idx && i < _seq.length; i++) {
+      if (_seq[i].phase == _ExPhase.work) count++;
+    }
+    if (_phaseCompleteHold && _phase == _ExPhase.work) count++;
+    return count;
+  }
+
+  Widget _buildExerciseDots() {
+    final total = math.max(1, _cfg.rounds);
+    final shown = math.min(total, 12);
+    final filled = _completedWorkSteps().clamp(0, total);
+    final color = _exMeta[_kind]!.color;
+    return SizedBox(
+      height: 16,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(shown, (i) {
+            final threshold = ((i + 1) * total / shown).ceil();
+            final active = filled >= threshold;
+            return SizedBox(
+              width: 18,
+              height: 16,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  width: active ? 11 : 9,
+                  height: active ? 11 : 9,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: active ? color : color.withValues(alpha: 0.24),
+                    boxShadow: active
+                        ? [
+                            BoxShadow(
+                              color: color.withValues(alpha: 0.22),
+                              blurRadius: 6,
+                              spreadRadius: 0.5,
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
   String _statusLine() {
     final end = _endTime;
     if (_isRunning && end != null) {
@@ -631,8 +983,100 @@ class ExerciseTimerState extends State<ExerciseTimer>
     }
     if (_finished) return '完成 ${_exMeta[_kind]!.name}，今天又多動了一段';
     final c = _cfg;
+    if (_kind == ExerciseKind.jog) {
+      return '超慢跑 · ${c.work ~/ 60} 分 · 暖身 ${c.warmupOn ? c.warmup ~/ 60 : 0} 分';
+    }
     final rest = c.loop ? '循環' : '休息 ${c.rest} 秒';
     return '${_exMeta[_kind]!.name} · 運動 ${c.work} 秒 · $rest';
+  }
+
+  Widget _tonePicker({
+    required Color color,
+    required MetronomeTone selected,
+    required ValueChanged<MetronomeTone> onSelected,
+  }) {
+    const tones = MetronomeTone.values;
+    IconData iconFor(MetronomeTone tone) => switch (tone) {
+      MetronomeTone.kick => Icons.radio_button_checked_rounded,
+      MetronomeTone.wood => Icons.forest_rounded,
+      MetronomeTone.lowWood => Icons.spa_rounded,
+      MetronomeTone.bell => Icons.notifications_none_rounded,
+      MetronomeTone.clap => Icons.back_hand_rounded,
+    };
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tileWidth = ((constraints.maxWidth - 8) / 2).clamp(118.0, 180.0);
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final tone in tones)
+              _toneTile(
+                color: color,
+                width: tileWidth,
+                icon: iconFor(tone),
+                label: tone.label,
+                selected: selected == tone,
+                onTap: () => onSelected(tone),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _toneTile({
+    required Color color,
+    required double width,
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          width: width,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected
+                ? color.withValues(alpha: 0.12)
+                : const Color(0xFFFAF7F2),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.38)
+                  : const Color(0xFFE8DDD4),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 17, color: selected ? color : AppInk.soft),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? color : AppInk.strong,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (selected) Icon(Icons.check_rounded, size: 16, color: color),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // 子模式選擇列（執行中鎖定），位置與專注模式的預設列對齊。
@@ -730,8 +1174,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
           );
         },
         child: TweenAnimationBuilder<double>(
+          // 換階段時用 _idx 重建，從 0 起新進度，避免進度弧由滿「倒帶」回 0
+          key: ValueKey(_idx),
           tween: Tween(begin: 0, end: _progress),
-          duration: const Duration(milliseconds: 1000),
+          duration: const Duration(milliseconds: 180),
           builder: (context, p, child) => CustomPaint(
             painter: _ExRingPainter(progress: p, color: color),
             child: child,
@@ -801,15 +1247,24 @@ class ExerciseTimerState extends State<ExerciseTimer>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _sideButton(
-          icon: _idle ? Icons.tune_rounded : Icons.refresh_rounded,
+          icon: _idle ? Icons.tune_rounded : Icons.replay_rounded,
+          label: _idle ? '設定' : '重設',
           onTap: _idle ? _openSettingsSheet : _reset,
           size: compact ? 44 : 54,
         ),
         SizedBox(width: gap),
-        _mainButton(_phaseColor, size: compact ? 62 : 78),
+        // 主鈕較大；下方補一格與側鈕文字同高的留白，三顆圓心對齊
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _mainButton(_phaseColor, size: compact ? 62 : 78),
+            const SizedBox(height: _sideLabelGap + _sideLabelHeight),
+          ],
+        ),
         SizedBox(width: gap),
         _sideButton(
           icon: Icons.skip_next_rounded,
+          label: '跳過',
           onTap: _idle ? () {} : _skip,
           faded: _idle,
           size: compact ? 44 : 54,
@@ -858,36 +1313,57 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
+  // 圓鈕下方掛一行小文字，避免單看圖示猜不出意圖（與番茄鐘一致）
+  static const double _sideLabelGap = 6;
+  static const double _sideLabelHeight = 16;
   Widget _sideButton({
     required IconData icon,
+    required String label,
     required VoidCallback onTap,
     bool faded = false,
     double size = 54,
   }) {
     return Opacity(
       opacity: faded ? 0.35 : 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-          border: Border.fromBorderSide(
-            const BorderSide(color: Color(0x0A46342B)),
-          ),
-          boxShadow: AppShadows.flat,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: SizedBox(
-              width: size,
-              height: size,
-              child: Icon(icon, color: AppInk.soft, size: size * 0.42),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.fromBorderSide(
+                const BorderSide(color: Color(0x0A46342B)),
+              ),
+              boxShadow: AppShadows.flat,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: size,
+                  height: size,
+                  child: Icon(icon, color: AppInk.soft, size: size * 0.42),
+                ),
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: _sideLabelGap),
+          SizedBox(
+            height: _sideLabelHeight,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppInk.soft,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -926,6 +1402,27 @@ class ExerciseTimerState extends State<ExerciseTimer>
                     label: '累計',
                     value: '$_todayMinutes 分',
                     color: const Color(0xFF26A69A),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: '清除今日運動統計',
+                  child: Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      onTap: _clearTodayStats,
+                      customBorder: const CircleBorder(),
+                      child: const SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: Icon(
+                          Icons.delete_outline_rounded,
+                          size: 17,
+                          color: AppInk.faint,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1059,16 +1556,121 @@ class ExerciseTimerState extends State<ExerciseTimer>
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _stepRow(
-                    label: '運動時間',
-                    value: c.work,
-                    unit: '秒',
-                    step: 5,
-                    min: 5,
-                    max: 600,
-                    onChanged: (v) => apply(() => c.work = v),
-                  ),
-                  if (!c.loop)
+                  if (_kind == ExerciseKind.jog) ...[
+                    _stepRow(
+                      label: '慢跑時間',
+                      value: c.work ~/ 60,
+                      unit: '分',
+                      step: 1,
+                      min: 1,
+                      max: 120,
+                      onChanged: (v) => apply(() => c.work = v * 60),
+                    ),
+                    _stepRow(
+                      label: '節拍速度',
+                      value: c.bpm,
+                      unit: 'BPM',
+                      step: 1,
+                      min: 30,
+                      max: 240,
+                      onChanged: (v) {
+                        apply(() => c.bpm = v);
+                        _stopMetronome();
+                        _syncMetronome();
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '節拍器音效',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppInk.strong,
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: c.metronomeSoundOn,
+                            activeThumbColor: meta.color,
+                            onChanged: (v) {
+                              apply(() {
+                                c.metronomeSoundOn = v;
+                                if (v && c.metronomeVolume <= 0) {
+                                  c.metronomeVolume = 0.75;
+                                }
+                              });
+                              if (v) _previewMetronome();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: c.metronomeSoundOn
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _volumeRow(
+                                  color: meta.color,
+                                  value: c.metronomeVolume,
+                                  onChanged: (v) =>
+                                      apply(() => c.metronomeVolume = v),
+                                ),
+                                const SizedBox(height: 6),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: _tonePicker(
+                                    color: meta.color,
+                                    selected: c.metronomeTone,
+                                    onSelected: (tone) {
+                                      apply(() => c.metronomeTone = tone);
+                                      _previewMetronome();
+                                    },
+                                  ),
+                                ),
+                              ],
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '觸覺節拍',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppInk.strong,
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: c.metronomeOn,
+                            activeThumbColor: meta.color,
+                            onChanged: (v) => apply(() => c.metronomeOn = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    _stepRow(
+                      label: '運動時間',
+                      value: c.work,
+                      unit: '秒',
+                      step: 5,
+                      min: 5,
+                      max: 600,
+                      onChanged: (v) => apply(() => c.work = v),
+                    ),
+                  ],
+                  if (!c.loop && _kind != ExerciseKind.jog)
                     _stepRow(
                       label: '休息時間',
                       value: c.rest,
@@ -1078,15 +1680,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
                       max: 600,
                       onChanged: (v) => apply(() => c.rest = v),
                     ),
-                  _stepRow(
-                    label: '組數',
-                    value: c.rounds,
-                    unit: '組',
-                    step: 1,
-                    min: 1,
-                    max: 99,
-                    onChanged: (v) => apply(() => c.rounds = v),
-                  ),
+                  if (_kind != ExerciseKind.jog)
+                    _stepRow(
+                      label: '組數',
+                      value: c.rounds,
+                      unit: '組',
+                      step: 1,
+                      min: 1,
+                      max: 99,
+                      onChanged: (v) => apply(() => c.rounds = v),
+                    ),
                   _stepRow(
                     label: '開始前準備',
                     value: c.prep,
@@ -1139,6 +1742,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
                         c.prep = d.prep;
                         c.warmupOn = d.warmupOn;
                         c.warmup = d.warmup;
+                        c.bpm = d.bpm;
+                        c.metronomeOn = d.metronomeOn;
+                        c.metronomeSoundOn = d.metronomeSoundOn;
+                        c.metronomeVolume = d.metronomeVolume;
+                        c.metronomeTone = d.metronomeTone;
                       }),
                       child: const Text('還原預設'),
                     ),
@@ -1221,6 +1829,49 @@ class ExerciseTimerState extends State<ExerciseTimer>
       ),
     );
   }
+
+  Widget _volumeRow({
+    required Color color,
+    required double value,
+    required ValueChanged<double> onChanged,
+  }) {
+    final pct = (value * 100).round();
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 8),
+      child: Row(
+        children: [
+          Icon(Icons.volume_down_rounded, size: 18, color: color),
+          Expanded(
+            child: Slider(
+              value: value.clamp(0.0, 1.0),
+              divisions: 20,
+              activeColor: color,
+              inactiveColor: color.withValues(alpha: 0.16),
+              onChanged: onChanged,
+              onChangeEnd: (v) {
+                MetronomeService.instance.play(
+                  volume: v,
+                  tone: _cfg.metronomeTone,
+                );
+              },
+            ),
+          ),
+          SizedBox(
+            width: 46,
+            child: Text(
+              '$pct%',
+              textAlign: TextAlign.right,
+              style: AppType.digits(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppInk.soft,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // 運動模式進度環：柔和內盤 + 12 刻度 + 進度弧（不含番茄葉子，給運動用的中性版）
@@ -1236,6 +1887,33 @@ class _ExRingPainter extends CustomPainter {
     final shortest = math.min(size.width, size.height);
     final stroke = math.max(8.0, shortest * 0.048);
     final radius = shortest / 2 - stroke * 0.8;
+    final bodyRadius = radius - stroke * 1.05;
+
+    final bodyRect = Rect.fromCircle(center: center, radius: bodyRadius);
+    final bodyPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.34, -0.42),
+        radius: 0.95,
+        colors: [
+          Colors.white.withValues(alpha: 0.96),
+          color.withValues(alpha: 0.08),
+          color.withValues(alpha: 0.16),
+        ],
+        stops: const [0.0, 0.62, 1.0],
+      ).createShader(bodyRect);
+    canvas.drawCircle(center, bodyRadius, bodyPaint);
+
+    final highlight = Paint()
+      ..color = Colors.white.withValues(alpha: 0.50)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center + Offset(-bodyRadius * 0.34, -bodyRadius * 0.30),
+        width: bodyRadius * 0.38,
+        height: bodyRadius * 0.18,
+      ),
+      highlight,
+    );
 
     final track = Paint()
       ..style = PaintingStyle.stroke
@@ -1278,6 +1956,26 @@ class _ExRingPainter extends CustomPainter {
       2 * math.pi * p,
       false,
       arc,
+    );
+
+    final angle = -math.pi / 2 + 2 * math.pi * p;
+    final knob =
+        center + Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+    canvas.drawCircle(
+      knob,
+      stroke * 0.72,
+      Paint()
+        ..color = color.withValues(alpha: 0.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+    canvas.drawCircle(knob, stroke * 0.56, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      knob,
+      stroke * 0.56,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = color,
     );
   }
 
