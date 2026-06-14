@@ -784,7 +784,13 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   void _selectKind(ExerciseKind k) {
-    if (_isRunning || k == _kind) return;
+    // 與番茄鐘一致：跑到一半或暫停中都鎖住，要先 reset 歸零才能換，
+    // 避免暫停時手滑點到別的模式而無聲清掉當前進度。
+    if (!_idle && !_finished) {
+      playHaptic(HapticLevel.light);
+      return;
+    }
+    if (k == _kind) return;
     setState(() {
       _kind = k;
       _phase = _ExPhase.idle;
@@ -855,46 +861,83 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
   @override
   Widget build(BuildContext context) {
-    // 與專注模式相同：完整版面固定元件約 380px 高，留餘裕到 470 才用它，
-    // 拖曳/彈簧時不會出現固定元件擠不下的瞬間 overflow；不夠高就走緊湊並排版。
+    // 與專注模式相同：保留原本完整/緊湊兩個端點排版，中間用「圓盤共用滑動」
+    // 連續交接。
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        final compact = h < 470;
-        // 跨過門檻時，完整↔緊湊版面用淡入＋微縮放交接，避免瞬間 pop。
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 280),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeIn,
-          layoutBuilder: (current, previous) => Stack(
-            alignment: Alignment.topCenter,
-            children: [...previous, ?current],
-          ),
-          transitionBuilder: (child, anim) => FadeTransition(
-            opacity: anim,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.96, end: 1).animate(anim),
-              child: child,
-            ),
-          ),
-          // 淡出中的舊版面用 OverflowBox 維持「當初建立時的高度」量測，避免被
-          // 縮小中的格子壓到 overflow；多出的部分用 ClipRect 裁掉而非報錯。
-          child: ClipRect(
-            key: ValueKey(compact),
-            child: OverflowBox(
-              minHeight: h,
-              maxHeight: h,
-              alignment: Alignment.topCenter,
-              child: compact ? _buildCompactLayout(h) : _buildFullLayout(),
-            ),
-          ),
-        );
+        final t = Curves.easeInOutCubic.transform(_smoothRange(390, 520, h));
+        if (t <= 0) return _buildCompactLayout(h);
+        if (t >= 1) return _buildFullLayout();
+        return _blendTimerLayouts(h, t);
       },
     );
   }
 
+  // 圓盤滑動定位（與專注模式同一組常數）。
+  static const Alignment _kFullRingAlign = Alignment(0.0, -0.32);
+  static const Alignment _kCompactRingAlign = Alignment(-0.46, -0.16);
+
+  // 圓盤共用滑動：交接過程中圓盤是「單一」元件，連續在緊湊（左側、較小）↔
+  // 完整（中央、較大）間滑動＋縮放；周邊錯開淡入淡出。兩端 (t=0/1) 用真實排版。
+  Widget _blendTimerLayouts(double height, double t) {
+    final fullHeight = math.max(height, 520.0);
+    final ringSize = 170 + (246 - 170) * t;
+    final ringAlign = Alignment.lerp(_kCompactRingAlign, _kFullRingAlign, t)!;
+    // 不重疊錯開淡入淡出 + 看不見就不建（同專注模式，降低每幀 saveLayer/build）。
+    final compactOpacity = Curves.easeIn.transform((1 - 2 * t).clamp(0.0, 1.0));
+    final fullOpacity = Curves.easeIn.transform((2 * t - 1).clamp(0.0, 1.0));
+    return ClipRect(
+      child: Stack(
+        children: [
+          if (compactOpacity > 0.01)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: compactOpacity,
+                  child: _buildCompactLayout(height, showRing: false),
+                ),
+              ),
+            ),
+          if (fullOpacity > 0.01)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: fullOpacity,
+                  child: OverflowBox(
+                    minHeight: fullHeight,
+                    maxHeight: fullHeight,
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
+                      height: fullHeight,
+                      child: _buildFullLayout(showRing: false),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: Align(
+                  alignment: ringAlign,
+                  child: _buildRing(ringSize),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static double _smoothRange(double start, double end, double value) {
+    final t = ((value - start) / (end - start)).clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
   // 完整版面：對齊專注模式的「徽章 → 圓盤 → 控制 → 狀態 → 預設 → 統計」節奏。
-  Widget _buildFullLayout() {
+  Widget _buildFullLayout({bool showRing = true}) {
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -903,19 +946,18 @@ class ExerciseTimerState extends State<ExerciseTimer>
           padding: const EdgeInsets.only(top: 8),
           child: _buildExerciseDots(),
         ),
-        // 環依實際剩餘空間決定大小（不再用固定下限），拖曳到中間高度也不撐破
         Expanded(
           child: Center(
             child: LayoutBuilder(
-              builder: (context, c) => _buildRing(
-                math.min(math.min(c.maxWidth, c.maxHeight), 246.0),
-              ),
+              builder: (context, c) {
+                final ring = math.min(math.min(c.maxWidth, c.maxHeight), 246.0);
+                return showRing ? _buildRing(ring) : SizedBox.square(dimension: ring);
+              },
             ),
           ),
         ),
         _controlsRow(),
         const SizedBox(height: 10),
-        // 完整版面只在 h≥470 出現，狀態行常駐即可（避免拖曳時忽隱忽現、環一跳一跳）
         Text(
           _statusLine(),
           style: const TextStyle(
@@ -934,7 +976,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   // 緊湊版面：跟專注模式一樣讓圓盤與控制並排，面板展開時仍好按。
-  Widget _buildCompactLayout(double h) {
+  Widget _buildCompactLayout(double h, {bool showRing = true}) {
     final ringSize = (h - 110).clamp(110.0, 170.0);
     return Column(
       children: [
@@ -942,7 +984,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildRing(ringSize),
+              showRing
+                  ? _buildRing(ringSize)
+                  : SizedBox.square(dimension: ringSize),
               const SizedBox(width: 22),
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1184,7 +1228,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Opacity(
-            opacity: _isRunning ? 0.45 : 1,
+            opacity: (!_idle && !_finished) ? 0.45 : 1,
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Row(
