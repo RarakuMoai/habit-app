@@ -206,6 +206,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
   int _lastCueSec = 0;
   // 上次擺錘端點觸發音效的時刻（限速，避免改 BPM 重啟時連續補拍）
   DateTime _lastBeatAt = DateTime.fromMillisecondsSinceEpoch(0);
+  // 擺錘乒乓是否啟動中（取代 isAnimating 判斷，避免端點瞬間 isAnimating=false 的競態）
+  bool _pendulumOn = false;
 
   // ── 今日統計（per-day key）──
   String _statsDate = '';
@@ -234,11 +236,17 @@ class ExerciseTimerState extends State<ExerciseTimer>
       vsync: this,
       duration: const Duration(milliseconds: 333),
     );
-    // 擺到端點（completed=右、dismissed=左）就是一拍 → 觸發音效/觸覺（音畫同步）
+    // 用 forward/reverse 乒乓（不能用 repeat(reverse:true)——它不會在兩端發
+    // completed/dismissed 狀態，端點 listener 收不到＝沒節拍音）。每到端點＝一拍：
+    // 觸發音效/觸覺後反向，達成音畫同步。
     _pendulum.addStatusListener((status) {
-      if (status == AnimationStatus.completed ||
-          status == AnimationStatus.dismissed) {
+      if (!_pendulumOn || !_jogWorkActive) return;
+      if (status == AnimationStatus.completed) {
         _onBeat();
+        _pendulum.reverse();
+      } else if (status == AnimationStatus.dismissed) {
+        _onBeat();
+        _pendulum.forward();
       }
     });
     _loadPrefs();
@@ -570,6 +578,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   void _stopMetronome() {
+    _pendulumOn = false;
     _pendulum.stop();
   }
 
@@ -577,15 +586,15 @@ class ExerciseTimerState extends State<ExerciseTimer>
   // 聲音/觸覺各自由開關決定（在 _onBeat 內），所以全關時擺錘仍是純視覺節拍器。
   void _syncMetronome() {
     if (!_jogWorkActive) {
-      _pendulum.stop();
+      _stopMetronome();
       return;
     }
-    if (_pendulum.isAnimating) return; // 已在擺，避免每次 tick 重啟
+    if (_pendulumOn) return; // 已在擺，避免每次 tick 重啟
+    _pendulumOn = true;
     final bpm = _cfg.bpm.clamp(30, 240);
     _pendulum.duration = Duration(milliseconds: (60000 / bpm).round());
     _onBeat(); // 起手對齊一拍（左極端）
-    _pendulum.value = 0;
-    _pendulum.repeat(reverse: true);
+    _pendulum.forward(from: 0); // 端點由 statusListener 接力反向＝下一拍
   }
 
   // 擺到端點觸發：限速半拍，避免改 BPM 重啟時連續補拍。
@@ -2023,11 +2032,11 @@ class _PendulumPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
     final center = Offset(w / 2, h / 2);
-    const maxAngle = 0.38; // 約 ±22°
+    const maxAngle = 0.46; // 約 ±26°
     final angle = (Curves.easeInOut.transform(t) * 2 - 1) * maxAngle;
 
-    final pivot = Offset(center.dx, center.dy + h * 0.16);
-    final armLen = h * 0.40;
+    final pivot = Offset(center.dx, center.dy + h * 0.17);
+    final armLen = h * 0.45;
     final tip = Offset(
       pivot.dx + math.sin(angle) * armLen,
       pivot.dy - math.cos(angle) * armLen,
