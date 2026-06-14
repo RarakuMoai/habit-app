@@ -1,7 +1,17 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../utils/app_style.dart';
 import '../../widgets/habit_ui.dart';
+
+// 長按進排序的延遲。每週卡「按住綠波紋」的填滿時間與它對齊：波紋填滿整框那
+// 一刻剛好進拖曳模式（home_page 的 _HabitDragListener 也用這個常數當 delay）。
+const Duration kHabitDragHoldDelay = Duration(seconds: 1);
+
+// 按住要超過這個門檻才開始長出波紋；比這短的純單點完全不出特效。
+const Duration _kHoldFillStartDelay = Duration(milliseconds: 130);
 
 // ── 習慣卡片（含彈跳動畫）──
 
@@ -49,9 +59,19 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
   late Animation<double> _checkAnim;
   late bool _wasDone;
 
+  // 每週卡「按住蓄力」綠波紋：從觸點擴散、填滿即進排序（時間對齊 drag delay）。
+  late AnimationController _holdCtrl;
+  Offset? _holdOrigin;
+  Timer? _holdStartTimer;
+
   @override
   void initState() {
     super.initState();
+    // 門檻後才開始長，扣掉門檻時間讓波紋剛好在 kHabitDragHoldDelay 填滿。
+    _holdCtrl = AnimationController(
+      vsync: this,
+      duration: kHabitDragHoldDelay - _kHoldFillStartDelay,
+    );
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 380),
@@ -79,7 +99,56 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
   void dispose() {
     _ctrl.dispose();
     _checkCtrl.dispose();
+    _holdStartTimer?.cancel();
+    _holdCtrl.dispose();
     super.dispose();
+  }
+
+  // 按下：過門檻才開始長波紋（純單點更短 → 不觸發 → 無特效）。
+  void _onHoldDown(Offset localPos) {
+    _holdOrigin = localPos;
+    _holdStartTimer?.cancel();
+    _holdStartTimer = Timer(_kHoldFillStartDelay, () {
+      if (mounted) _holdCtrl.forward(from: 0);
+    });
+  }
+
+  // 放開 / 取消：未過門檻直接清掉（單點無痕）；已長出來就淡出收回。
+  void _onHoldEnd() {
+    _holdStartTimer?.cancel();
+    if (_holdCtrl.value > 0) {
+      _holdCtrl.reverse();
+    } else {
+      _holdCtrl.value = 0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(HabitCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 波紋填滿那刻整個清單進抖動排序：清掉填色，免得被抬起的卡還蓋著綠。
+    if (widget.isMoving && !oldWidget.isMoving) {
+      _holdStartTimer?.cancel();
+      _holdCtrl.value = 0;
+    }
+  }
+
+  // 按住蓄力綠波紋的填色層（疊在卡片最上層、不吃手勢、被 ClipRRect 切圓角）。
+  Widget _buildHoldFill() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _holdCtrl,
+          builder: (_, _) {
+            final t = _holdCtrl.value;
+            if (t == 0) return const SizedBox.shrink();
+            return CustomPaint(
+              painter: _HoldFillPainter(progress: t, origin: _holdOrigin),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   /// habit map 是同一個實例被原地修改，didUpdateWidget 比不出新舊值，
@@ -335,168 +404,213 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
               : AppCardStyle.hairline,
           boxShadow: done ? AppShadows.flat : AppShadows.card,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
-          child: Stack(
-            children: [
-              IntrinsicHeight(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 68),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 內縮圓角色條：只表類別（靛=每週），完成時淡出
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 14, 0, 14),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          width: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.indigo.shade300.withValues(
-                              alpha: done ? 0.30 : 1.0,
+        child: Listener(
+          // 按住蓄力波紋；isMoving（已在排序模式）時即時拖曳、不需蓄力。
+          onPointerDown: widget.isMoving
+              ? null
+              : (e) => _onHoldDown(e.localPosition),
+          onPointerUp: widget.isMoving ? null : (_) => _onHoldEnd(),
+          onPointerCancel: widget.isMoving ? null : (_) => _onHoldEnd(),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
+            child: Stack(
+              children: [
+                _buildHoldFill(),
+                IntrinsicHeight(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 68),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 內縮圓角色條：只表類別（靛=每週），完成時淡出
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 14, 0, 14),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            width: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.indigo.shade300.withValues(
+                                alpha: done ? 0.30 : 1.0,
+                              ),
+                              borderRadius: BorderRadius.circular(2),
                             ),
-                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                      ),
-                      // ⊖ n ⊕ 計數區（取代 checkbox）
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              WeeklyAdjustBtn(
-                                icon: Icons.remove_rounded,
-                                onTap: !widget.isMoving && todayCount > 0
-                                    ? () {
-                                        widget.onDecrement?.call();
-                                      }
-                                    : null,
-                              ),
-                              const SizedBox(width: 4),
-                              ScaleTransition(
-                                scale: _scale,
-                                child: SizedBox(
-                                  width: 24,
-                                  child: Text(
-                                    '$todayCount',
-                                    textAlign: TextAlign.center,
-                                    style: AppType.digits(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                      color: todayCount > 0
-                                          ? Colors.indigo.shade700
-                                          : AppInk.faint,
+                        // ⊖ n ⊕ 計數區（取代 checkbox）
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                WeeklyAdjustBtn(
+                                  icon: Icons.remove_rounded,
+                                  onTap: !widget.isMoving && todayCount > 0
+                                      ? () {
+                                          widget.onDecrement?.call();
+                                        }
+                                      : null,
+                                ),
+                                const SizedBox(width: 4),
+                                ScaleTransition(
+                                  scale: _scale,
+                                  child: SizedBox(
+                                    width: 24,
+                                    child: Text(
+                                      '$todayCount',
+                                      textAlign: TextAlign.center,
+                                      style: AppType.digits(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: todayCount > 0
+                                            ? Colors.indigo.shade700
+                                            : AppInk.faint,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              WeeklyAdjustBtn(
-                                icon: Icons.add_rounded,
-                                onTap:
-                                    !widget.isMoving && widget.weeklyCount < 20
-                                    ? () {
-                                        _ctrl.forward(from: 0);
-                                        widget.onToggle();
-                                      }
-                                    : null,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // 習慣名稱
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 250),
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.3,
-                              fontWeight: FontWeight.w600,
-                              decoration: done
-                                  ? TextDecoration.lineThrough
-                                  : TextDecoration.none,
-                              decorationColor: AppInk.faint,
-                              color: done ? AppInk.faint : AppInk.strong,
-                            ),
-                            child: Text(
-                              name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                                const SizedBox(width: 4),
+                                WeeklyAdjustBtn(
+                                  icon: Icons.add_rounded,
+                                  onTap:
+                                      !widget.isMoving &&
+                                          widget.weeklyCount < 20
+                                      ? () {
+                                          _ctrl.forward(from: 0);
+                                          widget.onToggle();
+                                        }
+                                      : null,
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ),
-                      // 本週 N/M 膠囊
-                      Center(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: done
-                                ? Colors.green.shade100
-                                : Colors.indigo.shade50,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                done ? Icons.check_rounded : Icons.flag_rounded,
-                                size: 11,
-                                color: done
-                                    ? Colors.green.shade700
-                                    : Colors.indigo.shade400,
+                        // 習慣名稱
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 250),
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.3,
+                                fontWeight: FontWeight.w600,
+                                decoration: done
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                                decorationColor: AppInk.faint,
+                                color: done ? AppInk.faint : AppInk.strong,
                               ),
-                              const SizedBox(width: 3),
-                              Text(
-                                '${widget.weeklyCount}/${widget.weeklyTarget}',
-                                style: AppType.digits(
+                              child: Text(
+                                name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // 本週 N/M 膠囊
+                        Center(
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: done
+                                  ? Colors.green.shade100
+                                  : Colors.indigo.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  done
+                                      ? Icons.check_rounded
+                                      : Icons.flag_rounded,
+                                  size: 11,
                                   color: done
                                       ? Colors.green.shade700
-                                      : Colors.indigo.shade500,
+                                      : Colors.indigo.shade400,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${widget.weeklyCount}/${widget.weeklyTarget}',
+                                  style: AppType.digits(
+                                    color: done
+                                        ? Colors.green.shade700
+                                        : Colors.indigo.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      // 選單
-                      PopupMenuButton<String>(
-                        icon: Icon(
-                          Icons.more_vert,
-                          size: 20,
-                          color: AppInk.iconFaint,
+                        // 選單
+                        PopupMenuButton<String>(
+                          icon: Icon(
+                            Icons.more_vert,
+                            size: 20,
+                            color: AppInk.iconFaint,
+                          ),
+                          itemBuilder: (_) => _habitMenuItems(),
+                          onSelected: (v) {
+                            switch (v) {
+                              case 'move':
+                                widget.onMove?.call();
+                              case 'edit':
+                                widget.onEdit();
+                              case 'delete':
+                                widget.onDelete();
+                            }
+                          },
                         ),
-                        itemBuilder: (_) => _habitMenuItems(),
-                        onSelected: (v) {
-                          switch (v) {
-                            case 'move':
-                              widget.onMove?.call();
-                            case 'edit':
-                              widget.onEdit();
-                            case 'delete':
-                              widget.onDelete();
-                          }
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+// 每週卡「按住蓄力」綠波紋：從觸點圓形擴散填滿整框，視覺對齊每日卡的綠
+// splash（同樣的綠、~0.13 透明度）。被外層 ClipRRect 切成卡片圓角。
+class _HoldFillPainter extends CustomPainter {
+  final double progress; // 0..1，填滿即進排序
+  final Offset? origin; // 觸點；null 時退回中心
+  const _HoldFillPainter({required this.progress, this.origin});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final o = origin ?? Offset(size.width / 2, size.height / 2);
+    // 取到最遠角落的距離，半徑長到這就蓋滿整框
+    final maxR = [
+      o.distance,
+      (o - Offset(size.width, 0)).distance,
+      (o - Offset(0, size.height)).distance,
+      (o - Offset(size.width, size.height)).distance,
+    ].reduce(math.max);
+    final p = progress.clamp(0.0, 1.0);
+    final r = maxR * Curves.easeOut.transform(p);
+    // 起步前 1/4 快速淡入避免一按就「啪」一塊綠
+    final alpha = 0.13 * math.min(1.0, p * 4);
+    canvas.drawCircle(
+      o,
+      r,
+      Paint()..color = Colors.green.withValues(alpha: alpha),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_HoldFillPainter old) =>
+      old.progress != progress || old.origin != origin;
 }
 
 // 移動/編輯/刪除選單項目（每日/每週卡共用）：icon + 文字。

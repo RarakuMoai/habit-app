@@ -1354,8 +1354,8 @@ class _HabitDragListener extends ReorderableDragStartListener {
         ? ImmediateMultiDragGestureRecognizer(debugOwner: this)
         : DelayedMultiDragGestureRecognizer(
             // 預設 kLongPressTimeout(500ms) 太靈敏，滑一下容易誤觸進排序。
-            // 拉長到 1 秒長按才啟動拖曳。
-            delay: const Duration(seconds: 1),
+            // 拉長到 1 秒；每週卡的「按住綠波紋」也用這個常數，填滿即進排序。
+            delay: kHabitDragHoldDelay,
             debugOwner: this,
           );
   }
