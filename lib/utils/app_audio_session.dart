@@ -21,6 +21,25 @@ class AppAudioSession {
   static bool _configured = false;
   static AudioSession? _session;
 
+  // 目前生效的 category。預設 ambient（與其他 app 共存、尊重實體靜音鍵）。
+  // 超慢跑節拍器要在靜音模式也聽得到時，會暫時切到 playback（見 setLoudCategory）。
+  static bool _loud = false;
+
+  // 切 category 必須 reconfigure，會重設輸出路由 → 正在播的 BGM 可能瞬間沒聲。
+  // BgmService.init 會把自己的「重新 engage」掛這裡，category 變更後主動救回。
+  static Future<void> Function()? onCategoryChanged;
+
+  static AudioSessionConfiguration get _config => AudioSessionConfiguration(
+    avAudioSessionCategory: _loud
+        ? AVAudioSessionCategory.playback
+        : AVAudioSessionCategory.ambient,
+    // playback 預設會打斷其他 app 的音樂；mixWithOthers 讓節拍器疊在使用者
+    // 自己的播放清單之上，而不是把它停掉。
+    avAudioSessionCategoryOptions: _loud
+        ? AVAudioSessionCategoryOptions.mixWithOthers
+        : AVAudioSessionCategoryOptions.none,
+  );
+
   /// 第一次呼叫會 configure + setActive；之後只會 setActive。
   /// BgmService / SfxService 的 init 都呼叫這個，誰先到誰負責 configure。
   static Future<void> ensureConfigured() async {
@@ -30,17 +49,40 @@ class AppAudioSession {
     }
     try {
       final session = await AudioSession.instance;
-      await session.configure(
-        const AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.ambient,
-        ),
-      );
+      await session.configure(_config);
       _session = session;
       _configured = true;
       await session.setActive(true);
     } catch (e) {
       debugPrint('AppAudioSession: configure failed: $e');
     }
+  }
+
+  /// 切換「響度 category」：true=playback（忽略靜音鍵，給節拍器）、
+  /// false=ambient（尊重靜音鍵，平時狀態）。
+  ///
+  /// 只在真的需要變更時 reconfigure（reconfigure 會重設路由，盡量少做）。
+  /// 變更後呼叫 [onCategoryChanged] 讓 BGM 重新 engage，避免路由重設後沒聲。
+  static Future<void> setLoudCategory(bool loud) async {
+    if (_loud == loud) {
+      await activate();
+      return;
+    }
+    _loud = loud;
+    if (!_configured) {
+      await ensureConfigured();
+      await onCategoryChanged?.call();
+      return;
+    }
+    try {
+      final session = _session ?? await AudioSession.instance;
+      _session = session;
+      await session.configure(_config);
+      await session.setActive(true);
+    } catch (e) {
+      debugPrint('AppAudioSession: setLoudCategory failed: $e');
+    }
+    await onCategoryChanged?.call();
   }
 
   /// 只確保 session active，不重新 configure。

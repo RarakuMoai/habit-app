@@ -83,6 +83,10 @@ class BgmService with WidgetsBindingObserver {
     // 所以之後所有「確保 active」的場合都只呼叫 AppAudioSession.activate()。
     await AppAudioSession.ensureConfigured();
 
+    // 節拍器切 audio category（reconfigure）會重設輸出路由 → BGM 可能瞬間沒聲。
+    // 掛這個 hook，category 一變更就重新 engage 把 BGM 救回來。
+    AppAudioSession.onCategoryChanged = reengageAfterSessionChange;
+
     await _player.setLoopMode(LoopMode.one); // gapless 單曲循環
     await _player.setVolume(0);
     _currentVolume = 0;
@@ -212,6 +216,14 @@ class BgmService with WidgetsBindingObserver {
 
   // 確保 session active（不 reconfigure）。播放 / 救援前用，避免重設輸出路由。
   Future<void> _activateSession() => AppAudioSession.activate();
+
+  /// audio category 被切換（reconfigure 重設路由）後，重新把目前曲目 engage 回來。
+  /// 由 AppAudioSession.onCategoryChanged 在 category 變更後呼叫。
+  Future<void> reengageAfterSessionChange() async {
+    if (!_initialized) return;
+    if (_currentAsset == null || AudioSettingsService.musicMuted.value) return;
+    await _resumeOutput();
+  }
 
   bool _isPlayRequestCurrent(int requestId, String asset) {
     return _playRequestId == requestId && _intendedAsset == asset;
