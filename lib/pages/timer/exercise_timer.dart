@@ -14,6 +14,7 @@ import '../../utils/metronome_service.dart';
 import '../../utils/notification_service.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
+import '../../utils/timer_mutex.dart';
 import '../../widgets/hold_repeat_button.dart';
 import '../../widgets/timer_ring_painter.dart';
 
@@ -698,7 +699,17 @@ class ExerciseTimerState extends State<ExerciseTimer>
         _endTime = null;
       });
       _stopMetronome();
+      TimerMutex.release(ActiveTimer.exercise);
       playFeedback(SfxCue.tap);
+      return;
+    }
+
+    // 另一個計時器（番茄鐘）正在跑就先擋下，避免兩邊通知 / 音效打架
+    if (!TimerMutex.tryAcquire(ActiveTimer.exercise)) {
+      playHaptic(HapticLevel.light);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('專注計時進行中，請先停止')));
       return;
     }
 
@@ -736,6 +747,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _endTime = null;
       _completedWorkSeconds = 0;
     });
+    TimerMutex.release(ActiveTimer.exercise);
     MascotPersona.interact(MascotContext.notStarted);
     playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
   }
@@ -772,6 +784,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _endTime = null;
     });
     _stopMetronome();
+    TimerMutex.release(ActiveTimer.exercise);
     _recordSession(workSeconds);
     if (workSeconds >= 30) {
       CoinService.award(

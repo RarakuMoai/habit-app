@@ -12,6 +12,7 @@ import '../utils/mascot.dart';
 import '../utils/notification_service.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../utils/timer_mutex.dart';
 import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -276,6 +277,7 @@ class _TimerPageState extends State<TimerPage>
       _secondsLeft = 0;
       _endTime = null;
     });
+    TimerMutex.release(ActiveTimer.focus);
     MascotPersona.interact(MascotContext.allDone);
     playFeedback(SfxCue.success);
   }
@@ -343,7 +345,16 @@ class _TimerPageState extends State<TimerPage>
         _isRunning = false;
         _endTime = null;
       });
+      TimerMutex.release(ActiveTimer.focus);
       playFeedback(SfxCue.tap);
+      return;
+    }
+    // 另一個計時器（運動）正在跑就先擋下，避免兩邊通知 / 音效打架
+    if (!TimerMutex.tryAcquire(ActiveTimer.focus)) {
+      playHaptic(HapticLevel.light);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('運動計時進行中，請先停止')));
       return;
     }
     // 從待機 / 完成 → 重新組序列從頭開始
@@ -381,6 +392,7 @@ class _TimerPageState extends State<TimerPage>
       _secondsLeft = _phaseTotal;
       _endTime = null;
     });
+    TimerMutex.release(ActiveTimer.focus);
     MascotPersona.interact(MascotContext.notStarted);
     playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
   }
@@ -496,8 +508,8 @@ class _TimerPageState extends State<TimerPage>
             left: 0,
             right: 0,
             height: MediaQuery.of(context).size.height * 0.56,
-            child: const MascotSceneBackground(
-              'assets/scenes/timer/timer_bg.png',
+            child: const RepaintBoundary(
+              child: MascotSceneBackground('assets/scenes/timer/timer_bg.png'),
             ),
           ),
           SafeArea(
@@ -597,53 +609,89 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
+  // 圓盤滑動定位（用模擬器截圖微調）：x=0 置中、負值偏左；y 負值偏上。
+  static const Alignment _kFullRingAlign = Alignment(0.0, -0.32);
+  static const Alignment _kCompactRingAlign = Alignment(-0.46, -0.16);
+  // >=0 時強制 t（截圖微調圓盤定位用），平時 -1。
+  static const double _kDebugForceT = -1;
+
   Widget _buildTimerContent(Color color) {
-    // 依可用高度切換版面：兔咪面板展開時走緊湊並排版，
-    // 不捲動就能看到時間、按到開始 —— 修掉「展開時只剩半顆圓」的問題。
-    // 門檻設在 470：完整版面的固定元件（標籤+控制+狀態+方案+統計）約 390px 高，
-    // 留約 80px 餘裕（含放大字體）才用它，拖曳/彈簧過程中就不會出現固定元件
-    // 擠不下的瞬間 overflow；不夠高就走緊湊並排版。
+    // 保留原本完整/緊湊兩個端點排版；中間用「圓盤共用滑動」連續交接。
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        final compact = h < 470;
-        // 跨過門檻時，完整↔緊湊版面用淡入＋微縮放交接，避免瞬間 pop。
-        // 同一版面內隨高度變化（拖曳/彈簧）的縮放不觸發切換（key 不變）。
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 280),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeIn,
-          layoutBuilder: (current, previous) => Stack(
-            alignment: Alignment.topCenter,
-            children: [...previous, ?current],
-          ),
-          transitionBuilder: (child, anim) => FadeTransition(
-            opacity: anim,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.96, end: 1).animate(anim),
-              child: child,
-            ),
-          ),
-          // 淡出中的舊版面用 OverflowBox 維持「當初建立時的高度」量測，避免被
-          // 縮小中的格子壓到 overflow；多出的部分用 ClipRect 裁掉而非報錯。
-          child: ClipRect(
-            key: ValueKey(compact),
-            child: OverflowBox(
-              minHeight: h,
-              maxHeight: h,
-              alignment: Alignment.topCenter,
-              child: compact
-                  ? _buildCompactLayout(color, h)
-                  : _buildFullLayout(color),
-            ),
-          ),
-        );
+        var t = Curves.easeInOutCubic.transform(_smoothRange(390, 520, h));
+        if (_kDebugForceT >= 0) t = _kDebugForceT;
+        if (t <= 0) return _buildCompactLayout(color, h);
+        if (t >= 1) return _buildFullLayout(color);
+        return _blendTimerLayouts(color, h, t);
       },
     );
   }
 
+  // 圓盤共用滑動：交接過程中圓盤是「單一」元件，連續在緊湊（左側、較小）↔
+  // 完整（中央、較大）兩個位置間滑動＋縮放，不再瞬移也不會出現雙圓盤殘影；
+  // 周邊文字/按鈕（圓盤挖空成等大留白）淡入淡出。兩端 (t=0/1) 用真實排版。
+  Widget _blendTimerLayouts(Color color, double height, double t) {
+    final fullHeight = math.max(height, 520.0);
+    final ringSize = 170 + (246 - 170) * t; // 緊湊 170 → 完整 246
+    final ringAlign = Alignment.lerp(_kCompactRingAlign, _kFullRingAlign, t)!;
+    // 周邊錯開淡入淡出且「不重疊」：t<0.5 只有緊湊在淡出、t>0.5 只有完整在淡入，
+    // 任一幀最多一套周邊在做 saveLayer；中段只剩圓盤在滑。看不見的那套直接不建，
+    // 省掉每幀的 build／排版／saveLayer 成本。
+    final compactOpacity = Curves.easeIn.transform((1 - 2 * t).clamp(0.0, 1.0));
+    final fullOpacity = Curves.easeIn.transform((2 * t - 1).clamp(0.0, 1.0));
+    return ClipRect(
+      child: Stack(
+        children: [
+          if (compactOpacity > 0.01)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: compactOpacity,
+                  child: _buildCompactLayout(color, height, showRing: false),
+                ),
+              ),
+            ),
+          if (fullOpacity > 0.01)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: fullOpacity,
+                  child: OverflowBox(
+                    minHeight: fullHeight,
+                    maxHeight: fullHeight,
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
+                      height: fullHeight,
+                      child: _buildFullLayout(color, showRing: false),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: Align(
+                  alignment: ringAlign,
+                  child: _buildTimerCircle(ringSize, color),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static double _smoothRange(double start, double end, double value) {
+    final t = ((value - start) / (end - start)).clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
   // 完整版面（面板收合）：環吸收剩餘高度置中，統計列釘在底部收尾
-  Widget _buildFullLayout(Color color) {
+  Widget _buildFullLayout(Color color, {bool showRing = true}) {
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -652,22 +700,20 @@ class _TimerPageState extends State<TimerPage>
           padding: const EdgeInsets.only(top: 8),
           child: _buildCycleDots(),
         ),
-        // 環吃掉中間剩餘空間，但用實際格子尺寸決定大小（不再用固定下限），
-        // 拖曳到中間高度時環會自然縮小而非撐破版面 → 不再 overflow
         Expanded(
           child: Center(
             child: LayoutBuilder(
               builder: (context, c) {
                 final ring = math.min(math.min(c.maxWidth, c.maxHeight), 246.0);
-                return _buildTimerCircle(ring, color);
+                return showRing
+                    ? _buildTimerCircle(ring, color)
+                    : SizedBox.square(dimension: ring);
               },
             ),
           ),
         ),
         _controlsRow(color),
         const SizedBox(height: 10),
-        // 完整版面只在 h≥430 出現，狀態行常駐即可，不再依高度開關（避免拖曳時行
-        // 忽隱忽現、環跟著一跳一跳）
         Text(
           _statusLine(),
           style: const TextStyle(
@@ -686,7 +732,7 @@ class _TimerPageState extends State<TimerPage>
   }
 
   // 緊湊版面（兔咪面板展開）：環和控制並排，一眼可見、一指可按
-  Widget _buildCompactLayout(Color color, double h) {
+  Widget _buildCompactLayout(Color color, double h, {bool showRing = true}) {
     final ringSize = (h - 110).clamp(110.0, 170.0);
     return Column(
       children: [
@@ -694,7 +740,9 @@ class _TimerPageState extends State<TimerPage>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildTimerCircle(ringSize, color),
+              showRing
+                  ? _buildTimerCircle(ringSize, color)
+                  : SizedBox.square(dimension: ringSize),
               const SizedBox(width: 22),
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
