@@ -1743,6 +1743,316 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   // ── 設定 sheet：調整當前子模式的 準備/暖身/運動/休息/組數 ──
+  // ── 設定 sheet 卡片元件（與專注設定頁同款，色彩吃當前模式 meta.color）──
+
+  Widget _exSectionTitle({
+    required IconData icon,
+    required Color color,
+    required String title,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: color),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: AppInk.strong,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 加減鈕：點一下 ±step；按住連發，到極值自動停用。
+  Widget _exStepButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
+    final active = onTap != null;
+    return HoldRepeatButton(
+      onTrigger: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: active
+              ? color.withValues(alpha: 0.12)
+              : const Color(0xFFF5EEE8),
+          shape: BoxShape.circle,
+        ),
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: Icon(icon, size: 18, color: active ? color : AppInk.iconFaint),
+        ),
+      ),
+    );
+  }
+
+  Widget _exStepperCard({
+    required String label,
+    required String sub,
+    required IconData icon,
+    required Color color,
+    required int value,
+    required int min,
+    required int max,
+    required int step,
+    required ValueChanged<int> onChanged,
+    String unit = '秒',
+    bool enabled = true,
+  }) {
+    final canDecrease = enabled && value > min;
+    final canIncrease = enabled && value < max;
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: enabled ? 1 : 0.46,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFCF8),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0x0A46342B)),
+          boxShadow: AppShadows.flat,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: color, size: 19),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _exStepButton(
+              icon: Icons.remove_rounded,
+              color: color,
+              onTap: canDecrease
+                  ? () => onChanged(math.max(min, value - step))
+                  : null,
+            ),
+            Container(
+              width: 66,
+              margin: const EdgeInsets.symmetric(horizontal: 7),
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '$value',
+                    textAlign: TextAlign.center,
+                    style: AppType.digits(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: color,
+                    ),
+                  ),
+                  Text(
+                    unit,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: color.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _exStepButton(
+              icon: Icons.add_rounded,
+              color: color,
+              onTap: canIncrease
+                  ? () => onChanged(math.min(max, value + step))
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _exSwitchTile({
+    required String label,
+    required String sub,
+    required IconData icon,
+    required Color color,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Material(
+      color: const Color(0xFFFFFCF8),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          playHaptic(HapticLevel.selection);
+          onChanged(!value);
+        },
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x0A46342B)),
+            boxShadow: AppShadows.flat,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: (value ? color : AppInk.faint).withValues(
+                    alpha: value ? 0.12 : 0.10,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: value ? color : AppInk.faint,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                        color: AppInk.strong,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      sub,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppInk.soft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: value,
+                activeTrackColor: color,
+                onChanged: (v) {
+                  playHaptic(HapticLevel.selection);
+                  onChanged(v);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 摘要卡：當前模式配置一覽（與專注同款漸層卡）。
+  Widget _exSummaryCard(Color color) {
+    final c = _cfg;
+    final String big;
+    if (_kind == ExerciseKind.jog) {
+      big = '${c.work ~/ 60} 分 · ${c.bpm} BPM';
+    } else if (c.loop) {
+      big = '${c.work} 秒 ×${c.rounds}';
+    } else {
+      big = '${c.work} / ${c.rest} 秒 ×${c.rounds}';
+    }
+    final small =
+        '暖身 ${c.warmupOn ? c.warmup : 0} 秒 · 收操 ${c.cooldownOn ? c.cooldown : 0} 秒';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withValues(alpha: 0.16),
+            color.withValues(alpha: 0.06),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(_exMeta[_kind]!.icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  big,
+                  style: AppType.digits(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  small,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppInk.soft,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openSettingsSheet() {
     if (_isRunning) {
       playHaptic(HapticLevel.light);
@@ -1771,361 +2081,360 @@ class ExerciseTimerState extends State<ExerciseTimer>
           final meta = _exMeta[_kind]!;
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: meta.color.withValues(alpha: 0.18),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.86,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8DDD4),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: meta.color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                        child: Icon(meta.icon, color: meta.color, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${meta.name} 設定',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          color: AppInk.strong,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (_kind == ExerciseKind.jog) ...[
-                    _stepRow(
-                      label: '慢跑時間',
-                      value: c.work ~/ 60,
-                      unit: '分',
-                      step: 1,
-                      min: 1,
-                      max: 120,
-                      onChanged: (v) => apply(() => c.work = v * 60),
-                    ),
-                    _stepRow(
-                      label: '節拍速度',
-                      value: c.bpm,
-                      unit: 'BPM',
-                      step: 1,
-                      min: 30,
-                      max: 240,
-                      onChanged: (v) {
-                        apply(() => c.bpm = v);
-                        _stopMetronome();
-                        _syncMetronome();
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              '節拍器音效',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: AppInk.strong,
-                              ),
-                            ),
-                          ),
-                          Switch(
-                            value: c.metronomeSoundOn,
-                            activeThumbColor: meta.color,
-                            onChanged: (v) {
-                              apply(() {
-                                c.metronomeSoundOn = v;
-                                if (v && c.metronomeVolume <= 0) {
-                                  c.metronomeVolume = 0.75;
-                                }
-                              });
-                              if (v) _previewMetronome();
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      child: c.metronomeSoundOn
-                          ? Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _volumeRow(
-                                  color: meta.color,
-                                  value: c.metronomeVolume,
-                                  onChanged: (v) =>
-                                      apply(() => c.metronomeVolume = v),
-                                ),
-                                const SizedBox(height: 6),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: _tonePicker(
-                                    color: meta.color,
-                                    selected: c.metronomeTone,
-                                    onSelected: (tone) {
-                                      apply(() => c.metronomeTone = tone);
-                                      _previewMetronome();
-                                    },
-                                  ),
-                                ),
-                              ],
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              '觸覺節拍',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: AppInk.strong,
-                              ),
-                            ),
-                          ),
-                          Switch(
-                            value: c.metronomeOn,
-                            activeThumbColor: meta.color,
-                            onChanged: (v) => apply(() => c.metronomeOn = v),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    _stepRow(
-                      label: '運動時間',
-                      value: c.work,
-                      unit: '秒',
-                      step: 5,
-                      min: 5,
-                      max: 600,
-                      onChanged: (v) => apply(() => c.work = v),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: meta.color.withValues(alpha: 0.18),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
                     ),
                   ],
-                  if (!c.loop && _kind != ExerciseKind.jog)
-                    _stepRow(
-                      label: '休息時間',
-                      value: c.rest,
-                      unit: '秒',
-                      step: 5,
-                      min: 0,
-                      max: 600,
-                      onChanged: (v) => apply(() => c.rest = v),
-                    ),
-                  if (_kind != ExerciseKind.jog)
-                    _stepRow(
-                      label: '組數',
-                      value: c.rounds,
-                      unit: '組',
-                      step: 1,
-                      min: 1,
-                      max: 99,
-                      onChanged: (v) => apply(() => c.rounds = v),
-                    ),
-                  _stepRow(
-                    label: '開始前準備',
-                    value: c.prep,
-                    unit: '秒',
-                    step: 5,
-                    min: 0,
-                    max: 60,
-                    onChanged: (v) => apply(() => c.prep = v),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            '暖身',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppInk.strong,
+                ),
+                // 內容捲動、「完成」固定在底（與專注設定頁同款）。
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8DDD4),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                              ),
                             ),
+                            const SizedBox(height: 14),
+                            // 標題：圖示 + 名稱 + 說明 + 關閉
+                            Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: meta.color.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                  child: Icon(
+                                    meta.icon,
+                                    color: meta.color,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${meta.name} 設定',
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppInk.strong,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        meta.desc,
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          color: AppInk.soft,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: AppInk.iconFaint,
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            _exSummaryCard(meta.color),
+                            const SizedBox(height: 14),
+                            _exSectionTitle(
+                              icon: Icons.av_timer_rounded,
+                              color: meta.color,
+                              title: '時間長度',
+                            ),
+                            const SizedBox(height: 8),
+                            if (_kind == ExerciseKind.jog)
+                              _exStepperCard(
+                                label: '慢跑時間',
+                                sub: '這次跑多久',
+                                icon: meta.icon,
+                                color: meta.color,
+                                value: c.work ~/ 60,
+                                min: 1,
+                                max: 120,
+                                step: 1,
+                                unit: '分',
+                                onChanged: (v) => apply(() => c.work = v * 60),
+                              )
+                            else
+                              _exStepperCard(
+                                label: '運動時間',
+                                sub: '每組專注多久',
+                                icon: meta.icon,
+                                color: meta.color,
+                                value: c.work,
+                                min: 5,
+                                max: 600,
+                                step: 5,
+                                onChanged: (v) => apply(() => c.work = v),
+                              ),
+                            if (!c.loop && _kind != ExerciseKind.jog) ...[
+                              const SizedBox(height: 8),
+                              _exStepperCard(
+                                label: '休息時間',
+                                sub: '每組之間喘口氣',
+                                icon: Icons.self_improvement_rounded,
+                                color: meta.color,
+                                value: c.rest,
+                                min: 0,
+                                max: 600,
+                                step: 5,
+                                onChanged: (v) => apply(() => c.rest = v),
+                              ),
+                            ],
+                            if (_kind != ExerciseKind.jog) ...[
+                              const SizedBox(height: 8),
+                              _exStepperCard(
+                                label: '組數',
+                                sub: '一共做幾組',
+                                icon: Icons.repeat_rounded,
+                                color: meta.color,
+                                value: c.rounds,
+                                min: 1,
+                                max: 99,
+                                step: 1,
+                                unit: '組',
+                                onChanged: (v) => apply(() => c.rounds = v),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            _exStepperCard(
+                              label: '開始前準備',
+                              sub: '倒數幾秒再開始',
+                              icon: Icons.hourglass_top_rounded,
+                              color: meta.color,
+                              value: c.prep,
+                              min: 0,
+                              max: 60,
+                              step: 5,
+                              onChanged: (v) => apply(() => c.prep = v),
+                            ),
+                            const SizedBox(height: 16),
+                            _exSectionTitle(
+                              icon: Icons.self_improvement_rounded,
+                              color: meta.color,
+                              title: '暖身 / 收操',
+                            ),
+                            const SizedBox(height: 8),
+                            _exSwitchTile(
+                              label: '暖身',
+                              sub: '開始前先動一動',
+                              icon: Icons.accessibility_new_rounded,
+                              color: meta.color,
+                              value: c.warmupOn,
+                              onChanged: (v) => apply(() => c.warmupOn = v),
+                            ),
+                            if (c.warmupOn) ...[
+                              const SizedBox(height: 8),
+                              _exStepperCard(
+                                label: '暖身時間',
+                                sub: '熱身倒數',
+                                icon: Icons.accessibility_new_rounded,
+                                color: meta.color,
+                                value: c.warmup,
+                                min: 0,
+                                max: 600,
+                                step: 10,
+                                onChanged: (v) => apply(() => c.warmup = v),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            _exSwitchTile(
+                              label: '收操',
+                              sub: '結束後緩和伸展',
+                              icon: Icons.spa_rounded,
+                              color: meta.color,
+                              value: c.cooldownOn,
+                              onChanged: (v) => apply(() => c.cooldownOn = v),
+                            ),
+                            if (c.cooldownOn) ...[
+                              const SizedBox(height: 8),
+                              _exStepperCard(
+                                label: '收操時間',
+                                sub: '緩和倒數',
+                                icon: Icons.spa_rounded,
+                                color: meta.color,
+                                value: c.cooldown,
+                                min: 0,
+                                max: 600,
+                                step: 10,
+                                onChanged: (v) => apply(() => c.cooldown = v),
+                              ),
+                            ],
+                            if (_kind == ExerciseKind.jog) ...[
+                              const SizedBox(height: 16),
+                              _exSectionTitle(
+                                icon: Icons.music_note_rounded,
+                                color: meta.color,
+                                title: '節拍器',
+                              ),
+                              const SizedBox(height: 8),
+                              _exStepperCard(
+                                label: '節拍速度',
+                                sub: '每分鐘拍數',
+                                icon: Icons.speed_rounded,
+                                color: meta.color,
+                                value: c.bpm,
+                                min: 30,
+                                max: 240,
+                                step: 1,
+                                unit: 'BPM',
+                                onChanged: (v) {
+                                  apply(() => c.bpm = v);
+                                  _stopMetronome();
+                                  _syncMetronome();
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              _exSwitchTile(
+                                label: '節拍器音效',
+                                sub: '跟著節奏出聲',
+                                icon: Icons.music_note_rounded,
+                                color: meta.color,
+                                value: c.metronomeSoundOn,
+                                onChanged: (v) {
+                                  apply(() {
+                                    c.metronomeSoundOn = v;
+                                    if (v && c.metronomeVolume <= 0) {
+                                      c.metronomeVolume = 0.75;
+                                    }
+                                  });
+                                  if (v) _previewMetronome();
+                                },
+                              ),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                child: c.metronomeSoundOn
+                                    ? Padding(
+                                        key: const ValueKey('metro_on'),
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            _volumeRow(
+                                              color: meta.color,
+                                              value: c.metronomeVolume,
+                                              onChanged: (v) => apply(
+                                                () => c.metronomeVolume = v,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            _tonePicker(
+                                              color: meta.color,
+                                              selected: c.metronomeTone,
+                                              onSelected: (tone) {
+                                                apply(
+                                                  () => c.metronomeTone = tone,
+                                                );
+                                                _previewMetronome();
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
+                              const SizedBox(height: 8),
+                              _exSwitchTile(
+                                label: '觸覺節拍',
+                                sub: '靜音時用震動跟拍',
+                                icon: Icons.vibration_rounded,
+                                color: meta.color,
+                                value: c.metronomeOn,
+                                onChanged: (v) =>
+                                    apply(() => c.metronomeOn = v),
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            Center(
+                              child: TextButton(
+                                onPressed: () => apply(() {
+                                  final d = _defaultConfig(_kind);
+                                  c.work = d.work;
+                                  c.rest = d.rest;
+                                  c.rounds = d.rounds;
+                                  c.prep = d.prep;
+                                  c.warmupOn = d.warmupOn;
+                                  c.warmup = d.warmup;
+                                  c.cooldownOn = d.cooldownOn;
+                                  c.cooldown = d.cooldown;
+                                  c.bpm = d.bpm;
+                                  c.metronomeOn = d.metronomeOn;
+                                  c.metronomeSoundOn = d.metronomeSoundOn;
+                                  c.metronomeVolume = d.metronomeVolume;
+                                  c.metronomeTone = d.metronomeTone;
+                                }),
+                                child: const Text('還原預設'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: meta.color,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        Switch(
-                          value: c.warmupOn,
-                          activeThumbColor: meta.color,
-                          onChanged: (v) => apply(() => c.warmupOn = v),
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.check_rounded, size: 19),
+                        label: const Text(
+                          '完成',
+                          style: TextStyle(fontWeight: FontWeight.w800),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  if (c.warmupOn)
-                    _stepRow(
-                      label: '暖身時間',
-                      value: c.warmup,
-                      unit: '秒',
-                      step: 10,
-                      min: 0,
-                      max: 600,
-                      onChanged: (v) => apply(() => c.warmup = v),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            '收操',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppInk.strong,
-                            ),
-                          ),
-                        ),
-                        Switch(
-                          value: c.cooldownOn,
-                          activeThumbColor: meta.color,
-                          onChanged: (v) => apply(() => c.cooldownOn = v),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (c.cooldownOn)
-                    _stepRow(
-                      label: '收操時間',
-                      value: c.cooldown,
-                      unit: '秒',
-                      step: 10,
-                      min: 0,
-                      max: 600,
-                      onChanged: (v) => apply(() => c.cooldown = v),
-                    ),
-                  const SizedBox(height: 6),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => apply(() {
-                        final d = _defaultConfig(_kind);
-                        c.work = d.work;
-                        c.rest = d.rest;
-                        c.rounds = d.rounds;
-                        c.prep = d.prep;
-                        c.warmupOn = d.warmupOn;
-                        c.warmup = d.warmup;
-                        c.cooldownOn = d.cooldownOn;
-                        c.cooldown = d.cooldown;
-                        c.bpm = d.bpm;
-                        c.metronomeOn = d.metronomeOn;
-                        c.metronomeSoundOn = d.metronomeSoundOn;
-                        c.metronomeVolume = d.metronomeVolume;
-                        c.metronomeTone = d.metronomeTone;
-                      }),
-                      child: const Text('還原預設'),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _stepRow({
-    required String label,
-    required int value,
-    required String unit,
-    required int step,
-    required int min,
-    required int max,
-    required ValueChanged<int> onChanged,
-  }) {
-    // 點一下 ±step；按住連發。到極值時 onTrigger 傳 null 自動停用。
-    Widget btn(IconData icon, VoidCallback? onTap) => HoldRepeatButton(
-      onTrigger: onTap,
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: const Color(0xFFFAF7F2),
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFFE8DDD4)),
-        ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: onTap == null ? AppInk.faint : AppInk.soft,
-        ),
-      ),
-    );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppInk.strong,
-              ),
-            ),
-          ),
-          btn(
-            Icons.remove_rounded,
-            value > min
-                ? () => onChanged((value - step).clamp(min, max))
-                : null,
-          ),
-          SizedBox(
-            width: 64,
-            child: Text(
-              '$value $unit',
-              textAlign: TextAlign.center,
-              style: AppType.digits(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: AppInk.strong,
-              ),
-            ),
-          ),
-          btn(
-            Icons.add_rounded,
-            value < max
-                ? () => onChanged((value + step).clamp(min, max))
-                : null,
-          ),
-        ],
       ),
     );
   }
