@@ -77,8 +77,19 @@ class AppAudioSession {
     try {
       final session = _session ?? await AudioSession.instance;
       _session = session;
+      // 先 deactivate 再 configure：部分 iOS 版本在 session active 時 configure
+      // 不會真的切換靜音鍵行為，要 deactivate→configure→activate 才生效。
+      // deactivate 自成一個 try：失敗（例如還有音源在播）也不擋下面的 configure。
+      try {
+        await session.setActive(false);
+      } catch (e) {
+        debugPrint('AppAudioSession: deactivate before reconfigure failed: $e');
+      }
       await session.configure(_config);
       await session.setActive(true);
+      debugPrint(
+        'AppAudioSession: category -> ${loud ? "playback(loud)" : "ambient"}',
+      );
     } catch (e) {
       debugPrint('AppAudioSession: setLoudCategory failed: $e');
     }
