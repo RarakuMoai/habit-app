@@ -176,7 +176,7 @@ class ExerciseTimer extends StatefulWidget {
 }
 
 class ExerciseTimerState extends State<ExerciseTimer>
-    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   // 通知 id 區段（與番茄鐘 1001..1006 分開）
   static const int _notifIdBase = 1100;
   static const int _maxNotifs = 40;
@@ -196,14 +196,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
   int _phaseTotal = 0;
   bool _isRunning = false;
   Timer? _timer;
-  Timer? _metronomeTimer;
   Timer? _boundaryTimer;
+  Timer? _bpmApplyDebounce; // 環內即時改 BPM 後，延遲套用擺速避免連按狂重啟
   DateTime? _endTime;
   bool _phaseCompleteHold = false;
   bool _advancingBoundary = false;
   int _completedWorkSeconds = 0;
   // 本階段已經嗶過的「剩餘秒數」（3→2→1 各一次，換階段歸零）
   int _lastCueSec = 0;
+  // 上次擺錘端點觸發音效的時刻（限速，避免改 BPM 重啟時連續補拍）
+  DateTime _lastBeatAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   // ── 今日統計（per-day key）──
   String _statsDate = '';
@@ -211,6 +213,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
   int _todayMinutes = 0;
 
   late final AnimationController _breath;
+  // 節拍器擺錘：0=左極端、1=右極端，端點＝一拍。只在超慢跑運動段擺動。
+  late final AnimationController _pendulum;
 
   _ExConfig get _cfg => _configs[_kind]!;
   bool get _idle => _phase == _ExPhase.idle;
@@ -226,14 +230,27 @@ class ExerciseTimerState extends State<ExerciseTimer>
       vsync: this,
       duration: const Duration(milliseconds: 2200),
     );
+    _pendulum = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 333),
+    );
+    // 擺到端點（completed=右、dismissed=左）就是一拍 → 觸發音效/觸覺（音畫同步）
+    _pendulum.addStatusListener((status) {
+      if (status == AnimationStatus.completed ||
+          status == AnimationStatus.dismissed) {
+        _onBeat();
+      }
+    });
     _loadPrefs();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _bpmApplyDebounce?.cancel();
     _stopMetronome();
     _breath.dispose();
+    _pendulum.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -553,39 +570,53 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   void _stopMetronome() {
-    _metronomeTimer?.cancel();
-    _metronomeTimer = null;
+    _pendulum.stop();
   }
 
+  // 啟動/維持節拍擺錘（音畫同步）。視覺擺錘在超慢跑運動段一律擺動；
+  // 聲音/觸覺各自由開關決定（在 _onBeat 內），所以全關時擺錘仍是純視覺節拍器。
   void _syncMetronome() {
     if (!_jogWorkActive) {
-      _stopMetronome();
+      _pendulum.stop();
       return;
     }
-    // 聲音與觸覺都關時不必空轉一個每拍 timer（節省喚醒）
-    if (!_cfg.metronomeSoundOn && !_cfg.metronomeOn) {
-      _stopMetronome();
-      return;
-    }
-    if (_metronomeTimer != null) return;
+    if (_pendulum.isAnimating) return; // 已在擺，避免每次 tick 重啟
     final bpm = _cfg.bpm.clamp(30, 240);
-    final interval = Duration(milliseconds: (60000 / bpm).round());
-    void beat() {
-      if (!_jogWorkActive) {
-        _stopMetronome();
-        return;
-      }
-      if (_cfg.metronomeSoundOn) {
-        MetronomeService.instance.play(
-          volume: _cfg.metronomeVolume,
-          tone: _cfg.metronomeTone,
-        );
-      }
-      if (_cfg.metronomeOn) playHaptic(HapticLevel.selection);
-    }
+    _pendulum.duration = Duration(milliseconds: (60000 / bpm).round());
+    _onBeat(); // 起手對齊一拍（左極端）
+    _pendulum.value = 0;
+    _pendulum.repeat(reverse: true);
+  }
 
-    beat();
-    _metronomeTimer = Timer.periodic(interval, (_) => beat());
+  // 擺到端點觸發：限速半拍，避免改 BPM 重啟時連續補拍。
+  void _onBeat() {
+    if (!_jogWorkActive) return;
+    final now = DateTime.now();
+    final minGapMs = 60000 / _cfg.bpm.clamp(30, 240) * 0.5;
+    if (now.difference(_lastBeatAt).inMilliseconds < minGapMs) return;
+    _lastBeatAt = now;
+    if (_cfg.metronomeSoundOn) {
+      MetronomeService.instance.play(
+        volume: _cfg.metronomeVolume,
+        tone: _cfg.metronomeTone,
+      );
+    }
+    if (_cfg.metronomeOn) playHaptic(HapticLevel.selection);
+  }
+
+  // 環內即時改 BPM：先更新數值＋持久化，debounce 後才重啟擺錘套新速。
+  void _setBpm(int v) {
+    final nv = v.clamp(30, 240);
+    if (nv == _cfg.bpm) return;
+    setState(() => _cfg.bpm = nv);
+    _persistConfig();
+    if (!_jogWorkActive) return;
+    _bpmApplyDebounce?.cancel();
+    _bpmApplyDebounce = Timer(const Duration(milliseconds: 220), () {
+      if (!mounted || !_jogWorkActive) return;
+      _pendulum.stop();
+      _syncMetronome();
+    });
   }
 
   void _previewMetronome() {
@@ -1175,6 +1206,58 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
+  // 環內即時 BPM 步進器（超慢跑運動中顯示）：− 數字 + ，按住連發。
+  Widget _inlineBpm(double size, Color color) {
+    final bpm = _cfg.bpm;
+    Widget btn(IconData icon, VoidCallback? onTap) {
+      final active = onTap != null;
+      return HoldRepeatButton(
+        onTrigger: onTap,
+        child: Container(
+          width: size * 0.12,
+          height: size * 0.12,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: active ? 0.16 : 0.06),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            icon,
+            size: size * 0.07,
+            color: active ? color : AppInk.faint,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: size * 0.025,
+        vertical: size * 0.01,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(size),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          btn(Icons.remove_rounded, bpm > 30 ? () => _setBpm(bpm - 1) : null),
+          SizedBox(width: size * 0.02),
+          Text(
+            '$bpm BPM',
+            style: AppType.digits(
+              fontSize: size * 0.07,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          SizedBox(width: size * 0.02),
+          btn(Icons.add_rounded, bpm < 240 ? () => _setBpm(bpm + 1) : null),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRing(double size) {
     final color = _phaseColor;
     return SizedBox(
@@ -1227,37 +1310,63 @@ class ExerciseTimerState extends State<ExerciseTimer>
                 ),
               ],
             ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _phaseIcon,
-                    color: color.withValues(alpha: 0.7),
-                    size: size * 0.1,
-                  ),
-                  SizedBox(height: size * 0.01),
-                  Text(
-                    _idle ? _phaseLabel : _timeString,
-                    style: TextStyle(
-                      fontSize: _idle ? size * 0.13 : size * 0.2,
-                      fontWeight: FontWeight.w900,
-                      color: color,
-                      height: 1.05,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 節拍器擺錘：只在超慢跑運動段顯示，疊在文字後方
+                if (_jogWorkActive)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _pendulum,
+                      builder: (context, _) => CustomPaint(
+                        painter: _PendulumPainter(
+                          t: _pendulum.value,
+                          color: color,
+                        ),
+                      ),
                     ),
                   ),
-                  SizedBox(height: size * 0.015),
-                  Text(
-                    _ringSubtitle(),
-                    style: TextStyle(
-                      fontSize: math.max(11.0, size * 0.056),
-                      fontWeight: FontWeight.w600,
-                      color: AppInk.soft,
-                    ),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 超慢跑運動中留白，讓擺錘端球露在數字上方（不與 icon 打架）
+                      if (_jogWorkActive)
+                        SizedBox(height: size * 0.1)
+                      else
+                        Icon(
+                          _phaseIcon,
+                          color: color.withValues(alpha: 0.7),
+                          size: size * 0.1,
+                        ),
+                      SizedBox(height: size * 0.01),
+                      Text(
+                        _idle ? _phaseLabel : _timeString,
+                        style: TextStyle(
+                          fontSize: _idle ? size * 0.13 : size * 0.2,
+                          fontWeight: FontWeight.w900,
+                          color: color,
+                          height: 1.05,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      SizedBox(height: size * 0.015),
+                      // 超慢跑運動中：環內即時調 BPM；其餘顯示情境副標
+                      if (_jogWorkActive)
+                        _inlineBpm(size, color)
+                      else
+                        Text(
+                          _ringSubtitle(),
+                          style: TextStyle(
+                            fontSize: math.max(11.0, size * 0.056),
+                            fontWeight: FontWeight.w600,
+                            color: AppInk.soft,
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1900,4 +2009,66 @@ class ExerciseTimerState extends State<ExerciseTimer>
       ),
     );
   }
+}
+
+// 節拍器擺錘：支點在圓心略下方，桿往上、頂端發光球隨拍左右擺（疊在數字後方）。
+class _PendulumPainter extends CustomPainter {
+  final double t; // 擺錘相位 0..1（0=左極端、1=右極端）
+  final Color color;
+
+  const _PendulumPainter({required this.t, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final center = Offset(w / 2, h / 2);
+    const maxAngle = 0.38; // 約 ±22°
+    final angle = (Curves.easeInOut.transform(t) * 2 - 1) * maxAngle;
+
+    final pivot = Offset(center.dx, center.dy + h * 0.16);
+    final armLen = h * 0.40;
+    final tip = Offset(
+      pivot.dx + math.sin(angle) * armLen,
+      pivot.dy - math.cos(angle) * armLen,
+    );
+
+    // 擺桿
+    canvas.drawLine(
+      pivot,
+      tip,
+      Paint()
+        ..color = color.withValues(alpha: 0.30)
+        ..strokeWidth = math.max(2.0, w * 0.018)
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // 支點
+    canvas.drawCircle(
+      pivot,
+      math.max(2.0, w * 0.02),
+      Paint()..color = color.withValues(alpha: 0.5),
+    );
+
+    // 端球：柔光暈 + 實心 + 白描邊
+    canvas.drawCircle(
+      tip,
+      w * 0.075,
+      Paint()
+        ..color = color.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawCircle(tip, w * 0.05, Paint()..color = color);
+    canvas.drawCircle(
+      tip,
+      w * 0.05,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = Colors.white.withValues(alpha: 0.7),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PendulumPainter old) => old.t != t || old.color != color;
 }
