@@ -201,9 +201,6 @@ class ExerciseTimerState extends State<ExerciseTimer>
   bool _phaseCompleteHold = false;
   bool _advancingBoundary = false;
   int _completedWorkSeconds = 0;
-  // 是否已把 audio session 升到 playback（讓節拍器在靜音模式也響）。
-  // 開超慢跑且有音效時升起，停止/重設/完成時還原成 ambient。
-  bool _loudAudioActive = false;
 
   // ── 今日統計（per-day key）──
   String _statsDate = '';
@@ -233,7 +230,6 @@ class ExerciseTimerState extends State<ExerciseTimer>
   void dispose() {
     _timer?.cancel();
     _stopMetronome();
-    _setLoudAudio(false);
     _breath.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -538,19 +534,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _phaseCompleteHold = false;
     _breath.stop();
     _stopMetronome();
-    _setLoudAudio(false); // 還原 ambient，否則 BGM 之後也不再尊重靜音鍵
   }
 
   void _stopMetronome() {
     _metronomeTimer?.cancel();
     _metronomeTimer = null;
-  }
-
-  // 升/還原 audio category（playback ↔ ambient）。只在實際變更時動作。
-  void _setLoudAudio(bool loud) {
-    if (_loudAudioActive == loud) return;
-    _loudAudioActive = loud;
-    unawaited(MetronomeService.instance.setSilentAudible(loud));
   }
 
   void _syncMetronome() {
@@ -656,7 +644,6 @@ class ExerciseTimerState extends State<ExerciseTimer>
     }
     if (_kind == ExerciseKind.jog && _cfg.metronomeSoundOn) {
       unawaited(MetronomeService.instance.init(tone: _cfg.metronomeTone));
-      _setLoudAudio(true); // 靜音模式也要聽得到節拍
     }
     final end = DateTime.now().add(Duration(seconds: _secondsLeft));
     setState(() {
