@@ -36,6 +36,7 @@ class FamilyPage extends StatefulWidget {
 class _FamilyPageState extends State<FamilyPage> {
   List<ChildData> _children = [];
   bool _loaded = false;
+  int? _activeChildIndex;
 
   @override
   void initState() {
@@ -53,12 +54,16 @@ class _FamilyPageState extends State<FamilyPage> {
   Future<void> _loadChildren() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(PrefsKeys.children);
+    final children = raw == null
+        ? <ChildData>[]
+        : (jsonDecode(raw) as List)
+              .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
+              .toList();
     setState(() {
-      _children = raw == null
-          ? []
-          : (jsonDecode(raw) as List)
-                .map((e) => ChildData.fromJson(e as Map<String, dynamic>))
-                .toList();
+      _children = children;
+      if (_activeChildIndex != null && _activeChildIndex! >= _children.length) {
+        _activeChildIndex = null;
+      }
       _loaded = true;
     });
   }
@@ -136,57 +141,75 @@ class _FamilyPageState extends State<FamilyPage> {
                     scene: PersonaScene(
                       accent: Theme.of(context).colorScheme.primary,
                     ),
-                    child: _children.isEmpty
-                        ? _buildEmpty()
-                        : _buildChildList(),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        final offset = Tween<Offset>(
+                          begin: const Offset(0.06, 0),
+                          end: Offset.zero,
+                        ).animate(animation);
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: offset,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: KeyedSubtree(
+                        key: ValueKey(_panelKey),
+                        child: _buildPanelContent(),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-      // 家長管理按鈕：鎖定狀態看得見 —— 解鎖中變綠開鎖 + 多一顆手動上鎖鈕
-      // （家長管理完把手機交給小孩前可以立刻鎖回去）
-      floatingActionButton: ValueListenableBuilder<bool>(
-        valueListenable: parentSession,
-        builder: (_, unlocked, _) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (unlocked) ...[
-              FloatingActionButton.small(
-                heroTag: 'family_lock_now',
-                onPressed: () {
-                  parentSession.value = false;
-                  playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
-                  ScaffoldMessenger.of(context)
-                    ..hideCurrentSnackBar()
-                    ..showSnackBar(
-                      const SnackBar(
-                        content: Text('已重新上鎖 🔒'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                },
-                tooltip: '立刻上鎖',
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.green.shade700,
-                child: const Icon(Icons.lock_outline),
+      // 家長管理按鈕：鎖定狀態用圖示 + 色彩區分（開鎖綠 = 已解鎖 / 上鎖主色），
+      // 兩態同一個 label 讓按鈕大小一致、視覺平衡。
+      floatingActionButton: _activeChildIndex == null
+          ? ValueListenableBuilder<bool>(
+              valueListenable: parentSession,
+              builder: (_, unlocked, _) => FloatingActionButton.extended(
+                heroTag: 'family_manage',
+                onPressed: _enterParentManagement,
+                icon: Icon(
+                  unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
+                ),
+                label: const Text('家長管理'),
+                backgroundColor: unlocked
+                    ? Colors.green.shade600
+                    : Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
               ),
-              const SizedBox(width: 10),
-            ],
-            FloatingActionButton.extended(
-              heroTag: 'family_manage',
-              onPressed: _enterParentManagement,
-              icon: Icon(
-                unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
-              ),
-              label: Text(unlocked ? '管理中（已解鎖）' : '家長管理'),
-              backgroundColor: unlocked
-                  ? Colors.green.shade600
-                  : Theme.of(context).colorScheme.primary,
-              foregroundColor: Colors.white,
-            ),
-          ],
-        ),
-      ),
+            )
+          : null,
+    );
+  }
+
+  String get _panelKey {
+    if (_children.isEmpty) return 'empty';
+    final active = _activeChildIndex;
+    if (active == null) return 'list';
+    final index = active.clamp(0, _children.length - 1);
+    return 'child_${_children[index].id}';
+  }
+
+  Widget _buildPanelContent() {
+    if (_children.isEmpty) return _buildEmpty();
+    final active = _activeChildIndex;
+    if (active == null) return _buildChildList();
+    final index = active.clamp(0, _children.length - 1);
+    return ChildHomePanel(
+      children: _children,
+      initialIndex: index,
+      onBack: () {
+        widget.onSettingsChanged?.call();
+        setState(() => _activeChildIndex = null);
+        unawaited(_loadChildren());
+      },
     );
   }
 
@@ -307,16 +330,7 @@ class _FamilyPageState extends State<FamilyPage> {
         final child = _children[i];
         return _ChildCard(
           child: child,
-          onTap: () async {
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) =>
-                    ChildHomePage(children: _children, initialIndex: i),
-              ),
-            );
-            widget.onSettingsChanged?.call();
-            unawaited(_loadChildren());
-          },
+          onTap: () => setState(() => _activeChildIndex = i),
         );
       },
     );
