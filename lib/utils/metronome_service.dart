@@ -104,14 +104,16 @@ class MetronomeService {
   /// 啟動或更新（改 BPM/音色/音量/拍號時呼叫）等速節拍循環。
   ///
   /// [beatsPerBar] >= 2 時循環長度 = 一整個小節；[accentFirst] 為真則把第一拍以
-  /// 全振幅、其餘拍以較小振幅烤進 PCM，做出「第一拍重音」。beatsPerBar=1 時退化成
-  /// 原本的單拍循環（與舊行為一致）。
+  /// 較高音高烤進 PCM，做出「第一拍重音」。[subdivisionsPerBeat] > 1 時，
+  /// 每拍中間會補較小聲的細分拍；beatsPerBar=1 時退化成原本的單拍循環。
   Future<void> startOrUpdateLoop({
     required int bpm,
     required MetronomeTone tone,
     required double volume,
     int beatsPerBar = 1,
     bool accentFirst = true,
+    int subdivisionsPerBeat = 1,
+    int secondaryAccentEvery = 0,
   }) async {
     try {
       await AppAudioSession.ensureConfigured();
@@ -120,6 +122,8 @@ class MetronomeService {
         bpm.clamp(30, 240),
         beatsPerBar.clamp(1, 12),
         accentFirst,
+        subdivisionsPerBeat.clamp(1, 4),
+        secondaryAccentEvery,
       );
       final dir = Directory.systemTemp; // 免 path_provider，跨平台暫存目錄
       final gen = ++_loopGen;
@@ -157,15 +161,45 @@ class MetronomeService {
     int bpm,
     int beatsPerBar,
     bool accentFirst,
+    int subdivisionsPerBeat,
+    int secondaryAccentEvery,
   ) async {
     final pcm = await _loadPcm(tone);
     final bytesPerFrame = 2 * pcm.channels; // 16-bit
     final beatFrames = (pcm.sampleRate * 60 / bpm).round();
     final beatBytes = beatFrames * bytesPerFrame;
+    final subFrames = (beatFrames / subdivisionsPerBeat)
+        .round()
+        .clamp(1, beatFrames)
+        .toInt();
+    final subBytes = subFrames * bytesPerFrame;
+    final tickBytes = subdivisionsPerBeat > 1 ? subBytes : beatBytes;
     final out = Uint8List(beatBytes * beatsPerBar); // 預設全 0 = 靜音
     for (var b = 0; b < beatsPerBar; b++) {
       final accent = accentFirst && beatsPerBar > 1 && b == 0;
-      _writeBeat(out, b * beatBytes, beatBytes, pcm, pitch: accent ? 1.5 : 1.0);
+      final secondaryAccent =
+          accentFirst &&
+          secondaryAccentEvery > 1 &&
+          b > 0 &&
+          b % secondaryAccentEvery == 0;
+      _writeBeat(
+        out,
+        b * beatBytes,
+        tickBytes,
+        pcm,
+        pitch: accent
+            ? 1.5
+            : secondaryAccent
+            ? 1.22
+            : 1.0,
+        level: secondaryAccent ? 0.82 : 1.0,
+      );
+      for (var s = 1; s < subdivisionsPerBeat; s++) {
+        final offset = b * beatBytes + s * subBytes;
+        final maxBytes = (beatBytes - s * subBytes).clamp(0, beatBytes).toInt();
+        if (maxBytes <= 0) continue;
+        _writeBeat(out, offset, maxBytes, pcm, level: 0.38);
+      }
     }
     return _wrapWav(out, pcm.sampleRate, pcm.channels);
   }
@@ -178,10 +212,26 @@ class MetronomeService {
     int beatBytes,
     _Pcm pcm, {
     double pitch = 1.0,
+    double level = 1.0,
   }) {
+    final gain = level.clamp(0.0, 1.0);
+    if (gain <= 0) return;
     if (pitch == 1.0 || pcm.channels != 1) {
       final copy = pcm.data.length < beatBytes ? pcm.data.length : beatBytes;
-      out.setRange(offset, offset + copy, pcm.data);
+      if (gain == 1.0) {
+        out.setRange(offset, offset + copy, pcm.data);
+        return;
+      }
+      final src = ByteData.sublistView(pcm.data);
+      final dst = ByteData.sublistView(out);
+      final samples = copy ~/ 2;
+      for (var i = 0; i < samples; i++) {
+        final v = (src.getInt16(i * 2, Endian.little) * gain).round().clamp(
+          -32768,
+          32767,
+        );
+        dst.setInt16(offset + i * 2, v, Endian.little);
+      }
       return;
     }
     final src = ByteData.sublistView(pcm.data);
@@ -197,7 +247,10 @@ class MetronomeService {
       final s1 = (si + 1 < srcSamples)
           ? src.getInt16((si + 1) * 2, Endian.little)
           : s0;
-      final v = (s0 + (s1 - s0) * (pos - si)).round().clamp(-32768, 32767);
+      final v = ((s0 + (s1 - s0) * (pos - si)) * gain).round().clamp(
+        -32768,
+        32767,
+      );
       dst.setInt16(offset + i * 2, v, Endian.little);
       i++;
       pos += pitch;
@@ -223,11 +276,7 @@ class MetronomeService {
       final v = (src.getInt16(i, Endian.little) * gain).round();
       dst.setInt16(i, v.clamp(-32768, 32767), Endian.little);
     }
-    return _Pcm(
-      sampleRate: pcm.sampleRate,
-      channels: pcm.channels,
-      data: out,
-    );
+    return _Pcm(sampleRate: pcm.sampleRate, channels: pcm.channels, data: out);
   }
 
   _Pcm _parseWav(Uint8List b) {

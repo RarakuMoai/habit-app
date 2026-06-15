@@ -648,13 +648,14 @@ class _OnboardingPageState extends State<OnboardingPage>
         heightCm <= UserRanges.heightMaxCm) {
       await prefs.setDouble(PrefsKeys.userHeight, heightCm);
     }
+    // 體重功能預設開啟：就算使用者略過填寫也開著（之後仍可在設定關閉）
+    await prefs.setBool(PrefsKeys.weightTrackingEnabled, true);
     final weightKg = _weightKgFromCtrl(_weightController);
     if (weightKg != null &&
         weightKg >= UserRanges.weightMinKg &&
         weightKg <= UserRanges.weightMaxKg) {
       await prefs.setDouble(PrefsKeys.userWeight, weightKg);
-      await prefs.setBool(PrefsKeys.weightTrackingEnabled, true);
-      // 自動新增體重紀錄習慣
+      // 有填才自動新增體重紀錄習慣
       await _addWeightHabit(prefs);
     }
     final targetKg = _weightKgFromCtrl(_targetWeightController);

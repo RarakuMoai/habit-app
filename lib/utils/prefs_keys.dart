@@ -85,6 +85,8 @@ abstract final class PrefsKeys {
   static const metronomeTone = 'metronome_tone';
   static const metronomeVolume = 'metronome_volume';
   static const metronomeBeats = 'metronome_beats'; // 每小節拍數（拍號分子）
+  static const metronomeBeatUnit = 'metronome_beat_unit'; // 拍號分母（4/8）
+  static const metronomeSubdivision = 'metronome_subdivision'; // 細分拍
   static const metronomeAccent = 'metronome_accent'; // 第一拍重音
   static const metronomeHaptic = 'metronome_haptic'; // 觸覺跟拍
 

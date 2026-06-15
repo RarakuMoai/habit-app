@@ -102,6 +102,16 @@
     ]
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '【語言規則】本回合必須全程使用繁體中文（台灣）回覆：所有文字、說明、清單、總結一律繁體中文，絕對禁止使用日文。'"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

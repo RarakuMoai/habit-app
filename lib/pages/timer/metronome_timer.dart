@@ -18,8 +18,42 @@ const Color kMetronomeAccent = Color(0xFF7C6BCF);
 
 const int _kMinBpm = 30;
 const int _kMaxBpm = 240;
-const int _kMaxBeats = 9; // 拍號分子上限（每小節幾拍）
+const int _kMaxBeats = 12; // 拍號分子上限（每小節幾拍）
 const double _pendMaxAngle = 0.46; // 擺幅 ±約 26°（state 與畫家共用）
+
+enum _BeatSubdivision {
+  none('none', '不細分', '每拍一聲', 1),
+  eighth('eighth', '八分', '一拍切 2 下', 2),
+  triplet('triplet', '三連', '一拍切 3 下', 3),
+  sixteenth('sixteenth', '十六分', '一拍切 4 下', 4);
+
+  const _BeatSubdivision(this.id, this.label, this.description, this.parts);
+  final String id;
+  final String label;
+  final String description;
+  final int parts;
+
+  static _BeatSubdivision fromId(String? id) => _BeatSubdivision.values
+      .firstWhere((v) => v.id == id, orElse: () => _BeatSubdivision.none);
+}
+
+class _TimeSignaturePreset {
+  final int beats;
+  final int unit;
+  final String hint;
+  const _TimeSignaturePreset(this.beats, this.unit, this.hint);
+
+  String get label => '$beats/$unit';
+}
+
+const List<_TimeSignaturePreset> _signaturePresets = [
+  _TimeSignaturePreset(2, 4, '進行曲、快歌常用'),
+  _TimeSignaturePreset(3, 4, '圓舞曲感'),
+  _TimeSignaturePreset(4, 4, '最常見'),
+  _TimeSignaturePreset(6, 8, '兩組三連感'),
+  _TimeSignaturePreset(9, 8, '三組三連感'),
+  _TimeSignaturePreset(12, 8, '四組三連感'),
+];
 
 /// 單純節拍器：可調 BPM、拍號（每小節拍數）、第一拍重音、音色、音量。
 /// 聲音走 [MetronomeService] 的無縫小節循環（取樣級等速）；擺錘＋拍點高亮＋觸覺
@@ -39,6 +73,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   // ── 設定（持久化）──
   int _bpm = 120;
   int _beats = 4; // 每小節拍數（拍號分子）
+  int _beatUnit = 4; // 拍號分母
+  _BeatSubdivision _subdivision = _BeatSubdivision.none;
   bool _accent = true; // 第一拍重音
   bool _haptic = true; // 觸覺跟拍
   double _volume = 0.75;
@@ -91,11 +127,22 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     final p = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _bpm = (p.getInt(PrefsKeys.metronomeBpm) ?? 120).clamp(_kMinBpm, _kMaxBpm);
+      _bpm = (p.getInt(PrefsKeys.metronomeBpm) ?? 120).clamp(
+        _kMinBpm,
+        _kMaxBpm,
+      );
       _beats = (p.getInt(PrefsKeys.metronomeBeats) ?? 4).clamp(1, _kMaxBeats);
+      final unit = p.getInt(PrefsKeys.metronomeBeatUnit) ?? 4;
+      _beatUnit = unit == 8 ? 8 : 4;
+      _subdivision = _BeatSubdivision.fromId(
+        p.getString(PrefsKeys.metronomeSubdivision),
+      );
       _accent = p.getBool(PrefsKeys.metronomeAccent) ?? true;
       _haptic = p.getBool(PrefsKeys.metronomeHaptic) ?? true;
-      _volume = (p.getDouble(PrefsKeys.metronomeVolume) ?? 0.75).clamp(0.0, 1.0);
+      _volume = (p.getDouble(PrefsKeys.metronomeVolume) ?? 0.75).clamp(
+        0.0,
+        1.0,
+      );
       _tone = MetronomeTone.fromId(p.getString(PrefsKeys.metronomeTone));
       _loaded = true;
     });
@@ -107,6 +154,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     final p = await SharedPreferences.getInstance();
     await p.setInt(PrefsKeys.metronomeBpm, _bpm);
     await p.setInt(PrefsKeys.metronomeBeats, _beats);
+    await p.setInt(PrefsKeys.metronomeBeatUnit, _beatUnit);
+    await p.setString(PrefsKeys.metronomeSubdivision, _subdivision.id);
     await p.setBool(PrefsKeys.metronomeAccent, _accent);
     await p.setBool(PrefsKeys.metronomeHaptic, _haptic);
     await p.setDouble(PrefsKeys.metronomeVolume, _volume);
@@ -172,9 +221,19 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         volume: _volume,
         beatsPerBar: _beats,
         accentFirst: _accent,
+        subdivisionsPerBeat: _subdivision.parts,
+        secondaryAccentEvery: _secondaryAccentEvery,
       ),
     );
   }
+
+  int get _secondaryAccentEvery {
+    if (!_accent) return 0;
+    if (_beatUnit == 8 && _beats >= 6 && _beats % 3 == 0) return 3;
+    return 0;
+  }
+
+  String get _signatureLabel => '$_beats/$_beatUnit';
 
   // 每幀：相位前進 π/拍（讀當下 BPM→改速平順）；越過極端＝下一拍。
   void _onTick(Duration elapsed) {
@@ -213,6 +272,31 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     if (nv == _beats) return;
     setState(() => _beats = nv);
     _persist();
+    _restartBarIfRunning();
+  }
+
+  void _setTimeSignature(int beats, int unit) {
+    final nv = beats.clamp(1, _kMaxBeats);
+    final nu = unit == 8 ? 8 : 4;
+    if (nv == _beats && nu == _beatUnit) return;
+    setState(() {
+      _beats = nv;
+      _beatUnit = nu;
+    });
+    _persist();
+    _restartBarIfRunning();
+    playHaptic(HapticLevel.selection);
+  }
+
+  void _setSubdivision(_BeatSubdivision value) {
+    if (value == _subdivision) return;
+    setState(() => _subdivision = value);
+    _persist();
+    _regenLoop();
+    playHaptic(HapticLevel.selection);
+  }
+
+  void _restartBarIfRunning() {
     if (!_running) return;
     // 小節結構變了：重置相位讓拍點與新的重音對齊
     _pendPhase = math.pi / 2;
@@ -413,7 +497,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   // 兩套周邊錯開淡入淡出且互不重疊（同專注/運動，降低每幀 saveLayer）。
   Widget _blend(Color color, double h, double t) {
     final fullHeight = math.max(h, 520.0);
-    final size = _compactMetroSize(h) + (_fullMetroSize - _compactMetroSize(h)) * t;
+    final size =
+        _compactMetroSize(h) + (_fullMetroSize - _compactMetroSize(h)) * t;
     final align = Alignment.lerp(_kCompactMetroAlign, _kFullMetroAlign, t)!;
     final compactOpacity = Curves.easeIn.transform((1 - 2 * t).clamp(0.0, 1.0));
     final fullOpacity = Curves.easeIn.transform((2 * t - 1).clamp(0.0, 1.0));
@@ -531,7 +616,10 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         const SizedBox(width: 14),
         _roundStartButton(color, 46),
         const SizedBox(width: 14),
-        step(Icons.add_rounded, _bpm < _kMaxBpm ? () => _setBpm(_bpm + 1) : null),
+        step(
+          Icons.add_rounded,
+          _bpm < _kMaxBpm ? () => _setBpm(_bpm + 1) : null,
+        ),
       ],
     );
   }
@@ -613,7 +701,12 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                   padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: _Dot(
                     active: i == cur,
-                    accent: _accent && _beats > 1 && i == 0,
+                    accent:
+                        _accent &&
+                        _beats > 1 &&
+                        (i == 0 ||
+                            (_secondaryAccentEvery > 1 &&
+                                i % _secondaryAccentEvery == 0)),
                     color: color,
                   ),
                 ),
@@ -694,12 +787,12 @@ class _MetronomeTimerState extends State<MetronomeTimer>
             _beats > 1 ? () => _setBeats(_beats - 1) : null,
           ),
           SizedBox(
-            width: 54,
+            width: 62,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '$_beats 拍',
+                  _signatureLabel,
                   style: AppType.digits(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
@@ -809,7 +902,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                                       ),
                                       SizedBox(height: 2),
                                       Text(
-                                        '音色、音量與跟拍方式',
+                                        '音色、拍號、細分拍與跟拍方式',
                                         style: TextStyle(
                                           fontSize: 12.5,
                                           color: AppInk.soft,
@@ -869,16 +962,41 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                             ),
                             const SizedBox(height: 14),
                             _sheetSectionTitle(
-                              Icons.tune_rounded,
+                              Icons.grid_view_rounded,
                               color,
-                              '節拍',
+                              '拍號',
                             ),
+                            const SizedBox(height: 8),
+                            _sheetSignatureGrid(
+                              color,
+                              (preset) => apply(
+                                () => _setTimeSignature(
+                                  preset.beats,
+                                  preset.unit,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            _sheetSectionTitle(
+                              Icons.notes_rounded,
+                              color,
+                              '細分拍',
+                            ),
+                            const SizedBox(height: 8),
+                            _sheetSubdivisionGrid(
+                              color,
+                              (value) => apply(() => _setSubdivision(value)),
+                            ),
+                            const SizedBox(height: 14),
+                            _sheetSectionTitle(Icons.tune_rounded, color, '跟拍'),
                             const SizedBox(height: 8),
                             _sheetSwitchTile(
                               Icons.line_weight_rounded,
                               color,
                               '第一拍重音',
-                              '小節開頭加重，方便抓拍',
+                              _beatUnit == 8 && _beats >= 6 && _beats % 3 == 0
+                                  ? '小節開頭加重，複合拍補分組重音'
+                                  : '小節開頭加重，方便抓拍',
                               _accent,
                               (v) => apply(() => _setAccent(v)),
                             ),
@@ -1044,6 +1162,134 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     );
   }
 
+  Widget _sheetSignatureGrid(
+    Color color,
+    ValueChanged<_TimeSignaturePreset> onSelected,
+  ) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final tileW = ((c.maxWidth - 8) / 2).clamp(128.0, 190.0);
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final preset in _signaturePresets)
+              _sheetChoiceTile(
+                color: color,
+                width: tileW,
+                selected: preset.beats == _beats && preset.unit == _beatUnit,
+                label: preset.label,
+                sub: preset.hint,
+                onTap: () => onSelected(preset),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _sheetSubdivisionGrid(
+    Color color,
+    ValueChanged<_BeatSubdivision> onSelected,
+  ) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final tileW = ((c.maxWidth - 8) / 2).clamp(128.0, 190.0);
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final value in _BeatSubdivision.values)
+              _sheetChoiceTile(
+                color: color,
+                width: tileW,
+                selected: value == _subdivision,
+                label: value.label,
+                sub: value.description,
+                onTap: () => onSelected(value),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _sheetChoiceTile({
+    required Color color,
+    required double width,
+    required bool selected,
+    required String label,
+    required String sub,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          width: width,
+          padding: const EdgeInsets.fromLTRB(11, 10, 10, 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? color.withValues(alpha: 0.12)
+                : const Color(0xFFFAF7F2),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.38)
+                  : const Color(0xFFE8DDD4),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: selected ? color : AppInk.faint.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.digits(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: selected ? color : AppInk.strong,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppInk.soft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected) Icon(Icons.check_rounded, size: 16, color: color),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _sheetSwitchTile(
     IconData icon,
     Color color,
@@ -1079,7 +1325,11 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: value ? color : AppInk.faint, size: 18),
+                child: Icon(
+                  icon,
+                  color: value ? color : AppInk.faint,
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1230,7 +1480,10 @@ class _MetronomePainter extends CustomPainter {
       Offset(cx + tHalf * 0.62, winTop),
       Offset(cx - tHalf * 0.62, winTop),
     ], w * 0.03);
-    canvas.drawPath(window, Paint()..color = Colors.white.withValues(alpha: 0.5));
+    canvas.drawPath(
+      window,
+      Paint()..color = Colors.white.withValues(alpha: 0.5),
+    );
     canvas.drawPath(
       window,
       Paint()

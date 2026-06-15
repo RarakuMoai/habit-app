@@ -85,6 +85,11 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
 
   static const _fieldFill = Color(0xFFFAF7F2);
   static const _border = Color(0xFFE8DDD4);
+  static const _warn = Color(0xFFE0823C); // 無效輸入的柔性提示色（暖琥珀，非刺眼紅）
+
+  // 手動輸入滿 8 碼但日期無效時為 true：欄位轉警示色、星期顯示「—」，
+  // 但不阻止輸入、也不動月曆（仍可改成合法值或改用點選）。
+  bool _inputInvalid = false;
 
   @override
   void initState() {
@@ -126,26 +131,41 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
   // 改用「點」的就順手收鍵盤，讓月曆完整露出。
   void _apply(DateTime d, {bool toField = true}) {
     FocusScope.of(context).unfocus();
-    setState(() => _sel = _clamp(d));
+    setState(() {
+      _sel = _clamp(d);
+      _inputInvalid = false;
+    });
     if (toField) _writeField(_sel);
   }
 
-  // 手動輸入：滿 8 碼且合法才套用到月曆，不打斷打字、不回寫輸入框。
+  // 手動輸入：滿 8 碼才判斷。合法→套用到月曆；不合法→不動月曆、亮柔性警示。
   void _onFieldChanged() {
     if (_syncing) return;
     final digits = _ctrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length != 8) return;
+    if (digits.length < 8) {
+      if (_inputInvalid) setState(() => _inputInvalid = false);
+      return;
+    }
     final y = int.parse(digits.substring(0, 4));
     final m = int.parse(digits.substring(4, 6));
     final d = int.parse(digits.substring(6, 8));
-    if (m < 1 || m > 12 || d < 1 || d > 31) return;
-    final candidate = DateTime(y, m, d);
-    if (candidate.month != m || candidate.day != d) return; // 例如 2/30
-    if (candidate.isBefore(widget.firstDate) ||
-        candidate.isAfter(widget.lastDate)) {
-      return;
-    }
-    setState(() => _sel = candidate);
+    final candidate = (m >= 1 && m <= 12 && d >= 1 && d <= 31)
+        ? DateTime(y, m, d)
+        : null;
+    final valid =
+        candidate != null &&
+        candidate.month == m && // 例如 2/30 會被正規化掉
+        candidate.day == d &&
+        !candidate.isBefore(widget.firstDate) &&
+        !candidate.isAfter(widget.lastDate);
+    setState(() {
+      if (valid) {
+        _sel = candidate; // valid 為真時 candidate 必非 null（flow 已推斷）
+        _inputInvalid = false;
+      } else {
+        _inputInvalid = true;
+      }
+    });
   }
 
   void _setMode(_Mode m) {
@@ -264,7 +284,7 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
       style: AppType.digits(
         fontSize: 20,
         fontWeight: FontWeight.w800,
-        color: AppInk.strong,
+        color: _inputInvalid ? _warn : AppInk.strong,
         letterSpacing: 1.5,
       ),
       inputFormatters: [_DateDigitsFormatter()],
@@ -280,12 +300,12 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
         suffixIcon: Padding(
           padding: const EdgeInsets.only(right: 14),
           child: Text(
-            '週${_weekText[_sel.weekday - 1]}',
+            _inputInvalid ? '—' : '週${_weekText[_sel.weekday - 1]}',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: accent,
+              color: _inputInvalid ? _warn : accent,
             ),
           ),
         ),
@@ -294,8 +314,11 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
         filled: true,
         fillColor: _fieldFill,
         border: _fieldBorder(_border, 1),
-        enabledBorder: _fieldBorder(_border, 1),
-        focusedBorder: _fieldBorder(accent, 1.8),
+        enabledBorder: _fieldBorder(
+          _inputInvalid ? _warn : _border,
+          _inputInvalid ? 1.6 : 1,
+        ),
+        focusedBorder: _fieldBorder(_inputInvalid ? _warn : accent, 1.8),
       ),
     );
   }
