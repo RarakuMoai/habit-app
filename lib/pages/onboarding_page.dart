@@ -59,23 +59,20 @@ class _OnboardingPageState extends State<OnboardingPage>
   final TextEditingController _mascotController = TextEditingController(
     text: '兔咪',
   );
+  // 骰子隨機名字用：可愛、好唸、之後多語也通用的小名池
+  static const List<String> _mascotNamePool = [
+    '兔咪', '啾啾', '糰子', '麻糬', '棉花糖', '雪球',
+    '紅豆', '布丁', '奶茶', '咪寶', '跳跳', '阿白',
+  ];
+  final math.Random _nameRng = math.Random();
 
   // 畫面3：用戶暱稱
   final TextEditingController _nicknameController = TextEditingController();
   String _mascotName = '兔咪';
 
-  // 畫面4：喝水
-  int _waterStep = 0; // 0=初始選項, 1=追問
-  String _waterFollowup = '';
+  // 畫面4/5/6：功能引導（預設開啟，按「不用了」確認後才關）
   bool? _waterEnabled;
-
-  // 畫面5：番茄鐘
-  int _timerStep = 0; // 0=初始選項, 1=追問, 2=直接完成
-  String _timerFollowup = '';
   bool? _timerEnabled;
-
-  // 畫面6（新）：家庭功能引導
-  int _familyStep = 0; // 0=初始, 1=追問(有小孩), 2=安慰語
   bool? _familyEnabled;
 
   // 畫面7：身體資訊
@@ -125,20 +122,12 @@ class _OnboardingPageState extends State<OnboardingPage>
     (build: _buildPage1, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
     (build: _buildPage2, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
     (build: _buildPage3, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (
-      build: _buildPage4,
-      inSubStep: () => _waterStep == 1,
-      exitSubStep: () => _waterStep = 0,
-    ),
-    (
-      build: _buildPage5,
-      inSubStep: () => _timerStep == 1,
-      exitSubStep: () => _timerStep = 0,
-    ),
+    (build: _buildPage4, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildPage5, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
     (
       build: _buildFamilyPage,
-      inSubStep: () => _familyStep > 0,
-      exitSubStep: () => _familyStep = 0,
+      inSubStep: _noSubStep,
+      exitSubStep: _noopSubStep,
     ),
     (
       build: _buildHabitPickerPage,
@@ -470,17 +459,6 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  void _onBirthdayTextChanged(String raw) {
-    final parsed = parseLenientDate(raw);
-    setState(() {
-      if (parsed != null && _birthdayDateError(parsed) == null) {
-        _birthday = parsed;
-      } else {
-        _birthday = null;
-      }
-    });
-  }
-
   DateTime _birthdayPickerInitialDate() {
     final rawDate = parseLenientDate(_birthdayController.text);
     final candidate =
@@ -488,6 +466,25 @@ class _OnboardingPageState extends State<OnboardingPage>
     if (candidate.isBefore(_birthdayFirstDate)) return _birthdayFirstDate;
     if (candidate.isAfter(_birthdayLastDate)) return _birthdayLastDate;
     return candidate;
+  }
+
+  // 點生日欄 → 直接開月曆系統選日期。
+  Future<void> _openBirthdayPicker() async {
+    _playOnboardingSfx(SfxCue.tap);
+    FocusScope.of(context).unfocus();
+    final picked = await showBirthdayPicker(
+      context,
+      initial: _birthdayPickerInitialDate(),
+      firstDate: _birthdayFirstDate,
+      lastDate: _birthdayLastDate,
+      accent: Colors.orange,
+    );
+    if (picked == null || !mounted) return;
+    _playOnboardingSfx(SfxCue.success);
+    setState(() {
+      _birthdayTouched = true;
+      _setBirthday(picked);
+    });
   }
 
   // 觸發提交：按鈕永遠可按，按下去先檢查再決定要不要進下一步
@@ -951,6 +948,37 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
+  // 骰子：從名字池隨機抽一個（排除目前這個），填回輸入框。
+  void _rollMascotName() {
+    _playOnboardingSfx(SfxCue.tap);
+    final current = _mascotController.text.trim();
+    final pool = _mascotNamePool.where((n) => n != current).toList();
+    if (pool.isEmpty) return;
+    final pick = pool[_nameRng.nextInt(pool.length)];
+    setState(() {
+      _mascotController.text = pick;
+      _mascotController.selection = TextSelection.collapsed(
+        offset: pick.length,
+      );
+      _mascotName = pick;
+    });
+  }
+
+  Widget _diceButton() {
+    return Material(
+      color: Colors.orange,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: _rollMascotName,
+        child: const Padding(
+          padding: EdgeInsets.all(15),
+          child: Icon(Icons.casino_rounded, color: Colors.white, size: 24),
+        ),
+      ),
+    );
+  }
+
   // ── 畫面2：幫吉祥物命名 ──
   Widget _buildPage2() {
     return _mascotPage(
@@ -958,27 +986,35 @@ class _OnboardingPageState extends State<OnboardingPage>
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('對了...\n你可以幫我取個名字。'),
+          _speechBubble('對了...\n你可以幫我取個名字。\n想不到的話，按旁邊骰子幫我抽一個。'),
           const SizedBox(height: 32),
-          TextField(
-            controller: _mascotController,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18),
-            maxLength: 12,
-            decoration: InputDecoration(
-              hintText: '幫我取個名字',
-              counterText: '',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.orange.shade200),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _mascotController,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18),
+                  maxLength: 12,
+                  decoration: InputDecoration(
+                    hintText: '幫我取個名字',
+                    counterText: '',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: Colors.orange.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Colors.orange),
+                    ),
+                  ),
+                ),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
+              const SizedBox(width: 10),
+              _diceButton(),
+            ],
           ),
           const SizedBox(height: 32),
           SizedBox(
@@ -1070,137 +1106,108 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // ── 畫面4：喝水功能引導 ──
-  Widget _buildPage4() {
+  // 功能引導三頁共用：預設開啟的單一問題。
+  // 「好」= 開啟並前進；紅色「不用了」= 跳確認框，確定才關閉並前進。
+  Widget _featureIntroPage({
+    required String bubble,
+    required String acceptLabel,
+    required VoidCallback onAccept,
+    required String declineName,
+    required VoidCallback onDeclineConfirmed,
+  }) {
     return _mascotPage(
       emotion: 'neutral_front',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_waterStep == 0) ...[
-            _speechBubble('$_nickname，這個名字很好。\n你平常會記得喝水嗎？'),
-            const SizedBox(height: 32),
-            _optionButton('有，但常常忘記', () {
-              setState(() {
-                _waterStep = 1;
-                _waterFollowup = '忘記也很正常。\n要不要讓我幫你記一點？';
-              });
-            }),
-            _optionButton('有在注意', () {
-              setState(() {
-                _waterStep = 1;
-                _waterFollowup = '那很好。\n要不要也讓我幫你記？';
-              });
-            }),
-            _optionButton('沒特別想到', () {
-              setState(() {
-                _waterStep = 1;
-                _waterFollowup = '那可以從今天一小杯開始。\n要不要我陪你記？';
-              });
-            }),
-            // 已養成習慣、不需記錄 → 不追問，直接下一步
-            _optionButton('我自己會注意，不用記錄', () {
-              setState(() => _waterEnabled = false);
-              _nextPage(playSound: false);
-            }),
-          ] else ...[
-            _speechBubble(_waterFollowup),
-            const SizedBox(height: 32),
-            // 追問簡化為二選一
-            _optionButton('好，幫我記', () {
-              setState(() => _waterEnabled = true);
-              _nextPage(playSound: false);
-            }, color: Colors.blue),
-            _optionButton('不用，我自己來', () {
-              setState(() => _waterEnabled = false);
-              _nextPage(playSound: false);
-            }),
-          ],
+          _speechBubble(bubble),
+          const SizedBox(height: 32),
+          _optionButton(acceptLabel, onAccept),
+          _optionButton(
+            '不用了',
+            () => _confirmDecline(declineName, onDeclineConfirmed),
+            color: Colors.red.shade400,
+          ),
         ],
       ),
+    );
+  }
+
+  // 按「不用了」跳確認框：確定才關閉（之後仍能在設定再開）。
+  Future<void> _confirmDecline(String name, VoidCallback onConfirmed) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('確定先關掉$name嗎？'),
+        content: const Text('之後想用，可以在「設定 → 功能開關」隨時打開喔。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('還是留著'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
+            child: const Text('確定關掉'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      _playOnboardingSfx(SfxCue.cancel);
+      onConfirmed();
+    }
+  }
+
+  // ── 畫面4：喝水功能引導 ──
+  Widget _buildPage4() {
+    return _featureIntroPage(
+      bubble: '口渴前，我會輕輕提醒你喝水。\n先幫你開著好嗎？',
+      acceptLabel: '好，幫我記',
+      onAccept: () {
+        setState(() => _waterEnabled = true);
+        _nextPage(playSound: false);
+      },
+      declineName: '喝水提醒',
+      onDeclineConfirmed: () {
+        setState(() => _waterEnabled = false);
+        _nextPage(playSound: false);
+      },
     );
   }
 
   // ── 畫面5：番茄鐘功能引導 ──
   Widget _buildPage5() {
-    return _mascotPage(
-      emotion: 'neutral_front',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_timerStep == 0) ...[
-            _speechBubble('工作或唸書的時候，\n你容易分心嗎？'),
-            const SizedBox(height: 32),
-            _optionButton('很容易', () {
-              setState(() {
-                _timerStep = 1;
-                _timerFollowup = '那我們可以試試番茄鐘。\n短短一段就好。';
-              });
-            }),
-            _optionButton('還好', () {
-              setState(() {
-                _timerStep = 1;
-                _timerFollowup = '番茄鐘可以幫你留一段安靜時間。\n要先放著嗎？';
-              });
-            }),
-            _optionButton('我很專注', () {
-              // 不追問，靜默設為 false 直接下一步
-              setState(() => _timerEnabled = false);
-              _nextPage(playSound: false);
-            }),
-          ] else ...[
-            _speechBubble(_timerFollowup),
-            const SizedBox(height: 32),
-            // 追問簡化為二選一
-            _optionButton('好，試試看', () {
-              setState(() => _timerEnabled = true);
-              _nextPage(playSound: false);
-            }, color: Colors.red.shade400),
-            _optionButton('不用了謝謝', () {
-              setState(() => _timerEnabled = false);
-              _nextPage(playSound: false);
-            }),
-          ],
-        ],
-      ),
+    return _featureIntroPage(
+      bubble: '專心的時候，我幫你顧著時間。\n要先開著番茄鐘嗎？',
+      acceptLabel: '好，開著',
+      onAccept: () {
+        setState(() => _timerEnabled = true);
+        _nextPage(playSound: false);
+      },
+      declineName: '番茄鐘',
+      onDeclineConfirmed: () {
+        setState(() => _timerEnabled = false);
+        _nextPage(playSound: false);
+      },
     );
   }
 
-  // ── 畫面6（新）：家庭功能引導 ──
+  // ── 畫面6：家庭功能引導 ──
   Widget _buildFamilyPage() {
-    return _mascotPage(
-      emotion: 'neutral_front',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_familyStep == 0) ...[
-            _speechBubble('對了...\n家裡有小朋友嗎？'),
-            const SizedBox(height: 32),
-            _optionButton('有', () {
-              setState(() => _familyStep = 1);
-            }),
-            _optionButton('沒有', () {
-              setState(() => _familyEnabled = false);
-              _nextPage(playSound: false);
-            }),
-            _optionButton('以後再說', () {
-              setState(() => _familyEnabled = false);
-              _nextPage(playSound: false);
-            }),
-          ] else ...[
-            _speechBubble('如果需要，我也可以陪小朋友記小任務。\n要開啟家庭模式嗎？'),
-            const SizedBox(height: 32),
-            _optionButton('好，先開著', () {
-              setState(() => _familyEnabled = true);
-              _nextPage(playSound: false);
-            }, color: Colors.green),
-            _optionButton('不用了', () {
-              setState(() => _familyEnabled = false);
-              _nextPage(playSound: false);
-            }),
-          ],
-        ],
-      ),
+    return _featureIntroPage(
+      bubble: '家裡有小朋友的話，\n我也能陪他們記小任務。\n要先開著嗎？',
+      acceptLabel: '好，開著',
+      onAccept: () {
+        setState(() => _familyEnabled = true);
+        _nextPage(playSound: false);
+      },
+      declineName: '家庭模式',
+      onDeclineConfirmed: () {
+        setState(() => _familyEnabled = false);
+        _nextPage(playSound: false);
+      },
     );
   }
 
@@ -1752,44 +1759,22 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
           _targetWeightHint(),
           const SizedBox(height: 10),
-          // 生日：同一欄可直接輸入，也可用右側日曆挑選。
+          // 生日：整欄可點，直接跳出月曆系統（不打字、不彈鍵盤）。
           TextField(
             controller: _birthdayController,
             focusNode: _birthdayFocus,
-            keyboardType: TextInputType.datetime,
-            textInputAction: TextInputAction.done,
-            onChanged: _onBirthdayTextChanged,
-            onSubmitted: _onBirthdayTextChanged,
+            readOnly: true,
+            showCursor: false,
+            onTap: _openBirthdayPicker,
             decoration: InputDecoration(
               labelText: '生日',
-              hintText: '例：2000-1-1 或 20000101',
+              hintText: '點這裡選生日',
               errorText: _birthdayError,
               errorMaxLines: 2,
-              suffixIcon: IconButton(
-                icon: const Icon(
-                  Icons.calendar_today_outlined,
-                  size: 18,
-                  color: Colors.orange,
-                ),
-                tooltip: '選擇生日',
-                onPressed: () async {
-                  _playOnboardingSfx(SfxCue.tap);
-                  FocusScope.of(context).unfocus();
-                  final picked = await showBirthdayPicker(
-                    context,
-                    initial: _birthdayPickerInitialDate(),
-                    firstDate: _birthdayFirstDate,
-                    lastDate: _birthdayLastDate,
-                    accent: Colors.orange,
-                  );
-                  if (picked != null) {
-                    _playOnboardingSfx(SfxCue.success);
-                    setState(() {
-                      _birthdayTouched = true;
-                      _setBirthday(picked);
-                    });
-                  }
-                },
+              suffixIcon: const Icon(
+                Icons.calendar_today_outlined,
+                size: 18,
+                color: Colors.orange,
               ),
               filled: true,
               fillColor: Colors.white,
