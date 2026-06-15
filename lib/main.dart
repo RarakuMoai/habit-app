@@ -24,6 +24,7 @@ import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
 import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
+import 'utils/weight_records.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -337,6 +338,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   bool _weightTrackingEnabled = false;
   bool _familyEnabled = false;
   bool _waterGoalReached = false;
+  bool _weightHabitAutoComplete = false;
   bool _loaded = false;
   int _waterReloadTrigger = 0;
 
@@ -407,14 +409,16 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final today = _todayString();
+    final weightRecordedToday = await hasSavedWeightRecordForDate(prefs, today);
     setState(() {
       _waterEnabled = prefs.getBool(PrefsKeys.waterEnabled) ?? false;
       _timerEnabled = prefs.getBool(PrefsKeys.timerEnabled) ?? true;
       _weightTrackingEnabled =
           prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _familyEnabled = prefs.getBool(PrefsKeys.familyEnabled) ?? false;
-      _waterGoalReached =
-          prefs.getString(PrefsKeys.waterGoalDate) == _todayString();
+      _waterGoalReached = prefs.getString(PrefsKeys.waterGoalDate) == today;
+      _weightHabitAutoComplete = weightRecordedToday;
       // debug 截圖用：指定啟動分頁（release 不讀）
       if (kDebugMode) {
         final tab = prefs.getInt(PrefsKeys.debugStartTab);
@@ -434,6 +438,17 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       await prefs.remove(PrefsKeys.waterGoalDate);
     }
     setState(() => _waterGoalReached = reached);
+  }
+
+  void _handleWeightRecordsChanged() {
+    unawaited(_refreshWeightHabitAutoComplete());
+  }
+
+  Future<void> _refreshWeightHabitAutoComplete() async {
+    final prefs = await SharedPreferences.getInstance();
+    final done = await hasSavedWeightRecordForDate(prefs, _todayString());
+    if (!mounted) return;
+    setState(() => _weightHabitAutoComplete = done);
   }
 
   Map<String, Object> _waterEntryMap({
@@ -567,6 +582,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         page: HomePage(
           onSettingsChanged: _loadSettings,
           waterHabitAutoComplete: _waterGoalReached,
+          weightHabitAutoComplete: _weightHabitAutoComplete,
           onWaterHabitToggled: _handleWaterHabitToggle,
         ),
         icon: Icons.home,
@@ -594,7 +610,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     if (_weightTrackingEnabled) {
       list.add(
         _TabItem(
-          page: const WeightPage(),
+          page: WeightPage(onRecordsChanged: _handleWeightRecordsChanged),
           icon: Icons.monitor_weight,
           label: '體重',
         ),

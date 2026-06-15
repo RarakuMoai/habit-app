@@ -17,6 +17,7 @@ import '../utils/input_formatters.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../utils/weight_records.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -31,11 +32,13 @@ import 'home/room_scene_painters.dart';
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
   final bool waterHabitAutoComplete;
+  final bool weightHabitAutoComplete;
   final Future<void> Function(bool)? onWaterHabitToggled;
   const HomePage({
     super.key,
     this.onSettingsChanged,
     this.waterHabitAutoComplete = false,
+    this.weightHabitAutoComplete = false,
     this.onWaterHabitToggled,
   });
 
@@ -168,6 +171,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (waterIdx != -1 &&
         habits[waterIdx]['done'] != widget.waterHabitAutoComplete) {
       habits[waterIdx]['done'] = widget.waterHabitAutoComplete;
+      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+    }
+    final weightIdx = habits.indexWhere(
+      (h) =>
+          (h['frequency'] ?? 'daily') != 'weekly' &&
+          isWeightHabitName(h['name'] as String?),
+    );
+    if (weightIdx != -1 &&
+        habits[weightIdx]['done'] != widget.weightHabitAutoComplete) {
+      habits[weightIdx]['done'] = widget.weightHabitAutoComplete;
       await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
 
@@ -303,10 +316,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (oldWidget.waterHabitAutoComplete != widget.waterHabitAutoComplete) {
       _syncWaterHabit(widget.waterHabitAutoComplete);
     }
+    if (oldWidget.weightHabitAutoComplete != widget.weightHabitAutoComplete) {
+      _syncWeightHabit(widget.weightHabitAutoComplete);
+    }
   }
 
   void _syncWaterHabit(bool done) {
     final idx = habits.indexWhere((h) => h['name'] == '喝足夠的水');
+    if (idx == -1 || habits[idx]['done'] == done) return;
+    setState(() => habits[idx]['done'] = done);
+    saveHabits();
+  }
+
+  void _syncWeightHabit(bool done) {
+    final idx = habits.indexWhere(
+      (h) =>
+          (h['frequency'] ?? 'daily') != 'weekly' &&
+          isWeightHabitName(h['name'] as String?),
+    );
     if (idx == -1 || habits[idx]['done'] == done) return;
     setState(() => habits[idx]['done'] = done);
     saveHabits();
@@ -436,6 +463,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final habit = habits[index];
     final wasHabitDone = habit['done'] == true;
     final isWeekly = (habit['frequency'] ?? 'daily') == 'weekly';
+    final isWeightLinked = isWeightHabitName(habit['name'] as String?);
+    if (!isWeekly &&
+        isWeightLinked &&
+        widget.weightHabitAutoComplete &&
+        wasHabitDone) {
+      playFeedback(SfxCue.tap);
+      return;
+    }
     if (isWeekly) {
       final today = todayString();
       final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
@@ -520,6 +555,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (name == '喝足夠的水') {
       SharedPreferences.getInstance().then((prefs) async {
         await prefs.setBool(PrefsKeys.waterEnabled, false);
+        widget.onSettingsChanged?.call();
+      });
+    } else if (isWeightHabitName(name)) {
+      SharedPreferences.getInstance().then((prefs) async {
+        await prefs.setBool(PrefsKeys.weightTrackingEnabled, false);
         widget.onSettingsChanged?.call();
       });
     }
@@ -636,7 +676,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     : customName;
                 final map = <String, dynamic>{
                   'name': fullName,
-                  'done': false,
+                  'done':
+                      isWeightHabitName(fullName) &&
+                      widget.weightHabitAutoComplete,
                   'frequency': freq,
                 };
                 if (freq == 'weekly') {
@@ -653,7 +695,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     : p.name;
                 final map = <String, dynamic>{
                   'name': habitName,
-                  'done': false,
+                  'done':
+                      isWeightHabitName(habitName) &&
+                      widget.weightHabitAutoComplete,
                   'frequency': cfg.frequency,
                 };
                 if (cfg.frequency == 'weekly') {
@@ -1105,9 +1149,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           onDecrement: (habit['frequency'] ?? 'daily') == 'weekly'
               ? () => decrementWeeklyHabit(index)
               : null,
-          isLinked: kHomePresets.any(
-            (p) => p.linkedSetting != null && habit['name'] == p.name,
-          ),
+          isLinked:
+              kHomePresets.any(
+                (p) => p.linkedSetting != null && habit['name'] == p.name,
+              ) ||
+              isWeightHabitName(habit['name'] as String?),
           isMoving: _editMode,
           onMove: _startMovingHabits,
         ),

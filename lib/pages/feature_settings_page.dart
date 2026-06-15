@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_feedback.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/weight_records.dart';
 
 // 功能開關頁：集中管理各頁籤的顯示開關
 class FeatureSettingsPage extends StatefulWidget {
@@ -138,6 +139,10 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                   onChanged: (v) async {
                     setState(() => _weightTrackingEnabled = v);
                     await _saveBool(PrefsKeys.weightTrackingEnabled, v);
+                    if (v && _prefs != null) {
+                      await ensureWeightHabit(_prefs!);
+                      await syncWeightHabitForDate(_prefs!);
+                    }
                   },
                 ),
 

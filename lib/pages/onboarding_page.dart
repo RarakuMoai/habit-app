@@ -16,6 +16,7 @@ import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
+import '../utils/weight_records.dart';
 import '../widgets/audio_control_button.dart';
 import '../widgets/birthday_picker.dart';
 import '../widgets/mascot_scene.dart';
@@ -61,8 +62,18 @@ class _OnboardingPageState extends State<OnboardingPage>
   );
   // 骰子隨機名字用：可愛、好唸、之後多語也通用的小名池
   static const List<String> _mascotNamePool = [
-    '兔咪', '啾啾', '糰子', '麻糬', '棉花糖', '雪球',
-    '紅豆', '布丁', '奶茶', '咪寶', '跳跳', '阿白',
+    '兔咪',
+    '啾啾',
+    '糰子',
+    '麻糬',
+    '棉花糖',
+    '雪球',
+    '紅豆',
+    '布丁',
+    '奶茶',
+    '咪寶',
+    '跳跳',
+    '阿白',
   ];
   final math.Random _nameRng = math.Random();
 
@@ -124,11 +135,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     (build: _buildPage3, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
     (build: _buildPage4, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
     (build: _buildPage5, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (
-      build: _buildFamilyPage,
-      inSubStep: _noSubStep,
-      exitSubStep: _noopSubStep,
-    ),
+    (build: _buildFamilyPage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
     (
       build: _buildHabitPickerPage,
       inSubStep: _noSubStep,
@@ -655,8 +662,10 @@ class _OnboardingPageState extends State<OnboardingPage>
         weightKg >= UserRanges.weightMinKg &&
         weightKg <= UserRanges.weightMaxKg) {
       await prefs.setDouble(PrefsKeys.userWeight, weightKg);
+      await upsertSavedWeightRecord(prefs, weightKg: weightKg);
       // 有填才自動新增體重紀錄習慣
       await _addWeightHabit(prefs);
+      await syncWeightHabitForDate(prefs);
     }
     final targetKg = _weightKgFromCtrl(_targetWeightController);
     if (targetKg != null &&
@@ -692,18 +701,7 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 在習慣清單自動新增體重紀錄
   Future<void> _addWeightHabit(SharedPreferences prefs) async {
-    final habitsJson = prefs.getString(PrefsKeys.habits);
-    var habits = <Map<String, dynamic>>[];
-    if (habitsJson != null) {
-      final decoded = jsonDecode(habitsJson) as List<dynamic>;
-      habits = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    }
-    // 避免重複新增
-    final exists = habits.any((h) => h['name'] == '體重紀錄');
-    if (!exists) {
-      habits.add({'name': '體重紀錄', 'done': false});
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
-    }
+    await ensureWeightHabit(prefs);
   }
 
   // 將習慣選擇頁勾選的習慣寫入習慣清單

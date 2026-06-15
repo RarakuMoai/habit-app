@@ -13,6 +13,7 @@ import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
+import '../utils/weight_records.dart';
 import '../widgets/birthday_picker.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
@@ -20,7 +21,8 @@ import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 
 class WeightPage extends StatefulWidget {
-  const WeightPage({super.key});
+  final VoidCallback? onRecordsChanged;
+  const WeightPage({super.key, this.onRecordsChanged});
 
   @override
   State<WeightPage> createState() => _WeightPageState();
@@ -113,6 +115,8 @@ class _WeightPageState extends State<WeightPage> {
   Future<void> _saveRecords() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(PrefsKeys.weightRecords, jsonEncode(_records));
+    await syncWeightHabitForDate(prefs);
+    widget.onRecordsChanged?.call();
   }
 
   // 今天日期字串（yyyy-MM-dd）
