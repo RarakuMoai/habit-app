@@ -267,9 +267,13 @@ class MascotPersona {
     return true;
   }
 
+  /// 兔咪被畫面蓋住時（如節拍器運作中）設 true：情緒/台詞照常更新，只是不發聲，
+  /// 避免「看不到兔咪卻聽到牠的聲音」的突兀感。
+  static bool voiceMuted = false;
+
   static void _apply(MascotState state, MascotContext ctx) {
     current.value = state;
-    unawaited(SfxService.instance.play(_voiceCueFor(ctx)));
+    if (!voiceMuted) unawaited(SfxService.instance.play(_voiceCueFor(ctx)));
     _holdUntil = DateTime.now().add(_holdDuration);
     _activePriority = _priorityOf(ctx);
     _scheduleRevert();
@@ -361,18 +365,29 @@ class MascotPersona {
 // 永久化偏好只存最終態（>=0.5 視為展開），不存中間值。
 class MascotPanelPrefs {
   static const String _key = 'mascot_panel_expanded';
+  static const String _hintSeenKey = 'mascot_panel_hint_seen';
   static final ValueNotifier<double> openValue = ValueNotifier<double>(1.0);
+  static final ValueNotifier<bool> hintSeenValue = ValueNotifier<bool>(false);
 
   static bool get expanded => openValue.value >= 0.5;
+  static bool get hintSeen => hintSeenValue.value;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     openValue.value = (prefs.getBool(_key) ?? true) ? 1.0 : 0.0;
+    hintSeenValue.value = prefs.getBool(_hintSeenKey) ?? false;
   }
 
   // 把目前狀態落地到 prefs（呼叫端在拖曳/動畫結束後再存）
   static Future<void> persist() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_key, expanded);
+  }
+
+  static Future<void> markHintSeen() async {
+    if (hintSeenValue.value) return;
+    hintSeenValue.value = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_hintSeenKey, true);
   }
 }

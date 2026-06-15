@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -12,7 +13,9 @@ enum MetronomeTone {
   // gain：把各音色的峰值正規化到相近響度（原檔 kick/bell 峰值偏低，聽起來小聲）。
   // 量過原始波形峰值後反推：目標峰值 ~0.85 滿格。
   wood('wood', '木魚', 'assets/sounds/metronome_wood.wav', 1.05),
-  kick('kick', '溫和鼓聲', 'assets/sounds/metronome_kick.wav', 1.85),
+  // kick 峰值正規化後已近滿格，要再放大一倍只能拉高 gain；超出滿格的部分由
+  // _applyGain 的 soft-clip 平滑壓住（不硬裁切爆音），RMS 上去＝聽起來變大聲。
+  kick('kick', '溫和鼓聲', 'assets/sounds/metronome_kick.wav', 3.6),
   lowWood('low_wood', '低木', 'assets/sounds/metronome_lowwood.wav', 1.25),
   bell('bell', '柔鈴', 'assets/sounds/metronome_bell.wav', 2.0);
 
@@ -122,7 +125,7 @@ class MetronomeService {
         bpm.clamp(30, 240),
         beatsPerBar.clamp(1, 12),
         accentFirst,
-        subdivisionsPerBeat.clamp(1, 4),
+        subdivisionsPerBeat.clamp(1, 6),
         secondaryAccentEvery,
       );
       final dir = Directory.systemTemp; // 免 path_provider，跨平台暫存目錄
@@ -266,17 +269,34 @@ class MetronomeService {
     return pcm;
   }
 
-  // 把 16-bit PCM 整體乘上 gain（響度正規化），clamp 防爆音。
+  // 把 16-bit PCM 整體乘上 gain（響度正規化），超滿格處 soft-clip 平滑壓住。
   _Pcm _applyGain(_Pcm pcm, double gain) {
     if (gain == 1.0) return pcm;
     final out = Uint8List(pcm.data.length);
     final src = ByteData.sublistView(pcm.data);
     final dst = ByteData.sublistView(out);
     for (var i = 0; i + 1 < pcm.data.length; i += 2) {
-      final v = (src.getInt16(i, Endian.little) * gain).round();
-      dst.setInt16(i, v.clamp(-32768, 32767), Endian.little);
+      dst.setInt16(
+        i,
+        _softClip(src.getInt16(i, Endian.little) * gain),
+        Endian.little,
+      );
     }
     return _Pcm(sampleRate: pcm.sampleRate, channels: pcm.channels, data: out);
+  }
+
+  // 軟性限幅：|x| <= knee(0.9 滿格) 完全線性 —— 既有音色峰值約 0.85，整段不受影響；
+  // 只有被大幅 gain（如鼓聲 ×2）推爆的部分才平滑壓向滿格，避免硬裁切的爆音/嗡聲。
+  static int _softClip(double v) {
+    const full = 32767.0;
+    const knee = 0.9;
+    final x = v / full;
+    final ax = x.abs();
+    if (ax <= knee) return v.round().clamp(-32768, 32767);
+    final over = (ax - knee) / (1 - knee);
+    final t = math.exp(2 * over); // tanh(over) = (t-1)/(t+1)
+    final y = knee + (1 - knee) * ((t - 1) / (t + 1));
+    return ((x.isNegative ? -y : y) * full).round().clamp(-32768, 32767);
   }
 
   _Pcm _parseWav(Uint8List b) {

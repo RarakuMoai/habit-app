@@ -16,6 +16,7 @@ import '../utils/user_validators.dart';
 import '../utils/weight_records.dart';
 import '../widgets/birthday_picker.dart';
 import '../widgets/habit_ui.dart';
+import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -492,6 +493,9 @@ class _WeightPageState extends State<WeightPage> {
     String? weightError;
     String? fatError;
     var activeField = _WeightSheetField.weight;
+    // 仍是預填舊值、使用者還沒打過字：第一次按數字要先清空（覆蓋而非接在後面）。
+    var weightPristine = true;
+    var fatPristine = true;
 
     showModalBottomSheet<void>(
       context: context,
@@ -501,6 +505,8 @@ class _WeightPageState extends State<WeightPage> {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             // ± 微調鈕：公制一格 0.1 kg、英制一格 1 lb
+            // ± 微調：在目前值上加減（保持 pristine，之後直接打數字仍會覆蓋）。
+            // 觸覺由 HoldRepeatButton 負責，這裡不再重複震動。
             void stepWeight(double delta) {
               final cur = double.tryParse(_weightCtrl.text.trim());
               final fallback = _records.isNotEmpty
@@ -512,7 +518,6 @@ class _WeightPageState extends State<WeightPage> {
                   ? next.round().toString()
                   : _fmt(next);
               setSheetState(() => weightError = null);
-              playHaptic(HapticLevel.selection);
             }
 
             TextEditingController activeController() =>
@@ -521,16 +526,21 @@ class _WeightPageState extends State<WeightPage> {
                 : _fatCtrl;
 
             void pressDigit(String digit) {
+              final isWeight = activeField == _WeightSheetField.weight;
               final ctrl = activeController();
-              final maxLength = activeField == _WeightSheetField.weight ? 6 : 5;
-              var text = ctrl.text.trim();
+              final maxLength = isWeight ? 6 : 5;
+              // 還是預填舊值就先清空＝直接打數字會覆蓋掉舊的，不接在後面
+              final pristine = isWeight ? weightPristine : fatPristine;
+              var text = pristine ? '' : ctrl.text.trim();
               if (text.length >= maxLength) return;
               if (text == '0') text = '';
               ctrl.text = '$text$digit';
               setSheetState(() {
-                if (activeField == _WeightSheetField.weight) {
+                if (isWeight) {
+                  weightPristine = false;
                   weightError = null;
                 } else {
+                  fatPristine = false;
                   fatError = null;
                 }
               });
@@ -538,18 +548,19 @@ class _WeightPageState extends State<WeightPage> {
             }
 
             void pressDecimal() {
-              if (activeField == _WeightSheetField.weight &&
-                  _unit == UnitSystem.imperial) {
-                return;
-              }
+              final isWeight = activeField == _WeightSheetField.weight;
+              if (isWeight && _unit == UnitSystem.imperial) return;
               final ctrl = activeController();
-              final text = ctrl.text.trim();
+              final pristine = isWeight ? weightPristine : fatPristine;
+              final text = pristine ? '' : ctrl.text.trim();
               if (text.contains('.')) return;
               ctrl.text = text.isEmpty ? '0.' : '$text.';
               setSheetState(() {
-                if (activeField == _WeightSheetField.weight) {
+                if (isWeight) {
+                  weightPristine = false;
                   weightError = null;
                 } else {
+                  fatPristine = false;
                   fatError = null;
                 }
               });
@@ -557,14 +568,17 @@ class _WeightPageState extends State<WeightPage> {
             }
 
             void pressBackspace() {
+              final isWeight = activeField == _WeightSheetField.weight;
               final ctrl = activeController();
               final text = ctrl.text.trim();
               if (text.isEmpty) return;
               ctrl.text = text.substring(0, text.length - 1);
               setSheetState(() {
-                if (activeField == _WeightSheetField.weight) {
+                if (isWeight) {
+                  weightPristine = false;
                   weightError = null;
                 } else {
+                  fatPristine = false;
                   fatError = null;
                 }
               });
@@ -572,13 +586,16 @@ class _WeightPageState extends State<WeightPage> {
             }
 
             void pressClear() {
+              final isWeight = activeField == _WeightSheetField.weight;
               final ctrl = activeController();
               if (ctrl.text.isEmpty) return;
               ctrl.clear();
               setSheetState(() {
-                if (activeField == _WeightSheetField.weight) {
+                if (isWeight) {
+                  weightPristine = false;
                   weightError = null;
                 } else {
+                  fatPristine = false;
                   fatError = null;
                 }
               });
@@ -587,9 +604,16 @@ class _WeightPageState extends State<WeightPage> {
 
             void submit() {
               final rawText = _weightCtrl.text.trim();
-              final wErr = rawText.isEmpty
-                  ? '請輸入體重'
-                  : UserValidators.weightIn(rawText, _unit);
+              // 體重清空＝把這天的紀錄刪掉（當作今天沒量）；
+              // _deleteRecord → _saveRecords 會同步取消體重習慣的勾選。
+              if (rawText.isEmpty) {
+                final dateStr = _dateStr(selectedDate);
+                final idx = _records.indexWhere((r) => r['date'] == dateStr);
+                if (idx >= 0) _deleteRecord(_records[idx]);
+                Navigator.pop(ctx);
+                return;
+              }
+              final wErr = UserValidators.weightIn(rawText, _unit);
               String? fErr;
               final fatText = _fatCtrl.text.trim();
               double? fat;
@@ -1144,20 +1168,9 @@ class _WeightPageState extends State<WeightPage> {
               // 永遠在最上面明顯處，不會因捲動而消失。
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: _TodayActionButton(
-                      label: todayRec != null ? '更新今日' : '記錄今天',
-                      icon: todayRec != null
-                          ? Icons.edit_rounded
-                          : Icons.add_rounded,
-                      onTap: _openAddSheet,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   Expanded(
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       children: [
                         // ── 今日數據放最前：面板展開時第一眼就是今天的體重 ──
                         const HabitSectionHeader(
@@ -1279,6 +1292,17 @@ class _WeightPageState extends State<WeightPage> {
                         else
                           ..._records.map(_buildHistoryTile),
                       ],
+                    ),
+                  ),
+                  // 核心動作鈕釘在最下方、捲動區外：最常用、隨時可按，不被捲動蓋掉
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: _TodayActionButton(
+                      label: todayRec != null ? '更新今日' : '記錄今天',
+                      icon: todayRec != null
+                          ? Icons.edit_rounded
+                          : Icons.add_rounded,
+                      onTap: _openAddSheet,
                     ),
                   ),
                 ],
@@ -2090,16 +2114,21 @@ class _WeightInputCard extends StatelessWidget {
               const SizedBox(width: 10),
               Column(
                 children: [
-                  _SheetRoundButton(
-                    icon: Icons.add_rounded,
-                    onTap: onIncrease,
-                    color: Colors.orange,
+                  // 點一下 ±一格，按住連發加速（HoldRepeatButton）
+                  HoldRepeatButton(
+                    onTrigger: onIncrease,
+                    child: const _SheetRoundButton(
+                      icon: Icons.add_rounded,
+                      color: Colors.orange,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  _SheetRoundButton(
-                    icon: Icons.remove_rounded,
-                    onTap: onDecrease,
-                    color: Colors.orange,
+                  HoldRepeatButton(
+                    onTrigger: onDecrease,
+                    child: const _SheetRoundButton(
+                      icon: Icons.remove_rounded,
+                      color: Colors.orange,
+                    ),
                   ),
                 ],
               ),
@@ -2254,40 +2283,45 @@ class _NumericDisplayBox extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 3),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Text(
-                      hasValue ? value : placeholder,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: hasValue
-                          ? AppType.digits(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              color: AppInk.strong,
-                            )
-                          : const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color: AppInk.faint,
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 3),
-                    child: Text(
-                      suffix,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppInk.soft,
+              // 固定高度：空值（小字）與有值（大字）行高不同，固定住才不會
+              // 一輸入數字格子就變高（體脂率輸入時尤其明顯）。
+              SizedBox(
+                height: 34,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        hasValue ? value : placeholder,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: hasValue
+                            ? AppType.digits(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                color: AppInk.strong,
+                              )
+                            : const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: AppInk.faint,
+                              ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text(
+                        suffix,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppInk.soft,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -2422,29 +2456,21 @@ class _WeightKeyButton extends StatelessWidget {
 
 class _SheetRoundButton extends StatelessWidget {
   final IconData icon;
-  final VoidCallback onTap;
   final Color color;
 
-  const _SheetRoundButton({
-    required this.icon,
-    required this.onTap,
-    required this.color,
-  });
+  const _SheetRoundButton({required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.12),
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 38,
-          height: 38,
-          child: Icon(icon, size: 20, color: color),
-        ),
+    // 純外觀；點擊與長按連發由外層 HoldRepeatButton 處理
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
       ),
+      child: Icon(icon, size: 20, color: color),
     );
   }
 }

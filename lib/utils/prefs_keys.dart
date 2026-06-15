@@ -148,4 +148,7 @@ abstract final class PrefsKeys {
   // ── Debug（僅 kDebugMode 讀取，截圖驗證用，release 不碰）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24
   static const debugStartTab = 'debug_start_tab'; // int 啟動分頁 index
+  static const debugFakeTabCount = 'debug_fake_tab_count'; // int 6~10 假選單數
+  static const debugDayShift = 'debug_day_shift'; // int 已快轉天數（顯示用）
+  static const debugDaySnapshot = 'debug_day_snapshot'; // 快轉前整包快照(JSON)，供還原
 }

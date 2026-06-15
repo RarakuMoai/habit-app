@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
+import '../../utils/mascot.dart';
 import '../../utils/metronome_service.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
@@ -21,21 +22,41 @@ const int _kMaxBpm = 240;
 const int _kMaxBeats = 12; // 拍號分子上限（每小節幾拍）
 const double _pendMaxAngle = 0.46; // 擺幅 ±約 26°（state 與畫家共用）
 
-enum _BeatSubdivision {
-  none('none', '不細分', '每拍一聲', 1),
-  eighth('eighth', '八分', '一拍切 2 下', 2),
-  triplet('triplet', '三連', '一拍切 3 下', 3),
-  sixteenth('sixteenth', '十六分', '一拍切 4 下', 4);
-
-  const _BeatSubdivision(this.id, this.label, this.description, this.parts);
-  final String id;
-  final String label;
-  final String description;
+// 一種細分選項。parts = 每「主拍」切幾下（傳給音訊引擎做等分）。
+// 其餘為自繪音符圖示參數：notes 音符顆數、beams 符尾橫桿、tuplet 連音數字
+// （0=不標）、dotted 附點（複合拍「不細分」= 一個附點四分音符）。
+class _SubOption {
   final int parts;
-
-  static _BeatSubdivision fromId(String? id) => _BeatSubdivision.values
-      .firstWhere((v) => v.id == id, orElse: () => _BeatSubdivision.none);
+  final String label;
+  final int notes;
+  final int beams;
+  final int tuplet;
+  final bool dotted;
+  const _SubOption(
+    this.parts,
+    this.label, {
+    this.notes = 1,
+    this.beams = 0,
+    this.tuplet = 0,
+    this.dotted = false,
+  });
 }
+
+// 簡單拍（一拍 = 四分音符，自然二等分）：細分走 2 的系統。
+const List<_SubOption> _simpleSubs = [
+  _SubOption(1, '不細分'),
+  _SubOption(2, '八分', notes: 2, beams: 1),
+  _SubOption(3, '三連', notes: 3, beams: 1, tuplet: 3),
+  _SubOption(4, '十六分', notes: 4, beams: 2),
+  _SubOption(6, '六連', notes: 6, beams: 2, tuplet: 6),
+];
+
+// 複合拍（一拍 = 附點四分音符，自然三等分）：細分走 3 的系統。
+const List<_SubOption> _compoundSubs = [
+  _SubOption(1, '不細分', dotted: true), // 附點四分音符
+  _SubOption(3, '八分', notes: 3, beams: 1), // 一拍 3 個八分，不算三連、不標 3
+  _SubOption(6, '十六分', notes: 6, beams: 2),
+];
 
 class _TimeSignaturePreset {
   final int beats;
@@ -47,9 +68,11 @@ class _TimeSignaturePreset {
 }
 
 const List<_TimeSignaturePreset> _signaturePresets = [
-  _TimeSignaturePreset(2, 4, '進行曲、快歌常用'),
+  _TimeSignaturePreset(1, 4, '每拍都打點'),
+  _TimeSignaturePreset(2, 4, '進行曲、快歌'),
   _TimeSignaturePreset(3, 4, '圓舞曲感'),
   _TimeSignaturePreset(4, 4, '最常見'),
+  _TimeSignaturePreset(3, 8, '一組三連感'),
   _TimeSignaturePreset(6, 8, '兩組三連感'),
   _TimeSignaturePreset(9, 8, '三組三連感'),
   _TimeSignaturePreset(12, 8, '四組三連感'),
@@ -74,7 +97,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   int _bpm = 120;
   int _beats = 4; // 每小節拍數（拍號分子）
   int _beatUnit = 4; // 拍號分母
-  _BeatSubdivision _subdivision = _BeatSubdivision.none;
+  int _subParts = 1; // 每「主拍」切幾下（1=不細分）
   bool _accent = true; // 第一拍重音
   bool _haptic = true; // 觸覺跟拍
   double _volume = 0.75;
@@ -134,9 +157,16 @@ class _MetronomeTimerState extends State<MetronomeTimer>
       _beats = (p.getInt(PrefsKeys.metronomeBeats) ?? 4).clamp(1, _kMaxBeats);
       final unit = p.getInt(PrefsKeys.metronomeBeatUnit) ?? 4;
       _beatUnit = unit == 8 ? 8 : 4;
-      _subdivision = _BeatSubdivision.fromId(
-        p.getString(PrefsKeys.metronomeSubdivision),
-      );
+      // 舊版這個 key 存 String（細分 id），新版改存 int（細分數）。舊值還在時
+      // 直接 getInt 會型別轉換丟例外 → _loadPrefs 中斷、_loaded 卡 false、節拍器
+      // 空白。改用 get() 防禦讀取，非 int（含舊 String）一律退回不細分。
+      final subRaw = p.get(PrefsKeys.metronomeSubdivision);
+      _subParts = subRaw is int ? subRaw : 1;
+      // 若存的細分不適用目前拍號律動，退回不細分
+      final opts = _beatUnit == 8 && _beats % 3 == 0
+          ? _compoundSubs
+          : _simpleSubs;
+      if (!opts.any((o) => o.parts == _subParts)) _subParts = 1;
       _accent = p.getBool(PrefsKeys.metronomeAccent) ?? true;
       _haptic = p.getBool(PrefsKeys.metronomeHaptic) ?? true;
       _volume = (p.getDouble(PrefsKeys.metronomeVolume) ?? 0.75).clamp(
@@ -155,7 +185,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     await p.setInt(PrefsKeys.metronomeBpm, _bpm);
     await p.setInt(PrefsKeys.metronomeBeats, _beats);
     await p.setInt(PrefsKeys.metronomeBeatUnit, _beatUnit);
-    await p.setString(PrefsKeys.metronomeSubdivision, _subdivision.id);
+    await p.setInt(PrefsKeys.metronomeSubdivision, _subParts);
     await p.setBool(PrefsKeys.metronomeAccent, _accent);
     await p.setBool(PrefsKeys.metronomeHaptic, _haptic);
     await p.setDouble(PrefsKeys.metronomeVolume, _volume);
@@ -175,6 +205,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(paused.pausedMessage)));
     }
+    // 運作中節拍器面板蓋住兔咪：靜音兔咪語音，避免看不到卻聽到聲音
+    MascotPersona.voiceMuted = true;
     setState(() => _running = true);
     _pendPhase = math.pi / 2; // 第一拍對齊
     _lastTickElapsed = Duration.zero;
@@ -188,6 +220,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   // didUpdateWidget 等重建期安全呼叫。
   void _halt() {
     _running = false;
+    MascotPersona.voiceMuted = false; // 停止/暫停/離開都恢復兔咪語音
     _ticker?.stop();
     _loopRegenDebounce?.cancel();
     _pendAngle.value = 0;
@@ -219,19 +252,24 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         bpm: _bpm,
         tone: _tone,
         volume: _volume,
-        beatsPerBar: _beats,
+        beatsPerBar: _mainBeats,
         accentFirst: _accent,
-        subdivisionsPerBeat: _subdivision.parts,
-        secondaryAccentEvery: _secondaryAccentEvery,
+        subdivisionsPerBeat: _subParts,
+        // 複合拍的內部三分由 subdivisionsPerBeat 自然帶出，不需額外次重音
       ),
     );
   }
 
-  int get _secondaryAccentEvery {
-    if (!_accent) return 0;
-    if (_beatUnit == 8 && _beats >= 6 && _beats % 3 == 0) return 3;
-    return 0;
-  }
+  // 複合拍：分母 8 且分子是 3 的倍數（3/8 當作 1 個複合大拍）。
+  bool get _isCompound => _beatUnit == 8 && _beats % 3 == 0;
+  // 主拍數：複合拍 = 分子/3（6/8→2、9/8→3、12/8→4、3/8→1）；簡單拍 = 分子。
+  int get _mainBeats => _isCompound ? _beats ~/ 3 : _beats;
+  // 目前拍號可選的細分清單（簡單 5 種 / 複合 3 種）。
+  List<_SubOption> get _subOptions => _isCompound ? _compoundSubs : _simpleSubs;
+  _SubOption get _currentSub => _subOptions.firstWhere(
+    (o) => o.parts == _subParts,
+    orElse: () => _subOptions.first,
+  );
 
   String get _signatureLabel => '$_beats/$_beatUnit';
 
@@ -245,9 +283,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     final idx = ((_pendPhase - math.pi / 2) / math.pi).floor();
     if (idx != _lastBeatIndex) {
       _lastBeatIndex = idx;
-      final beatInBar = idx % _beats;
+      final beatInBar = idx % _mainBeats;
       _currentBeat.value = beatInBar;
-      final isAccent = _accent && _beats > 1 && beatInBar == 0;
+      final isAccent = _accent && _mainBeats > 1 && beatInBar == 0;
       if (_haptic) {
         playHaptic(isAccent ? HapticLevel.medium : HapticLevel.selection);
       }
@@ -267,14 +305,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     _loopRegenDebounce = Timer(const Duration(milliseconds: 200), _regenLoop);
   }
 
-  void _setBeats(int v) {
-    final nv = v.clamp(1, _kMaxBeats);
-    if (nv == _beats) return;
-    setState(() => _beats = nv);
-    _persist();
-    _restartBarIfRunning();
-  }
-
   void _setTimeSignature(int beats, int unit) {
     final nv = beats.clamp(1, _kMaxBeats);
     final nu = unit == 8 ? 8 : 4;
@@ -282,15 +312,17 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     setState(() {
       _beats = nv;
       _beatUnit = nu;
+      // 換拍號後若目前細分不適用新律動（如簡單→複合），退回不細分
+      if (!_subOptions.any((o) => o.parts == _subParts)) _subParts = 1;
     });
     _persist();
     _restartBarIfRunning();
     playHaptic(HapticLevel.selection);
   }
 
-  void _setSubdivision(_BeatSubdivision value) {
-    if (value == _subdivision) return;
-    setState(() => _subdivision = value);
+  void _setSubdivision(int parts) {
+    if (parts == _subParts) return;
+    setState(() => _subParts = parts);
     _persist();
     _regenLoop();
     playHaptic(HapticLevel.selection);
@@ -696,17 +728,12 @@ class _MetronomeTimerState extends State<MetronomeTimer>
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (var i = 0; i < _beats; i++)
+              for (var i = 0; i < _mainBeats; i++)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: _Dot(
                     active: i == cur,
-                    accent:
-                        _accent &&
-                        _beats > 1 &&
-                        (i == 0 ||
-                            (_secondaryAccentEvery > 1 &&
-                                i % _secondaryAccentEvery == 0)),
+                    accent: _accent && _mainBeats > 1 && i == 0,
                     color: color,
                   ),
                 ),
@@ -718,11 +745,14 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   }
 
   Widget _bottomControls(Color color, {double height = 48}) {
+    // 抽速不再霸佔整列：三者按 4:3:3 分空間，拍號/細分有更明顯的點擊區。
     return Row(
       children: [
-        Expanded(child: _tapButton(color, height)),
-        const SizedBox(width: 10),
-        _beatsStepper(color, height),
+        Expanded(flex: 4, child: _tapButton(color, height)),
+        const SizedBox(width: 8),
+        Expanded(flex: 3, child: _signaturePill(color, height)),
+        const SizedBox(width: 8),
+        Expanded(flex: 3, child: _subdivisionPill(color, height)),
       ],
     );
   }
@@ -737,84 +767,281 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         child: Container(
           height: height,
           alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.touch_app_rounded, size: 18, color: color),
-              const SizedBox(width: 6),
-              Text(
-                '點按抓速',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AppInk.strong,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.touch_app_rounded, size: 18, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  '點按抓速',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppInk.strong,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _beatsStepper(Color color, double height) {
-    Widget btn(IconData icon, VoidCallback? onTap) {
-      final on = onTap != null;
-      return InkResponse(
-        onTap: onTap == null
-            ? null
-            : () {
-                onTap();
-                playHaptic(HapticLevel.selection);
-              },
-        radius: 22,
-        child: Icon(icon, size: 22, color: on ? color : AppInk.faint),
-      );
-    }
-
-    return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          btn(
-            Icons.remove_rounded,
-            _beats > 1 ? () => _setBeats(_beats - 1) : null,
-          ),
-          SizedBox(
-            width: 62,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+  // 拍號彈出鈕：顯示目前拍號，點開氣泡選 8 個拍號。
+  Widget _signaturePill(Color color, double height) {
+    return Builder(
+      builder: (btnCtx) => _pillShell(
+        color: color,
+        height: height,
+        onTap: () => _showSignatureMenu(btnCtx, color),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   _signatureLabel,
                   style: AppType.digits(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w900,
                     color: AppInk.strong,
                   ),
                 ),
-                Text(
-                  '拍號',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppInk.soft,
-                  ),
+                Icon(Icons.arrow_drop_down_rounded, size: 18, color: color),
+              ],
+            ),
+            const Text(
+              '拍號',
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                color: AppInk.soft,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 細分彈出鈕：顯示目前細分的音符圖示，點開氣泡選。
+  Widget _subdivisionPill(Color color, double height) {
+    return Builder(
+      builder: (btnCtx) => _pillShell(
+        color: color,
+        height: height,
+        onTap: () => _showSubdivisionMenu(btnCtx, color),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SubdivisionGlyph(
+                  option: _currentSub,
+                  color: AppInk.strong,
+                  height: 17,
                 ),
+                Icon(Icons.arrow_drop_down_rounded, size: 18, color: color),
+              ],
+            ),
+            const Text(
+              '細分',
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                color: AppInk.soft,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pillShell({
+    required Color color,
+    required double height,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return Material(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: Alignment.center,
+          // FittedBox：窄機時整體縮放，絕不橫向溢出（修 RenderFlex overflow）
+          child: FittedBox(fit: BoxFit.scaleDown, child: child),
+        ),
+      ),
+    );
+  }
+
+  // 從鈕位置彈出選單；底部空間不足時 showMenu 會自動往上長。
+  RelativeRect _anchorRect(BuildContext anchor) {
+    final box = anchor.findRenderObject()! as RenderBox;
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
+    return RelativeRect.fromLTRB(
+      topLeft.dx,
+      topLeft.dy,
+      overlay.size.width - topLeft.dx - box.size.width,
+      overlay.size.height - topLeft.dy - box.size.height,
+    );
+  }
+
+  Future<void> _showSignatureMenu(BuildContext anchor, Color color) async {
+    playFeedback(SfxCue.tap);
+    await showMenu<void>(
+      context: context,
+      position: _anchorRect(anchor),
+      color: const Color(0xFFFFFDF9),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: [
+        PopupMenuItem<void>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: SizedBox(
+            width: 240,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final p in _signaturePresets)
+                    _menuRow(
+                      color: color,
+                      selected: p.beats == _beats && p.unit == _beatUnit,
+                      onTap: () => _setTimeSignature(p.beats, p.unit),
+                      leading: SizedBox(
+                        width: 44,
+                        child: Text(
+                          p.label,
+                          style: AppType.digits(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: AppInk.strong,
+                          ),
+                        ),
+                      ),
+                      label: p.hint,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showSubdivisionMenu(BuildContext anchor, Color color) async {
+    playFeedback(SfxCue.tap);
+    await showMenu<void>(
+      context: context,
+      position: _anchorRect(anchor),
+      color: const Color(0xFFFFFDF9),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: [
+        PopupMenuItem<void>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: SizedBox(
+            width: 240,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final o in _subOptions)
+                    _menuRow(
+                      color: color,
+                      selected: o.parts == _subParts,
+                      onTap: () => _setSubdivision(o.parts),
+                      leading: SizedBox(
+                        width: 46,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _SubdivisionGlyph(
+                            option: o,
+                            color: AppInk.strong,
+                            height: 18,
+                          ),
+                        ),
+                      ),
+                      label: o.label,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 彈出選單的整列選項：左側主元素（拍號數字／細分音符）＋右側說明＋選中打勾。
+  // 整列填滿選單寬度 → 短標籤不留大空白、長標籤不被截斷。
+  Widget _menuRow({
+    required Color color,
+    required bool selected,
+    required VoidCallback onTap,
+    required Widget leading,
+    String? label,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected
+            ? color.withValues(alpha: 0.14)
+            : const Color(0xFFFAF7F2),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.pop(context);
+            onTap();
+          },
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                leading,
+                if (label != null) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? color : AppInk.soft,
+                      ),
+                    ),
+                  ),
+                ] else
+                  const Spacer(),
+                if (selected) Icon(Icons.check_rounded, size: 16, color: color),
               ],
             ),
           ),
-          btn(
-            Icons.add_rounded,
-            _beats < _kMaxBeats ? () => _setBeats(_beats + 1) : null,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -902,7 +1129,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                                       ),
                                       SizedBox(height: 2),
                                       Text(
-                                        '音色、拍號、細分拍與跟拍方式',
+                                        '音色、音量與跟拍方式',
                                         style: TextStyle(
                                           fontSize: 12.5,
                                           color: AppInk.soft,
@@ -959,33 +1186,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                             _sheetVolumeRow(
                               color,
                               (v) => apply(() => _setVolume(v)),
-                            ),
-                            const SizedBox(height: 14),
-                            _sheetSectionTitle(
-                              Icons.grid_view_rounded,
-                              color,
-                              '拍號',
-                            ),
-                            const SizedBox(height: 8),
-                            _sheetSignatureGrid(
-                              color,
-                              (preset) => apply(
-                                () => _setTimeSignature(
-                                  preset.beats,
-                                  preset.unit,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            _sheetSectionTitle(
-                              Icons.notes_rounded,
-                              color,
-                              '細分拍',
-                            ),
-                            const SizedBox(height: 8),
-                            _sheetSubdivisionGrid(
-                              color,
-                              (value) => apply(() => _setSubdivision(value)),
                             ),
                             const SizedBox(height: 14),
                             _sheetSectionTitle(Icons.tune_rounded, color, '跟拍'),
@@ -1162,134 +1362,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     );
   }
 
-  Widget _sheetSignatureGrid(
-    Color color,
-    ValueChanged<_TimeSignaturePreset> onSelected,
-  ) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final tileW = ((c.maxWidth - 8) / 2).clamp(128.0, 190.0);
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final preset in _signaturePresets)
-              _sheetChoiceTile(
-                color: color,
-                width: tileW,
-                selected: preset.beats == _beats && preset.unit == _beatUnit,
-                label: preset.label,
-                sub: preset.hint,
-                onTap: () => onSelected(preset),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _sheetSubdivisionGrid(
-    Color color,
-    ValueChanged<_BeatSubdivision> onSelected,
-  ) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final tileW = ((c.maxWidth - 8) / 2).clamp(128.0, 190.0);
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final value in _BeatSubdivision.values)
-              _sheetChoiceTile(
-                color: color,
-                width: tileW,
-                selected: value == _subdivision,
-                label: value.label,
-                sub: value.description,
-                onTap: () => onSelected(value),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _sheetChoiceTile({
-    required Color color,
-    required double width,
-    required bool selected,
-    required String label,
-    required String sub,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          width: width,
-          padding: const EdgeInsets.fromLTRB(11, 10, 10, 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? color.withValues(alpha: 0.12)
-                : const Color(0xFFFAF7F2),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected
-                  ? color.withValues(alpha: 0.38)
-                  : const Color(0xFFE8DDD4),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: selected ? color : AppInk.faint.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppType.digits(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: selected ? color : AppInk.strong,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      sub,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppInk.soft,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (selected) Icon(Icons.check_rounded, size: 16, color: color),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _sheetSwitchTile(
     IconData icon,
     Color color,
@@ -1408,6 +1480,142 @@ class _Dot extends StatelessWidget {
       ),
     );
   }
+}
+
+// 細分拍音符圖示：依「幾顆音符 + 幾條符尾橫桿 + 連音數字」自繪，
+// 不依賴音樂字型、跨語言通用（呼應多語言發行目標）。
+class _SubdivisionGlyph extends StatelessWidget {
+  final _SubOption option;
+  final Color color;
+  final double height;
+  const _SubdivisionGlyph({
+    required this.option,
+    required this.color,
+    this.height = 22,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 寬高比隨音符數增加，避免六連（6 顆）擠在一起看不清。
+    final aspect = option.notes >= 5
+        ? 2.7
+        : option.notes >= 3
+        ? 2.0
+        : 1.5;
+    return CustomPaint(
+      size: Size(height * aspect, height),
+      painter: _SubdivisionGlyphPainter(
+        notes: option.notes,
+        beams: option.beams,
+        tuplet: option.tuplet,
+        dotted: option.dotted,
+        color: color,
+      ),
+    );
+  }
+}
+
+class _SubdivisionGlyphPainter extends CustomPainter {
+  final int notes; // 音符顆數
+  final int beams; // 符尾橫桿數
+  final int tuplet; // 連音數字（0=不標）
+  final bool dotted; // 附點（複合拍「不細分」= 附點四分）
+  final Color color;
+  const _SubdivisionGlyphPainter({
+    required this.notes,
+    required this.beams,
+    required this.tuplet,
+    required this.dotted,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final fill = Paint()..color = color;
+
+    final headRx = (w * 0.08).clamp(2.0, 4.0).toDouble();
+    final headRy = headRx * 0.8;
+    final baseY = h * 0.72;
+    final beamTop = h * (tuplet > 0 ? 0.30 : 0.22);
+
+    final n = notes;
+    final leftPad = w * 0.18;
+    final span = w - leftPad * 2;
+    double headX(int i) => n == 1 ? w * 0.42 : leftPad + span * (i / (n - 1));
+    double stemX(int i) => headX(i) + headRx * 0.82;
+
+    // 符頭（實心橢圓）
+    for (var i = 0; i < n; i++) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(headX(i), baseY),
+          width: headRx * 2,
+          height: headRy * 2,
+        ),
+        fill,
+      );
+    }
+    // 附點（複合拍「不細分」= 附點四分音符）
+    if (dotted) {
+      final dotR = headRx * 0.45;
+      canvas.drawCircle(
+        Offset(headX(0) + headRx + dotR * 2.0, baseY),
+        dotR,
+        fill,
+      );
+    }
+    // 符桿
+    final stem = Paint()
+      ..color = color
+      ..strokeWidth = (w * 0.03).clamp(1.2, 2.0).toDouble()
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < n; i++) {
+      canvas.drawLine(
+        Offset(stemX(i), baseY - headRy * 0.3),
+        Offset(stemX(i), beamTop),
+        stem,
+      );
+    }
+    // 符尾橫桿（八分=1、十六分/六連=2）
+    if (beams > 0 && n >= 2) {
+      final bw = (h * 0.08).clamp(1.6, 3.2).toDouble();
+      final beam = Paint()
+        ..color = color
+        ..strokeWidth = bw
+        ..strokeCap = StrokeCap.round;
+      for (var b = 0; b < beams; b++) {
+        final by = beamTop + b * bw * 1.7;
+        canvas.drawLine(Offset(stemX(0), by), Offset(stemX(n - 1), by), beam);
+      }
+    }
+    // 連音數字（3 連、6 連）
+    if (tuplet > 0) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '$tuplet',
+          style: TextStyle(
+            color: color,
+            fontSize: h * 0.30,
+            fontWeight: FontWeight.w900,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final cx = (stemX(0) + stemX(n - 1)) / 2;
+      tp.paint(canvas, Offset(cx - tp.width / 2, beamTop - tp.height - h * 0.02));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SubdivisionGlyphPainter old) =>
+      old.notes != notes ||
+      old.beams != beams ||
+      old.tuplet != tuplet ||
+      old.dotted != dotted ||
+      old.color != color;
 }
 
 // 古典節拍器：梯形案體 + 支點在底部、往上的漸縮擺桿 + 配重塊 + 頂端球，

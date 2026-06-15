@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../utils/app_style.dart';
+import '../../utils/weight_records.dart';
 import '../../widgets/habit_ui.dart';
 
 // 長按進排序的延遲。每週卡「按住綠波紋」的填滿時間與它對齊：波紋填滿整框那
@@ -338,7 +339,9 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                             ),
                                             const SizedBox(width: 3),
                                             Text(
-                                              '連動喝水頁面',
+                                              isWeightHabitName(name)
+                                                  ? '連動體重頁面'
+                                                  : '連動喝水頁面',
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 color: Colors.blue.shade500,

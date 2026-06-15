@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,7 @@ import '../utils/bgm_service.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
+import 'dev_test_page.dart';
 import 'feature_settings_page.dart';
 import 'profile_edit_page.dart';
 
@@ -533,6 +535,62 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: Colors.red,
                   onTap: _clearAll,
                 ),
+
+                // ── 區塊4：開發者測試（僅 debug build 顯示，release 不出現）──
+                if (kDebugMode) ...[
+                  const SizedBox(height: 24),
+                  _sectionTitle('開發者測試', Icons.science_outlined),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: ListTile(
+                      leading: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: Colors.blueGrey.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.science_outlined,
+                          color: Colors.blueGrey,
+                          size: 20,
+                        ),
+                      ),
+                      title: const Text(
+                        '開發者測試',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '假選單、場景時段…（僅 debug）',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: Colors.grey.shade400,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const DevTestPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 24),
               ],

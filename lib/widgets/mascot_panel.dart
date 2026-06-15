@@ -84,6 +84,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   void _onTapCancel() => _pressCtl.reverse();
 
   Future<void> _onTap() async {
+    unawaited(MascotPanelPrefs.markHintSeen());
     playHaptic(HapticLevel.light);
     final target = _ctl.value >= 0.5 ? 0.0 : 1.0;
     unawaited(_pressCtl.reverse());
@@ -92,6 +93,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   }
 
   void _onDragStart(DragStartDetails _) {
+    unawaited(MascotPanelPrefs.markHintSeen());
     _ctl.stop();
     _pressCtl.forward();
   }
@@ -128,41 +130,155 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
       valueListenable: MascotPanelPrefs.openValue,
-      builder: (_, v, _) => GestureDetector(
-        onTapDown: _onTapDown,
-        onTapCancel: _onTapCancel,
-        onTap: _onTap,
-        onVerticalDragStart: _onDragStart,
-        onVerticalDragUpdate: _onDragUpdate,
-        onVerticalDragEnd: _onDragEnd,
-        behavior: HitTestBehavior.opaque,
-        child: SizedBox(
-          height: 40,
-          width: double.infinity,
-          child: Center(
-            child: ScaleTransition(
-              scale: _pressScale,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                width: 52,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: widget.accent.withValues(alpha: v > 0.5 ? 0.35 : 0.6),
-                  borderRadius: BorderRadius.circular(4),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.accent.withValues(alpha: 0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
+      builder: (_, v, _) => ValueListenableBuilder<bool>(
+        valueListenable: MascotPanelPrefs.hintSeenValue,
+        builder: (_, hintSeen, _) {
+          final collapsed = v >= 0.5;
+          final showHint = !hintSeen && collapsed;
+          return GestureDetector(
+            onTapDown: _onTapDown,
+            onTapCancel: _onTapCancel,
+            onTap: _onTap,
+            onVerticalDragStart: _onDragStart,
+            onVerticalDragUpdate: _onDragUpdate,
+            onVerticalDragEnd: _onDragEnd,
+            behavior: HitTestBehavior.opaque,
+            child: SizedBox(
+              height: 40,
+              width: double.infinity,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    top: -46,
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: showHint ? 1 : 0,
+                        duration: const Duration(milliseconds: 220),
+                        child: AnimatedSlide(
+                          offset: showHint
+                              ? Offset.zero
+                              : const Offset(0, 0.15),
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          child: _PanelHint(accent: widget.accent),
+                        ),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  ScaleTransition(
+                    scale: _pressScale,
+                    child: _PanelHandle(accent: widget.accent, value: v),
+                  ),
+                ],
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
+}
+
+class _PanelHandle extends StatelessWidget {
+  final Color accent;
+  final double value;
+  const _PanelHandle({required this.accent, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      width: 52,
+      height: 7,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: value > 0.5 ? 0.35 : 0.6),
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.2),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PanelHint extends StatelessWidget {
+  final Color accent;
+  const _PanelHint({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFDF9),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.18)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            '上拉展開功能',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: accent,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        Transform.translate(
+          offset: const Offset(0, -0.5),
+          child: CustomPaint(
+            size: const Size(14, 7),
+            painter: _BubbleTailPainter(
+              fill: const Color(0xFFFFFDF9),
+              stroke: accent.withValues(alpha: 0.18),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  final Color fill;
+  final Color stroke;
+  const _BubbleTailPainter({required this.fill, required this.stroke});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = fill);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = stroke
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BubbleTailPainter old) =>
+      old.fill != fill || old.stroke != stroke;
 }

@@ -546,10 +546,12 @@ class _TimerPageState extends State<TimerPage>
     // 暫停中不鎖——切到別頁進度仍保留在各自的 widget 裡，不會遺失。
     if (TimerMutex.active == _activeTimerFor(_topMode)) {
       playHaptic(HapticLevel.light);
+      // 節拍器的按鈕是「停止」、番茄/運動才是「重設」，提示要對應目前模式
+      final verb = _topMode == _TimerMode.metronome ? '停止' : '重設';
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('請先按「重設」歸零，才能切換模式喔')),
+          SnackBar(content: Text('請先按「$verb」，才能切換模式喔')),
         );
       return;
     }

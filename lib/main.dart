@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'pages/family_page.dart';
+import 'pages/home/room_ambient_overlay.dart';
 import 'pages/home_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/timer_page.dart';
@@ -341,6 +342,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   bool _weightHabitAutoComplete = false;
   bool _loaded = false;
   int _waterReloadTrigger = 0;
+  int _debugFakeTabCount = 0; // debug：強制湊到 N 個選單預覽兩排（release 不讀）
 
   @override
   void initState() {
@@ -423,6 +425,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       if (kDebugMode) {
         final tab = prefs.getInt(PrefsKeys.debugStartTab);
         if (tab != null) _currentIndex = tab;
+        _debugFakeTabCount = prefs.getInt(PrefsKeys.debugFakeTabCount) ?? 0;
       }
       _loaded = true;
     });
@@ -625,7 +628,29 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         ),
       );
     }
+    // debug：補假選單湊到指定數量，用來預覽 6~10 個時的兩排底部列（release 不讀）
+    if (kDebugMode && _debugFakeTabCount > list.length) {
+      for (var i = list.length; i < _debugFakeTabCount; i++) {
+        list.add(
+          _TabItem(
+            page: Center(child: Text('測試頁 ${i + 1}')),
+            icon: Icons.science_outlined,
+            label: '測試${i + 1}',
+          ),
+        );
+      }
+    }
     return list;
+  }
+
+  // 底部列點擊：單排/兩排共用。
+  void _onTabTapped(List<_TabItem> tabs, int index) {
+    // 離開家庭頁籤時清除家長 Session，下次進入需重新驗證
+    final familyIdx = tabs.indexWhere((t) => t.label == '家庭');
+    if (familyIdx != -1 && _currentIndex == familyIdx && index != familyIdx) {
+      parentSession.value = false;
+    }
+    setState(() => _currentIndex = index);
   }
 
   @override
@@ -653,18 +678,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           // 只有習慣頁時，用裝飾條取代 bottom nav，
           // 確保版面高度跟「有開其他功能」時一致，兔咪/對話框位置不會跑掉
           ? const _DecorativeFloor()
-          : BottomNavigationBar(
+          : tabs.length <= 5
+          // 1~5 個維持單排內建樣式（大多數人停在這）
+          ? BottomNavigationBar(
               currentIndex: _currentIndex,
-              onTap: (index) {
-                // 離開家庭頁籤時清除家長 Session，下次進入需重新驗證
-                final familyIdx = tabs.indexWhere((t) => t.label == '家庭');
-                if (familyIdx != -1 &&
-                    _currentIndex == familyIdx &&
-                    index != familyIdx) {
-                  parentSession.value = false;
-                }
-                setState(() => _currentIndex = index);
-              },
+              onTap: (index) => _onTabTapped(tabs, index),
               type: BottomNavigationBarType.fixed,
               // 使用當前主題的主色，確保切換主題後底部列顏色同步更新
               selectedItemColor: Theme.of(context).colorScheme.primary,
@@ -677,6 +695,12 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                     ),
                   )
                   .toList(),
+            )
+          // 6~10 個自動換兩排（下排放常用、上排其餘置中）
+          : _TwoRowBottomNav(
+              tabs: tabs,
+              currentIndex: _currentIndex,
+              onTap: (index) => _onTabTapped(tabs, index),
             ),
     );
   }
@@ -698,7 +722,8 @@ class _DecorativeFloor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hour = DateTime.now().hour;
+    // 跟首頁場景共用時段（debug 覆寫時「早中晚」連裝飾條一起變）
+    final hour = sceneHourNow().floor();
     final isNight = hour >= 22 || hour < 6;
     final bottomPad = MediaQuery.of(context).padding.bottom;
     return Container(
@@ -728,6 +753,100 @@ class _DecorativeFloor extends StatelessWidget {
               );
             }),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// 兩排版底部導航：開啟的功能達 6 個以上時改用。
+// 規則：下排 = ceil(n/2)（貼近拇指，放常用功能）、上排 = 其餘並置中；
+// 兩排都以「下排格數」為基準格寬，上排不足時左右留半格，與下排對齊成棋盤格。
+// 高度約單排的 1.7 倍（非 2 倍）——靠縮小圖示/字級壓縮，只有開到 6 個以上的人會碰到。
+class _TwoRowBottomNav extends StatelessWidget {
+  const _TwoRowBottomNav({
+    required this.tabs,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  final List<_TabItem> tabs;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  static const double _rowHeight = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final selectedColor = theme.colorScheme.primary;
+    const unselectedColor = Colors.grey;
+
+    final n = tabs.length;
+    final bottomCount = (n / 2).ceil();
+    // 下排放前段（常用），上排放其餘
+    final bottomIdx = [for (var i = 0; i < bottomCount; i++) i];
+    final topIdx = [for (var i = bottomCount; i < n; i++) i];
+
+    return Material(
+      elevation: 8,
+      color:
+          theme.bottomNavigationBarTheme.backgroundColor ?? theme.canvasColor,
+      child: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final cellW = constraints.maxWidth / bottomCount;
+
+            Widget cell(int index) {
+              final t = tabs[index];
+              final isSel = index == currentIndex;
+              final color = isSel ? selectedColor : unselectedColor;
+              return SizedBox(
+                width: cellW,
+                height: _rowHeight,
+                child: InkWell(
+                  onTap: () => onTap(index),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(t.icon, size: 22, color: color),
+                      const SizedBox(height: 2),
+                      Text(
+                        t.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.0,
+                          color: color,
+                          fontWeight: isSel
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 上排：置中（不足下排格數時左右各留半格，與下排對齊）
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: topIdx.map(cell).toList(),
+                ),
+                // 下排：填滿整列、貼近拇指
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: bottomIdx.map(cell).toList(),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
