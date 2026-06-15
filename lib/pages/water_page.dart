@@ -511,7 +511,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _openWaterSettings() async {
+  Future<void> _openWaterSettings({
+    required _WaterSettingsFocus initialFocus,
+  }) async {
     final suggestion = await _suggestGoal();
     if (!mounted) return;
 
@@ -528,6 +530,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
         minGoalMl: _minGoalMl,
         maxGoalMl: _maxGoalMl,
         unit: _unit,
+        initialFocus: initialFocus,
       ),
     );
 
@@ -688,13 +691,17 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                   _summaryChip(
                     icon: Icons.local_drink_outlined,
                     label: '每杯 ${_volStr(_cupMl)}',
-                    onTap: _openWaterSettings,
+                    onTap: () => _openWaterSettings(
+                      initialFocus: _WaterSettingsFocus.cup,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _summaryChip(
                     icon: Icons.auto_awesome_outlined,
                     label: '建議目標',
-                    onTap: _openWaterSettings,
+                    onTap: () => _openWaterSettings(
+                      initialFocus: _WaterSettingsFocus.goal,
+                    ),
                   ),
                 ],
               ),
@@ -1588,6 +1595,8 @@ class _WaterSettingsResult {
   const _WaterSettingsResult(this.cupMl, this.goalMl);
 }
 
+enum _WaterSettingsFocus { cup, goal }
+
 class _WaterSettingsSheet extends StatefulWidget {
   final int initialCupMl;
   final int initialGoalMl;
@@ -1597,6 +1606,7 @@ class _WaterSettingsSheet extends StatefulWidget {
   final int minGoalMl;
   final int maxGoalMl;
   final UnitSystem unit;
+  final _WaterSettingsFocus initialFocus;
 
   const _WaterSettingsSheet({
     required this.initialCupMl,
@@ -1607,6 +1617,7 @@ class _WaterSettingsSheet extends StatefulWidget {
     required this.minGoalMl,
     required this.maxGoalMl,
     required this.unit,
+    required this.initialFocus,
   });
 
   @override
@@ -1621,6 +1632,8 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
   late final TextEditingController _goalCtrl = TextEditingController(
     text: _initial(widget.initialGoalMl),
   );
+  final FocusNode _cupFocus = FocusNode();
+  final FocusNode _goalFocus = FocusNode();
   String? _cupErr;
   String? _goalErr;
   String? _appliedHint;
@@ -1646,7 +1659,28 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctrl = widget.initialFocus == _WaterSettingsFocus.cup
+          ? _cupCtrl
+          : _goalCtrl;
+      final focus = widget.initialFocus == _WaterSettingsFocus.cup
+          ? _cupFocus
+          : _goalFocus;
+      ctrl.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: ctrl.text.length,
+      );
+      focus.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
+    _cupFocus.dispose();
+    _goalFocus.dispose();
     _cupCtrl.dispose();
     _goalCtrl.dispose();
     super.dispose();
@@ -1715,6 +1749,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
             const SizedBox(height: 16),
             _NumField(
               controller: _cupCtrl,
+              focusNode: _cupFocus,
               label: '每杯容量',
               suffix: _label,
               errorText: _cupErr,
@@ -1725,6 +1760,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
             const SizedBox(height: 12),
             _NumField(
               controller: _goalCtrl,
+              focusNode: _goalFocus,
               label: '每日目標',
               suffix: _label,
               errorText: _goalErr,
@@ -1802,6 +1838,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
 
 class _NumField extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String label;
   final String suffix;
   final String? errorText;
@@ -1809,6 +1846,7 @@ class _NumField extends StatelessWidget {
 
   const _NumField({
     required this.controller,
+    this.focusNode,
     required this.label,
     required this.suffix,
     this.errorText,
@@ -1819,6 +1857,7 @@ class _NumField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       onChanged: onChanged == null ? null : (_) => onChanged!(),
@@ -2266,9 +2305,7 @@ class _CustomCupInputDisplay extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: hasInput
-                        ? _kInk
-                        : _kInkSoft.withValues(alpha: 0.55),
+                    color: hasInput ? _kInk : _kInkSoft.withValues(alpha: 0.55),
                   ),
                 ),
               ),

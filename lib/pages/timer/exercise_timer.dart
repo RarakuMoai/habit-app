@@ -831,6 +831,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
     // 避免暫停時手滑點到別的模式而無聲清掉當前進度。
     if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('請先按「重設」歸零，才能切換模式喔')),
+        );
       return;
     }
     if (k == _kind) return;

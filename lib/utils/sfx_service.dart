@@ -8,7 +8,12 @@ enum SfxCue {
   tap('assets/sounds/sfx_tap.wav', 0.88),
   success('assets/sounds/sfx_success.wav', 0.95),
   complete('assets/sounds/sfx_complete.wav', 1.0),
-  cancel('assets/sounds/sfx_cancel.wav', 0.9);
+  cancel('assets/sounds/sfx_cancel.wav', 0.9),
+  tumiNeutral('assets/sounds/tumi_mi_neutral.wav', 0.52),
+  tumiQuestion('assets/sounds/tumi_mi_question.wav', 0.54),
+  tumiHappy('assets/sounds/tumi_mi_happy.wav', 0.56),
+  tumiSad('assets/sounds/tumi_mi_sad.wav', 0.50),
+  tumiSleepy('assets/sounds/tumi_mi_sleepy.wav', 0.44);
 
   const SfxCue(this.assetPath, this.volume);
   final String assetPath;

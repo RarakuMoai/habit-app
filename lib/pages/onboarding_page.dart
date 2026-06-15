@@ -10,13 +10,14 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/bgm_service.dart';
 import '../utils/input_formatters.dart';
+import '../utils/lenient_date.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 import '../widgets/audio_control_button.dart';
-import '../widgets/manual_date_dialog.dart';
+import '../widgets/birthday_picker.dart';
 import '../widgets/mascot_scene.dart';
 
 // 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
@@ -85,14 +86,16 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 體重 / 目標體重（依當下單位是 kg 或 lb）
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _targetWeightController = TextEditingController();
+  final TextEditingController _birthdayController = TextEditingController();
   // FocusNode 用來讓「紅字錯誤訊息 + 兔咪比例怪」只在欄位失焦後才顯示。
   // 還在編輯中（hasFocus）就先收起警告，避免使用者打到一半被吐槽
   final FocusNode _heightFocus = FocusNode();
   final FocusNode _heightInFocus = FocusNode();
   final FocusNode _weightFocus = FocusNode();
   final FocusNode _targetWeightFocus = FocusNode();
+  final FocusNode _birthdayFocus = FocusNode();
   UnitSystem _unit = UnitSystem.metric;
-  DateTime? _birthday; // 生日（選填）
+  DateTime? _birthday; // 生日
   // 活動量（內部仍用久坐/輕度/中度/高度）— 跟 profile_edit_page 共用 key 與選項
   String _activityLevel = '';
 
@@ -157,6 +160,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   bool _heightTouched = false;
   bool _weightTouched = false;
   bool _targetWeightTouched = false;
+  bool _birthdayTouched = false;
 
   // 習慣選擇頁：使用者勾選的習慣名稱
   final Set<String> _selectedHabits = {};
@@ -201,6 +205,13 @@ class _OnboardingPageState extends State<OnboardingPage>
         setState(() {});
       }
     });
+    _birthdayFocus.addListener(() {
+      if (!_birthdayFocus.hasFocus) {
+        setState(() => _birthdayTouched = true);
+      } else {
+        setState(() {});
+      }
+    });
     _loadUnit();
     // 等第一幀渲染完成（Offstage 預熱字形後）再啟動打字動畫
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -226,10 +237,12 @@ class _OnboardingPageState extends State<OnboardingPage>
     _heightInController.dispose();
     _weightController.dispose();
     _targetWeightController.dispose();
+    _birthdayController.dispose();
     _heightFocus.dispose();
     _heightInFocus.dispose();
     _weightFocus.dispose();
     _targetWeightFocus.dispose();
+    _birthdayFocus.dispose();
     _bodyInfoScrollCtrl.dispose();
     super.dispose();
   }
@@ -418,8 +431,63 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   String? get _birthdayError {
-    if (_bodyInfoSubmitAttempted && _birthday == null) return '請選擇生日';
-    return null;
+    final raw = _birthdayController.text.trim();
+    final shouldValidate =
+        _bodyInfoSubmitAttempted ||
+        _birthdayTouched ||
+        !_birthdayFocus.hasFocus;
+    if (_bodyInfoSubmitAttempted && raw.isEmpty) return '請填寫生日';
+    if (raw.isEmpty || !shouldValidate) return null;
+
+    final parsed = parseLenientDate(raw);
+    if (parsed == null) return '看不懂這個日期，試試 2000-1-1 或 20000101';
+    return _birthdayDateError(parsed);
+  }
+
+  DateTime get _birthdayFirstDate {
+    final now = DateTime.now();
+    return DateTime(now.year - UserRanges.birthdayMaxAgeYears);
+  }
+
+  DateTime get _birthdayLastDate => DateTime.now();
+
+  String _birthdayText(DateTime value) =>
+      '${value.year}-${value.month}-${value.day}';
+
+  String? _birthdayDateError(DateTime value) {
+    if (value.isBefore(_birthdayFirstDate) ||
+        value.isAfter(_birthdayLastDate)) {
+      return '日期超出可選範圍';
+    }
+    return UserValidators.birthday(value);
+  }
+
+  void _setBirthday(DateTime value) {
+    _birthday = value;
+    _birthdayController.text = _birthdayText(value);
+    _birthdayController.selection = TextSelection.collapsed(
+      offset: _birthdayController.text.length,
+    );
+  }
+
+  void _onBirthdayTextChanged(String raw) {
+    final parsed = parseLenientDate(raw);
+    setState(() {
+      if (parsed != null && _birthdayDateError(parsed) == null) {
+        _birthday = parsed;
+      } else {
+        _birthday = null;
+      }
+    });
+  }
+
+  DateTime _birthdayPickerInitialDate() {
+    final rawDate = parseLenientDate(_birthdayController.text);
+    final candidate =
+        _birthday ?? rawDate ?? DateTime(DateTime.now().year - 20);
+    if (candidate.isBefore(_birthdayFirstDate)) return _birthdayFirstDate;
+    if (candidate.isAfter(_birthdayLastDate)) return _birthdayLastDate;
+    return candidate;
   }
 
   // 觸發提交：按鈕永遠可按，按下去先檢查再決定要不要進下一步
@@ -603,7 +671,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     // 引導頁「習慣選擇頁」勾選的習慣
     await _addPickedHabits(prefs);
 
-    // 生日（選填），以 yyyy-MM-dd 格式儲存
+    // 生日以 yyyy-MM-dd 格式儲存
     if (_birthday != null) {
       final b = _birthday!;
       await prefs.setString(
@@ -1684,99 +1752,61 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
           _targetWeightHint(),
           const SizedBox(height: 10),
-          // 生日（選填，點擊開啟日曆；鍵盤鈕開寬鬆手動輸入）
-          InkWell(
-            onTap: () async {
-              _playOnboardingSfx(SfxCue.tap);
-              final now = DateTime.now();
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _birthday ?? DateTime(now.year - 20),
-                firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
-                lastDate: now,
-                // 自帶輸入模式解析太死板，手動輸入走 showManualDateDialog
-                initialEntryMode: DatePickerEntryMode.calendarOnly,
-              );
-              if (picked != null) {
-                _playOnboardingSfx(SfxCue.success);
-                setState(() => _birthday = picked);
-              }
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: InputDecorator(
-              decoration: InputDecoration(
-                labelText: '生日',
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.keyboard_alt_outlined,
-                        size: 18,
-                        color: Colors.orange,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                      tooltip: '直接輸入',
-                      onPressed: () async {
-                        _playOnboardingSfx(SfxCue.tap);
-                        final now = DateTime.now();
-                        final picked = await showManualDateDialog(
-                          context,
-                          initial: _birthday,
-                          firstDate: DateTime(
-                            now.year - UserRanges.birthdayMaxAgeYears,
-                          ),
-                          lastDate: now,
-                          title: '輸入生日',
-                        );
-                        if (picked != null) {
-                          _playOnboardingSfx(SfxCue.success);
-                          setState(() => _birthday = picked);
-                        }
-                      },
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(right: 12),
-                      child: Icon(
-                        Icons.calendar_today_outlined,
-                        size: 18,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ],
+          // 生日：同一欄可直接輸入，也可用右側日曆挑選。
+          TextField(
+            controller: _birthdayController,
+            focusNode: _birthdayFocus,
+            keyboardType: TextInputType.datetime,
+            textInputAction: TextInputAction.done,
+            onChanged: _onBirthdayTextChanged,
+            onSubmitted: _onBirthdayTextChanged,
+            decoration: InputDecoration(
+              labelText: '生日',
+              hintText: '例：2000-1-1 或 20000101',
+              errorText: _birthdayError,
+              errorMaxLines: 2,
+              suffixIcon: IconButton(
+                icon: const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 18,
+                  color: Colors.orange,
                 ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.orange.shade200),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.orange),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+                tooltip: '選擇生日',
+                onPressed: () async {
+                  _playOnboardingSfx(SfxCue.tap);
+                  FocusScope.of(context).unfocus();
+                  final picked = await showBirthdayPicker(
+                    context,
+                    initial: _birthdayPickerInitialDate(),
+                    firstDate: _birthdayFirstDate,
+                    lastDate: _birthdayLastDate,
+                    accent: Colors.orange,
+                  );
+                  if (picked != null) {
+                    _playOnboardingSfx(SfxCue.success);
+                    setState(() {
+                      _birthdayTouched = true;
+                      _setBirthday(picked);
+                    });
+                  }
+                },
               ),
-              isEmpty: _birthday == null,
-              child: Text(
-                _birthday == null
-                    ? ''
-                    : '${_birthday!.year} 年 ${_birthday!.month} 月 ${_birthday!.day} 日',
-                style: const TextStyle(fontSize: 16),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.orange.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.orange),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
               ),
             ),
           ),
-          if (_birthdayError != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, left: 4),
-              child: Text(
-                _birthdayError!,
-                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
-              ),
-            ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,

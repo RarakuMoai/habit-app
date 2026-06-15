@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+            "Bash(curl -s https://ntfy.sh/habit-tumi-x7k2m9q4 *)",
+      "Bash(/Users/yayoi991331/habit-app/scripts/notify_ai_done.sh *)",
       "Bash(flutter analyze *)",
       "Bash(flutter pub *)",
       "Bash(git rm *)",
@@ -77,12 +79,48 @@
       "Bash(awk 'NR>=767 && NR<=778' lib/pages/water_page.dart)",
       "Bash(grep -n \"body: Stack\\\\|body: SafeArea\\\\|^      \\),$\\\\|^      \\)$\" lib/pages/weight_page.dart)",
       "Bash(file /Users/yayoi991331/habit-app/assets/mascot/core/tumi_*.png)",
-      "Bash(awk -F'[ ,]+' '{print $1, $5, $6, $7}')"
+      "Bash(awk -F'[ ,]+' '{print $1, $5, $6, $7}')",
+      "Bash(grep -n \"^      \\),$\\\\|^    \\);$\" /Users/yayoi991331/habit-app/lib/pages/onboarding_page.dart)",
+      "Bash(file /Users/yayoi991331/habit-app/assets/scenes/water/bottle_*.png)",
+      "Bash(gh issue *)",
+      "Bash(curl -sS https://pub.dev/api/packages/just_audio)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('latest:', d['latest']['version']\\); print\\('recent:', [v['version'] for v in d['versions'][-8:]]\\)\")",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(xcrun xctrace *)",
+      "Bash(system_profiler SPUSBDataType)",
+      "Bash(sed -n '/== Devices ==/,/== Simulators ==/p')",
+      "Bash(xcrun devicectl *)",
+      "Bash(git status *)",
+      "Bash(tee /tmp/water_run.log)"
     ],
     "additionalDirectories": [
       "/Users/yayoi991331",
       "/Users/yayoi991331/habit-app/assets",
       "/private/tmp"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/yayoi991331/habit-app/scripts/notify_ai_done.sh --title 'habit-app Claude' 'Claude 本輪工作完成' >/dev/null 2>&1 &"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/yayoi991331/habit-app/scripts/notify_ai_done.sh --title 'habit-app Claude' --tags speech_balloon 'Claude 需要你回覆/授權' >/dev/null 2>&1 &"
+          }
+        ]
+      }
     ]
   }
 }

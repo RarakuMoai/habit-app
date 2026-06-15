@@ -61,7 +61,8 @@ class MascotPageShell extends StatelessWidget {
                 left: 0,
                 right: 0,
                 height: mascotMaxH,
-                child: scene,
+                // 拖曳面板時場景/兔咪本身不變，獨立圖層避免被連帶重繪。
+                child: RepaintBoundary(child: scene),
               ),
               Positioned(
                 top: peekHeight + dragExtent * openValue,

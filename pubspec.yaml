@@ -70,10 +70,18 @@ dev_dependencies:
 
 # App icon 生成設定（執行：dart run flutter_launcher_icons）
 flutter_launcher_icons:
-  image_path: "assets/icon/app_icon.png"
+  image_path: "assets/icon/app_icon_tumi_00.png"
   android: true
   ios: true
   remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon_tumi_00.png"
+    background_color: "#FFFFFF"
+    theme_color: "#FFFFFF"
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon_tumi_00.png"
 
 # The following section is specific to Flutter packages.
 flutter:

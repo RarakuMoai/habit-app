@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
 
 // 功能開關頁：集中管理各頁籤的顯示開關
@@ -43,6 +44,8 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
 
   Future<void> _saveBool(String key, bool value) async {
     await _prefs?.setBool(key, value);
+    // 即時廣播：MainPage 馬上重組頁籤，不必等退出設定頁才生效。
+    bumpFeatureFlags();
   }
 
   // 功能開關列

@@ -13,6 +13,7 @@ import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
+import '../widgets/birthday_picker.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -717,11 +718,13 @@ class _WeightPageState extends State<WeightPage> {
                         _datePickCard(
                           dateLabel: _dateLabel(selectedDate),
                           onTap: () async {
-                            final picked = await showDatePicker(
-                              context: ctx,
-                              initialDate: selectedDate,
+                            final picked = await showAppDatePicker(
+                              ctx,
+                              initial: selectedDate,
                               firstDate: DateTime(2000),
                               lastDate: DateTime.now(),
+                              accent: Colors.orange,
+                              title: '選擇紀錄日期',
                             );
                             if (picked != null) {
                               setSheetState(() => selectedDate = picked);
@@ -1194,7 +1197,14 @@ class _WeightPageState extends State<WeightPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _rangeSelector(),
+                              Row(
+                                children: [
+                                  _rangeSelector(),
+                                  const Spacer(),
+                                  if (chartData.spots.isNotEmpty)
+                                    _chartCountPill(chartData.spots.length),
+                                ],
+                              ),
                               const SizedBox(height: 14),
                               // 無資料時顯示友善提示，否則顯示折線圖
                               chartData.spots.isEmpty
@@ -1224,7 +1234,15 @@ class _WeightPageState extends State<WeightPage> {
                                     )
                                   : SizedBox(
                                       height: 158,
-                                      child: _buildLineChart(chartData),
+                                      child: Column(
+                                        children: [
+                                          _chartSummaryRow(chartData),
+                                          const SizedBox(height: 8),
+                                          Expanded(
+                                            child: _buildLineChart(chartData),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                             ],
                           ),
@@ -1286,14 +1304,15 @@ class _WeightPageState extends State<WeightPage> {
 
     // 週檢視點少、點畫大顆；月／三個月點多、縮小避免擠成一團
     final dotRadius = _chartRangeIndex == 0 ? 4.0 : 2.5;
+    final yAxis = _niceYAxis(minV, maxV);
 
     return LineChart(
       LineChartData(
         minX: chartData.minX,
         maxX: chartData.maxX,
-        // Y 軸範圍上下各留 2 單位，讓線不貼邊
-        minY: minV - 2,
-        maxY: maxV + 2,
+        // Y 軸用好讀的刻度，不讓 fl_chart 自動塞滿奇怪的小數。
+        minY: yAxis.min,
+        maxY: yAxis.max,
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (_) => Colors.orange.shade600,
@@ -1390,22 +1409,21 @@ class _WeightPageState extends State<WeightPage> {
         titlesData: FlTitlesData(
           leftTitles: const AxisTitles(),
           topTitles: const AxisTitles(),
-          // 右側顯示體重數值
           rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 44,
-              getTitlesWidget: (value, meta) => Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Text(
-                  _fmt(value),
-                  style: AppType.digits(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: AppInk.faint,
+              reservedSize: 38,
+              interval: yAxis.step,
+              getTitlesWidget: (value, meta) {
+                if (!_isYAxisTick(value, yAxis)) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Text(
+                    _axisLabel(value, yAxis.step),
+                    style: AppType.digits(fontSize: 10, color: AppInk.faint),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
           // 底部標籤由各範圍自行提供；interval 固定 1，
@@ -1465,6 +1483,152 @@ class _WeightPageState extends State<WeightPage> {
             ),
           );
         }),
+      ),
+    );
+  }
+
+  ({double min, double max, double step}) _niceYAxis(
+    double minValue,
+    double maxValue,
+  ) {
+    final span = math.max(0.1, maxValue - minValue);
+    final rawStep = span / 3;
+    final exponent = (math.log(rawStep) / math.ln10).floor();
+    final magnitude = math.pow(10, exponent).toDouble();
+    final normalized = rawStep / magnitude;
+    final niceNormalized = normalized <= 1
+        ? 1
+        : normalized <= 2
+        ? 2
+        : normalized <= 5
+        ? 5
+        : 10;
+    var step = niceNormalized * magnitude;
+    if (_unit == UnitSystem.imperial && step < 1) step = 1;
+    if (_unit == UnitSystem.metric && step < 0.5) step = 0.5;
+
+    var min = (minValue / step).floorToDouble() * step;
+    var max = (maxValue / step).ceilToDouble() * step;
+    if ((max - min).abs() < step) {
+      min -= step;
+      max += step;
+    }
+    return (min: min, max: max, step: step.toDouble());
+  }
+
+  bool _isYAxisTick(
+    double value,
+    ({double min, double max, double step}) axis,
+  ) {
+    const eps = 0.001;
+    if (value < axis.min - eps || value > axis.max + eps) return false;
+    final n = ((value - axis.min) / axis.step).roundToDouble();
+    return ((axis.min + n * axis.step) - value).abs() < eps;
+  }
+
+  String _axisLabel(double value, double step) {
+    final decimals = step < 1 ? 1 : 0;
+    return _fmt(value, decimal: decimals);
+  }
+
+  Widget _chartCountPill(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF7F2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$count 筆',
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          color: AppInk.soft,
+        ),
+      ),
+    );
+  }
+
+  Widget _chartSummaryRow(_ChartData chartData) {
+    final spots = chartData.spots;
+    final latest = spots.last.y;
+    final first = spots.first.y;
+    final diff = latest - first;
+    final low = spots.map((s) => s.y).reduce(math.min);
+    final high = spots.map((s) => s.y).reduce(math.max);
+    final diffColor = diff.abs() < 0.05
+        ? AppInk.soft
+        : _deltaColor(diff, first);
+    final diffIcon = diff.abs() < 0.05
+        ? Icons.remove_rounded
+        : diff < 0
+        ? Icons.south_rounded
+        : Icons.north_rounded;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _chartMetricPill(
+            label: '最新',
+            value: '${_fmt(latest)} $_wLabel',
+            icon: Icons.place_rounded,
+            color: Colors.deepOrange.shade400,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _chartMetricPill(
+            label: '變化',
+            value: '${diff >= 0 ? '+' : '-'}${_deltaText(diff)} $_wLabel',
+            icon: diffIcon,
+            color: diffColor,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _chartMetricPill(
+            label: '範圍',
+            value: '${_fmt(low)}-${_fmt(high)}',
+            icon: Icons.unfold_more_rounded,
+            color: const Color(0xFF66BB6A),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _chartMetricPill({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '$label $value',
+                maxLines: 1,
+                style: AppType.digits(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

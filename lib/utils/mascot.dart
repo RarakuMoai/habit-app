@@ -9,6 +9,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'sfx_service.dart';
+
 // 8 種情緒。
 //
 // 過渡期：已遷移到新 CG 風格的情緒走 `assets/mascot/core/tumi_<key>.png`，
@@ -267,9 +269,31 @@ class MascotPersona {
 
   static void _apply(MascotState state, MascotContext ctx) {
     current.value = state;
+    unawaited(SfxService.instance.play(_voiceCueFor(ctx)));
     _holdUntil = DateTime.now().add(_holdDuration);
     _activePriority = _priorityOf(ctx);
     _scheduleRevert();
+  }
+
+  static SfxCue _voiceCueFor(MascotContext ctx) {
+    switch (ctx) {
+      case MascotContext.allDone:
+      case MascotContext.completedOne:
+      case MascotContext.streak:
+        return SfxCue.tumiHappy;
+      case MascotContext.undone:
+      case MascotContext.overhydration:
+        return SfxCue.tumiSad;
+      case MascotContext.notStarted:
+      case MascotContext.night:
+        return SfxCue.tumiSleepy;
+      case MascotContext.tapReaction:
+      case MascotContext.emptyHabits:
+        return SfxCue.tumiQuestion;
+      case MascotContext.openApp:
+      case MascotContext.halfDone:
+        return SfxCue.tumiNeutral;
+    }
   }
 
   static bool _canApply(MascotContext ctx, {required bool force}) {

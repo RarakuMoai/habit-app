@@ -16,6 +16,11 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
   SfxCue.success => HapticLevel.light,
   SfxCue.tap => HapticLevel.light,
   SfxCue.cancel => HapticLevel.selection,
+  SfxCue.tumiNeutral => HapticLevel.none,
+  SfxCue.tumiQuestion => HapticLevel.none,
+  SfxCue.tumiHappy => HapticLevel.none,
+  SfxCue.tumiSad => HapticLevel.none,
+  SfxCue.tumiSleepy => HapticLevel.none,
 };
 
 // 播音效並配對觸覺回饋

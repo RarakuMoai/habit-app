@@ -3,6 +3,12 @@
 ## Git 推送
 每次 commit 後自動執行 `git push`，不需要再問用戶。
 
+## 完工通知
+**不要手動執行通知腳本。** 完工通知交給 Codex CLI 的 `notify` hook 自動處理
+（`~/.codex/config.toml` → `codex_notify_chain.sh` → `notify_codex_done.sh`）：
+每輪結束時觸發、零 token、不進命令沙盒（所以不會被 DNS 擋）；問使用者選項而結束
+該輪時同樣會通知。手動再跑 `notify_ai_done.sh` 只會重複通知、浪費 token、又踩沙盒，禁止。
+
 ## 主動上網查資料
 遇到以下情況，直接用 WebSearch，不要先猜答案：
 - 硬體規格、充電功率、價格

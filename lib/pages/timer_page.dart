@@ -472,6 +472,11 @@ class _TimerPageState extends State<TimerPage>
   void _selectPreset(int index) {
     if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('請先按「重設」歸零，才能切換方案喔')),
+        );
       return;
     }
     setState(() {
@@ -529,8 +534,25 @@ class _TimerPageState extends State<TimerPage>
     _TimerMode.metronome => kMetronomeAccent,
   };
 
+  ActiveTimer _activeTimerFor(_TimerMode mode) => switch (mode) {
+    _TimerMode.focus => ActiveTimer.focus,
+    _TimerMode.exercise => ActiveTimer.exercise,
+    _TimerMode.metronome => ActiveTimer.metronome,
+  };
+
   void _switchMode(_TimerMode mode) {
     if (mode == _topMode) return;
+    // 目前這顆正在倒數時鎖住切換（與方案切換一致）：要先按重設歸零。
+    // 暫停中不鎖——切到別頁進度仍保留在各自的 widget 裡，不會遺失。
+    if (TimerMutex.active == _activeTimerFor(_topMode)) {
+      playHaptic(HapticLevel.light);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('請先按「重設」歸零，才能切換模式喔')),
+        );
+      return;
+    }
     setState(() => _topMode = mode);
     SharedPreferences.getInstance().then(
       (p) => p.setString(PrefsKeys.timerMode, switch (mode) {
@@ -1183,6 +1205,11 @@ class _TimerPageState extends State<TimerPage>
     // 同預設：只在待機/完成可調，進行/暫停中先停止回待機
     if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('請先按「重設」歸零，才能切換方案喔')),
+        );
       return;
     }
     // 點自訂＝選中自訂槽，預覽立刻換成記住的自訂配置

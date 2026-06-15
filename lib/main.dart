@@ -18,14 +18,19 @@ import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
+import 'utils/feature_flags.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
 import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
+
+Future<_StartupState> _loadStartupState() async {
   // 鎖定只支援直向（防止橫向自動翻轉）
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await SharedPreferences.getInstance();
@@ -41,13 +46,7 @@ void main() async {
   await NotificationService.init();
   // App 冷啟動：兔咪從 openApp 池隨機抽一句問候，每次打開都有變化
   MascotPersona.resetToOpening();
-  runApp(MyApp(startAtHome: onboardingDone));
-  // BGM 初始化 + 播放放到第一個 frame 之後再稍微延遲。
-  // flutter run --release 安裝後自動拉起 app 時，iOS 音訊路由偶爾還沒穩；
-  // 等畫面 settled 再啟動音樂，比 main() 裡立刻 play 更可靠。
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    unawaited(_startInitialAudio(onboardingDone: onboardingDone));
-  });
+  return _StartupState(startAtHome: onboardingDone);
 }
 
 Future<void> _startInitialAudio({required bool onboardingDone}) async {
@@ -66,9 +65,63 @@ Future<void> _startInitialAudio({required bool onboardingDone}) async {
   }
 }
 
-class MyApp extends StatelessWidget {
+class _StartupState {
   final bool startAtHome;
-  const MyApp({super.key, required this.startAtHome});
+  const _StartupState({required this.startAtHome});
+}
+
+class MyApp extends StatefulWidget {
+  final bool? startAtHome;
+  const MyApp({super.key, this.startAtHome});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final Future<_StartupState> _startupFuture = widget.startAtHome == null
+      ? _loadStartupState()
+      : Future.value(_StartupState(startAtHome: widget.startAtHome!));
+  bool _initialAudioScheduled = false;
+
+  void _scheduleInitialAudio(bool startAtHome) {
+    if (_initialAudioScheduled || widget.startAtHome != null) return;
+    _initialAudioScheduled = true;
+    // BGM 初始化 + 播放放到第一個 frame 之後再稍微延遲。
+    // flutter run --release 安裝後自動拉起 app 時，iOS 音訊路由偶爾還沒穩；
+    // 等畫面 settled 再啟動音樂，比 main() 裡立刻 play 更可靠。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_startInitialAudio(onboardingDone: startAtHome));
+    });
+  }
+
+  Widget _buildHome() {
+    final testStartAtHome = widget.startAtHome;
+    if (testStartAtHome != null) {
+      return testStartAtHome ? const MainPage() : const OnboardingPage();
+    }
+    return FutureBuilder<_StartupState>(
+      future: _startupFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final ready =
+            snapshot.connectionState == ConnectionState.done &&
+            data != null &&
+            !snapshot.hasError;
+        if (ready) _scheduleInitialAudio(data.startAtHome);
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 360),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: ready
+              ? data.startAtHome
+                    ? const MainPage(key: ValueKey('main'))
+                    : const OnboardingPage(key: ValueKey('onboarding'))
+              : const _StartupSplash(key: ValueKey('startup')),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,11 +197,128 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: startAtHome ? '/home' : '/onboarding',
+      home: _buildHome(),
       routes: {
         '/onboarding': (_) => const OnboardingPage(),
         '/home': (_) => const MainPage(),
       },
+    );
+  }
+}
+
+class _StartupSplash extends StatefulWidget {
+  const _StartupSplash({super.key});
+
+  @override
+  State<_StartupSplash> createState() => _StartupSplashState();
+}
+
+class _StartupSplashState extends State<_StartupSplash>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFF6EE),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFFFFF7EE),
+                  Color(0xFFFFE5D3),
+                  Color(0xFFEAF5EF),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  final lift =
+                      -6 * Curves.easeInOut.transform(_controller.value);
+                  return Transform.translate(
+                    offset: Offset(0, lift),
+                    child: child,
+                  );
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 138,
+                      height: 138,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFB97856,
+                            ).withValues(alpha: 0.18),
+                            blurRadius: 28,
+                            offset: const Offset(0, 16),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Image.asset(
+                          MascotEmotion.happy.assetPath,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Text(
+                      '兔咪好習慣',
+                      style: GoogleFonts.nunito(
+                        color: const Color(0xFF6D4C41),
+                        fontSize: 25,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const SizedBox(width: 96, child: _StartupLoadingBar()),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StartupLoadingBar extends StatelessWidget {
+  const _StartupLoadingBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(99),
+      child: LinearProgressIndicator(
+        minHeight: 5,
+        backgroundColor: Colors.white.withValues(alpha: 0.78),
+        color: const Color(0xFFFF8A65),
+      ),
     );
   }
 }
@@ -175,6 +345,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadSettings();
+    // 功能開關一改就即時重組頁籤（不必等退出設定頁）
+    featureFlagsRevision.addListener(_loadSettings);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureMainBgm();
       _claimDailyLoginReward();
@@ -183,6 +355,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    featureFlagsRevision.removeListener(_loadSettings);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -450,7 +623,16 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     if (_currentIndex >= tabs.length) _currentIndex = 0;
 
     return Scaffold(
-      body: tabs[_currentIndex].page,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: List.generate(tabs.length, (i) {
+          final tab = tabs[i];
+          return TickerMode(
+            enabled: i == _currentIndex,
+            child: KeyedSubtree(key: ValueKey(tab.label), child: tab.page),
+          );
+        }),
+      ),
       bottomNavigationBar: tabs.length == 1
           // 只有習慣頁時，用裝飾條取代 bottom nav，
           // 確保版面高度跟「有開其他功能」時一致，兔咪/對話框位置不會跑掉
