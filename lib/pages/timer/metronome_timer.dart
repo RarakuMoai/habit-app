@@ -420,8 +420,11 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     const color = kMetronomeAccent;
     return LayoutBuilder(
       builder: (context, c) {
+        // 多數手機（含 SE，節拍器區 ~416pt）都吃滿可用高度→直接走「完整直排」
+        // 版面（擺錘置中放大＋讀數/控制直排），跟專注/運動一致、不留上下空白。
+        // 真的很矮（<380）才退回緊湊左右排。
         var t = Curves.easeInOutCubic.transform(
-          _smoothRange(390, 520, c.maxHeight),
+          _smoothRange(380, 400, c.maxHeight),
         );
         if (_kDebugForceT >= 0) t = _kDebugForceT;
         return Padding(
@@ -444,9 +447,12 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   double _compactMetroSize(double h) => (h - 64).clamp(110.0, 168.0);
   static const double _fullMetroSize = 230;
 
-  // 緊湊版（面板展開，~190pt）：擺錘在左、數字＋拍點＋控制在右、底排 tap＋拍號。
+  // 緊湊版：擺錘做高做窄填滿垂直空間（真實節拍器本就瘦高），寬度讓給右側讀數，
+  // 避免上下一堆留白。數字＋拍點＋控制在右、底排 tap＋拍號。
   Widget _compactLayout(Color color, double h, {bool showMetro = true}) {
-    final side = _compactMetroSize(h);
+    // 擺錘高度吃滿可用高度（扣掉底排控制與間距），寬約高的 0.6（瘦高比例）
+    final metroH = (h - 60).clamp(150.0, 280.0).toDouble();
+    final metroW = metroH * 0.6;
     return Stack(
       children: [
         Column(
@@ -455,8 +461,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
               child: Row(
                 children: [
                   showMetro
-                      ? _metronome(color, side)
-                      : SizedBox.square(dimension: side),
+                      ? _metronome(color, width: metroW, height: metroH)
+                      : SizedBox(width: metroW, height: metroH),
                   const SizedBox(width: 16),
                   Expanded(
                     child: FittedBox(
@@ -503,7 +509,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                       _fullMetroSize,
                     );
                     return showMetro
-                        ? _metronome(color, side)
+                        ? _metronome(color, width: side, height: side)
                         : SizedBox.square(dimension: side);
                   },
                 ),
@@ -566,7 +572,10 @@ class _MetronomeTimerState extends State<MetronomeTimer>
           Positioned.fill(
             child: IgnorePointer(
               child: RepaintBoundary(
-                child: Align(alignment: align, child: _metronome(color, size)),
+                child: Align(
+                  alignment: align,
+                  child: _metronome(color, width: size, height: size),
+                ),
               ),
             ),
           ),
@@ -576,15 +585,15 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   }
 
   // 擺錘小圖（純視覺，不疊數字）
-  Widget _metronome(Color color, double side) {
+  Widget _metronome(Color color, {required double width, required double height}) {
     return SizedBox(
-      width: side,
-      height: side,
+      width: width,
+      height: height,
       child: RepaintBoundary(
         child: ValueListenableBuilder<double>(
           valueListenable: _pendAngle,
           builder: (context, angle, _) => CustomPaint(
-            size: Size(side, side),
+            size: Size(width, height),
             painter: _MetronomePainter(angle: angle, color: color),
           ),
         ),
