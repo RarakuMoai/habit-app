@@ -22,6 +22,7 @@ import 'family/family_auth.dart';
 import 'family/family_models.dart';
 import 'family/family_store.dart';
 import 'family/parent_management_page.dart';
+import 'home/room_ambient_overlay.dart';
 
 // ── 家庭主頁（小孩選擇畫面）──
 
@@ -133,6 +134,12 @@ class _FamilyPageState extends State<FamilyPage> {
                   height: MediaQuery.of(context).size.height * 0.56,
                   child: const MascotSceneBackground(
                     'assets/scenes/family/family_bg.png',
+                    ambience: SceneAmbience(
+                      tint: true,
+                      glasslessAsset:
+                          'assets/scenes/family/family_bg_glassless.png',
+                      windowRect: Rect.fromLTRB(0.012, 0.0, 0.27, 0.34),
+                    ),
                   ),
                 ),
                 SafeArea(

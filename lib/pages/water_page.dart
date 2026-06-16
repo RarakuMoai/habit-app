@@ -14,6 +14,7 @@ import '../utils/water_entries.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import 'home/room_ambient_overlay.dart';
 
 const Color _kInk = Color(0xFF17657A);
 const Color _kInkSoft = Color(0xFF4A8BA0);
@@ -556,6 +557,11 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
             height: MediaQuery.of(context).size.height * 0.56,
             child: const MascotSceneBackground(
               'assets/scenes/water/water_bg.png',
+              ambience: SceneAmbience(
+                tint: true,
+                glasslessAsset: 'assets/scenes/water/water_bg_glassless.png',
+                windowRect: Rect.fromLTRB(0.045, 0.0, 0.30, 0.25),
+              ),
             ),
           ),
           SafeArea(

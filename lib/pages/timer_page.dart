@@ -18,6 +18,7 @@ import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/timer_ring_painter.dart';
+import 'home/room_ambient_overlay.dart';
 import 'timer/exercise_timer.dart';
 import 'timer/metronome_timer.dart';
 
@@ -584,7 +585,16 @@ class _TimerPageState extends State<TimerPage>
             right: 0,
             height: MediaQuery.of(context).size.height * 0.56,
             child: const RepaintBoundary(
-              child: MascotSceneBackground('assets/scenes/timer/timer_bg.png'),
+              // 試做：套用首頁同款時段光影（光束/塵埃/時段色罩）。
+              // 翻車就把 ambience 拿掉、或關 kRoomAmbienceEnabled 總開關。
+              child: MascotSceneBackground(
+                'assets/scenes/timer/timer_bg.png',
+                ambience: SceneAmbience(
+                  tint: true,
+                  glasslessAsset: 'assets/scenes/timer/timer_bg_glassless.png',
+                  windowRect: Rect.fromLTRB(0.02, 0.0, 0.31, 0.30),
+                ),
+              ),
             ),
           ),
           SafeArea(

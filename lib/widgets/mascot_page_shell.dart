@@ -18,6 +18,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../pages/home/room_ambient_overlay.dart';
+
 import '../utils/mascot.dart';
 import 'mascot_panel.dart';
 
@@ -85,23 +87,62 @@ class MascotPageShell extends StatelessWidget {
 
 /// 場景背景圖 wrapper：BoxFit.cover + 從頂部對齊（兔咪會疊在中下方，
 /// 場景上方比較重要要露出來）。給 [MascotPageShell.sceneBackground] 用。
+///
+/// 傳 [ambience] 並在 [kRoomAmbienceEnabled] 為 true 時，會在背景圖上疊一層
+/// 時段光影（晨/暮/夜光束、塵埃、檯燈暈、時段色罩）——跟首頁同一套。
+/// 不傳 ambience（或總開關關閉）就是純背景圖，行為與原本完全相同。
 class MascotSceneBackground extends StatelessWidget {
   final String assetPath;
-  const MascotSceneBackground(this.assetPath, {super.key});
+  final SceneAmbience? ambience;
+  const MascotSceneBackground(this.assetPath, {super.key, this.ambience});
 
-  @override
-  Widget build(BuildContext context) {
+  // 場景圖 wrapper（cover + topCenter）。errorBuilder 讓「去背圖還沒到位」時
+  // 安全回退到指定圖，不崩也不破版。
+  static Widget _cover(String path, {Widget Function()? fallback}) {
     return ClipRect(
       child: Align(
         alignment: Alignment.topCenter,
         child: Image.asset(
-          assetPath,
+          path,
           height: double.infinity,
           width: double.infinity,
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
+          errorBuilder: fallback == null
+              ? null
+              : (_, _, _) => fallback(),
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final amb = ambience;
+    if (!kRoomAmbienceEnabled || amb == null) return _cover(assetPath);
+
+    // 背景層：有窗景就「動態天空 + 去背圖」，否則純原圖。
+    final Widget background;
+    if (amb.hasWindow) {
+      background = Stack(
+        fit: StackFit.expand,
+        children: [
+          // 後面墊動態時段天空；前面去背圖玻璃透明處露出天空。
+          WindowBackdrop(windowRect: amb.windowRect!),
+          // 去背圖未到位 → 回退原圖（不透明，蓋住天空＝看起來如常）。
+          _cover(amb.glasslessAsset!, fallback: () => _cover(assetPath)),
+        ],
+      );
+    } else {
+      background = _cover(assetPath);
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        background,
+        RoomAmbientOverlay(lampCenter: amb.lampCenter, tint: amb.tint),
+      ],
     );
   }
 }

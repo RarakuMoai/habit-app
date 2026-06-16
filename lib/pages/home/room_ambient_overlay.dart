@@ -49,6 +49,57 @@ double sceneHourNow() {
   return now.hour + now.minute / 60 + now.second / 3600;
 }
 
+/// 時段色罩（純時間版；首頁另有「全完成」特例自己處理，故維持自有 _sceneTint）。
+/// 時間分支與首頁 _sceneTint 一致：夜(藍) / 晨(粉金) / 暮(薰衣草) / 白天透明。
+Color sceneTintNow() {
+  final hour = sceneHourNow().floor();
+  if (hour >= 22 || hour < 6) {
+    return const Color(0xFF3F456B).withValues(alpha: 0.12);
+  }
+  if (hour < 9) {
+    return const Color(0xFFFFC4AD).withValues(alpha: 0.10);
+  }
+  if (hour >= 17) {
+    return const Color(0xFFC9A1E8).withValues(alpha: 0.10);
+  }
+  return Colors.transparent;
+}
+
+/// 全域總開關（快速恢復用）：設 false → 所有套了 [SceneAmbience] 的頁面
+/// 立刻退回純背景圖，零風險。實驗翻車時改這一行即可。
+const bool kRoomAmbienceEnabled = true;
+
+/// 一個房間頁的環境光設定，傳給 [MascotSceneBackground] 的 ambience 參數。
+/// 不傳（或總開關關閉）= 純背景圖，維持原本行為。
+class SceneAmbience {
+  /// 時段色罩：晨(粉金)/暮(薰衣草)/夜(藍)的全室變色。
+  final bool tint;
+
+  /// 檯燈暖光暈中心（圖比例座標：x=寬比例、y=顯示圖高比例）；
+  /// null = 這房間沒檯燈，不畫燈暈。
+  final Offset? lampCenter;
+
+  /// 窗外動態天空用的「去背圖」路徑（玻璃挖透明、其餘保留的 *_glassless.png）。
+  /// 給了就啟用窗景：背景改用此去背圖、後面墊 [WindowBackdrop] 畫時段天空。
+  /// 去背圖還沒到位時 errorBuilder 會回退成原始背景圖（不崩、看起來如常）。
+  /// 必須與 [windowRect] 同時提供才會啟用。
+  final String? glasslessAsset;
+
+  /// 窗玻璃開口矩形（比例座標 L,T,R,B），[WindowBackdrop] 在此畫天空。
+  /// 可見形狀由去背圖 alpha 決定，所以略大於玻璃即可。
+  final Rect? windowRect;
+
+  const SceneAmbience({
+    this.tint = false,
+    this.lampCenter,
+    this.glasslessAsset,
+    this.windowRect,
+  });
+
+  /// 是否啟用窗外動態天空（去背圖 + 窗區都給齊）。
+  bool get hasWindow => glasslessAsset != null && windowRect != null;
+}
+
 double _smooth(double a, double b, double x) {
   final t = ((x - a) / (b - a)).clamp(0.0, 1.0);
   return t * t * (3 - 2 * t);
@@ -86,7 +137,15 @@ mixin _ThrottledTicker<T extends StatefulWidget>
 // ════════════════════════════════════════════════════════════════
 
 class WindowBackdrop extends StatefulWidget {
-  const WindowBackdrop({super.key});
+  /// 窗玻璃開口矩形（比例座標：left/right = 寬比例、top/bottom = 顯示圖高比例）。
+  /// 天空畫在此矩形內，實際可見形狀由上層去背圖的 alpha 決定，所以略大於玻璃即可。
+  /// 預設為首頁拱窗位置，故首頁 `const WindowBackdrop()` 行為不變。
+  final Rect windowRect;
+
+  const WindowBackdrop({
+    super.key,
+    this.windowRect = const Rect.fromLTRB(0, 0.040, 0.21, 0.345),
+  });
 
   @override
   State<WindowBackdrop> createState() => _WindowBackdropState();
@@ -102,7 +161,10 @@ class _WindowBackdropState extends State<WindowBackdrop>
           isComplex: true,
           willChange: true,
           size: Size.infinite,
-          painter: _WindowBackdropPainter(time: _time),
+          painter: _WindowBackdropPainter(
+            time: _time,
+            windowRect: widget.windowRect,
+          ),
         ),
       ),
     );
@@ -111,8 +173,10 @@ class _WindowBackdropState extends State<WindowBackdrop>
 
 class _WindowBackdropPainter extends CustomPainter {
   final ValueNotifier<double> time;
+  final Rect windowRect;
 
-  _WindowBackdropPainter({required this.time}) : super(repaint: time);
+  _WindowBackdropPainter({required this.time, required this.windowRect})
+    : super(repaint: time);
 
   // 夜空星點（窗區座標：x = 區寬比例、y = 區高比例的上半）
   static const _stars = <(double, double, double)>[
@@ -129,8 +193,13 @@ class _WindowBackdropPainter extends CustomPainter {
     final imgH = w / 0.8;
     final pal = _windowPalette(h);
 
-    // 窗區（比玻璃開口略大，邊緣被上層原圖蓋掉）
-    final region = Rect.fromLTRB(0, imgH * 0.040, w * 0.21, imgH * 0.345);
+    // 窗區（比玻璃開口略大，邊緣被上層去背圖的窗框蓋掉）
+    final region = Rect.fromLTRB(
+      w * windowRect.left,
+      imgH * windowRect.top,
+      w * windowRect.right,
+      imgH * windowRect.bottom,
+    );
     final xL = region.left;
     final xR = region.right;
     final winW = region.width;
@@ -279,7 +348,8 @@ class _WindowBackdropPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _WindowBackdropPainter old) => false;
+  bool shouldRepaint(covariant _WindowBackdropPainter old) =>
+      old.windowRect != windowRect;
 }
 
 // 窗外景時段調色盤：keyframe 線性插值（與 _sceneTint 時段概念對齊）
@@ -325,7 +395,19 @@ _windowPalette(double h) {
 // ════════════════════════════════════════════════════════════════
 
 class RoomAmbientOverlay extends StatefulWidget {
-  const RoomAmbientOverlay({super.key});
+  /// 檯燈暖光暈中心（圖比例座標）；null = 這房間沒檯燈不畫。
+  /// 預設為首頁床頭燈位置，所以首頁 `const RoomAmbientOverlay()` 行為不變。
+  final Offset? lampCenter;
+
+  /// 是否在光影層內畫「時段色罩」。首頁自己用 AnimatedContainer 畫色罩
+  /// （還含全完成特例），所以維持 false；其他頁設 true 由本層代畫。
+  final bool tint;
+
+  const RoomAmbientOverlay({
+    super.key,
+    this.lampCenter = const Offset(0.645, 0.41),
+    this.tint = false,
+  });
 
   @override
   State<RoomAmbientOverlay> createState() => _RoomAmbientOverlayState();
@@ -341,7 +423,11 @@ class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
           isComplex: true,
           willChange: true,
           size: Size.infinite,
-          painter: _RoomAmbientPainter(time: _time),
+          painter: _RoomAmbientPainter(
+            time: _time,
+            lampCenter: widget.lampCenter,
+            tint: widget.tint,
+          ),
         ),
       ),
     );
@@ -350,8 +436,14 @@ class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
 
 class _RoomAmbientPainter extends CustomPainter {
   final ValueNotifier<double> time;
+  final Offset? lampCenter;
+  final bool tint;
 
-  _RoomAmbientPainter({required this.time}) : super(repaint: time);
+  _RoomAmbientPainter({
+    required this.time,
+    required this.lampCenter,
+    required this.tint,
+  }) : super(repaint: time);
 
   // 塵埃微粒：固定 seed，沿光束軸向參數化（s = 0~1 位置、off = 垂直偏移）
   static final List<({double s, double off, double r, double p1, double p2})>
@@ -375,6 +467,14 @@ class _RoomAmbientPainter extends CustomPainter {
     final w = size.width;
     final imgH = w / 0.8; // home_bg cover + topCenter 的顯示高度
 
+    // 時段色罩（其他頁用；首頁 tint=false，走自己的 AnimatedContainer）
+    if (tint) {
+      final tc = sceneTintNow();
+      if (tc.a > 0) {
+        canvas.drawRect(Offset.zero & size, Paint()..color = tc);
+      }
+    }
+
     // ── 時段強度曲線（連續、平滑）──
     // 窗光：5:30 亮起、晨間最強、白天轉柔、16~19 收掉
     final shaft = _smooth(5.5, 7.5, h) * (1 - _smooth(16.0, 18.8, h));
@@ -391,8 +491,9 @@ class _RoomAmbientPainter extends CustomPainter {
     if (moon > 0.01) {
       _paintMoonShaft(canvas, w, imgH, moon);
     }
-    if (lamp > 0.01) {
-      _paintLampGlow(canvas, w, imgH, t, lamp);
+    final lc = lampCenter;
+    if (lamp > 0.01 && lc != null) {
+      _paintLampGlow(canvas, w, imgH, t, lamp, lc);
     }
   }
 
@@ -449,22 +550,6 @@ class _RoomAmbientPainter extends CustomPainter {
       canvas.drawPath(path, blur);
     }
 
-    // 地板光池（光束落點，地毯偏左）
-    final pool = Offset(w * 0.40, imgH * 0.78);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: pool,
-        width: w * 0.46,
-        height: imgH * 0.10,
-      ),
-      Paint()
-        ..blendMode = BlendMode.plus
-        ..shader = ui.Gradient.radial(pool, w * 0.24, [
-          color.withValues(alpha: 0.13 * strength * breath),
-          color.withValues(alpha: 0),
-        ]),
-    );
-
     // 塵埃微粒：沿中央光束緩慢漂移 + 各自閃爍
     final mid = beams[1];
     final motePaint = Paint()..blendMode = BlendMode.plus;
@@ -516,8 +601,9 @@ class _RoomAmbientPainter extends CustomPainter {
     double imgH,
     double t,
     double lamp,
+    Offset center,
   ) {
-    final c = Offset(w * 0.645, imgH * 0.41);
+    final c = Offset(w * center.dx, imgH * center.dy);
     final breath = 0.86 + 0.14 * math.sin(t * 0.8);
     const warm = Color(0xFFFFC98A);
     // 外暈大而淡、內暈小而暖，疊出柔和的燈光層次
@@ -544,5 +630,6 @@ class _RoomAmbientPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _RoomAmbientPainter old) => false;
+  bool shouldRepaint(covariant _RoomAmbientPainter old) =>
+      old.lampCenter != lampCenter || old.tint != tint;
 }
