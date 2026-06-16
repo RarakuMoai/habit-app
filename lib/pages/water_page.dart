@@ -560,7 +560,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
               ambience: SceneAmbience(
                 tint: true,
                 glasslessAsset: 'assets/scenes/water/water_bg_glassless.png',
-                windowRect: Rect.fromLTRB(0.045, 0.0, 0.30, 0.25),
+                windowRect: Rect.fromLTRB(0.017, 0.0, 0.238, 0.29),
               ),
             ),
           ),

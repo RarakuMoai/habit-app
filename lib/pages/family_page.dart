@@ -138,7 +138,7 @@ class _FamilyPageState extends State<FamilyPage> {
                       tint: true,
                       glasslessAsset:
                           'assets/scenes/family/family_bg_glassless.png',
-                      windowRect: Rect.fromLTRB(0.012, 0.0, 0.27, 0.34),
+                      windowRect: Rect.fromLTRB(0.004, 0.0, 0.166, 0.258),
                     ),
                   ),
                 ),

@@ -592,7 +592,7 @@ class _TimerPageState extends State<TimerPage>
                 ambience: SceneAmbience(
                   tint: true,
                   glasslessAsset: 'assets/scenes/timer/timer_bg_glassless.png',
-                  windowRect: Rect.fromLTRB(0.02, 0.0, 0.31, 0.30),
+                  windowRect: Rect.fromLTRB(0.006, 0.0, 0.23, 0.265),
                 ),
               ),
             ),
