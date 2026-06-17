@@ -682,15 +682,6 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                 ),
               ),
               const Spacer(),
-              if (_goalReached) ...[
-                AnimatedScale(
-                  scale: 1.0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutBack,
-                  child: const _SummaryGoalCheck(),
-                ),
-                const SizedBox(width: 8),
-              ],
               _summarySettingsButton(),
             ],
           ),
@@ -1009,31 +1000,6 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _SummaryGoalCheck extends StatelessWidget {
-  const _SummaryGoalCheck();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        color: const Color(0xFF45C878),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF45C878).withValues(alpha: 0.24),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: const Icon(Icons.check_rounded, color: Colors.white, size: 18),
     );
   }
 }
