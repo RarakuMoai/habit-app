@@ -756,6 +756,14 @@ class _OnboardingPageState extends State<OnboardingPage>
         habits.add({'name': name, 'done': false});
       }
     }
+    // 體重紀錄、喝足夠的水跟體重/喝水頁連動，預設固定排在最上面（視覺一致）；
+    // 之後使用者仍可在首頁自由拖曳調整順序。逐個 insert 到最前，所以這裡先列
+    // 水、再列體重，最終呈現順序是 [體重紀錄, 喝足夠的水, ...]。
+    const pinnedTop = <String>['喝足夠的水', kWeightHabitName];
+    for (var p = 0; p < pinnedTop.length; p++) {
+      final i = habits.indexWhere((h) => h['name'] == pinnedTop[p]);
+      if (i > 0) habits.insert(0, habits.removeAt(i));
+    }
     await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
   }
 
