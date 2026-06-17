@@ -1,0 +1,427 @@
+// 衣櫃 / 音樂盒的「目錄」單一真相來源。
+//
+// 造型、曲目的靜態資料都集中在這裡，頁面、商店（WardrobeStore）、啟動流程
+// （main.dart 決定播哪首 BGM）共用。之後要新增造型或音樂，只需要在
+// [outfitCatalog] / [trackCatalog] 加一筆即可，其餘流程（擁有/選用/購買/
+// 套用到兔咪）都會自動接上。
+
+import 'package:flutter/painting.dart';
+
+const Color kWardrobeAccent = Color(0xFFB56CC7);
+const Color kMusicAccent = Color(0xFF5A88D8);
+
+// 情緒分類用色（卡片標籤/封面 fallback 的色調）。
+const Color _kRelaxColor = Color(0xFF5A88D8); // 悠閒感：沉靜藍
+const Color _kFocusColor = Color(0xFFE0894F); // 專注感：暖橙
+
+/// 解鎖方式。
+/// - [free]：預設擁有。
+/// - [coin]：花金幣解鎖。
+/// - [subscriberCoin]：需訂閱者身分，再花金幣解鎖。
+enum UnlockType { free, coin, subscriberCoin }
+
+/// 音樂情緒主分類。
+enum MusicMood { relax, focus }
+
+String moodLabel(MusicMood mood) => switch (mood) {
+  MusicMood.relax => '悠閒感',
+  MusicMood.focus => '專注感',
+};
+
+class OutfitSpec {
+  final String id;
+  final String name;
+  final String subtitle;
+
+  /// 預覽縮圖用的代表圖（通常是正面圖）。
+  final String assetPath;
+
+  /// 兔咪皮膚資料夾鍵：對應 `assets/mascot/<skinKey>/tumi_<emotion>.png`。
+  /// 原始兔咪是 `core`；之後的造型放新資料夾、整組情緒圖補齊即可。
+  final String skinKey;
+
+  final UnlockType unlockType;
+  final int coinPrice;
+
+  const OutfitSpec({
+    required this.id,
+    required this.name,
+    required this.subtitle,
+    required this.assetPath,
+    required this.skinKey,
+    required this.unlockType,
+    required this.coinPrice,
+  });
+}
+
+class MusicTrackSpec {
+  final String id;
+  final String title;
+  final String artistName;
+  final String channelName;
+  final String sourceUrl;
+  final String assetPath;
+
+  /// 封面圖（`assets/...`）；null 則用色塊 + 音符 fallback。
+  final String? coverAsset;
+
+  final String durationLabel;
+  final MusicMood mood;
+  final Color color;
+  final List<String> tags;
+  final UnlockType unlockType;
+  final int coinPrice;
+  final String licenseNote;
+  final String attributionText;
+
+  const MusicTrackSpec({
+    required this.id,
+    required this.title,
+    required this.artistName,
+    required this.channelName,
+    required this.sourceUrl,
+    required this.assetPath,
+    required this.coverAsset,
+    required this.durationLabel,
+    required this.mood,
+    required this.color,
+    required this.tags,
+    required this.unlockType,
+    required this.coinPrice,
+    required this.licenseNote,
+    required this.attributionText,
+  });
+}
+
+const List<OutfitSpec> outfitCatalog = [
+  OutfitSpec(
+    id: 'tumi_original',
+    name: '原始兔咪',
+    subtitle: '最早陪你開始的樣子',
+    assetPath: 'assets/mascot/core/tumi_neutral_front.png',
+    skinKey: 'core',
+    unlockType: UnlockType.free,
+    coinPrice: 0,
+  ),
+];
+
+// 免費 BGM 的授權與感謝說明（各曲共用，來源連結逐曲不同）。
+const String _kFreeLicense =
+    '「フリーBGM / FREE DOWNLOAD」，原作者開放免費使用。建議保留來源連結與下載備份作為授權證明。';
+const String _kFreeAttribution = '曲目來源與創作者見上方連結，感謝創作者無償分享。';
+
+const int _kTrackPrice = 50; // 新曲統一單價
+
+const List<MusicTrackSpec> trackCatalog = [
+  // ── 預設（免費）─────────────────────────────────────────
+  MusicTrackSpec(
+    id: 'bgm_main',
+    title: 'Sleeping star',
+    artistName: 'えだまめ88',
+    channelName: 'えだまめ88',
+    sourceUrl: 'https://www.youtube.com/watch?v=DUMfWYq7bmg',
+    assetPath: 'sounds/bgm_main.m4a',
+    coverAsset: 'assets/music/covers/bgm_main.png',
+    durationLabel: '循環曲',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['預設', '慢'],
+    unlockType: UnlockType.free,
+    coinPrice: 0,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+
+  // ── 悠閒感 ─────────────────────────────────────────────
+  MusicTrackSpec(
+    id: 'bgm_aquamarine',
+    title: 'Aquamarine',
+    artistName: '茶葉のぎか',
+    channelName: '茶葉のぎか',
+    sourceUrl: 'https://www.youtube.com/watch?v=AptgkZKbbzk',
+    assetPath: 'sounds/bgm_aquamarine.m4a',
+    coverAsset: 'assets/music/covers/bgm_aquamarine.png',
+    durationLabel: '2:12',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['快'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_bed_merry',
+    title: 'bed merry',
+    artistName: '茶葉のぎか',
+    channelName: '茶葉のぎか',
+    sourceUrl: 'https://www.youtube.com/watch?v=eiqm5oVRekA',
+    assetPath: 'sounds/bgm_bed_merry.m4a',
+    coverAsset: 'assets/music/covers/bgm_bed_merry.png',
+    durationLabel: '2:16',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['中'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_lonely_town',
+    title: 'Lonely Town',
+    artistName: 'Kyatto',
+    channelName: 'Kyatto',
+    sourceUrl: 'https://www.youtube.com/watch?v=l18f4SmS0_k',
+    assetPath: 'sounds/bgm_lonely_town.m4a',
+    coverAsset: 'assets/music/covers/bgm_lonely_town.png',
+    durationLabel: '2:10',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['慢'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_nothing',
+    title: 'Nothing',
+    artistName: 'えだまめ88',
+    channelName: 'えだまめ88',
+    sourceUrl: 'https://www.youtube.com/watch?v=Eip3IytYqIk',
+    assetPath: 'sounds/bgm_nothing.m4a',
+    coverAsset: 'assets/music/covers/bgm_nothing.png',
+    durationLabel: '1:51',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['中'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_sleeping_world',
+    title: 'Sleeping World',
+    artistName: 'Kyatto',
+    channelName: 'Kyatto',
+    sourceUrl: 'https://www.youtube.com/watch?v=BqftENqrgkw',
+    assetPath: 'sounds/bgm_sleeping_world.m4a',
+    coverAsset: 'assets/music/covers/bgm_sleeping_world.png',
+    durationLabel: '3:16',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['中'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_snowdrop',
+    title: 'Snowdrop',
+    artistName: 'Kyatto',
+    channelName: 'Kyatto',
+    sourceUrl: 'https://www.youtube.com/watch?v=7xxzDpZ4AJM',
+    assetPath: 'sounds/bgm_snowdrop.m4a',
+    coverAsset: 'assets/music/covers/bgm_snowdrop.png',
+    durationLabel: '2:33',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['中'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+
+  // ── 專注感 ─────────────────────────────────────────────
+  MusicTrackSpec(
+    id: 'bgm_fried_egg',
+    title: 'Fried Egg',
+    artistName: 'Kyatto',
+    channelName: 'Kyatto',
+    sourceUrl: 'https://www.youtube.com/watch?v=EJ-AEvikvP4',
+    assetPath: 'sounds/bgm_fried_egg.m4a',
+    coverAsset: 'assets/music/covers/bgm_fried_egg.png',
+    durationLabel: '2:12',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['慢'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_kyatto_shower',
+    title: 'Kyatto - Shower',
+    artistName: 'Kyatto',
+    channelName: 'Kyatto',
+    sourceUrl: 'https://www.youtube.com/watch?v=qAABwnWqFCI',
+    assetPath: 'sounds/bgm_kyatto_shower.m4a',
+    coverAsset: 'assets/music/covers/bgm_kyatto_shower.png',
+    durationLabel: '2:12',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['快'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_makeup_time',
+    title: 'makeup time',
+    artistName: '茶葉のぎか',
+    channelName: '茶葉のぎか',
+    sourceUrl: 'https://www.youtube.com/watch?v=sNksZDu_IZk',
+    assetPath: 'sounds/bgm_makeup_time.m4a',
+    coverAsset: 'assets/music/covers/bgm_makeup_time.png',
+    durationLabel: '2:11',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['快'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_matsurinohi',
+    title: 'matsurinohi',
+    artistName: '茶葉のぎか',
+    channelName: '茶葉のぎか',
+    sourceUrl: 'https://www.youtube.com/watch?v=e6V01KwdAVQ',
+    assetPath: 'sounds/bgm_matsurinohi.m4a',
+    coverAsset: 'assets/music/covers/bgm_matsurinohi.png',
+    durationLabel: '2:26',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['中'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_pyon_pyon_pink',
+    title: 'PYON PYON PINK!',
+    artistName: '茶葉のぎか',
+    channelName: '茶葉のぎか',
+    sourceUrl: 'https://www.youtube.com/watch?v=BF1QiZLy4sA',
+    assetPath: 'sounds/bgm_pyon_pyon_pink.m4a',
+    coverAsset: 'assets/music/covers/bgm_pyon_pyon_pink.png',
+    durationLabel: '2:17',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['中'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_roadside',
+    title: 'Roadside',
+    artistName: 'Kyatto',
+    channelName: 'Kyatto',
+    sourceUrl: 'https://www.youtube.com/watch?v=iBArD9P6qRE',
+    assetPath: 'sounds/bgm_roadside.m4a',
+    coverAsset: 'assets/music/covers/bgm_roadside.png',
+    durationLabel: '2:20',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['快'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_see_you_at_christmas',
+    title: 'See you at Christmas！',
+    artistName: 'えだまめ88',
+    channelName: 'えだまめ88',
+    sourceUrl: 'https://www.youtube.com/watch?v=Wn_Q1dgME3I',
+    assetPath: 'sounds/bgm_see_you_at_christmas.m4a',
+    coverAsset: 'assets/music/covers/bgm_see_you_at_christmas.png',
+    durationLabel: '3:50',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['快'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_soda_soda',
+    title: 'Soda Soda',
+    artistName: '茶葉のぎか',
+    channelName: '茶葉のぎか',
+    sourceUrl: 'https://www.youtube.com/watch?v=vlyuDNdYpmY',
+    assetPath: 'sounds/bgm_soda_soda.m4a',
+    coverAsset: 'assets/music/covers/bgm_soda_soda.png',
+    durationLabel: '2:02',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['快'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+  MusicTrackSpec(
+    id: 'bgm_swimmer',
+    title: 'Swimmer',
+    artistName: 'Kyatto',
+    channelName: 'Kyatto',
+    sourceUrl: 'https://www.youtube.com/watch?v=pK3ps9Z4MFE',
+    assetPath: 'sounds/bgm_swimmer.m4a',
+    coverAsset: 'assets/music/covers/bgm_swimmer.png',
+    durationLabel: '1:48',
+    mood: MusicMood.focus,
+    color: _kFocusColor,
+    tags: ['快'],
+    unlockType: UnlockType.coin,
+    coinPrice: _kTrackPrice,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
+];
+
+OutfitSpec get defaultOutfit => outfitCatalog.first;
+MusicTrackSpec get defaultTrack => trackCatalog.first;
+
+bool outfitExists(String id) => outfitCatalog.any((o) => o.id == id);
+
+bool trackExists(String id) => trackCatalog.any((t) => t.id == id);
+
+OutfitSpec outfitById(String id) =>
+    outfitCatalog.firstWhere((o) => o.id == id, orElse: () => outfitCatalog.first);
+
+MusicTrackSpec trackById(String id) =>
+    trackCatalog.firstWhere((t) => t.id == id, orElse: () => trackCatalog.first);
+
+List<MusicTrackSpec> tracksOfMood(MusicMood mood) =>
+    trackCatalog.where((t) => t.mood == mood).toList();
+
+String unlockLabel(UnlockType type, int coinPrice) => switch (type) {
+  UnlockType.free => '已擁有',
+  UnlockType.coin => '$coinPrice 金幣',
+  UnlockType.subscriberCoin => '訂閱後 $coinPrice 金幣',
+};
+
+/// 把一個「core 兔咪資產路徑」換成目前造型的皮膚版本。
+/// 例：`assets/mascot/core/tumi_happy.png` + skinKey `spring`
+///   → `assets/mascot/spring/tumi_happy.png`。
+/// 找不到對應皮膚資料夾段就原樣返回（安全 fallback）。
+String skinnedMascotAsset(String coreAsset, String skinKey) {
+  if (skinKey == 'core') return coreAsset;
+  const marker = '/mascot/core/';
+  final idx = coreAsset.indexOf(marker);
+  if (idx == -1) return coreAsset;
+  return coreAsset.replaceFirst(marker, '/mascot/$skinKey/');
+}

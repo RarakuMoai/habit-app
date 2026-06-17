@@ -73,6 +73,18 @@ class BgmService with WidgetsBindingObserver {
   bool _initialized = false;
   bool _wasPlayingBeforeBackground = false;
 
+  // ── 播放進度（衣櫃試聽進度條用）──
+  // 唯讀 + seek，不影響 engage/fade/淡入救援核心。注意 source 是
+  // ClippingAudioSource（跳開頭 _aacPrimingTrim），所以 position/duration
+  // 都是相對裁切後的時間，seek 也落在裁切範圍內。
+  /// 目前 native player 實際載入的 asset（相對 `assets/`）。
+  String? get loadedAsset => _currentAsset;
+  Stream<Duration> get positionStream => _player.positionStream;
+  Stream<Duration?> get durationStream => _player.durationStream;
+  Duration get position => _player.position;
+  Duration? get duration => _player.duration;
+  Future<void> seek(Duration position) => _player.seek(position);
+
   Future<void> init() async {
     if (_initialized) return;
 

@@ -127,6 +127,25 @@ class CoinService {
     return amt;
   }
 
+  /// 花費金幣（購買造型 / 音樂等）。餘額足夠才扣款並回傳 true；
+  /// 不足回傳 false 不動帳。[note] 會寫進帳本明細。
+  static Future<bool> spend(int amount, {required String note}) async {
+    if (amount <= 0) return true;
+    final prefs = await SharedPreferences.getInstance();
+    final cur = prefs.getInt(PrefsKeys.coinBalance) ?? 0;
+    if (cur < amount) return false;
+    await _apply(prefs, DateTime.now(), 'purchase', -amount, note);
+    return true;
+  }
+
+  /// 開發測試用：直接加減金幣（不走來源 gating）；負數會扣到地板 0。
+  /// 僅供 debug 測試頁呼叫，release 進不到入口。
+  static Future<void> debugAdd(int amount) async {
+    if (amount == 0) return;
+    final prefs = await SharedPreferences.getInstance();
+    await _apply(prefs, DateTime.now(), 'debug', amount, '測試調整');
+  }
+
   /// 撤銷（打卡取消用）：對稱扣回，餘額地板 0。
   static Future<void> revoke(
     CoinSource source, {

@@ -153,6 +153,9 @@ abstract final class PrefsKeys {
   static const bgmPlaylist = 'bgm_playlist';
   static const bgmOwnedTracks = 'bgm_owned_tracks';
 
+  // ── 訂閱（佔位，之後接金流時填寫真正狀態）────────────────
+  static const subscriptionActive = 'subscription_active';
+
   // ── 單位系統 ─────────────────────────────────────────────
   static const unitSystem = 'unit_system';
 

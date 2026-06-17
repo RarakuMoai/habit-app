@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/coin_service.dart';
 import '../utils/debug_fake_tabs.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
@@ -213,6 +214,43 @@ class _DevTestPageState extends State<DevTestPage> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
+                _card(
+                  title: '金幣（測試）',
+                  icon: Icons.monetization_on_outlined,
+                  description: '直接加金幣方便測試衣櫃購買解鎖；負向「歸零」清空餘額。',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ValueListenableBuilder<int>(
+                        valueListenable: CoinService.notifier,
+                        builder: (_, coins, _) => Text(
+                          '目前金幣：$coins',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final n in [50, 200, 1000])
+                            FilledButton.tonal(
+                              onPressed: () => CoinService.debugAdd(n),
+                              child: Text('+$n'),
+                            ),
+                          OutlinedButton(
+                            onPressed: () =>
+                                CoinService.debugAdd(-CoinService.notifier.value),
+                            child: const Text('歸零'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 _card(
                   title: '模擬分頁開關',
                   icon: Icons.dashboard_customize_outlined,

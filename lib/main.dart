@@ -27,6 +27,7 @@ import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
 import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
+import 'utils/wardrobe_store.dart';
 import 'utils/weight_records.dart';
 
 void main() {
@@ -45,6 +46,8 @@ Future<_StartupState> _loadStartupState() async {
   await MascotPanelPrefs.load();
   // 金幣餘額載進全域 notifier（UI 反應式讀取）
   await CoinService.load();
+  // 衣櫃/音樂盒狀態載進全域 notifier（首頁兔咪皮膚、目前曲在 MainPage build 前就緒）
+  await WardrobeStore.load();
   await AudioSettingsService.instance.init();
   // 初始化本機通知（計時頁倒數結束鈴用）；權限到第一次排通知才會跳 dialog
   await NotificationService.init();
@@ -57,12 +60,14 @@ Future<void> _startInitialAudio({required bool onboardingDone}) async {
   try {
     await Future<void>.delayed(const Duration(milliseconds: 900));
     await BgmService.instance.init();
+    // 進主頁播使用者在音樂盒選的目前曲（預設仍是 bgm_main，既有用戶無感）；
+    // 前導流程固定播 onboarding 曲。
+    final asset = onboardingDone
+        ? await WardrobeStore.loadCurrentTrackAsset()
+        : 'sounds/bgm_onboarding.m4a';
     // 冷啟動兩種情況（新用戶前導 / 既有用戶直接進主頁）都走 deferFade：
     // 先靜音喚醒音訊路由，settle 後再柔和淡入，避免一開就突兀出現。
-    await BgmService.instance.play(
-      onboardingDone ? 'sounds/bgm_main.m4a' : 'sounds/bgm_onboarding.m4a',
-      deferFade: true,
-    );
+    await BgmService.instance.play(asset, deferFade: true);
     await SfxService.instance.init();
   } catch (e, st) {
     debugPrint('BGM init/play failed: $e\n$st');

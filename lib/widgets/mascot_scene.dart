@@ -16,6 +16,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../utils/mascot.dart';
+import '../utils/wardrobe_catalog.dart';
+import '../utils/wardrobe_store.dart';
 
 /// 從 [MascotPersona.current] 自動讀情緒 + 台詞 的場景；
 /// 切頁不會重建兔咪狀態，只有互動會推新狀態。
@@ -35,12 +37,19 @@ class PersonaScene extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<MascotState>(
       valueListenable: MascotPersona.current,
-      builder: (_, state, _) => MascotScene(
-        asset: state.assetPath,
-        accent: accent,
-        speech: state.speech,
-        reactionTick: reactionTick,
-        onTap: onTap,
+      builder: (_, state, _) => ValueListenableBuilder<String>(
+        valueListenable: WardrobeStore.selectedOutfit,
+        builder: (_, outfitId, _) => MascotScene(
+          // 依目前造型把 core 兔咪換成對應皮膚版本；原始造型為 identity。
+          asset: skinnedMascotAsset(
+            state.assetPath,
+            outfitById(outfitId).skinKey,
+          ),
+          accent: accent,
+          speech: state.speech,
+          reactionTick: reactionTick,
+          onTap: onTap,
+        ),
       ),
     );
   }

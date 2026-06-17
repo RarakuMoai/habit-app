@@ -45,6 +45,7 @@ dependencies:
   timezone: ^0.11.0
   just_audio: ^0.10.5
   audio_session: ^0.2.3
+  url_launcher: ^6.3.1
 
 # path_provider_foundation 2.6.0 改用 FFI（package:objective_c），其
 # objective_c.framework 走 native assets 簽名管線，實機安裝常出現
@@ -93,6 +94,7 @@ flutter:
 
   assets:
     - assets/sounds/
+    - assets/music/covers/
     - assets/mascot/core/
     # 開發用：兔咪向量版預覽頁的對照參考圖（上架前可移除）
     - assets/mascot/ref/tumi_neutral_front.JPG

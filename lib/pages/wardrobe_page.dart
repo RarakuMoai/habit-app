@@ -1,25 +1,25 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/bgm_service.dart';
+import '../utils/coin_service.dart';
 import '../utils/mascot.dart';
-import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../utils/wardrobe_catalog.dart';
+import '../utils/wardrobe_store.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 
-const Color _kWardrobeAccent = Color(0xFFB56CC7);
-const Color _kMusicAccent = Color(0xFF5A88D8);
-
 enum _WardrobeSection { outfits, music }
 
-enum _UnlockType { free, coin, subscriberCoin }
-
+// 試聽控制器：暫時切到試聽曲，離開頁面 / 停止時還原成原本的目前曲。
+// 衣櫃在 IndexedStack 裡不會 dispose，所以切頁時由 main.dart 的 _onTabTapped
+// 呼叫 restore()；dispose 再保險一次。
 class WardrobePreviewController {
   static final ValueNotifier<String?> previewingTrackId = ValueNotifier(null);
   static String? _restoreAsset;
@@ -58,119 +58,51 @@ class WardrobePage extends StatefulWidget {
 
 class _WardrobePageState extends State<WardrobePage> {
   _WardrobeSection _section = _WardrobeSection.outfits;
-  String _selectedOutfitId = _outfitCatalog.first.id;
-  Set<String> _ownedOutfitIds = {_outfitCatalog.first.id};
-  Set<String> _ownedTrackIds = {_trackCatalog.first.id};
-  List<String> _playlistTrackIds = [_trackCatalog.first.id];
   bool _loaded = false;
-
-  _OutfitSpec get _selectedOutfit => _outfitCatalog.firstWhere(
-    (outfit) => outfit.id == _selectedOutfitId,
-    orElse: () => _outfitCatalog.first,
-  );
-
-  _MusicTrackSpec get _currentTrack => _trackById(
-    _playlistTrackIds.isEmpty
-        ? _trackCatalog.first.id
-        : _playlistTrackIds.first,
-  );
-
-  String get _effectivePlaybackAsset => _currentTrack.assetPath;
 
   @override
   void initState() {
     super.initState();
-    WardrobePreviewController.previewingTrackId.addListener(_onPreviewChanged);
     _load();
   }
 
   @override
   void dispose() {
-    WardrobePreviewController.previewingTrackId.removeListener(
-      _onPreviewChanged,
-    );
     unawaited(WardrobePreviewController.restore());
     super.dispose();
   }
 
-  void _onPreviewChanged() {
-    if (mounted) setState(() {});
-  }
-
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final ownedOutfits =
-        (prefs.getStringList(PrefsKeys.wardrobeOwnedOutfits) ??
-                const <String>[])
-            .toSet()
-          ..add(_outfitCatalog.first.id);
-    final ownedTracks =
-        (prefs.getStringList(PrefsKeys.bgmOwnedTracks) ?? const <String>[])
-            .toSet()
-          ..add(_trackCatalog.first.id);
-    final selectedOutfit = prefs.getString(PrefsKeys.wardrobeSelectedOutfit);
-    final selectedTrack = prefs.getString(PrefsKeys.bgmSelectedTrack);
-    final playlist = prefs.getStringList(PrefsKeys.bgmPlaylist);
-    final fallbackTrack = _safeTrackId(selectedTrack, ownedTracks);
+    await WardrobeStore.load();
     if (!mounted) return;
-    setState(() {
-      _ownedOutfitIds = ownedOutfits;
-      _ownedTrackIds = ownedTracks;
-      _selectedOutfitId = _safeOutfitId(selectedOutfit, ownedOutfits);
-      _playlistTrackIds = _safePlaylist(playlist, ownedTracks, fallbackTrack);
-      _loaded = true;
-    });
+    setState(() => _loaded = true);
   }
 
-  Future<void> _saveOutfit(String outfitId) async {
-    if (!_ownedOutfitIds.contains(outfitId)) return;
+  // ── 造型 ───────────────────────────────────────────────
+  Future<void> _wearOutfit(OutfitSpec outfit) async {
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(PrefsKeys.wardrobeSelectedOutfit, outfitId);
-    if (!mounted) return;
-    setState(() => _selectedOutfitId = outfitId);
+    await WardrobeStore.setOutfit(outfit.id);
     MascotPersona.set(MascotEmotion.happy.assetPath, '嗯...這套很好看。', force: true);
   }
 
-  Future<void> _savePlaylist(
-    List<String> next, {
-    required bool updatePlayback,
-  }) async {
-    final previousAsset = _effectivePlaybackAsset;
-    playHaptic(HapticLevel.selection);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(PrefsKeys.bgmPlaylist, next);
-    await prefs.setString(PrefsKeys.bgmSelectedTrack, next.first);
+  Future<void> _buyOutfit(OutfitSpec outfit) async {
+    if (!await _confirmPurchase(outfit.name, outfit.unlockType, outfit.coinPrice)) {
+      return;
+    }
+    final result = await WardrobeStore.purchaseOutfit(outfit.id);
     if (!mounted) return;
-    setState(() => _playlistTrackIds = next);
-    if (updatePlayback && previousAsset != _effectivePlaybackAsset) {
-      await WardrobePreviewController.restore();
-      unawaited(BgmService.instance.play(_effectivePlaybackAsset));
+    if (result == PurchaseResult.success) {
+      playFeedback(SfxCue.success);
+      await WardrobeStore.setOutfit(outfit.id);
+      MascotPersona.set(MascotEmotion.happy.assetPath, '謝謝你...我很喜歡。', force: true);
+      _toast('已解鎖並換上 ${outfit.name}');
+    } else {
+      _reportPurchaseFail(result);
     }
   }
 
-  Future<void> _addPlaylistTrack(_MusicTrackSpec track) async {
-    if (!_ownedTrackIds.contains(track.id) ||
-        _playlistTrackIds.contains(track.id)) {
-      return;
-    }
-    await _savePlaylist([
-      ..._playlistTrackIds,
-      track.id,
-    ], updatePlayback: false);
-  }
-
-  Future<void> _removePlaylistTrack(_MusicTrackSpec track) async {
-    if (!_playlistTrackIds.contains(track.id) ||
-        _playlistTrackIds.length == 1) {
-      return;
-    }
-    final removedCurrent = _playlistTrackIds.first == track.id;
-    final next = _playlistTrackIds.where((id) => id != track.id).toList();
-    await _savePlaylist(next, updatePlayback: removedCurrent);
-  }
-
-  Future<void> _previewTrack(_MusicTrackSpec track) async {
+  // ── 音樂 ───────────────────────────────────────────────
+  Future<void> _previewTrack(MusicTrackSpec track) async {
     if (WardrobePreviewController.previewingTrackId.value == track.id) {
       await WardrobePreviewController.restore();
       return;
@@ -179,47 +111,140 @@ class _WardrobePageState extends State<WardrobePage> {
     await WardrobePreviewController.preview(
       trackId: track.id,
       asset: track.assetPath,
-      restoreAsset: _effectivePlaybackAsset,
+      restoreAsset: WardrobeStore.currentTrackAsset,
     );
   }
 
-  Future<void> _openTrackDetail(_MusicTrackSpec track) async {
+  Future<void> _addTrack(MusicTrackSpec track) async {
+    playHaptic(HapticLevel.selection);
+    await WardrobeStore.addTrack(track.id);
+  }
+
+  Future<void> _setCurrentTrack(MusicTrackSpec track) async {
+    playHaptic(HapticLevel.selection);
+    final changed = await WardrobeStore.setCurrentTrack(track.id);
+    _applyCurrentTrackChange(changed);
+  }
+
+  Future<void> _removeTrack(MusicTrackSpec track) async {
+    playHaptic(HapticLevel.selection);
+    final changed = await WardrobeStore.removeTrack(track.id);
+    _applyCurrentTrackChange(changed);
+  }
+
+  // 目前曲改變時：清掉試聽狀態並直接切到新的目前曲。
+  // 兩個 play 不阻塞，靠 BgmService 既有的 intent/requestId 並發互讓收斂到新曲，
+  // 避免試聽中先把舊曲淡入數秒才換歌。
+  void _applyCurrentTrackChange(bool changed) {
+    if (!mounted || !changed) return;
+    unawaited(WardrobePreviewController.restore());
+    unawaited(BgmService.instance.play(WardrobeStore.currentTrackAsset));
+  }
+
+  Future<void> _buyTrack(MusicTrackSpec track) async {
+    if (!await _confirmPurchase(track.title, track.unlockType, track.coinPrice)) {
+      return;
+    }
+    final result = await WardrobeStore.purchaseTrack(track.id);
+    if (!mounted) return;
+    if (result == PurchaseResult.success) {
+      playFeedback(SfxCue.success);
+      await WardrobeStore.addTrack(track.id);
+      _toast('已解鎖 ${track.title}，並加入循環');
+    } else {
+      _reportPurchaseFail(result);
+    }
+  }
+
+  Future<void> _openTrackDetail(MusicTrackSpec track) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _TrackDetailSheet(
         track: track,
-        owned: _ownedTrackIds.contains(track.id),
-        inPlaylist: _playlistTrackIds.contains(track.id),
+        owned: WardrobeStore.ownedTracks.value.contains(track.id),
+        inPlaylist: WardrobeStore.playlist.value.contains(track.id),
+        isCurrent: WardrobeStore.currentTrack.id == track.id,
         onPreview: () => _previewTrack(track),
+        onBuy: () async {
+          Navigator.pop(sheetContext);
+          await _buyTrack(track);
+        },
         onAddToPlaylist: () async {
-          await _addPlaylistTrack(track);
+          await _addTrack(track);
+          if (sheetContext.mounted) Navigator.pop(sheetContext);
+        },
+        onSetCurrent: () async {
+          await _setCurrentTrack(track);
           if (sheetContext.mounted) Navigator.pop(sheetContext);
         },
       ),
     );
   }
 
-  String _safeOutfitId(String? id, Set<String> owned) {
-    if (id != null && owned.contains(id) && _outfitExists(id)) return id;
-    return _outfitCatalog.first.id;
+  // ── 購買共用 ───────────────────────────────────────────
+  Future<bool> _confirmPurchase(String name, UnlockType type, int price) async {
+    if (type == UnlockType.subscriberCoin && !WardrobeStore.isSubscriber) {
+      _toast('這個項目需要訂閱才能解鎖');
+      return false;
+    }
+    final balance = CoinService.notifier.value;
+    final affordable = balance >= price;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('解鎖項目'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('要花 $price 金幣解鎖「$name」嗎？'),
+            const SizedBox(height: 8),
+            Text(
+              affordable ? '目前金幣：$balance' : '目前金幣：$balance（不足）',
+              style: TextStyle(
+                color: affordable ? AppInk.soft : Colors.red.shade600,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: kWardrobeAccent,
+              minimumSize: const Size(0, 46),
+            ),
+            onPressed: affordable ? () => Navigator.pop(dialogCtx, true) : null,
+            icon: const Icon(Icons.lock_open_rounded, size: 18),
+            label: const Text('解鎖'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
   }
 
-  String _safeTrackId(String? id, Set<String> owned) {
-    if (id != null && owned.contains(id) && _trackExists(id)) return id;
-    return _trackCatalog.first.id;
+  void _reportPurchaseFail(PurchaseResult result) {
+    playFeedback(SfxCue.cancel);
+    _toast(switch (result) {
+      PurchaseResult.needCoins => '金幣不足，先去完成習慣賺金幣吧',
+      PurchaseResult.needSubscription => '這個項目需要訂閱才能解鎖',
+      _ => '無法解鎖',
+    });
   }
 
-  List<String> _safePlaylist(
-    List<String>? ids,
-    Set<String> owned,
-    String fallbackTrackId,
-  ) {
-    final safe = (ids ?? const <String>[])
-        .where((id) => owned.contains(id) && _trackExists(id))
-        .toList();
-    return safe.isEmpty ? [fallbackTrackId] : safe;
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -230,7 +255,7 @@ class _WardrobePageState extends State<WardrobePage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFFFF8F8),
-      appBar: const MascotAppBar(accent: _kWardrobeAccent),
+      appBar: const MascotAppBar(accent: kWardrobeAccent),
       body: Stack(
         children: [
           Positioned(
@@ -244,26 +269,35 @@ class _WardrobePageState extends State<WardrobePage> {
           ),
           SafeArea(
             child: MascotPageShell(
-              accent: _kWardrobeAccent,
-              scene: const PersonaScene(accent: _kWardrobeAccent),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                children: [
-                  _SectionSwitch(
-                    value: _section,
-                    onChanged: (value) {
-                      playHaptic(HapticLevel.selection);
-                      setState(() => _section = value);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: _section == _WardrobeSection.outfits
-                        ? _buildOutfitSection()
-                        : _buildMusicSection(),
-                  ),
-                ],
+              accent: kWardrobeAccent,
+              scene: const PersonaScene(accent: kWardrobeAccent),
+              child: AnimatedBuilder(
+                animation: Listenable.merge([
+                  WardrobeStore.selectedOutfit,
+                  WardrobeStore.ownedOutfits,
+                  WardrobeStore.playlist,
+                  WardrobeStore.ownedTracks,
+                  CoinService.notifier,
+                ]),
+                builder: (context, _) => ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                  children: [
+                    _SectionSwitch(
+                      value: _section,
+                      onChanged: (value) {
+                        playHaptic(HapticLevel.selection);
+                        setState(() => _section = value);
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _section == _WardrobeSection.outfits
+                          ? _buildOutfitSection()
+                          : _buildMusicSection(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -273,6 +307,8 @@ class _WardrobePageState extends State<WardrobePage> {
   }
 
   Widget _buildOutfitSection() {
+    final owned = WardrobeStore.ownedOutfits.value;
+    final selectedId = WardrobeStore.selectedOutfit.value;
     return Column(
       key: const ValueKey('outfits'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,19 +316,20 @@ class _WardrobePageState extends State<WardrobePage> {
         _WardrobeHeader(
           icon: Icons.checkroom_rounded,
           title: '兔咪造型',
-          subtitle: '目前穿著：${_selectedOutfit.name}',
-          trailing: '${_ownedOutfitIds.length}/${_outfitCatalog.length}',
-          color: _kWardrobeAccent,
+          subtitle: '目前穿著：${outfitById(selectedId).name}',
+          trailing: '${owned.length}/${outfitCatalog.length}',
+          color: kWardrobeAccent,
         ),
         const SizedBox(height: 12),
-        for (final outfit in _outfitCatalog)
+        for (final outfit in outfitCatalog)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _OutfitCard(
               outfit: outfit,
-              owned: _ownedOutfitIds.contains(outfit.id),
-              selected: _selectedOutfitId == outfit.id,
-              onWear: () => _saveOutfit(outfit.id),
+              owned: owned.contains(outfit.id),
+              selected: selectedId == outfit.id,
+              onWear: () => _wearOutfit(outfit),
+              onBuy: () => _buyOutfit(outfit),
             ),
           ),
       ],
@@ -300,152 +337,76 @@ class _WardrobePageState extends State<WardrobePage> {
   }
 
   Widget _buildMusicSection() {
-    final playlistTracks = _playlistTrackIds.map(_trackById).toList();
+    final playlistIds = WardrobeStore.playlist.value;
+    final ownedTracks = WardrobeStore.ownedTracks.value;
+    final playlistTracks = playlistIds.map(trackById).toList();
+    final current = WardrobeStore.currentTrack;
     return Column(
       key: const ValueKey('music'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _MusicSummaryCard(
-          currentTrack: _currentTrack,
+          currentTrack: current,
           playlistCount: playlistTracks.length,
         ),
         const SizedBox(height: 14),
         _WardrobeHeader(
           icon: Icons.queue_music_rounded,
-          title: '循環表',
-          subtitle: '目前播放：${_currentTrack.title}',
+          title: '我的循環',
+          subtitle: '目前播放：${current.title}',
           trailing: '${playlistTracks.length} 首',
-          color: _kMusicAccent,
+          color: kMusicAccent,
         ),
         const SizedBox(height: 10),
         _PlaylistCard(
           tracks: playlistTracks,
-          onRemove: _removePlaylistTrack,
+          currentId: current.id,
+          onRemove: _removeTrack,
+          onSetCurrent: _setCurrentTrack,
           onDetail: _openTrackDetail,
         ),
         const SizedBox(height: 14),
         _WardrobeHeader(
           icon: Icons.library_music_rounded,
           title: '曲庫',
-          subtitle: '創作者資訊與試聽',
-          trailing: '${_ownedTrackIds.length}/${_trackCatalog.length}',
-          color: _kMusicAccent,
+          subtitle: '依心情挑選，附創作者資訊',
+          trailing: '${ownedTracks.length}/${trackCatalog.length}',
+          color: kMusicAccent,
         ),
-        const SizedBox(height: 10),
-        for (final track in _trackCatalog)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _TrackCard(
-              track: track,
-              owned: _ownedTrackIds.contains(track.id),
-              inPlaylist: _playlistTrackIds.contains(track.id),
-              onPreview: () => _previewTrack(track),
-              onDetail: () => _openTrackDetail(track),
-              onAddToPlaylist: () => _addPlaylistTrack(track),
-            ),
-          ),
+        _buildMoodGroup(MusicMood.relax),
+        _buildMoodGroup(MusicMood.focus),
       ],
     );
   }
+
+  Widget _buildMoodGroup(MusicMood mood) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        _MoodLabel(mood: mood),
+        const SizedBox(height: 8),
+        for (final track in tracksOfMood(mood)) _trackTile(track),
+      ],
+    );
+  }
+
+  Widget _trackTile(MusicTrackSpec track) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _TrackCard(
+        track: track,
+        owned: WardrobeStore.ownedTracks.value.contains(track.id),
+        inPlaylist: WardrobeStore.playlist.value.contains(track.id),
+        isCurrent: WardrobeStore.currentTrack.id == track.id,
+        onPreview: () => _previewTrack(track),
+        onDetail: () => _openTrackDetail(track),
+        onAddToPlaylist: () => _addTrack(track),
+        onBuy: () => _buyTrack(track),
+      ),
+    );
+  }
 }
-
-class _OutfitSpec {
-  final String id;
-  final String name;
-  final String subtitle;
-  final String assetPath;
-  final _UnlockType unlockType;
-  final int coinPrice;
-
-  const _OutfitSpec({
-    required this.id,
-    required this.name,
-    required this.subtitle,
-    required this.assetPath,
-    required this.unlockType,
-    required this.coinPrice,
-  });
-}
-
-class _MusicTrackSpec {
-  final String id;
-  final String title;
-  final String artistName;
-  final String channelName;
-  final String sourceUrl;
-  final String channelUrl;
-  final String assetPath;
-  final String durationLabel;
-  final Color color;
-  final List<String> tags;
-  final _UnlockType unlockType;
-  final int coinPrice;
-  final String licenseNote;
-  final String attributionText;
-
-  const _MusicTrackSpec({
-    required this.id,
-    required this.title,
-    required this.artistName,
-    required this.channelName,
-    required this.sourceUrl,
-    required this.channelUrl,
-    required this.assetPath,
-    required this.durationLabel,
-    required this.color,
-    required this.tags,
-    required this.unlockType,
-    required this.coinPrice,
-    required this.licenseNote,
-    required this.attributionText,
-  });
-}
-
-const List<_OutfitSpec> _outfitCatalog = [
-  _OutfitSpec(
-    id: 'tumi_original',
-    name: '原始兔咪',
-    subtitle: '最早陪你開始的樣子',
-    assetPath: 'assets/mascot/core/tumi_neutral_front.png',
-    unlockType: _UnlockType.free,
-    coinPrice: 0,
-  ),
-];
-
-const List<_MusicTrackSpec> _trackCatalog = [
-  _MusicTrackSpec(
-    id: 'bgm_main',
-    title: '兔咪的房間',
-    artistName: '待補創作者',
-    channelName: 'YouTube 免費版權音樂',
-    sourceUrl: '待補來源連結',
-    channelUrl: '待補頻道連結',
-    assetPath: 'sounds/bgm_main.m4a',
-    durationLabel: '循環曲',
-    color: _kMusicAccent,
-    tags: ['預設', '安靜', '日常'],
-    unlockType: _UnlockType.free,
-    coinPrice: 0,
-    licenseNote: '作者已聲明可自由使用；仍建議保留來源連結、下載日期與授權截圖。',
-    attributionText: '目前不強制標註，但在音樂盒保留創作者資訊作為感謝。',
-  ),
-];
-
-bool _outfitExists(String id) =>
-    _outfitCatalog.any((outfit) => outfit.id == id);
-
-bool _trackExists(String id) => _trackCatalog.any((track) => track.id == id);
-
-_MusicTrackSpec _trackById(String id) => _trackCatalog.firstWhere(
-  (track) => track.id == id,
-  orElse: () => _trackCatalog.first,
-);
-
-String _unlockLabel(_UnlockType type, int coinPrice) => switch (type) {
-  _UnlockType.free => '已擁有',
-  _UnlockType.coin => '$coinPrice 金幣',
-  _UnlockType.subscriberCoin => '訂閱後 $coinPrice 金幣',
-};
 
 class _SectionSwitch extends StatelessWidget {
   final _WardrobeSection value;
@@ -485,8 +446,8 @@ class _SectionSwitch extends StatelessWidget {
   }) {
     final selected = value == section;
     final color = section == _WardrobeSection.outfits
-        ? _kWardrobeAccent
-        : _kMusicAccent;
+        ? kWardrobeAccent
+        : kMusicAccent;
     return Expanded(
       child: InkWell(
         onTap: () => onChanged(section),
@@ -581,16 +542,18 @@ class _WardrobeHeader extends StatelessWidget {
 }
 
 class _OutfitCard extends StatelessWidget {
-  final _OutfitSpec outfit;
+  final OutfitSpec outfit;
   final bool owned;
   final bool selected;
   final VoidCallback onWear;
+  final VoidCallback onBuy;
 
   const _OutfitCard({
     required this.outfit,
     required this.owned,
     required this.selected,
     required this.onWear,
+    required this.onBuy,
   });
 
   @override
@@ -602,7 +565,7 @@ class _OutfitCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: Border.all(
           color: selected
-              ? _kWardrobeAccent.withValues(alpha: 0.36)
+              ? kWardrobeAccent.withValues(alpha: 0.36)
               : const Color(0x0A46342B),
           width: selected ? 1.4 : 1,
         ),
@@ -616,7 +579,7 @@ class _OutfitCard extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  _kWardrobeAccent.withValues(alpha: 0.12),
+                  kWardrobeAccent.withValues(alpha: 0.12),
                   const Color(0xFFFFF5FB),
                 ],
                 begin: Alignment.topLeft,
@@ -647,7 +610,7 @@ class _OutfitCard extends StatelessWidget {
                       ),
                     ),
                     if (selected)
-                      const _SoftPill(text: '穿著中', color: _kWardrobeAccent),
+                      const _SoftPill(text: '穿著中', color: kWardrobeAccent),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -665,13 +628,15 @@ class _OutfitCard extends StatelessWidget {
                       ? '已套用'
                       : owned
                       ? '套用'
-                      : _unlockLabel(outfit.unlockType, outfit.coinPrice),
+                      : unlockLabel(outfit.unlockType, outfit.coinPrice),
                   icon: selected
                       ? Icons.check_rounded
-                      : Icons.checkroom_rounded,
-                  color: _kWardrobeAccent,
-                  enabled: owned && !selected,
-                  onTap: onWear,
+                      : owned
+                      ? Icons.checkroom_rounded
+                      : Icons.lock_open_rounded,
+                  color: kWardrobeAccent,
+                  enabled: !selected,
+                  onTap: owned ? onWear : onBuy,
                 ),
               ],
             ),
@@ -683,7 +648,7 @@ class _OutfitCard extends StatelessWidget {
 }
 
 class _MusicSummaryCard extends StatelessWidget {
-  final _MusicTrackSpec currentTrack;
+  final MusicTrackSpec currentTrack;
   final int playlistCount;
 
   const _MusicSummaryCard({
@@ -698,14 +663,14 @@ class _MusicSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _kMusicAccent.withValues(alpha: 0.14),
+            kMusicAccent.withValues(alpha: 0.14),
             const Color(0xFFF4F7FF),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
-        border: Border.all(color: _kMusicAccent.withValues(alpha: 0.12)),
+        border: Border.all(color: kMusicAccent.withValues(alpha: 0.12)),
       ),
       child: Row(
         children: [
@@ -737,7 +702,7 @@ class _MusicSummaryCard extends StatelessWidget {
               ],
             ),
           ),
-          _SoftPill(text: '循環 $playlistCount 首', color: _kMusicAccent),
+          _SoftPill(text: '循環 $playlistCount 首', color: kMusicAccent),
         ],
       ),
     );
@@ -745,13 +710,17 @@ class _MusicSummaryCard extends StatelessWidget {
 }
 
 class _PlaylistCard extends StatelessWidget {
-  final List<_MusicTrackSpec> tracks;
-  final ValueChanged<_MusicTrackSpec> onRemove;
-  final ValueChanged<_MusicTrackSpec> onDetail;
+  final List<MusicTrackSpec> tracks;
+  final String currentId;
+  final ValueChanged<MusicTrackSpec> onRemove;
+  final ValueChanged<MusicTrackSpec> onSetCurrent;
+  final ValueChanged<MusicTrackSpec> onDetail;
 
   const _PlaylistCard({
     required this.tracks,
+    required this.currentId,
     required this.onRemove,
+    required this.onSetCurrent,
     required this.onDetail,
   });
 
@@ -771,8 +740,10 @@ class _PlaylistCard extends StatelessWidget {
             _PlaylistRow(
               index: i + 1,
               track: tracks[i],
+              isCurrent: tracks[i].id == currentId,
               removable: tracks.length > 1,
               onRemove: () => onRemove(tracks[i]),
+              onSetCurrent: () => onSetCurrent(tracks[i]),
               onDetail: () => onDetail(tracks[i]),
             ),
         ],
@@ -783,16 +754,20 @@ class _PlaylistCard extends StatelessWidget {
 
 class _PlaylistRow extends StatelessWidget {
   final int index;
-  final _MusicTrackSpec track;
+  final MusicTrackSpec track;
+  final bool isCurrent;
   final bool removable;
   final VoidCallback onRemove;
+  final VoidCallback onSetCurrent;
   final VoidCallback onDetail;
 
   const _PlaylistRow({
     required this.index,
     required this.track,
+    required this.isCurrent,
     required this.removable,
     required this.onRemove,
+    required this.onSetCurrent,
     required this.onDetail,
   });
 
@@ -830,6 +805,16 @@ class _PlaylistRow extends StatelessWidget {
                   ),
                 ),
               ),
+              if (isCurrent)
+                const _SoftPill(text: '播放中', color: kMusicAccent)
+              else
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onSetCurrent,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                  color: kMusicAccent,
+                  tooltip: '設為目前播放',
+                ),
               IconButton(
                 visualDensity: VisualDensity.compact,
                 onPressed: removable ? onRemove : null,
@@ -845,21 +830,53 @@ class _PlaylistRow extends StatelessWidget {
 }
 
 class _TrackCard extends StatelessWidget {
-  final _MusicTrackSpec track;
+  final MusicTrackSpec track;
   final bool owned;
   final bool inPlaylist;
+  final bool isCurrent;
   final VoidCallback onPreview;
   final VoidCallback onDetail;
   final VoidCallback onAddToPlaylist;
+  final VoidCallback onBuy;
 
   const _TrackCard({
     required this.track,
     required this.owned,
     required this.inPlaylist,
+    required this.isCurrent,
     required this.onPreview,
     required this.onDetail,
     required this.onAddToPlaylist,
+    required this.onBuy,
   });
+
+  // 試聽鈕：試聽中→停止；（沒在試聽且）這首正是目前曲→顯示「播放中」停用，
+  // 避免對正在當背景音樂播放的曲按「試聽」沒反應；其餘→試聽。
+  Widget _previewButton(bool previewing, String? previewingId) {
+    if (previewing) {
+      return _PrimaryMiniButton(
+        label: '停止試聽',
+        icon: Icons.stop_rounded,
+        color: kMusicAccent,
+        onTap: onPreview,
+      );
+    }
+    if (previewingId == null && isCurrent) {
+      return _PrimaryMiniButton(
+        label: '播放中',
+        icon: Icons.graphic_eq_rounded,
+        color: kMusicAccent,
+        enabled: false,
+        onTap: () {},
+      );
+    }
+    return _PrimaryMiniButton(
+      label: '試聽',
+      icon: Icons.play_arrow_rounded,
+      color: kMusicAccent,
+      onTap: onPreview,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -874,7 +891,7 @@ class _TrackCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
             border: Border.all(
               color: previewing
-                  ? _kMusicAccent.withValues(alpha: 0.42)
+                  ? kMusicAccent.withValues(alpha: 0.42)
                   : const Color(0x0A46342B),
               width: previewing ? 1.4 : 1,
             ),
@@ -934,25 +951,22 @@ class _TrackCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: _PrimaryMiniButton(
-                      label: previewing ? '停止試聽' : '試聽',
-                      icon: previewing
-                          ? Icons.stop_rounded
-                          : Icons.play_arrow_rounded,
-                      color: _kMusicAccent,
-                      onTap: onPreview,
-                    ),
+                    child: _previewButton(previewing, previewingId),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _PrimaryMiniButton(
-                      label: inPlaylist ? '已加入' : '加入循環',
-                      icon: inPlaylist
-                          ? Icons.check_rounded
-                          : Icons.playlist_add_rounded,
-                      color: _kMusicAccent,
-                      enabled: owned && !inPlaylist,
-                      onTap: onAddToPlaylist,
+                      label: owned
+                          ? (inPlaylist ? '已加入' : '加入循環')
+                          : unlockLabel(track.unlockType, track.coinPrice),
+                      icon: owned
+                          ? (inPlaylist
+                                ? Icons.check_rounded
+                                : Icons.playlist_add_rounded)
+                          : Icons.lock_open_rounded,
+                      color: kMusicAccent,
+                      enabled: !owned || !inPlaylist,
+                      onTap: owned ? onAddToPlaylist : onBuy,
                     ),
                   ),
                 ],
@@ -966,19 +980,61 @@ class _TrackCard extends StatelessWidget {
 }
 
 class _TrackDetailSheet extends StatelessWidget {
-  final _MusicTrackSpec track;
+  final MusicTrackSpec track;
   final bool owned;
   final bool inPlaylist;
+  final bool isCurrent;
   final VoidCallback onPreview;
+  final VoidCallback onBuy;
   final VoidCallback onAddToPlaylist;
+  final VoidCallback onSetCurrent;
 
   const _TrackDetailSheet({
     required this.track,
     required this.owned,
     required this.inPlaylist,
+    required this.isCurrent,
     required this.onPreview,
+    required this.onBuy,
     required this.onAddToPlaylist,
+    required this.onSetCurrent,
   });
+
+  // 第二顆按鈕：未擁有→購買；已擁有未加入→加入；已加入非目前→設為目前；
+  // 已是目前→停用顯示「目前播放中」。
+  _PrimaryMiniButton _actionButton() {
+    if (!owned) {
+      return _PrimaryMiniButton(
+        label: unlockLabel(track.unlockType, track.coinPrice),
+        icon: Icons.lock_open_rounded,
+        color: kMusicAccent,
+        onTap: onBuy,
+      );
+    }
+    if (!inPlaylist) {
+      return _PrimaryMiniButton(
+        label: '加入循環',
+        icon: Icons.playlist_add_rounded,
+        color: kMusicAccent,
+        onTap: onAddToPlaylist,
+      );
+    }
+    if (!isCurrent) {
+      return _PrimaryMiniButton(
+        label: '設為目前播放',
+        icon: Icons.play_arrow_rounded,
+        color: kMusicAccent,
+        onTap: onSetCurrent,
+      );
+    }
+    return _PrimaryMiniButton(
+      label: '目前播放中',
+      icon: Icons.graphic_eq_rounded,
+      color: kMusicAccent,
+      enabled: false,
+      onTap: () {},
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1053,6 +1109,9 @@ class _TrackDetailSheet extends StatelessWidget {
                 icon: Icons.link_rounded,
                 label: '來源',
                 value: track.sourceUrl,
+                onTap: track.sourceUrl.startsWith('http')
+                    ? () => _openExternal(context, track.sourceUrl)
+                    : null,
               ),
               _InfoLine(
                 icon: Icons.schedule_rounded,
@@ -1106,29 +1165,39 @@ class _TrackDetailSheet extends StatelessWidget {
                 valueListenable: WardrobePreviewController.previewingTrackId,
                 builder: (_, previewingId, _) {
                   final previewing = previewingId == track.id;
-                  return Row(
+                  // 這首是不是正在出聲：試聽中的這首，或（沒在試聽時）目前曲。
+                  final activeNow =
+                      previewing || (previewingId == null && isCurrent);
+                  return Column(
                     children: [
-                      Expanded(
-                        child: _PrimaryMiniButton(
-                          label: previewing ? '停止試聽' : '試聽全曲',
-                          icon: previewing
-                              ? Icons.stop_rounded
-                              : Icons.play_arrow_rounded,
-                          color: _kMusicAccent,
-                          onTap: onPreview,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _PrimaryMiniButton(
-                          label: inPlaylist ? '已加入循環' : '加入循環',
-                          icon: inPlaylist
-                              ? Icons.check_rounded
-                              : Icons.playlist_add_rounded,
-                          color: _kMusicAccent,
-                          enabled: owned && !inPlaylist,
-                          onTap: onAddToPlaylist,
-                        ),
+                      // 已購買且正在播放這首才顯示可拉的進度條
+                      if (owned && activeNow) ...[
+                        _TrackProgressBar(assetPath: track.assetPath),
+                        const SizedBox(height: 12),
+                      ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PrimaryMiniButton(
+                              label: previewing
+                                  ? '停止試聽'
+                                  : activeNow
+                                  ? '播放中'
+                                  : '試聽全曲',
+                              icon: previewing
+                                  ? Icons.stop_rounded
+                                  : activeNow
+                                  ? Icons.graphic_eq_rounded
+                                  : Icons.play_arrow_rounded,
+                              color: kMusicAccent,
+                              // 「播放中」（目前曲、非試聽）停用，其餘可按
+                              enabled: previewing || !activeNow,
+                              onTap: onPreview,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: _actionButton()),
+                        ],
                       ),
                     ],
                   );
@@ -1146,58 +1215,230 @@ class _InfoLine extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final VoidCallback? onTap;
 
   const _InfoLine({
     required this.icon,
     required this.label,
     required this.value,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: _kMusicAccent),
-          const SizedBox(width: 7),
-          SizedBox(
-            width: 40,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppInk.soft,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
+    final link = onTap != null;
+    final valueArea = link
+        ? Row(
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: kMusicAccent,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    decoration: TextDecoration.underline,
+                    decorationColor: kMusicAccent,
+                  ),
+                ),
               ),
+              const SizedBox(width: 4),
+              const Icon(Icons.open_in_new_rounded, size: 14, color: kMusicAccent),
+            ],
+          )
+        : Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppInk.strong,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          );
+    final row = Row(
+      children: [
+        Icon(icon, size: 17, color: kMusicAccent),
+        const SizedBox(width: 7),
+        SizedBox(
+          width: 40,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppInk.soft,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppInk.strong,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
+        ),
+        Expanded(child: valueArea),
+      ],
+    );
+    if (!link) {
+      return Padding(padding: const EdgeInsets.only(bottom: 7), child: row);
+    }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: row,
       ),
     );
   }
 }
 
+// 試聽進度條：綁 BgmService 的播放進度，可拖曳 seek。
+// 只在「播放器目前確實載入這首」時可操作；否則顯示停用的 0:00 狀態。
+class _TrackProgressBar extends StatefulWidget {
+  final String assetPath;
+
+  const _TrackProgressBar({required this.assetPath});
+
+  @override
+  State<_TrackProgressBar> createState() => _TrackProgressBarState();
+}
+
+class _TrackProgressBarState extends State<_TrackProgressBar> {
+  double? _dragMs; // 拖曳中暫存，避免 stream 把滑桿拉回去
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes;
+    final s = d.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgm = BgmService.instance;
+    return StreamBuilder<Duration>(
+      stream: bgm.positionStream,
+      builder: (context, snapshot) {
+        final onThisTrack = bgm.loadedAsset == widget.assetPath;
+        final duration = onThisTrack ? (bgm.duration ?? Duration.zero) : Duration.zero;
+        final totalMs = duration.inMilliseconds;
+        final live = (snapshot.data ?? bgm.position).inMilliseconds;
+        final posMs = onThisTrack ? live.clamp(0, totalMs == 0 ? 0 : totalMs) : 0;
+        final maxMs = totalMs == 0 ? 1.0 : totalMs.toDouble();
+        final value = (_dragMs ?? posMs.toDouble()).clamp(0.0, maxMs);
+        final seekable = onThisTrack && totalMs > 0;
+        return Column(
+          children: [
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 3,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 13),
+                activeTrackColor: kMusicAccent,
+                inactiveTrackColor: kMusicAccent.withValues(alpha: 0.18),
+                thumbColor: kMusicAccent,
+              ),
+              child: Slider(
+                value: value,
+                max: maxMs,
+                onChanged: seekable
+                    ? (v) => setState(() => _dragMs = v)
+                    : null,
+                onChangeEnd: seekable
+                    ? (v) {
+                        bgm.seek(Duration(milliseconds: v.round()));
+                        setState(() => _dragMs = null);
+                      }
+                    : null,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _fmt(Duration(milliseconds: value.round())),
+                    style: const TextStyle(
+                      color: AppInk.soft,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    _fmt(duration),
+                    style: const TextStyle(
+                      color: AppInk.soft,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// 確認後用瀏覽器開啟外部連結（離開 App）。
+Future<void> _openExternal(BuildContext context, String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dialogCtx) => AlertDialog(
+      title: const Text('開啟外部連結'),
+      content: Text('將離開 App，用瀏覽器開啟：\n$url'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogCtx, false),
+          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+        ),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: kMusicAccent),
+          onPressed: () => Navigator.pop(dialogCtx, true),
+          icon: const Icon(Icons.open_in_new_rounded, size: 18),
+          label: const Text('開啟'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (e) {
+    debugPrint('open external link failed: $e');
+  }
+}
+
 class _TrackCover extends StatelessWidget {
-  final _MusicTrackSpec track;
+  final MusicTrackSpec track;
   final double size;
 
   const _TrackCover({required this.track, required this.size});
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(size * 0.25);
+    final cover = track.coverAsset;
+    if (cover != null) {
+      return ClipRRect(
+        borderRadius: radius,
+        child: Image.asset(
+          cover,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          // 封面原圖 1280×720，但只顯示小尺寸；限制解碼寬度省記憶體（3x 供高解析螢幕）。
+          cacheWidth: (size * 3).round(),
+          errorBuilder: (_, _, _) => _fallback(radius),
+        ),
+      );
+    }
+    return _fallback(radius);
+  }
+
+  Widget _fallback(BorderRadius radius) {
     return Container(
       width: size,
       height: size,
@@ -1210,7 +1451,7 @@ class _TrackCover extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(size * 0.25),
+        borderRadius: radius,
       ),
       child: Icon(
         Icons.music_note_rounded,
@@ -1293,6 +1534,36 @@ class _SoftPill extends StatelessWidget {
           fontWeight: FontWeight.w900,
         ),
       ),
+    );
+  }
+}
+
+class _MoodLabel extends StatelessWidget {
+  final MusicMood mood;
+
+  const _MoodLabel({required this.mood});
+
+  @override
+  Widget build(BuildContext context) {
+    final relax = mood == MusicMood.relax;
+    final color = relax ? const Color(0xFF5A88D8) : const Color(0xFFE0894F);
+    return Row(
+      children: [
+        Icon(
+          relax ? Icons.spa_rounded : Icons.bolt_rounded,
+          size: 16,
+          color: color,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          moodLabel(mood),
+          style: TextStyle(
+            color: color,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     );
   }
 }
