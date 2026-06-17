@@ -11,6 +11,7 @@ import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import 'advanced_settings_page.dart';
 import 'dev_test_page.dart';
+import 'family/parent_pin_recovery.dart';
 import 'feature_settings_page.dart';
 import 'profile_edit_page.dart';
 
@@ -479,14 +480,22 @@ class _PinSettingsSheet extends StatefulWidget {
 
 class _PinSettingsSheetState extends State<_PinSettingsSheet> {
   late int _digits;
+  late bool _hasPin;
+  bool _hasQA = false; // 是否已設定忘記密碼救援問題
 
   @override
   void initState() {
     super.initState();
     _digits = widget.currentDigits;
+    _hasPin = widget.hasPin;
+    _loadQA();
   }
 
-  bool get _hasPin => widget.hasPin;
+  Future<void> _loadQA() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _hasQA = ParentPin.hasSecurityQuestion(prefs));
+  }
 
   // 對照儲存的雜湊驗證舊 PIN
   Future<bool> _verifyOldPin(String entered) async {
@@ -599,10 +608,35 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     }
     await widget.onSaved(newPin, _digits);
     if (!mounted) return;
-    Navigator.pop(context);
+    setState(() => _hasPin = true);
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('密碼已設定')));
+    // 首次設定後引導設救援問題（可略過），讓忘記密碼時能不丟資料重設。
+    // 不自動關閉面板，讓使用者能看到救援問題狀態與「忘記密碼」入口。
+    await _setupSecurityQuestion(initial: true);
+  }
+
+  // 設定／修改救援安全問題。initial=true 是「首次設密碼後的引導」，可略過。
+  Future<void> _setupSecurityQuestion({bool initial = false}) async {
+    final result = await showDialog<({String question, String answer})>(
+      context: context,
+      builder: (_) => _SecurityQuestionDialog(initial: initial),
+    );
+    if (result == null || !mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    await ParentPin.saveSecurityQuestion(prefs, result.question, result.answer);
+    if (!mounted) return;
+    setState(() => _hasQA = true);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('救援問題已設定')));
+  }
+
+  // 忘記密碼：答對救援問題重設，或清空重來。成功就關閉本面板。
+  Future<void> _forgotPassword() async {
+    final ok = await showForgotParentPin(context);
+    if (ok && mounted) Navigator.pop(context);
   }
 
   // 修改 PIN（需先輸入舊 PIN）
@@ -757,18 +791,154 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             ),
           ),
 
-          if (_hasPin)
+          if (_hasPin) ...[
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Center(
                 child: Text(
-                  '目前已設定 ${widget.currentDigits} 位數字密碼',
+                  '目前已設定 $_digits 位數字密碼',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 ),
               ),
             ),
+            const SizedBox(height: 18),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  Icons.help_outline_rounded,
+                  size: 20,
+                  color: Colors.grey.shade600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '忘記密碼救援問題',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _hasQA ? '已設定，忘記密碼可用它重設' : '尚未設定（建議設定，免得忘記只能清空）',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _hasQA
+                              ? Colors.grey.shade500
+                              : Colors.orange.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: _setupSecurityQuestion,
+                  child: Text(_hasQA ? '修改' : '設定'),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _forgotPassword,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey.shade700,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                icon: const Icon(Icons.lock_reset_rounded, size: 18),
+                label: const Text('忘記密碼？'),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+// 救援問題設定對話框：問題＋答案都填才可儲存。controller 由 State 持有，
+// dispose 綁 widget 生命週期（避免退場期間被存取）。
+class _SecurityQuestionDialog extends StatefulWidget {
+  final bool initial;
+  const _SecurityQuestionDialog({required this.initial});
+
+  @override
+  State<_SecurityQuestionDialog> createState() =>
+      _SecurityQuestionDialogState();
+}
+
+class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
+  final _qCtrl = TextEditingController();
+  final _aCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _qCtrl.dispose();
+    _aCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ready =
+        _qCtrl.text.trim().isNotEmpty && _aCtrl.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: const Text('設定救援問題'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '忘記密碼時，答對這題就能重設密碼，資料不會被清除。請設一個只有你知道答案的問題。',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _qCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '問題',
+                hintText: '例如：我的第一隻寵物叫什麼？',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _aCtrl,
+              decoration: const InputDecoration(
+                labelText: '答案',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            widget.initial ? '略過' : '取消',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ),
+        TextButton(
+          onPressed: ready
+              ? () => Navigator.pop(
+                  context,
+                  (question: _qCtrl.text.trim(), answer: _aCtrl.text),
+                )
+              : null,
+          child: const Text('儲存'),
+        ),
+      ],
     );
   }
 }

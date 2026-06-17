@@ -90,7 +90,7 @@ class AdvancedSettingsPage extends StatelessWidget {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               subtitle: Text(
-                '清除習慣、體重、喝水、家庭資料',
+                '清除體重、喝水、家庭資料，或重置全部',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
               ),
               trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),

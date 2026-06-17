@@ -22,6 +22,7 @@ import 'family/family_auth.dart';
 import 'family/family_models.dart';
 import 'family/family_store.dart';
 import 'family/parent_management_page.dart';
+import 'family/parent_pin_recovery.dart';
 import 'home/room_ambient_overlay.dart';
 
 // ── 家庭主頁（小孩選擇畫面）──
@@ -90,6 +91,11 @@ class _FamilyPageState extends State<FamilyPage> {
         context,
         digits: digits,
         title: '請輸入家長密碼',
+        // 忘記密碼：答對救援問題重設、或清空重來。成功重設會設好 parentSession，
+        // 使用者再點一次家長管理即可直接進入；清空則整個 app 重啟。
+        onForgotPassword: () async {
+          await showForgotParentPin(context);
+        },
       );
       if (entered != null && await ParentPin.verify(prefs, entered)) {
         if (!mounted) return;

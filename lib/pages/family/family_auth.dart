@@ -12,6 +12,7 @@ Future<String?> showPinDialog(
   BuildContext context, {
   required int digits,
   required String title,
+  Future<void> Function()? onForgotPassword,
 }) async {
   final controller = TextEditingController();
   var obscure = true;
@@ -44,6 +45,17 @@ Future<String?> showPinDialog(
           onSubmitted: (v) => Navigator.pop(dialogCtx, v),
         ),
         actions: [
+          if (onForgotPassword != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogCtx);
+                onForgotPassword();
+              },
+              child: Text(
+                '忘記密碼？',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
             child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/app_style.dart';
+import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
 import '../settings_page.dart';
 import 'add_children_sheet.dart';
@@ -36,6 +37,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   // 追蹤是否有異動，回傳給上層以決定是否重新載入
   bool _changed = false;
 
+  // 「尚未設定密碼」橫幅是否已被使用者關閉（取代原本會黏住的 SnackBar）
+  bool _pinWarnDismissed = false;
+
   @override
   void initState() {
     super.initState();
@@ -45,30 +49,6 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _init() async {
     _prefs = await SharedPreferences.getInstance();
     await _loadAll();
-
-    // 尚未設定密碼時顯示建議提示
-    if (widget.noPinWarning && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('建議設定密碼以保護家長管理'),
-            duration: const Duration(seconds: 6),
-            action: SnackBarAction(
-              label: '設定密碼',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        const SettingsPage(openPinSettingsOnLoad: true),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      });
-    }
   }
 
   // 一次讀取所有資料
@@ -503,9 +483,73 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         ),
         body: !_loaded
             ? const Center(child: CircularProgressIndicator())
-            : _children.isEmpty
-            ? _buildEmpty()
-            : _buildContent(),
+            : Column(
+                children: [
+                  if (widget.noPinWarning && !_pinWarnDismissed)
+                    _buildPinWarningBanner(),
+                  Expanded(
+                    child: _children.isEmpty ? _buildEmpty() : _buildContent(),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  // 尚未設定密碼時的頁內橫幅（可「去設定」或「關閉」）。
+  // 原本用 6 秒 SnackBar，會出現黏住不消失的情況，改成可控的頁內提示。
+  Widget _buildPinWarningBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_open_rounded, color: Colors.orange.shade700, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              '尚未設定家長密碼，建議設定以保護家長管理',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6F4A1F),
+              ),
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              minimumSize: const Size(0, 36),
+            ),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SettingsPage(openPinSettingsOnLoad: true),
+                ),
+              );
+              // 設定完回來：若已設密碼就把橫幅收掉
+              if (!mounted || _prefs == null) return;
+              final hasPin = await ParentPin.hasPin(_prefs!);
+              if (mounted && hasPin) setState(() => _pinWarnDismissed = true);
+            },
+            child: const Text(
+              '去設定',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          IconButton(
+            tooltip: '關閉',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _pinWarnDismissed = true),
+            icon: Icon(Icons.close_rounded, size: 18, color: Colors.orange.shade700),
+          ),
+        ],
       ),
     );
   }

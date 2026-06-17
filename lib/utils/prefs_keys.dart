@@ -138,6 +138,8 @@ abstract final class PrefsKeys {
   static const pointRecords = 'point_records';
   static const pinDigits = 'pin_digits';
   static const parentPinHash = 'parent_pin_hash';
+  static const parentPinQuestion = 'parent_pin_question'; // 忘記密碼救援問題（明文）
+  static const parentPinAnswerHash = 'parent_pin_answer_hash'; // 救援答案雜湊
   static const legacyParentPin = 'parent_pin'; // 舊版明文 PIN，僅遷移用
 
   // ── 音訊 ─────────────────────────────────────────────────

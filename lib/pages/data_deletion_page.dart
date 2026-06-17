@@ -9,6 +9,7 @@ import '../utils/app_feedback.dart';
 import '../utils/app_restart.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
+import 'family/parent_pin_recovery.dart';
 
 class DataDeletionPage extends StatefulWidget {
   const DataDeletionPage({super.key});
@@ -24,8 +25,6 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
   bool _verifying = false;
   bool _busy = false;
 
-  int _habitCount = 0;
-  int _habitRecordCount = 0;
   int _weightCount = 0;
   int _waterDayCount = 0;
   int _familyCount = 0;
@@ -56,8 +55,6 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
   void _refreshCounts() {
     final prefs = _prefs;
     if (prefs == null) return;
-    _habitCount = _habitList(prefs).length;
-    _habitRecordCount = _habitRecordCountOf(_habitList(prefs));
     _weightCount = _jsonListLength(prefs.getString(PrefsKeys.weightRecords));
     _waterDayCount = _waterRecordDates(prefs).length;
     _familyCount =
@@ -78,31 +75,6 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     } catch (_) {
       return 0;
     }
-  }
-
-  List<Map<String, dynamic>> _habitList(SharedPreferences prefs) {
-    final raw = prefs.getString(PrefsKeys.habits);
-    if (raw == null || raw.isEmpty) return [];
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return [];
-      return decoded
-          .whereType<Map<dynamic, dynamic>>()
-          .map(Map<String, dynamic>.from)
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  int _habitRecordCountOf(List<Map<String, dynamic>> habits) {
-    var count = 0;
-    for (final habit in habits) {
-      if (habit['done'] == true) count++;
-      final dates = habit['weeklyDates'];
-      if (dates is List) count += dates.length;
-    }
-    return count;
   }
 
   String? _dateSuffix(String key, String prefix) {
@@ -151,75 +123,25 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
 
   // 回傳 true = 驗證通過；false = 使用者按取消。輸錯不會結束對話框，
   // 而是清空欄位、顯示行內錯誤讓使用者重新輸入。
+  //
+  // 對話框抽成 [_PinVerifyDialog]（StatefulWidget），讓 TextEditingController
+  // 的生命週期綁在 widget 上：dispose 會在對話框退場動畫結束、widget 真正離開
+  // 樹之後才發生，不會在退場期間被 TextField 拿來 addListener（提早 dispose
+  // 會連鎖 RenderFlex / _dependents.isEmpty 崩潰）。
   Future<bool> _verifyPin({required String title}) async {
     final prefs = _prefs;
     if (prefs == null) return false;
     final digits = prefs.getInt(PrefsKeys.pinDigits) ?? 4;
-    final ctrl = TextEditingController();
-    var obscure = true;
-    String? errorText;
-    var checking = false;
-    final ok = await showDialog<bool>(
+    final result = await showDialog<_PinResult>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (_, setS) {
-          Future<void> submit(String v) async {
-            if (checking || v.length != digits) return;
-            checking = true;
-            final pass = await ParentPin.verify(prefs, v);
-            checking = false;
-            if (!dialogCtx.mounted) return;
-            if (pass) {
-              Navigator.pop(dialogCtx, true);
-            } else {
-              playHaptic(HapticLevel.medium);
-              setS(() {
-                errorText = '密碼錯誤，請再試一次';
-                ctrl.clear();
-              });
-            }
-          }
-
-          return AlertDialog(
-            title: Text(title),
-            content: TextField(
-              controller: ctrl,
-              keyboardType: TextInputType.number,
-              obscureText: obscure,
-              maxLength: digits,
-              autofocus: true,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(digits),
-              ],
-              decoration: InputDecoration(
-                hintText: '請輸入 $digits 位數字密碼',
-                counterText: '',
-                errorText: errorText,
-                suffixIcon: IconButton(
-                  icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setS(() => obscure = !obscure),
-                ),
-              ),
-              onChanged: (v) {
-                if (errorText != null) setS(() => errorText = null);
-                if (v.length == digits) submit(v);
-              },
-              onSubmitted: submit,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx, false),
-                child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-              ),
-            ],
-          );
-        },
-      ),
+      builder: (_) =>
+          _PinVerifyDialog(prefs: prefs, digits: digits, title: title),
     );
-    ctrl.dispose();
-    return ok ?? false;
+    if (!mounted) return false;
+    // 忘記密碼：救援成功（答對問題重設 / 清空重啟）即視為通過。
+    if (result == _PinResult.forgot) return showForgotParentPin(context);
+    return result == _PinResult.ok;
   }
 
   Future<bool> _confirmLongPress({
@@ -269,57 +191,14 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
         false;
   }
 
+  // 對話框抽成 [_DeleteWordDialog]（StatefulWidget），理由同 [_verifyPin]：
+  // controller 的 dispose 綁在 widget 生命週期，發生在退場動畫之後，避免提早
+  // dispose 害退場那一幀的 TextField crash。
   Future<bool> _confirmDeleteWord() async {
-    final ctrl = TextEditingController();
-    var enabled = false;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('重置全部資料'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('這會清除所有資料並回到初始狀態，包含習慣、喝水、體重、家庭、金幣、衣櫃與密碼設定。'),
-              const SizedBox(height: 14),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: '輸入 DELETE 以確認',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (v) => setS(() => enabled = v.trim() == 'DELETE'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              style: TextButton.styleFrom(minimumSize: const Size(72, 46)),
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-                minimumSize: const Size(0, 48),
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              onPressed: enabled ? () => Navigator.pop(dialogCtx, true) : null,
-              icon: const Icon(Icons.delete_forever_rounded, size: 20),
-              label: const Text('永久刪除'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => const _DeleteWordDialog(),
     );
-    ctrl.dispose();
     return ok ?? false;
   }
 
@@ -336,24 +215,6 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _clearHabitRecords() async {
-    final confirm = await _confirmLongPress(
-      title: '清除習慣完成紀錄',
-      message: '會保留習慣清單、連續天數與已得金幣，只清除今日完成狀態與每週習慣的完成日期。',
-      color: Colors.orange,
-    );
-    if (!confirm) return;
-    await _runDelete((prefs) async {
-      final habits = _habitList(prefs);
-      for (final habit in habits) {
-        habit['done'] = false;
-        if (habit.containsKey('weeklyDates')) habit['weeklyDates'] = <String>[];
-      }
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
-    });
-    _showDone('已清除習慣完成紀錄');
   }
 
   Future<void> _clearWeightRecords() async {
@@ -452,18 +313,6 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
         children: [
           _warningHeader(),
           const SizedBox(height: 16),
-          _DeleteItemCard(
-            icon: Icons.checklist_rtl_rounded,
-            color: Colors.orange,
-            title: '清除習慣完成紀錄',
-            subtitle: _habitCount == 0
-                ? '目前沒有習慣'
-                : '$_habitCount 個習慣，$_habitRecordCount 筆完成狀態',
-            detail: '保留習慣清單、連續天數與金幣紀錄',
-            enabled: !_busy && _habitCount > 0,
-            onTap: _clearHabitRecords,
-          ),
-          const SizedBox(height: 12),
           _DeleteItemCard(
             icon: Icons.monitor_weight_outlined,
             color: Colors.orange,
@@ -841,6 +690,165 @@ class _HoldToConfirmButtonState extends State<_HoldToConfirmButton>
           ],
         ),
       ),
+    );
+  }
+}
+
+// 家長密碼驗證對話框的結果：ok = 驗證通過；forgot = 使用者點了「忘記密碼」；
+// 取消則回傳 null。
+enum _PinResult { ok, forgot }
+
+// 家長密碼驗證對話框。controller 由 State 持有，dispose 在 widget 離開樹之後
+// 才發生（含退場動畫），避免提早釋放害 TextField 在退場那一幀 crash。
+class _PinVerifyDialog extends StatefulWidget {
+  final SharedPreferences prefs;
+  final int digits;
+  final String title;
+
+  const _PinVerifyDialog({
+    required this.prefs,
+    required this.digits,
+    required this.title,
+  });
+
+  @override
+  State<_PinVerifyDialog> createState() => _PinVerifyDialogState();
+}
+
+class _PinVerifyDialogState extends State<_PinVerifyDialog> {
+  final _ctrl = TextEditingController();
+  bool _obscure = true;
+  String? _errorText;
+  bool _checking = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit(String v) async {
+    if (_checking || v.length != widget.digits) return;
+    _checking = true;
+    final pass = await ParentPin.verify(widget.prefs, v);
+    _checking = false;
+    if (!mounted) return;
+    if (pass) {
+      Navigator.pop(context, _PinResult.ok);
+    } else {
+      playHaptic(HapticLevel.medium);
+      setState(() {
+        _errorText = '密碼錯誤，請再試一次';
+        _ctrl.clear();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _ctrl,
+        keyboardType: TextInputType.number,
+        obscureText: _obscure,
+        maxLength: widget.digits,
+        autofocus: true,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(widget.digits),
+        ],
+        decoration: InputDecoration(
+          hintText: '請輸入 ${widget.digits} 位數字密碼',
+          counterText: '',
+          errorText: _errorText,
+          suffixIcon: IconButton(
+            icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+            onPressed: () => setState(() => _obscure = !_obscure),
+          ),
+        ),
+        onChanged: (v) {
+          if (_errorText != null) setState(() => _errorText = null);
+          if (v.length == widget.digits) _submit(v);
+        },
+        onSubmitted: _submit,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, _PinResult.forgot),
+          child: Text('忘記密碼？', style: TextStyle(color: Colors.grey.shade600)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+        ),
+      ],
+    );
+  }
+}
+
+// 「重置全部資料」確認對話框：要輸入 DELETE 才能按永久刪除。controller 生命
+// 週期同 [_PinVerifyDialog]，綁在 State 上避免提早 dispose。
+class _DeleteWordDialog extends StatefulWidget {
+  const _DeleteWordDialog();
+
+  @override
+  State<_DeleteWordDialog> createState() => _DeleteWordDialogState();
+}
+
+class _DeleteWordDialogState extends State<_DeleteWordDialog> {
+  final _ctrl = TextEditingController();
+  bool _enabled = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('重置全部資料'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('這會清除所有資料並回到初始狀態，包含習慣、喝水、體重、家庭、金幣、衣櫃與密碼設定。'),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              labelText: '輸入 DELETE 以確認',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) => setState(() => _enabled = v.trim() == 'DELETE'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          style: TextButton.styleFrom(minimumSize: const Size(72, 46)),
+          onPressed: () => Navigator.pop(context, false),
+          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+        ),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.red,
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            textStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          onPressed: _enabled ? () => Navigator.pop(context, true) : null,
+          icon: const Icon(Icons.delete_forever_rounded, size: 20),
+          label: const Text('永久刪除'),
+        ),
+      ],
     );
   }
 }
