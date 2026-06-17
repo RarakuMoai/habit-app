@@ -13,6 +13,8 @@ const Duration kHabitDragHoldDelay = Duration(seconds: 1);
 
 // 按住要超過這個門檻才開始長出波紋；比這短的純單點完全不出特效。
 const Duration _kHoldFillStartDelay = Duration(milliseconds: 130);
+const Color _kWaterLinkedAccent = Color(0xFF42A5F5);
+const Color _kWeightLinkedAccent = Color(0xFF7E57C2);
 
 // ── 習慣卡片（含彈跳動畫）──
 
@@ -169,6 +171,9 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     widget.onToggle();
   }
 
+  Color _linkedAccentFor(String name) =>
+      isWeightHabitName(name) ? _kWeightLinkedAccent : _kWaterLinkedAccent;
+
   @override
   Widget build(BuildContext context) {
     if (widget.isWeekly) return _buildWeeklyCard();
@@ -178,6 +183,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
   Widget _buildDailyCard() {
     final done = widget.habit['done'] as bool;
     final name = widget.habit['name'] as String;
+    final linkedAccent = _linkedAccentFor(name);
     final cardRadius = BorderRadius.circular(AppCardStyle.radius);
     _syncCheckAnim(done);
 
@@ -223,7 +229,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // 內縮圓角色條：只表「類別」（橘=一般、藍=連動），
+                            // 內縮圓角色條：一般用橘；連動習慣用功能來源色。
                             // 完成狀態交給圓圈/底色表達，色條僅淡出讓位
                             Padding(
                               padding: EdgeInsets.fromLTRB(
@@ -238,7 +244,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                 decoration: BoxDecoration(
                                   color:
                                       (widget.isLinked
-                                              ? Colors.blue.shade400
+                                              ? linkedAccent
                                               : Colors.orange.shade400)
                                           .withValues(alpha: done ? 0.30 : 1.0),
                                   borderRadius: BorderRadius.circular(2),
@@ -335,7 +341,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                             Icon(
                                               Icons.link,
                                               size: 11,
-                                              color: Colors.blue.shade400,
+                                              color: linkedAccent,
                                             ),
                                             const SizedBox(width: 3),
                                             Text(
@@ -344,7 +350,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                                   : '連動喝水頁面',
                                               style: TextStyle(
                                                 fontSize: 11,
-                                                color: Colors.blue.shade500,
+                                                color: linkedAccent,
                                               ),
                                             ),
                                           ],

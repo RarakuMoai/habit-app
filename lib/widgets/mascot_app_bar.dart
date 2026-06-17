@@ -18,7 +18,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// 影響日期 pill icon 顏色（其餘元素統一灰底白字）。
   final Color accent;
 
-  /// 額外塞在「設定」前面的 actions（例如首頁的連續天數 pill）。
+  /// 額外塞在「設定」前面的 actions。
   final List<Widget> extraActions;
 
   /// 從設定頁返回後要做的事（重新載入資料等）。
@@ -61,8 +61,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       title: const SizedBox.shrink(),
       actions: [
-        const CoinPill(),
-        const SizedBox(width: 6),
+        const Padding(padding: EdgeInsets.only(right: 6), child: CoinPill()),
         ...extraActions,
         AudioControlButton(style: AudioControlStyle.appBar, accent: accent),
         Padding(
@@ -117,8 +116,8 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// 金幣餘額膠囊：監聽 [CoinService.notifier]，全頁 app bar 顯示；
-/// 餘額變動時 pop 一下吸引注意（入帳的小確幸時刻）。
+/// 金幣餘額：監聽 [CoinService.notifier]，全頁 app bar 顯示；
+/// 餘額變動時輕輕 pop 一下，保留獎勵感但不搶主頁視覺。
 class CoinPill extends StatefulWidget {
   const CoinPill({super.key});
 
@@ -162,10 +161,70 @@ class _CoinPillState extends State<CoinPill>
       scale: _scale,
       child: ValueListenableBuilder<int>(
         valueListenable: CoinService.notifier,
-        builder: (_, coins, _) => MascotPill(
-          icon: Icons.paid_rounded,
-          label: '$coins',
-          color: Colors.amber.shade700,
+        builder: (_, coins, _) => _CoinBalanceChip(coins: coins),
+      ),
+    );
+  }
+}
+
+class _CoinBalanceChip extends StatelessWidget {
+  final int coins;
+  const _CoinBalanceChip({required this.coins});
+
+  @override
+  Widget build(BuildContext context) {
+    const coin = Color(0xFFE5A327);
+    return Semantics(
+      label: '金幣 $coins',
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.fromLTRB(6, 4, 9, 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7E3).withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFFFE2A0).withValues(alpha: 0.95),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFB47618).withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: coin,
+              ),
+              child: const Icon(
+                Icons.paid_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 5),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 46),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '$coins',
+                  style: AppType.digits(
+                    color: const Color(0xFF6D5526),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

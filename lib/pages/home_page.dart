@@ -725,19 +725,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       appBar: MascotAppBar(
         accent: colors.accent,
         onSettingsReturn: () => widget.onSettingsChanged?.call(),
-        extraActions: [
-          if (streak > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Center(
-                child: MascotPill(
-                  icon: Icons.local_fire_department_rounded,
-                  label: '$streak 天',
-                  color: Colors.orange.shade600,
-                ),
-              ),
-            ),
-        ],
       ),
       body: AnimatedContainer(
         duration: const Duration(milliseconds: 600),

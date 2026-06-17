@@ -651,179 +651,187 @@ class _WeightPageState extends State<WeightPage> {
               Navigator.pop(ctx);
             }
 
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.86,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withValues(alpha: 0.18),
-                        blurRadius: 24,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
+            final latestForSheet = existing != null
+                ? (existing['weight'] as num).toDouble()
+                : _records.isNotEmpty
+                ? (_records.first['weight'] as num).toDouble()
+                : null;
+            final headerSubtitle = existing != null
+                ? '更新 ${_dateLabel(selectedDate)} 的體重資料'
+                : latestForSheet == null
+                ? '先留下一筆今天的身體讀數'
+                : '上次 ${_fmtWeight(latestForSheet)} $_wLabel，直接微調即可';
+
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.86,
                   ),
-                  child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withValues(alpha: 0.18),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Center(
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8DDD4),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(13),
-                              ),
-                              child: const Icon(
-                                Icons.monitor_weight_rounded,
-                                color: Colors.orange,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    existing != null ? '編輯體重紀錄' : '新增體重紀錄',
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      color: AppInk.strong,
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Center(
+                                  child: Container(
+                                    width: 40,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE8DDD4),
+                                      borderRadius: BorderRadius.circular(99),
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  const Text(
-                                    '留下一筆今天的身體讀數',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: AppInk.soft,
-                                      fontWeight: FontWeight.w600,
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(13),
+                                      ),
+                                      child: const Icon(
+                                        Icons.monitor_weight_rounded,
+                                        color: Colors.orange,
+                                        size: 20,
+                                      ),
                                     ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            existing != null
+                                                ? '編輯體重紀錄'
+                                                : '新增體重紀錄',
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w900,
+                                              color: AppInk.strong,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            headerSubtitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12.5,
+                                              color: AppInk.soft,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      icon: const Icon(
+                                        Icons.close_rounded,
+                                        color: AppInk.iconFaint,
+                                      ),
+                                      onPressed: () => Navigator.pop(ctx),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                _datePickCard(
+                                  dateLabel: _dateLabel(selectedDate),
+                                  onTap: () async {
+                                    final picked = await showAppDatePicker(
+                                      ctx,
+                                      initial: selectedDate,
+                                      firstDate: DateTime(2000),
+                                      lastDate: DateTime.now(),
+                                      accent: Colors.orange,
+                                      title: '選擇紀錄日期',
+                                    );
+                                    if (picked != null) {
+                                      setSheetState(
+                                        () => selectedDate = picked,
+                                      );
+                                    }
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                _WeightInputCard(
+                                  value: _weightCtrl.text,
+                                  unitLabel: _wLabel,
+                                  errorText: weightError,
+                                  active:
+                                      activeField == _WeightSheetField.weight,
+                                  onTap: () {
+                                    setSheetState(
+                                      () => activeField =
+                                          _WeightSheetField.weight,
+                                    );
+                                  },
+                                  onDecrease: () => stepWeight(
+                                    _unit == UnitSystem.imperial ? -1 : -0.1,
+                                  ),
+                                  onIncrease: () => stepWeight(
+                                    _unit == UnitSystem.imperial ? 1 : 0.1,
+                                  ),
+                                ),
+                                if (_weightTrackingEnabled) ...[
+                                  const SizedBox(height: 8),
+                                  _BodyFatInputCard(
+                                    value: _fatCtrl.text,
+                                    errorText: fatError,
+                                    active:
+                                        activeField == _WeightSheetField.fat,
+                                    onTap: () {
+                                      setSheetState(
+                                        () =>
+                                            activeField = _WeightSheetField.fat,
+                                      );
+                                    },
                                   ),
                                 ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: AppInk.iconFaint,
-                              ),
-                              onPressed: () => Navigator.pop(ctx),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        _sheetSummaryCard(existing: existing),
-                        const SizedBox(height: 14),
-                        _sheetSectionLabel(
-                          icon: Icons.event_rounded,
-                          label: '日期',
-                        ),
-                        const SizedBox(height: 8),
-                        _datePickCard(
-                          dateLabel: _dateLabel(selectedDate),
-                          onTap: () async {
-                            final picked = await showAppDatePicker(
-                              ctx,
-                              initial: selectedDate,
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
-                              accent: Colors.orange,
-                              title: '選擇紀錄日期',
-                            );
-                            if (picked != null) {
-                              setSheetState(() => selectedDate = picked);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        _sheetSectionLabel(
-                          icon: Icons.speed_rounded,
-                          label: '身體讀數',
-                        ),
-                        const SizedBox(height: 8),
-                        _WeightInputCard(
-                          value: _weightCtrl.text,
-                          unitLabel: _wLabel,
-                          errorText: weightError,
-                          active: activeField == _WeightSheetField.weight,
-                          onTap: () {
-                            setSheetState(
-                              () => activeField = _WeightSheetField.weight,
-                            );
-                          },
-                          onDecrease: () => stepWeight(
-                            _unit == UnitSystem.imperial ? -1 : -0.1,
-                          ),
-                          onIncrease: () => stepWeight(
-                            _unit == UnitSystem.imperial ? 1 : 0.1,
-                          ),
-                        ),
-                        if (_weightTrackingEnabled) ...[
-                          const SizedBox(height: 10),
-                          _BodyFatInputCard(
-                            value: _fatCtrl.text,
-                            errorText: fatError,
-                            active: activeField == _WeightSheetField.fat,
-                            onTap: () {
-                              setSheetState(
-                                () => activeField = _WeightSheetField.fat,
-                              );
-                            },
-                          ),
-                        ],
-                        const SizedBox(height: 14),
-                        _WeightSheetKeypad(
-                          decimalEnabled:
-                              activeField == _WeightSheetField.fat ||
-                              _unit == UnitSystem.metric,
-                          onDigit: pressDigit,
-                          onDecimal: pressDecimal,
-                          onBackspace: pressBackspace,
-                          onClear: pressClear,
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: submit,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            icon: const Icon(Icons.check_rounded, size: 19),
-                            label: const Text(
-                              '儲存紀錄',
-                              style: TextStyle(fontWeight: FontWeight.w800),
+                                const SizedBox(height: 12),
+                                _WeightSheetKeypad(
+                                  decimalEnabled:
+                                      activeField == _WeightSheetField.fat ||
+                                      _unit == UnitSystem.metric,
+                                  onDigit: pressDigit,
+                                  onDecimal: pressDecimal,
+                                  onBackspace: pressBackspace,
+                                  onClear: pressClear,
+                                ),
+                              ],
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 10),
+                        _SheetSaveButton(
+                          label: existing != null ? '儲存更新' : '儲存紀錄',
+                          onPressed: submit,
                         ),
                       ],
                     ),
@@ -834,97 +842,6 @@ class _WeightPageState extends State<WeightPage> {
           },
         );
       },
-    );
-  }
-
-  Widget _sheetSummaryCard({Map<String, dynamic>? existing}) {
-    final latest = existing != null
-        ? (existing['weight'] as num).toDouble()
-        : _records.isNotEmpty
-        ? (_records.first['weight'] as num).toDouble()
-        : null;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.orange.withValues(alpha: 0.14),
-            const Color(0xFFFFF3E0),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.14)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.72),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.stacked_line_chart_rounded,
-              color: Colors.orange,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  latest == null
-                      ? '開始第一筆紀錄'
-                      : '目前 ${_fmtWeight(latest)} $_wLabel',
-                  style: latest == null
-                      ? const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: AppInk.strong,
-                        )
-                      : AppType.digits(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppInk.strong,
-                        ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  existing != null ? '更新這一天的體重資料' : '微調數字後按儲存即可',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppInk.soft,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sheetSectionLabel({required IconData icon, required String label}) {
-    return Row(
-      children: [
-        Icon(icon, size: 17, color: Colors.orange),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
-            color: AppInk.strong,
-          ),
-        ),
-      ],
     );
   }
 
@@ -939,7 +856,7 @@ class _WeightPageState extends State<WeightPage> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0x0A46342B)),
@@ -948,8 +865,8 @@ class _WeightPageState extends State<WeightPage> {
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(13),
@@ -957,7 +874,7 @@ class _WeightPageState extends State<WeightPage> {
                 child: const Icon(
                   Icons.calendar_today_rounded,
                   color: Colors.orange,
-                  size: 18,
+                  size: 17,
                 ),
               ),
               const SizedBox(width: 10),
@@ -965,7 +882,7 @@ class _WeightPageState extends State<WeightPage> {
                 child: Text(
                   dateLabel,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w800,
                     color: AppInk.strong,
                   ),
@@ -1298,7 +1215,7 @@ class _WeightPageState extends State<WeightPage> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: _TodayActionButton(
-                      label: todayRec != null ? '更新今日' : '記錄今天',
+                      label: todayRec != null ? '更新今日體重' : '記錄今天體重',
                       icon: todayRec != null
                           ? Icons.edit_rounded
                           : Icons.add_rounded,
@@ -2348,57 +2265,69 @@ class _WeightSheetKeypad extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final row in const [
-          ['1', '2', '3'],
-          ['4', '5', '6'],
-          ['7', '8', '9'],
-        ])
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              children: [
-                for (final digit in row) ...[
-                  Expanded(
-                    child: _WeightKeyButton(
-                      label: digit,
-                      onTap: () => onDigit(digit),
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7EC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        children: [
+          for (final row in const [
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(
+                children: [
+                  for (final digit in row) ...[
+                    Expanded(
+                      child: _WeightKeyButton(
+                        label: digit,
+                        onTap: () => onDigit(digit),
+                      ),
                     ),
-                  ),
-                  if (digit != row.last) const SizedBox(width: 6),
+                    if (digit != row.last) const SizedBox(width: 5),
+                  ],
                 ],
-              ],
+              ),
             ),
+          Row(
+            children: [
+              Expanded(
+                child: _WeightKeyButton(
+                  label: 'C',
+                  onTap: onClear,
+                  muted: true,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _WeightKeyButton(label: '0', onTap: () => onDigit('0')),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _WeightKeyButton(
+                  label: '.',
+                  onTap: decimalEnabled ? onDecimal : null,
+                  muted: true,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _WeightKeyButton(
+                  icon: Icons.backspace_outlined,
+                  onTap: onBackspace,
+                  muted: true,
+                ),
+              ),
+            ],
           ),
-        Row(
-          children: [
-            Expanded(
-              child: _WeightKeyButton(label: 'C', onTap: onClear, muted: true),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: _WeightKeyButton(label: '0', onTap: () => onDigit('0')),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: _WeightKeyButton(
-                label: '.',
-                onTap: decimalEnabled ? onDecimal : null,
-                muted: true,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: _WeightKeyButton(
-                icon: Icons.backspace_outlined,
-                onTap: onBackspace,
-                muted: true,
-              ),
-            ),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -2424,31 +2353,72 @@ class _WeightKeyButton extends StatelessWidget {
               ? AppInk.soft
               : AppInk.strong
         : AppInk.faint;
+    final bg = enabled
+        ? muted
+              ? const Color(0xFFFFFCF8)
+              : Colors.white
+        : const Color(0xFFF2E9E1);
     return Material(
-      color: enabled
-          ? muted
-                ? const Color(0xFFFAF7F2)
-                : Colors.white
-          : const Color(0xFFF5EEE8),
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(13),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(13),
-        child: SizedBox(
-          height: 42,
+        splashColor: Colors.orange.withValues(alpha: 0.10),
+        highlightColor: Colors.orange.withValues(alpha: 0.06),
+        child: Ink(
+          height: 40,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: enabled
+                  ? Colors.orange.withValues(alpha: muted ? 0.08 : 0.13)
+                  : const Color(0x0A46342B),
+            ),
+            boxShadow: enabled && !muted ? AppShadows.flat : null,
+          ),
           child: Center(
             child: icon != null
-                ? Icon(icon, size: 19, color: fg)
+                ? Icon(icon, size: 18, color: fg)
                 : Text(
                     label!,
                     style: AppType.digits(
-                      fontSize: 20,
+                      fontSize: muted ? 17 : 20,
                       fontWeight: FontWeight.w900,
                       color: fg,
                     ),
                   ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SheetSaveButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _SheetSaveButton({required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+        ),
+        icon: const Icon(Icons.check_rounded, size: 19),
+        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
       ),
     );
   }
@@ -2488,48 +2458,51 @@ class _TodayActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 與習慣頁「新增習慣」鈕同一視覺：淡橘漸層膠囊＋橘圈圈圖示＋橘字，
-    // 比實心橘更明顯易點、也跟兩頁的新增入口語言一致。
     return SizedBox(
       width: double.infinity,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.orange.withValues(alpha: 0.15),
-          highlightColor: Colors.orange.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+          splashColor: Colors.white.withValues(alpha: 0.16),
+          highlightColor: Colors.white.withValues(alpha: 0.08),
           child: Ink(
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFF8EC), Color(0xFFFFEFDA)],
+              gradient: LinearGradient(
+                colors: [Colors.orange.shade400, Colors.deepOrange.shade400],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withValues(alpha: 0.24),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 24,
-                  height: 24,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade400,
+                    color: Colors.white.withValues(alpha: 0.20),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, size: 16, color: Colors.white),
+                  child: Icon(icon, size: 17, color: Colors.white),
                 ),
                 const SizedBox(width: 10),
                 Text(
                   label,
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.w700,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
                     fontSize: 14,
-                    letterSpacing: 0.5,
                   ),
                 ),
               ],

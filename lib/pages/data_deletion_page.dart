@@ -1,0 +1,668 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../utils/app_feedback.dart';
+import '../utils/audio_settings_service.dart';
+import '../utils/bgm_service.dart';
+import '../utils/coin_service.dart';
+import '../utils/parent_pin.dart';
+import '../utils/prefs_keys.dart';
+
+class DataDeletionPage extends StatefulWidget {
+  const DataDeletionPage({super.key});
+
+  @override
+  State<DataDeletionPage> createState() => _DataDeletionPageState();
+}
+
+class _DataDeletionPageState extends State<DataDeletionPage> {
+  SharedPreferences? _prefs;
+  bool _loaded = false;
+  bool _authorized = false;
+  bool _verifying = false;
+  bool _busy = false;
+
+  int _habitCount = 0;
+  int _habitRecordCount = 0;
+  int _weightCount = 0;
+  int _waterDayCount = 0;
+  int _familyCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasPin = await ParentPin.hasPin(prefs);
+    if (!mounted) return;
+    _prefs = prefs;
+    _refreshCounts();
+    setState(() {
+      _authorized = !hasPin;
+      _loaded = true;
+    });
+    if (hasPin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_verifyBeforeEntry());
+      });
+    }
+  }
+
+  void _refreshCounts() {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    _habitCount = _habitList(prefs).length;
+    _habitRecordCount = _habitRecordCountOf(_habitList(prefs));
+    _weightCount = _jsonListLength(prefs.getString(PrefsKeys.weightRecords));
+    _waterDayCount = _waterRecordDates(prefs).length;
+    _familyCount =
+        _jsonListLength(prefs.getString(PrefsKeys.children)) +
+        _jsonListLength(prefs.getString(PrefsKeys.childHabits)) +
+        _jsonListLength(prefs.getString(PrefsKeys.deductionItems)) +
+        _jsonListLength(prefs.getString(PrefsKeys.rewardItems)) +
+        _jsonListLength(prefs.getString(PrefsKeys.pointRecords)) +
+        _jsonListLength(prefs.getString(PrefsKeys.voucherLogs)) +
+        _jsonListLength(prefs.getString(PrefsKeys.legacyRedemptionLogs));
+  }
+
+  int _jsonListLength(String? raw) {
+    if (raw == null || raw.isEmpty) return 0;
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is List ? decoded.length : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  List<Map<String, dynamic>> _habitList(SharedPreferences prefs) {
+    final raw = prefs.getString(PrefsKeys.habits);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded
+          .whereType<Map<dynamic, dynamic>>()
+          .map(Map<String, dynamic>.from)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  int _habitRecordCountOf(List<Map<String, dynamic>> habits) {
+    var count = 0;
+    for (final habit in habits) {
+      if (habit['done'] == true) count++;
+      final dates = habit['weeklyDates'];
+      if (dates is List) count += dates.length;
+    }
+    return count;
+  }
+
+  String? _dateSuffix(String key, String prefix) {
+    if (!key.startsWith(prefix)) return null;
+    final suffix = key.substring(prefix.length);
+    final validDate = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(suffix);
+    return validDate ? suffix : null;
+  }
+
+  Set<String> _waterRecordDates(SharedPreferences prefs) {
+    final dates = <String>{};
+    for (final key in prefs.getKeys()) {
+      final date =
+          _dateSuffix(key, PrefsKeys.waterEntriesSavedPrefix) ??
+          _dateSuffix(key, PrefsKeys.waterEntriesPrefix) ??
+          _dateSuffix(key, PrefsKeys.waterExtraPrefix) ??
+          _dateSuffix(key, PrefsKeys.waterSavedPrefix) ??
+          _dateSuffix(key, PrefsKeys.waterDayPrefix);
+      if (date != null) dates.add(date);
+    }
+    return dates;
+  }
+
+  bool _isWaterRecordKey(String key) =>
+      _dateSuffix(key, PrefsKeys.waterEntriesSavedPrefix) != null ||
+      _dateSuffix(key, PrefsKeys.waterEntriesPrefix) != null ||
+      _dateSuffix(key, PrefsKeys.waterExtraPrefix) != null ||
+      _dateSuffix(key, PrefsKeys.waterSavedPrefix) != null ||
+      _dateSuffix(key, PrefsKeys.waterDayPrefix) != null;
+
+  Future<bool> _verifyBeforeEntry() async {
+    if (_verifying || _authorized) return _authorized;
+    setState(() => _verifying = true);
+    final ok = await _verifyPin(title: '請輸入密碼以進入資料刪除');
+    if (!mounted) return false;
+    if (ok) {
+      setState(() {
+        _authorized = true;
+        _verifying = false;
+      });
+      return true;
+    }
+    Navigator.of(context).pop();
+    return false;
+  }
+
+  Future<bool> _verifyPin({required String title}) async {
+    final prefs = _prefs;
+    if (prefs == null) return false;
+    final digits = prefs.getInt(PrefsKeys.pinDigits) ?? 4;
+    final ctrl = TextEditingController();
+    var obscure = true;
+    final entered = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            obscureText: obscure,
+            maxLength: digits,
+            autofocus: true,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(digits),
+            ],
+            decoration: InputDecoration(
+              hintText: '請輸入 $digits 位數字密碼',
+              counterText: '',
+              suffixIcon: IconButton(
+                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setS(() => obscure = !obscure),
+              ),
+            ),
+            onChanged: (v) {
+              if (v.length == digits) Navigator.pop(dialogCtx, v);
+            },
+            onSubmitted: (v) => Navigator.pop(dialogCtx, v),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
+    if (entered == null) return false;
+    if (await ParentPin.verify(prefs, entered)) return true;
+    if (!mounted) return false;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
+    return false;
+  }
+
+  Future<bool> _confirmLongPress({
+    required String title,
+    required String message,
+    required Color color,
+  }) async {
+    var hinted = false;
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogCtx) => StatefulBuilder(
+            builder: (_, setS) => AlertDialog(
+              title: Text(title),
+              content: Text(message),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx, false),
+                  child: Text(
+                    '取消',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: color),
+                  onPressed: () {
+                    playHaptic(HapticLevel.selection);
+                    setS(() => hinted = true);
+                  },
+                  onLongPress: () {
+                    playHaptic(HapticLevel.medium);
+                    Navigator.pop(dialogCtx, true);
+                  },
+                  icon: const Icon(Icons.touch_app_rounded, size: 18),
+                  label: Text(hinted ? '請長按此按鈕' : '長按確認'),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+  }
+
+  Future<bool> _confirmDeleteWord() async {
+    final ctrl = TextEditingController();
+    var enabled = false;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('重置全部資料'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('這會清除所有資料並回到初始狀態，包含習慣、喝水、體重、家庭、金幣、衣櫃與密碼設定。'),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: '輸入 DELETE 以確認',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (v) => setS(() => enabled = v.trim() == 'DELETE'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: enabled ? () => Navigator.pop(dialogCtx, true) : null,
+              icon: const Icon(Icons.delete_forever_rounded, size: 18),
+              label: const Text('永久刪除'),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
+    return ok ?? false;
+  }
+
+  Future<void> _runDelete(
+    Future<void> Function(SharedPreferences prefs) job,
+  ) async {
+    final prefs = _prefs;
+    if (prefs == null || _busy) return;
+    setState(() => _busy = true);
+    try {
+      await job(prefs);
+      _refreshCounts();
+      if (mounted) setState(() {});
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _clearHabitRecords() async {
+    final confirm = await _confirmLongPress(
+      title: '清除習慣完成紀錄',
+      message: '會保留習慣清單、連續天數與已得金幣，只清除今日完成狀態與每週習慣的完成日期。',
+      color: Colors.orange,
+    );
+    if (!confirm) return;
+    await _runDelete((prefs) async {
+      final habits = _habitList(prefs);
+      for (final habit in habits) {
+        habit['done'] = false;
+        if (habit.containsKey('weeklyDates')) habit['weeklyDates'] = <String>[];
+      }
+      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+    });
+    _showDone('已清除習慣完成紀錄');
+  }
+
+  Future<void> _clearWeightRecords() async {
+    final confirm = await _confirmLongPress(
+      title: '清除體重紀錄',
+      message: '會刪除體重歷史紀錄，但保留體重功能開關、連續天數與已得金幣。',
+      color: Colors.orange,
+    );
+    if (!confirm) return;
+    await _runDelete((prefs) => prefs.remove(PrefsKeys.weightRecords));
+    _showDone('已清除體重紀錄');
+  }
+
+  Future<void> _clearWaterRecords() async {
+    final confirm = await _confirmLongPress(
+      title: '清除喝水紀錄',
+      message: '會刪除每日喝水明細，保留每杯容量、每日目標、功能開關與已得金幣。',
+      color: Colors.orange,
+    );
+    if (!confirm) return;
+    await _runDelete((prefs) async {
+      final keys = prefs.getKeys().where(_isWaterRecordKey).toList();
+      for (final key in keys) {
+        await prefs.remove(key);
+      }
+    });
+    _showDone('已清除喝水紀錄');
+  }
+
+  Future<void> _clearFamilyData() async {
+    final confirm = await _confirmLongPress(
+      title: '清除家庭資料',
+      message: '會刪除小孩、家庭習慣、扣分項目、獎勵、積分紀錄與票券紀錄。家庭模式開關會保留。',
+      color: Colors.deepOrange,
+    );
+    if (!confirm) return;
+    await _runDelete((prefs) async {
+      await prefs.remove(PrefsKeys.children);
+      await prefs.remove(PrefsKeys.childHabits);
+      await prefs.remove(PrefsKeys.deductionItems);
+      await prefs.remove(PrefsKeys.rewardItems);
+      await prefs.remove(PrefsKeys.pointRecords);
+      await prefs.remove(PrefsKeys.voucherLogs);
+      await prefs.remove(PrefsKeys.legacyRedemptionLogs);
+    });
+    _showDone('已清除家庭資料');
+  }
+
+  Future<void> _resetAll() async {
+    final confirm = await _confirmDeleteWord();
+    if (!confirm || !mounted) return;
+    setState(() => _busy = true);
+    final nav = Navigator.of(context);
+    await _prefs?.clear();
+    await AudioSettingsService.instance.setAllMuted(false);
+    await CoinService.load();
+    unawaited(BgmService.instance.play('sounds/bgm_onboarding.m4a'));
+    if (!mounted) return;
+    unawaited(nav.pushNamedAndRemoveUntil('/onboarding', (_) => false));
+  }
+
+  void _showDone(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || !_authorized) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('資料刪除'), centerTitle: true),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('資料刪除'), centerTitle: true),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        children: [
+          _warningHeader(),
+          const SizedBox(height: 16),
+          _DeleteItemCard(
+            icon: Icons.checklist_rtl_rounded,
+            color: Colors.orange,
+            title: '清除習慣完成紀錄',
+            subtitle: _habitCount == 0
+                ? '目前沒有習慣'
+                : '$_habitCount 個習慣，$_habitRecordCount 筆完成狀態',
+            detail: '保留習慣清單、連續天數與金幣紀錄',
+            enabled: !_busy && _habitCount > 0,
+            onTap: _clearHabitRecords,
+          ),
+          const SizedBox(height: 12),
+          _DeleteItemCard(
+            icon: Icons.monitor_weight_outlined,
+            color: Colors.orange,
+            title: '清除體重紀錄',
+            subtitle: _weightCount == 0 ? '目前沒有體重紀錄' : '$_weightCount 筆體重紀錄',
+            detail: '保留功能開關、連續天數與金幣紀錄',
+            enabled: !_busy && _weightCount > 0,
+            onTap: _clearWeightRecords,
+          ),
+          const SizedBox(height: 12),
+          _DeleteItemCard(
+            icon: Icons.water_drop_outlined,
+            color: Colors.orange,
+            title: '清除喝水紀錄',
+            subtitle: _waterDayCount == 0
+                ? '目前沒有喝水紀錄'
+                : '$_waterDayCount 天喝水紀錄',
+            detail: '保留每杯容量、每日目標與金幣紀錄',
+            enabled: !_busy && _waterDayCount > 0,
+            onTap: _clearWaterRecords,
+          ),
+          const SizedBox(height: 12),
+          _DeleteItemCard(
+            icon: Icons.family_restroom_rounded,
+            color: Colors.deepOrange,
+            title: '清除家庭資料',
+            subtitle: _familyCount == 0 ? '目前沒有家庭資料' : '$_familyCount 筆家庭資料',
+            detail: '會刪除小孩、積分、獎勵與票券資料',
+            enabled: !_busy && _familyCount > 0,
+            onTap: _clearFamilyData,
+          ),
+          const SizedBox(height: 22),
+          _ResetAllCard(enabled: !_busy, onTap: _resetAll),
+        ],
+      ),
+    );
+  }
+
+  Widget _warningHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3F0),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.11),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.red,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '刪除前請再確認',
+                  style: TextStyle(
+                    color: Color(0xFF6F2E24),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '單項刪除需要長按確認；重置全部資料需要輸入 DELETE。',
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontSize: 12.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeleteItemCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final String detail;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _DeleteItemCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.detail,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = enabled ? color : Colors.grey.shade400;
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: fg.withValues(alpha: enabled ? 0.12 : 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: fg, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: enabled ? const Color(0xFF3E3029) : Colors.grey,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      detail,
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResetAllCard extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _ResetAllCard({required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFFFF5F5),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.22)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: Colors.red,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '重置全部資料',
+                      style: TextStyle(
+                        color: Color(0xFF8D211D),
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '回到初始狀態，需要輸入 DELETE',
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.red.shade200),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

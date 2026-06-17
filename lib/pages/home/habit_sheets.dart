@@ -6,6 +6,12 @@ import '../../utils/input_formatters.dart';
 import 'home_presets.dart';
 import 'home_widgets.dart';
 
+const Color _kWaterLinkedAccent = Color(0xFF42A5F5);
+const Color _kWeightLinkedAccent = Color(0xFF7E57C2);
+
+Color _linkedAccentForPreset(HomePreset preset) =>
+    preset.name == '體重紀錄' ? _kWeightLinkedAccent : _kWaterLinkedAccent;
+
 // ── 常用習慣子選單（可捲動清單 + 客製化設定）──
 Future<Map<String, PresetConfig>?> showHabitPresetSheet(
   BuildContext context,
@@ -85,6 +91,7 @@ Future<Map<String, PresetConfig>?> showHabitPresetSheet(
                   final sel = tempSelected.containsKey(p.name);
                   final config = tempSelected[p.name];
                   final hasCustom = p.defaultMinutes != null;
+                  final linkedAccent = _linkedAccentForPreset(p);
                   return AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     decoration: BoxDecoration(
@@ -144,14 +151,14 @@ Future<Map<String, PresetConfig>?> showHabitPresetSheet(
                                               Icon(
                                                 Icons.link,
                                                 size: 11,
-                                                color: Colors.blue.shade400,
+                                                color: linkedAccent,
                                               ),
                                               const SizedBox(width: 3),
                                               Text(
                                                 p.linkedLabel!,
                                                 style: TextStyle(
                                                   fontSize: 11,
-                                                  color: Colors.blue.shade500,
+                                                  color: linkedAccent,
                                                 ),
                                               ),
                                             ],

@@ -479,7 +479,7 @@ class _RoomAmbientPainter extends CustomPainter {
     // 窗光：5:30 亮起、晨間最強、白天轉柔、16~19 收掉
     final shaft = _smooth(5.5, 7.5, h) * (1 - _smooth(16.0, 18.8, h));
     final dayness = _smooth(7.5, 11.0, h); // 0 = 晨金, 1 = 晝奶油
-    final shaftStrength = shaft * (1.0 - 0.42 * dayness);
+    final shaftStrength = shaft * (1.0 - 0.875 * dayness);
     // 檯燈：傍晚 16:30 漸亮、清晨 5~6:30 漸滅（跨日分段）
     final lamp = h >= 12 ? _smooth(16.5, 18.0, h) : (1 - _smooth(5.0, 6.5, h));
     // 月光：22 點後 / 清晨 5 點前的極淡冷色窗光
@@ -514,6 +514,9 @@ class _RoomAmbientPainter extends CustomPainter {
     final dir = Offset(1, 0.9) / Offset(1, 0.9).distance;
     final perp = Offset(-dir.dy, dir.dx);
     final len = w * 0.95;
+    // 白天太陽高 → 光束大幅加寬成一片柔光（晨光 dayness≈0 仍窄而戲劇）。
+    // 調這個係數改白天「範圍」：越大越寬。
+    final spread = 1.0 + 11.0 * dayness;
 
     // 三道光束沿窗格錯開，亮度微微呼吸（極慢，幾乎察覺不到才高級）
     final beams = <({Offset start, double halfW, double alpha})>[
@@ -528,20 +531,19 @@ class _RoomAmbientPainter extends CustomPainter {
 
     for (final b in beams) {
       final end = b.start + dir * len;
+      final hw = b.halfW * spread;
       final path = Path()
         ..moveTo(
-          b.start.dx + perp.dx * b.halfW,
-          b.start.dy + perp.dy * b.halfW,
+          b.start.dx + perp.dx * hw,
+          b.start.dy + perp.dy * hw,
         )
         ..lineTo(
-          b.start.dx - perp.dx * b.halfW,
-          b.start.dy - perp.dy * b.halfW,
+          b.start.dx - perp.dx * hw,
+          b.start.dy - perp.dy * hw,
         )
         // 尾端略張開，像真的光錐
-        ..lineTo(
-            end.dx - perp.dx * b.halfW * 1.6, end.dy - perp.dy * b.halfW * 1.6)
-        ..lineTo(
-            end.dx + perp.dx * b.halfW * 1.6, end.dy + perp.dy * b.halfW * 1.6)
+        ..lineTo(end.dx - perp.dx * hw * 1.6, end.dy - perp.dy * hw * 1.6)
+        ..lineTo(end.dx + perp.dx * hw * 1.6, end.dy + perp.dy * hw * 1.6)
         ..close();
       blur.shader = ui.Gradient.linear(b.start, end, [
         color.withValues(alpha: b.alpha * strength * breath),

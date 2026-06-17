@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,17 +6,18 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
-import '../utils/audio_settings_service.dart';
-import '../utils/bgm_service.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
+import 'advanced_settings_page.dart';
 import 'dev_test_page.dart';
 import 'feature_settings_page.dart';
 import 'profile_edit_page.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final bool openPinSettingsOnLoad;
+
+  const SettingsPage({super.key, this.openPinSettingsOnLoad = false});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -34,6 +34,7 @@ class _SettingsPageState extends State<SettingsPage> {
   UnitSystem _unitSystem = UnitSystem.metric;
 
   SharedPreferences? _prefs;
+  bool _openedInitialPinSettings = false;
 
   @override
   void initState() {
@@ -51,6 +52,12 @@ class _SettingsPageState extends State<SettingsPage> {
       _unitSystem = UnitSystem.load(_prefs!);
       _loaded = true;
     });
+    if (widget.openPinSettingsOnLoad && !_openedInitialPinSettings) {
+      _openedInitialPinSettings = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_showPinSettings());
+      });
+    }
   }
 
   Future<void> _setUnitSystem(UnitSystem v) async {
@@ -58,155 +65,6 @@ class _SettingsPageState extends State<SettingsPage> {
     playHaptic(HapticLevel.selection);
     setState(() => _unitSystem = v);
     if (_prefs != null) await UnitSystem.save(_prefs!, v);
-  }
-
-  Future<void> _clearHabits() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('清除習慣紀錄'),
-        content: const Text('確定要清除所有習慣紀錄嗎？暱稱、設定等資料會保留。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('確定清除', style: TextStyle(color: Colors.orange)),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      await _prefs?.remove(PrefsKeys.habits);
-    }
-  }
-
-  // 驗證數字密碼（危險操作前的把關），通過回傳 true
-  Future<bool> _verifyPin() async {
-    final ctrl = TextEditingController();
-    var obscure = true;
-    final entered = await showDialog<String>(
-      context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: const Text('請輸入數字密碼'),
-          content: TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            obscureText: obscure,
-            maxLength: _pinDigits,
-            autofocus: true,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              hintText: '請輸入 $_pinDigits 位數字',
-              counterText: '',
-              suffixIcon: IconButton(
-                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
-                onPressed: () => setS(() => obscure = !obscure),
-              ),
-            ),
-            onChanged: (v) {
-              if (v.length == _pinDigits) Navigator.pop(dialogCtx, v);
-            },
-            onSubmitted: (v) => Navigator.pop(dialogCtx, v),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (entered == null) return false;
-    if (await ParentPin.verify(_prefs!, entered)) return true;
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
-    }
-    return false;
-  }
-
-  // 刪除所有體重紀錄（其他資料保留）
-  Future<void> _clearWeightRecords() async {
-    // 計算目前筆數
-    final json = _prefs?.getString(PrefsKeys.weightRecords);
-    var count = 0;
-    if (json != null) {
-      final decoded = jsonDecode(json);
-      if (decoded is List) count = decoded.length;
-    }
-    if (count == 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('目前沒有體重紀錄')));
-      return;
-    }
-
-    // 有設定數字密碼時先驗證
-    if (_hasPin) {
-      final ok = await _verifyPin();
-      if (!ok || !mounted) return;
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('刪除所有體重紀錄'),
-        content: Text('確定要刪除全部 $count 筆體重紀錄嗎？此操作無法復原。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('確定刪除', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      await _prefs?.remove(PrefsKeys.weightRecords);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('已刪除所有體重紀錄')));
-      }
-    }
-  }
-
-  Future<void> _clearAll() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('清除所有資料'),
-        content: const Text('確定要清除所有資料嗎？這將回到初始狀態，重新進行引導流程。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('確定清除', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true && mounted) {
-      // 在 async 操作前先取得 navigator，避免跨 async gap 使用 BuildContext
-      final nav = Navigator.of(context);
-      await _prefs?.clear();
-      // 切回引導 BGM（cross-fade），音樂與音效也恢復為開啟。
-      await AudioSettingsService.instance.setAllMuted(false);
-      unawaited(BgmService.instance.play('sounds/bgm_onboarding.m4a'));
-      unawaited(nav.pushNamedAndRemoveUntil('/onboarding', (_) => false));
-    }
   }
 
   // 區塊標題（顏色跟隨當前主題主色）
@@ -227,31 +85,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // 危險操作按鈕（清除類）
-  Widget _dangerButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          side: BorderSide(color: color.withValues(alpha: 0.5)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
       ),
     );
   }
@@ -505,35 +338,58 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 const Divider(height: 32, thickness: 1),
 
-                // ── 區塊3：資料管理 ──
-                _sectionTitle('資料管理', Icons.folder_outlined),
+                // ── 區塊3：進階 ──
+                _sectionTitle('進階', Icons.admin_panel_settings_outlined),
 
-                // 清除習慣紀錄（保留其他設定）
-                _dangerButton(
-                  label: '清除習慣紀錄',
-                  icon: Icons.delete_outline,
-                  color: Colors.orange,
-                  onTap: _clearHabits,
-                ),
-
-                const SizedBox(height: 12),
-
-                // 刪除所有體重紀錄（保留其他設定，有密碼時需驗證）
-                _dangerButton(
-                  label: '刪除所有體重紀錄',
-                  icon: Icons.monitor_weight_outlined,
-                  color: Colors.orange,
-                  onTap: _clearWeightRecords,
-                ),
-
-                const SizedBox(height: 12),
-
-                // 清除所有資料並重新引導
-                _dangerButton(
-                  label: '清除所有資料',
-                  icon: Icons.warning_amber_rounded,
-                  color: Colors.red,
-                  onTap: _clearAll,
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: ListTile(
+                    leading: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.deepOrange.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.admin_panel_settings_outlined,
+                        color: Colors.deepOrange,
+                        size: 20,
+                      ),
+                    ),
+                    title: const Text(
+                      '進階設定',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '資料刪除等較高風險操作',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey.shade400,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AdvancedSettingsPage(),
+                        ),
+                      );
+                    },
+                  ),
                 ),
 
                 // ── 區塊4：開發者測試（僅 debug build 顯示，release 不出現）──
@@ -568,7 +424,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       subtitle: Text(
-                        '假選單、場景時段…（僅 debug）',
+                        '模擬分頁、場景時段…（僅 debug）',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,

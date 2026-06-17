@@ -13,12 +13,14 @@ import 'pages/home/room_ambient_overlay.dart';
 import 'pages/home_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/timer_page.dart';
+import 'pages/wardrobe_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
+import 'utils/debug_fake_tabs.dart';
 import 'utils/feature_flags.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
@@ -338,11 +340,12 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   bool _timerEnabled = true;
   bool _weightTrackingEnabled = false;
   bool _familyEnabled = false;
+  bool _wardrobeEnabled = true;
   bool _waterGoalReached = false;
   bool _weightHabitAutoComplete = false;
   bool _loaded = false;
   int _waterReloadTrigger = 0;
-  int _debugFakeTabCount = 0; // debug：強制湊到 N 個選單預覽兩排（release 不讀）
+  Set<String> _debugFakeTabIds = const {}; // debug：模擬功能分頁開關（release 不讀）
 
   @override
   void initState() {
@@ -419,13 +422,16 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       _weightTrackingEnabled =
           prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _familyEnabled = prefs.getBool(PrefsKeys.familyEnabled) ?? false;
+      _wardrobeEnabled = prefs.getBool(PrefsKeys.wardrobeEnabled) ?? true;
       _waterGoalReached = prefs.getString(PrefsKeys.waterGoalDate) == today;
       _weightHabitAutoComplete = weightRecordedToday;
       // debug 截圖用：指定啟動分頁（release 不讀）
       if (kDebugMode) {
         final tab = prefs.getInt(PrefsKeys.debugStartTab);
         if (tab != null) _currentIndex = tab;
-        _debugFakeTabCount = prefs.getInt(PrefsKeys.debugFakeTabCount) ?? 0;
+        _debugFakeTabIds =
+            (prefs.getStringList(PrefsKeys.debugFakeTabs) ?? const <String>[])
+                .toSet();
       }
       _loaded = true;
     });
@@ -628,19 +634,32 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         ),
       );
     }
-    // debug：補假選單湊到指定數量，用來預覽 6~10 個時的兩排底部列（release 不讀）
-    if (kDebugMode && _debugFakeTabCount > list.length) {
-      for (var i = list.length; i < _debugFakeTabCount; i++) {
-        list.add(
-          _TabItem(
-            page: Center(child: Text('測試頁 ${i + 1}')),
-            icon: Icons.science_outlined,
-            label: '測試${i + 1}',
-          ),
-        );
+    if (_wardrobeEnabled) {
+      list.add(
+        const _TabItem(
+          page: WardrobePage(),
+          icon: Icons.checkroom_rounded,
+          label: '衣櫃',
+        ),
+      );
+    }
+    // debug：像正式功能開關一樣，開哪個模擬功能就真的多哪個分頁（release 不讀）。
+    if (kDebugMode && _debugFakeTabIds.isNotEmpty) {
+      for (final spec in debugFakeTabSpecs) {
+        if (_debugFakeTabIds.contains(spec.id)) {
+          list.add(_debugFeatureTab(spec));
+        }
       }
     }
     return list;
+  }
+
+  _TabItem _debugFeatureTab(DebugFakeTabSpec spec) {
+    return _TabItem(
+      page: _DebugFeaturePage(spec: spec),
+      icon: spec.icon,
+      label: spec.label,
+    );
   }
 
   // 底部列點擊：單排/兩排共用。
@@ -649,6 +668,12 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final familyIdx = tabs.indexWhere((t) => t.label == '家庭');
     if (familyIdx != -1 && _currentIndex == familyIdx && index != familyIdx) {
       parentSession.value = false;
+    }
+    final wardrobeIdx = tabs.indexWhere((t) => t.label == '衣櫃');
+    if (wardrobeIdx != -1 &&
+        _currentIndex == wardrobeIdx &&
+        index != wardrobeIdx) {
+      unawaited(WardrobePreviewController.restore());
     }
     setState(() => _currentIndex = index);
   }
@@ -678,26 +703,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           // 只有習慣頁時，用裝飾條取代 bottom nav，
           // 確保版面高度跟「有開其他功能」時一致，兔咪/對話框位置不會跑掉
           ? const _DecorativeFloor()
-          : tabs.length <= 5
-          // 1~5 個維持單排內建樣式（大多數人停在這）
-          ? BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: (index) => _onTabTapped(tabs, index),
-              type: BottomNavigationBarType.fixed,
-              // 使用當前主題的主色，確保切換主題後底部列顏色同步更新
-              selectedItemColor: Theme.of(context).colorScheme.primary,
-              unselectedItemColor: Colors.grey,
-              items: tabs
-                  .map(
-                    (t) => BottomNavigationBarItem(
-                      icon: Icon(t.icon),
-                      label: t.label,
-                    ),
-                  )
-                  .toList(),
-            )
-          // 6~10 個自動換兩排（下排放常用、上排其餘置中）
-          : _TwoRowBottomNav(
+          : _AdaptiveBottomNav(
               tabs: tabs,
               currentIndex: _currentIndex,
               onTap: (index) => _onTabTapped(tabs, index),
@@ -712,6 +718,177 @@ class _TabItem {
   final IconData icon;
   final String label;
   const _TabItem({required this.page, required this.icon, required this.label});
+}
+
+class _DebugFeaturePage extends StatelessWidget {
+  final DebugFakeTabSpec spec;
+  const _DebugFeaturePage({required this.spec});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = spec.color;
+    return ColoredBox(
+      color: Color.alphaBlend(color.withValues(alpha: 0.06), Colors.white),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(spec.icon, color: color, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        spec.label,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF3E3029),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        spec.subtitle,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF8C7A70),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _DebugFeatureCard(
+              color: color,
+              icon: Icons.dashboard_customize_rounded,
+              title: '${spec.label}首頁',
+              body: '這裡會放${spec.label}的主要內容、狀態摘要與常用操作。',
+            ),
+            const SizedBox(height: 10),
+            _DebugFeatureCard(
+              color: color,
+              icon: Icons.tune_rounded,
+              title: '功能面板',
+              body: '這個頁面會跟正式功能一樣進入底部列，可用來檢查關閉其他功能後的排版。',
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _DebugFeatureChip(color: color, text: spec.label),
+                _DebugFeatureChip(color: color, text: '功能頁'),
+                _DebugFeatureChip(color: color, text: '版面預覽'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DebugFeatureCard extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String body;
+  const _DebugFeatureCard({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 21),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF3E3029),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8C7A70),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DebugFeatureChip extends StatelessWidget {
+  final Color color;
+  final String text;
+  const _DebugFeatureChip({required this.color, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
+  }
 }
 
 // 「只有習慣頁」時的底部裝飾條。
@@ -759,12 +936,10 @@ class _DecorativeFloor extends StatelessWidget {
   }
 }
 
-// 兩排版底部導航：開啟的功能達 6 個以上時改用。
-// 規則：下排 = ceil(n/2)（貼近拇指，放常用功能）、上排 = 其餘並置中；
-// 兩排都以「下排格數」為基準格寬，上排不足時左右留半格，與下排對齊成棋盤格。
-// 高度約單排的 1.7 倍（非 2 倍）——靠縮小圖示/字級壓縮，只有開到 6 個以上的人會碰到。
-class _TwoRowBottomNav extends StatelessWidget {
-  const _TwoRowBottomNav({
+// 自訂底部導航：2~5 個維持單排，6~10 個自動換兩排。
+// 按壓回饋改為低調膠囊底色，避免 Ink ripple 在格線邊界被裁切。
+class _AdaptiveBottomNav extends StatefulWidget {
+  const _AdaptiveBottomNav({
     required this.tabs,
     required this.currentIndex,
     required this.onTap,
@@ -774,7 +949,26 @@ class _TwoRowBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  static const double _rowHeight = 48;
+  @override
+  State<_AdaptiveBottomNav> createState() => _AdaptiveBottomNavState();
+}
+
+class _AdaptiveBottomNavState extends State<_AdaptiveBottomNav> {
+  static const double _twoRowHeight = 48;
+  int? _pressedIndex;
+
+  @override
+  void didUpdateWidget(covariant _AdaptiveBottomNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_pressedIndex != null && _pressedIndex! >= widget.tabs.length) {
+      _pressedIndex = null;
+    }
+  }
+
+  void _setPressed(int? index) {
+    if (_pressedIndex == index || !mounted) return;
+    setState(() => _pressedIndex = index);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -782,11 +976,18 @@ class _TwoRowBottomNav extends StatelessWidget {
     final selectedColor = theme.colorScheme.primary;
     const unselectedColor = Colors.grey;
 
-    final n = tabs.length;
-    final bottomCount = (n / 2).ceil();
-    // 下排放前段（常用），上排放其餘
-    final bottomIdx = [for (var i = 0; i < bottomCount; i++) i];
-    final topIdx = [for (var i = bottomCount; i < n; i++) i];
+    final n = widget.tabs.length;
+    final isTwoRow = n > 5;
+    final columnCount = isTwoRow ? (n / 2).ceil() : n;
+    final rowHeight = isTwoRow ? _twoRowHeight : kBottomNavigationBarHeight;
+    final bottomIdx = [
+      for (var i = 0; i < (isTwoRow ? columnCount : n); i++) i,
+    ];
+    final topIdx = [
+      if (isTwoRow)
+        for (var i = columnCount; i < n; i++) i,
+    ];
+    final rows = isTwoRow ? [topIdx, bottomIdx] : [bottomIdx];
 
     return Material(
       elevation: 8,
@@ -796,36 +997,74 @@ class _TwoRowBottomNav extends StatelessWidget {
         top: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final cellW = constraints.maxWidth / bottomCount;
+            final cellW = constraints.maxWidth / columnCount;
 
             Widget cell(int index) {
-              final t = tabs[index];
-              final isSel = index == currentIndex;
+              final t = widget.tabs[index];
+              final isSel = index == widget.currentIndex;
+              final isPressed = index == _pressedIndex;
               final color = isSel ? selectedColor : unselectedColor;
+              final indicatorAlpha = isPressed ? 0.14 : (isSel ? 0.09 : 0.0);
+              final indicatorMaxWidth = isTwoRow ? 64.0 : 76.0;
+              final indicatorWidth = (cellW - 8)
+                  .clamp(48.0, indicatorMaxWidth)
+                  .toDouble();
+              final indicatorHeight = isTwoRow ? 42.0 : 48.0;
+              final iconSize = isTwoRow ? 20.0 : 22.0;
+              final fontSize = isTwoRow ? 10.5 : 11.5;
+
               return SizedBox(
                 width: cellW,
-                height: _rowHeight,
+                height: rowHeight,
                 child: InkWell(
-                  onTap: () => onTap(index),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(t.icon, size: 22, color: color),
-                      const SizedBox(height: 2),
-                      Text(
-                        t.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1.0,
-                          color: color,
-                          fontWeight: isSel
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                        ),
+                  onTap: () => widget.onTap(index),
+                  onTapDown: (_) => _setPressed(index),
+                  onTapUp: (_) => _setPressed(null),
+                  onTapCancel: () => _setPressed(null),
+                  splashFactory: NoSplash.splashFactory,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
+                  focusColor: selectedColor.withValues(alpha: 0.08),
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      curve: Curves.easeOutCubic,
+                      width: indicatorWidth,
+                      height: indicatorHeight,
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(
+                        color: selectedColor.withValues(alpha: indicatorAlpha),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    ],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(t.icon, size: iconSize, color: color),
+                          const SizedBox(height: 2),
+                          SizedBox(
+                            width: double.infinity,
+                            child: Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  t.label,
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    fontSize: fontSize,
+                                    height: 1.0,
+                                    color: color,
+                                    fontWeight: isSel
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -834,16 +1073,11 @@ class _TwoRowBottomNav extends StatelessWidget {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 上排：置中（不足下排格數時左右各留半格，與下排對齊）
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: topIdx.map(cell).toList(),
-                ),
-                // 下排：填滿整列、貼近拇指
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: bottomIdx.map(cell).toList(),
-                ),
+                for (final row in rows)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: row.map(cell).toList(),
+                  ),
               ],
             );
           },

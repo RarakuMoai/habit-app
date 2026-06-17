@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/app_style.dart';
 import '../../utils/prefs_keys.dart';
+import '../settings_page.dart';
 import 'add_children_sheet.dart';
 import 'deduction_sheets.dart';
 import 'family_models.dart';
@@ -50,9 +51,20 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('建議至設定頁設定密碼以保護家長管理'),
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: const Text('建議設定密碼以保護家長管理'),
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: '設定密碼',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        const SettingsPage(openPinSettingsOnLoad: true),
+                  ),
+                );
+              },
+            ),
           ),
         );
       });

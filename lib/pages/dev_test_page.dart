@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/debug_fake_tabs.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
 import 'home/room_ambient_overlay.dart';
@@ -11,7 +12,7 @@ import 'home/room_ambient_overlay.dart';
 ///
 /// 僅 debug build 從設定頁進得來（release 不顯示入口、也不讀這些 key）。
 /// 目前提供：
-///  - 假選單數量：強制湊到 6~10 個選單，預覽底部列兩排版面。
+///  - 模擬分頁開關：像正式功能開關一樣加減 debug 分頁，預覽底部列版面。
 ///  - 場景時段：覆寫 `sceneHourNow()`，讓首頁場景 / 底部裝飾條切到早中晚。
 ///  - 恢復正常：清掉上面兩個覆寫（不動真實進度資料）。
 class DevTestPage extends StatefulWidget {
@@ -23,7 +24,7 @@ class DevTestPage extends StatefulWidget {
 
 class _DevTestPageState extends State<DevTestPage> {
   SharedPreferences? _prefs;
-  int _fakeTabs = 0; // 0 = 關閉
+  Set<String> _fakeTabIds = {};
   double? _sceneHour; // null = 真實時間
   int _dayShift = 0; // 已快轉天數
 
@@ -52,7 +53,9 @@ class _DevTestPageState extends State<DevTestPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _prefs = prefs;
-      _fakeTabs = prefs.getInt(PrefsKeys.debugFakeTabCount) ?? 0;
+      _fakeTabIds =
+          (prefs.getStringList(PrefsKeys.debugFakeTabs) ?? const <String>[])
+              .toSet();
       _sceneHour = prefs.getDouble(PrefsKeys.debugSceneHour);
       _dayShift = prefs.getInt(PrefsKeys.debugDayShift) ?? 0;
     });
@@ -80,8 +83,9 @@ class _DevTestPageState extends State<DevTestPage> {
       final shifted = cur == null
           ? yesterday
           : _fmtDate(
-              (DateTime.tryParse(cur) ?? DateTime.now())
-                  .subtract(const Duration(days: 1)),
+              (DateTime.tryParse(cur) ?? DateTime.now()).subtract(
+                const Duration(days: 1),
+              ),
             );
       await prefs.setString(k, shifted);
     }
@@ -89,9 +93,9 @@ class _DevTestPageState extends State<DevTestPage> {
     await prefs.setInt(PrefsKeys.debugDayShift, n);
     if (!mounted) return;
     setState(() => _dayShift = n);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已快轉一天，重開 App 看換日效果')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已快轉一天，重開 App 看換日效果')));
   }
 
   // 整包快照（restore 用）。值型別 bool/int/double/String/List<String> 都帶 tag。
@@ -120,7 +124,8 @@ class _DevTestPageState extends State<DevTestPage> {
     if (prefs == null) return;
     final raw = prefs.getString(PrefsKeys.debugDaySnapshot);
     if (raw == null) return;
-    final map = (jsonDecode(raw) as Map<String, dynamic>).cast<String, dynamic>();
+    final map = (jsonDecode(raw) as Map<String, dynamic>)
+        .cast<String, dynamic>();
     await prefs.clear(); // 快照/天數 key 都在快照後寫入，clear 後不會復活
     for (final e in map.entries) {
       final entry = (e.value as Map).cast<String, dynamic>();
@@ -143,21 +148,32 @@ class _DevTestPageState extends State<DevTestPage> {
     bumpFeatureFlags();
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已還原換日，重開 App 生效')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已還原換日，重開 App 生效')));
   }
 
-  Future<void> _setFakeTabs(int n) async {
+  Future<void> _setFakeTab(String id, bool enabled) async {
     final prefs = _prefs;
     if (prefs == null) return;
-    if (n <= 0) {
-      await prefs.remove(PrefsKeys.debugFakeTabCount);
+    final next = {..._fakeTabIds};
+    if (enabled) {
+      next.add(id);
     } else {
-      await prefs.setInt(PrefsKeys.debugFakeTabCount, n);
+      next.remove(id);
     }
+    final ordered = [
+      for (final spec in debugFakeTabSpecs)
+        if (next.contains(spec.id)) spec.id,
+    ];
+    if (ordered.isEmpty) {
+      await prefs.remove(PrefsKeys.debugFakeTabs);
+    } else {
+      await prefs.setStringList(PrefsKeys.debugFakeTabs, ordered);
+    }
+    await prefs.remove(PrefsKeys.debugFakeTabCount);
     bumpFeatureFlags(); // 讓常駐的 MainPage 立刻重組底部列
-    setState(() => _fakeTabs = n <= 0 ? 0 : n);
+    setState(() => _fakeTabIds = ordered.toSet());
   }
 
   Future<void> _setSceneHour(double? hour) async {
@@ -174,12 +190,18 @@ class _DevTestPageState extends State<DevTestPage> {
   }
 
   Future<void> _reset() async {
-    await _setFakeTabs(0);
+    final prefs = _prefs;
+    if (prefs != null) {
+      await prefs.remove(PrefsKeys.debugFakeTabs);
+      await prefs.remove(PrefsKeys.debugFakeTabCount);
+      bumpFeatureFlags();
+      setState(() => _fakeTabIds = {});
+    }
     await _setSceneHour(null);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已恢復正常（測試覆寫已清除）')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已恢復正常（測試覆寫已清除）')));
   }
 
   @override
@@ -192,13 +214,15 @@ class _DevTestPageState extends State<DevTestPage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
                 _card(
-                  title: '假選單數量',
+                  title: '模擬分頁開關',
                   icon: Icons.dashboard_customize_outlined,
-                  description: '像功能開關一樣，開到第幾個分頁底部列就有幾個分頁，'
-                      '用來預覽 6~10 個時的兩排版面。會補「測試N」假頁，關掉即消失。',
+                  description:
+                      '像設定裡的正式功能開關一樣，打開哪個就真的多哪個分頁。'
+                      '可搭配關閉喝水、體重、家庭等正式頁來測底部列排版。',
                   child: Column(
                     children: [
-                      for (final t in const [6, 7, 8, 9, 10]) _fakeTabSwitch(t),
+                      for (final spec in debugFakeTabSpecs)
+                        _fakeTabSwitch(spec),
                     ],
                   ),
                 ),
@@ -358,23 +382,49 @@ class _DevTestPageState extends State<DevTestPage> {
     );
   }
 
-  // 假選單開關（填充式）：開「第 N 個分頁」＝目標總數 N，N 以下自動跟著開。
-  Widget _fakeTabSwitch(int total) {
-    final on = _fakeTabs >= total;
+  Widget _fakeTabSwitch(DebugFakeTabSpec spec) {
+    final on = _fakeTabIds.contains(spec.id);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: spec.color.withValues(alpha: on ? 0.16 : 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              spec.icon,
+              size: 19,
+              color: on ? spec.color : Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              '第 $total 個分頁',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  spec.label,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  spec.subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
             ),
           ),
           Switch(
             value: on,
-            onChanged: (v) =>
-                _setFakeTabs(v ? total : (total - 1 >= 6 ? total - 1 : 0)),
+            activeThumbColor: spec.color,
+            onChanged: (v) => _setFakeTab(spec.id, v),
           ),
         ],
       ),

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-// 功能開關（計時 / 喝水 / 體重 / 家庭頁籤）反應式廣播。
+// 功能開關（計時 / 喝水 / 體重 / 衣櫃 / 家庭頁籤）反應式廣播。
 //
 // 背景：開關存進 SharedPreferences 後，常駐的 MainPage 原本只在「完全退出
 // 設定頁」時靠 onSettingsReturn 回呼鏈重讀重組頁籤。那條鏈穿過兩層 push/pop

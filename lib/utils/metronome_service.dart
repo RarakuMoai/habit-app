@@ -106,9 +106,10 @@ class MetronomeService {
 
   /// 啟動或更新（改 BPM/音色/音量/拍號時呼叫）等速節拍循環。
   ///
-  /// [beatsPerBar] >= 2 時循環長度 = 一整個小節；[accentFirst] 為真則把第一拍以
-  /// 較高音高烤進 PCM，做出「第一拍重音」。[subdivisionsPerBeat] > 1 時，
-  /// 每拍中間會補較小聲的細分拍；beatsPerBar=1 時退化成原本的單拍循環。
+  /// [beatsPerBar] 是依 BPM 拍值算出的每小節主脈衝數；[accentFirst] 為真則
+  /// 把第一拍以較高音高烤進 PCM，做出「第一拍重音」。
+  /// [subdivisionsPerBeat] > 1 時，每拍中間會補較小聲的細分拍；
+  /// beatsPerBar=1 時退化成原本的單拍循環。
   Future<void> startOrUpdateLoop({
     required int bpm,
     required MetronomeTone tone,
@@ -156,9 +157,9 @@ class MetronomeService {
     } catch (_) {}
   }
 
-  // 一小節循環 = beatsPerBar 拍，每拍 = 音色樣本 + 補到拍長的靜音；超過拍長則截斷
-  // 音色（高 BPM）。第一拍重音改用「升高音高」（pitch-shift）做出明顯不同的咔聲，
-  // 比單純放大音量更容易分辨（古典節拍器第一拍就是較高的滴答）。
+  // 一小節循環 = beatsPerBar 個 BPM 脈衝，每拍 = 音色樣本 + 補到拍長的靜音；
+  // 超過拍長則截斷音色（高 BPM）。第一拍重音改用「升高音高」（pitch-shift）
+  // 做出明顯不同的咔聲，比單純放大音量更容易分辨。
   Future<Uint8List> _buildBarLoopWav(
     MetronomeTone tone,
     int bpm,

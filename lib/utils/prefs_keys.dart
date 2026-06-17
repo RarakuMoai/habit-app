@@ -86,6 +86,7 @@ abstract final class PrefsKeys {
   static const metronomeVolume = 'metronome_volume';
   static const metronomeBeats = 'metronome_beats'; // 每小節拍數（拍號分子）
   static const metronomeBeatUnit = 'metronome_beat_unit'; // 拍號分母（4/8）
+  static const metronomeTempoNote = 'metronome_tempo_note'; // BPM 對應音符
   static const metronomeSubdivision = 'metronome_subdivision'; // 細分拍
   static const metronomeAccent = 'metronome_accent'; // 第一拍重音
   static const metronomeHaptic = 'metronome_haptic'; // 觸覺跟拍
@@ -95,6 +96,7 @@ abstract final class PrefsKeys {
   static const waterEnabled = 'water_enabled';
   static const weightTrackingEnabled = 'weight_tracking_enabled';
   static const familyEnabled = 'family_enabled';
+  static const wardrobeEnabled = 'wardrobe_enabled';
 
   // ── 習慣 / 連續天數 ──────────────────────────────────────
   static const habits = 'habits';
@@ -105,6 +107,7 @@ abstract final class PrefsKeys {
   static const waterCupMl = 'water_cup_ml';
   static const waterGoalMl = 'water_goal_ml';
   static const waterGoalDate = 'water_goal_date';
+  static const waterGoalSuggestionDismissed = 'water_goal_suggestion_dismissed';
 
   // 帶日期的 key（date 格式 yyyy-MM-dd）。
   // 注意：water_page 掃 getKeys() 時長 prefix 要先比對，
@@ -142,13 +145,22 @@ abstract final class PrefsKeys {
   static const sfxMuted = 'sfx_muted';
   static const legacyBgmMuted = 'bgm_muted'; // 舊版名稱，僅遷移用
 
+  // ── 衣櫃 / 音樂盒 ───────────────────────────────────────
+  static const wardrobeSelectedOutfit = 'wardrobe_selected_outfit';
+  static const wardrobeOwnedOutfits = 'wardrobe_owned_outfits';
+  static const bgmMode = 'bgm_mode'; // 舊版 single/playlist 設定，保留供遷移
+  static const bgmSelectedTrack = 'bgm_selected_track';
+  static const bgmPlaylist = 'bgm_playlist';
+  static const bgmOwnedTracks = 'bgm_owned_tracks';
+
   // ── 單位系統 ─────────────────────────────────────────────
   static const unitSystem = 'unit_system';
 
   // ── Debug（僅 kDebugMode 讀取，截圖驗證用，release 不碰）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24
   static const debugStartTab = 'debug_start_tab'; // int 啟動分頁 index
-  static const debugFakeTabCount = 'debug_fake_tab_count'; // int 6~10 假選單數
+  static const debugFakeTabCount = 'debug_fake_tab_count'; // 舊版 int 假分頁數，保留供清除
+  static const debugFakeTabs = 'debug_fake_tabs'; // List<String> 開啟的模擬分頁 id
   static const debugDayShift = 'debug_day_shift'; // int 已快轉天數（顯示用）
   static const debugDaySnapshot = 'debug_day_snapshot'; // 快轉前整包快照(JSON)，供還原
 }
