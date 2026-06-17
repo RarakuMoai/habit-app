@@ -11,6 +11,7 @@ import '../utils/bgm_service.dart';
 import '../utils/coin_service.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/wardrobe_store.dart';
 
 class DataDeletionPage extends StatefulWidget {
   const DataDeletionPage({super.key});
@@ -151,58 +152,77 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     return false;
   }
 
+  // 回傳 true = 驗證通過；false = 使用者按取消。輸錯不會結束對話框，
+  // 而是清空欄位、顯示行內錯誤讓使用者重新輸入。
   Future<bool> _verifyPin({required String title}) async {
     final prefs = _prefs;
     if (prefs == null) return false;
     final digits = prefs.getInt(PrefsKeys.pinDigits) ?? 4;
     final ctrl = TextEditingController();
     var obscure = true;
-    final entered = await showDialog<String>(
+    String? errorText;
+    var checking = false;
+    final ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (_, setS) => AlertDialog(
-          title: Text(title),
-          content: TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            obscureText: obscure,
-            maxLength: digits,
-            autofocus: true,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(digits),
-            ],
-            decoration: InputDecoration(
-              hintText: '請輸入 $digits 位數字密碼',
-              counterText: '',
-              suffixIcon: IconButton(
-                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
-                onPressed: () => setS(() => obscure = !obscure),
+        builder: (_, setS) {
+          Future<void> submit(String v) async {
+            if (checking || v.length != digits) return;
+            checking = true;
+            final pass = await ParentPin.verify(prefs, v);
+            checking = false;
+            if (!dialogCtx.mounted) return;
+            if (pass) {
+              Navigator.pop(dialogCtx, true);
+            } else {
+              playHaptic(HapticLevel.medium);
+              setS(() {
+                errorText = '密碼錯誤，請再試一次';
+                ctrl.clear();
+              });
+            }
+          }
+
+          return AlertDialog(
+            title: Text(title),
+            content: TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              obscureText: obscure,
+              maxLength: digits,
+              autofocus: true,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(digits),
+              ],
+              decoration: InputDecoration(
+                hintText: '請輸入 $digits 位數字密碼',
+                counterText: '',
+                errorText: errorText,
+                suffixIcon: IconButton(
+                  icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setS(() => obscure = !obscure),
+                ),
               ),
+              onChanged: (v) {
+                if (errorText != null) setS(() => errorText = null);
+                if (v.length == digits) submit(v);
+              },
+              onSubmitted: submit,
             ),
-            onChanged: (v) {
-              if (v.length == digits) Navigator.pop(dialogCtx, v);
-            },
-            onSubmitted: (v) => Navigator.pop(dialogCtx, v),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+              ),
+            ],
+          );
+        },
       ),
     );
     ctrl.dispose();
-    if (entered == null) return false;
-    if (await ParentPin.verify(prefs, entered)) return true;
-    if (!mounted) return false;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
-    return false;
+    return ok ?? false;
   }
 
   Future<bool> _confirmLongPress({
@@ -210,36 +230,43 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     required String message,
     required Color color,
   }) async {
-    var hinted = false;
     return await showDialog<bool>(
           context: context,
-          builder: (dialogCtx) => StatefulBuilder(
-            builder: (_, setS) => AlertDialog(
-              title: Text(title),
-              content: Text(message),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogCtx, false),
-                  child: Text(
-                    '取消',
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
+          builder: (dialogCtx) => AlertDialog(
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message),
+                const SizedBox(height: 18),
+                _HoldToConfirmButton(
+                  color: color,
+                  label: '長按確認刪除',
+                  onConfirmed: () => Navigator.pop(dialogCtx, true),
                 ),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: color),
-                  onPressed: () {
-                    playHaptic(HapticLevel.selection);
-                    setS(() => hinted = true);
-                  },
-                  onLongPress: () {
-                    playHaptic(HapticLevel.medium);
-                    Navigator.pop(dialogCtx, true);
-                  },
-                  icon: const Icon(Icons.touch_app_rounded, size: 18),
-                  label: Text(hinted ? '請長按此按鈕' : '長按確認'),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    '按住直到填滿才會刪除，中途放開即取消',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),
+            actions: [
+              TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(72, 46),
+                ),
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+              ),
+            ],
           ),
         ) ??
         false;
@@ -273,13 +300,22 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
           ),
           actions: [
             TextButton(
+              style: TextButton.styleFrom(minimumSize: const Size(72, 46)),
               onPressed: () => Navigator.pop(dialogCtx, false),
               child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
             ),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+                minimumSize: const Size(0, 48),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               onPressed: enabled ? () => Navigator.pop(dialogCtx, true) : null,
-              icon: const Icon(Icons.delete_forever_rounded, size: 18),
+              icon: const Icon(Icons.delete_forever_rounded, size: 20),
               label: const Text('永久刪除'),
             ),
           ],
@@ -373,11 +409,20 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     final confirm = await _confirmDeleteWord();
     if (!confirm || !mounted) return;
     setState(() => _busy = true);
+    // 先收鍵盤：釋放確認對話框中 autofocus TextField 的 Focus 依賴，
+    // 否則待會把整個路由樹一次拆掉時，還掛著 inherited 依賴的
+    // EditableText 會觸發 framework 的 _dependents.isEmpty 斷言。
+    FocusManager.instance.primaryFocus?.unfocus();
     final nav = Navigator.of(context);
     await _prefs?.clear();
+    WardrobeStore.reset();
     await AudioSettingsService.instance.setAllMuted(false);
     await CoinService.load();
     unawaited(BgmService.instance.play('sounds/bgm_onboarding.m4a'));
+    // 等確認對話框的退場動畫完全結束（Material 對話框約 150ms），
+    // 確保它的 route 已被移除，再用 pushNamedAndRemoveUntil 拆掉整個
+    // back stack；否則會連同還在動畫中的對話框 route 一起強拆而崩潰。
+    await Future<void>.delayed(const Duration(milliseconds: 250));
     if (!mounted) return;
     unawaited(nav.pushNamedAndRemoveUntil('/onboarding', (_) => false));
   }
@@ -661,6 +706,129 @@ class _ResetAllCard extends StatelessWidget {
               Icon(Icons.chevron_right, color: Colors.red.shade200),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// 按住確認鈕：手指按住才會推進進度，填滿才觸發 onConfirmed；
+// 中途放開會倒退回 0。進度條 + 漸進觸覺讓「持續按」的回饋很明顯。
+class _HoldToConfirmButton extends StatefulWidget {
+  final Color color;
+  final String label;
+  final VoidCallback onConfirmed;
+
+  const _HoldToConfirmButton({
+    required this.color,
+    required this.label,
+    required this.onConfirmed,
+  });
+
+  @override
+  State<_HoldToConfirmButton> createState() => _HoldToConfirmButtonState();
+}
+
+class _HoldToConfirmButtonState extends State<_HoldToConfirmButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  )..addStatusListener(_onStatus);
+  bool _holding = false;
+  bool _fired = false;
+  int _lastTick = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(_onTick);
+  }
+
+  void _onTick() {
+    if (!mounted) return;
+    setState(() {});
+    // 每推進 1/4 給一次選取觸覺，按越久回饋越密
+    final step = (_ctrl.value * 4).floor();
+    if (step > _lastTick && step < 4) {
+      _lastTick = step;
+      playHaptic(HapticLevel.selection);
+    }
+  }
+
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && !_fired) {
+      _fired = true;
+      playHaptic(HapticLevel.medium);
+      widget.onConfirmed();
+    }
+  }
+
+  void _press() {
+    if (_fired) return;
+    setState(() => _holding = true);
+    playHaptic(HapticLevel.light);
+    _ctrl.forward();
+  }
+
+  void _release() {
+    if (_fired) return;
+    _lastTick = 0;
+    setState(() => _holding = false);
+    _ctrl.reverse();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = _ctrl.value.clamp(0.0, 1.0);
+    final base = widget.color;
+    final onFill = v > 0.45 ? Colors.white : base;
+    return Listener(
+      onPointerDown: (_) => _press(),
+      onPointerUp: (_) => _release(),
+      onPointerCancel: (_) => _release(),
+      child: Container(
+        height: 56,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: base.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: base.withValues(alpha: 0.55), width: 1.4),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: v,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: base.withValues(alpha: 0.9)),
+              ),
+            ),
+            Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.touch_app_rounded, size: 22, color: onFill),
+                  const SizedBox(width: 8),
+                  Text(
+                    _holding ? '持續按住…' : widget.label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: onFill,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
