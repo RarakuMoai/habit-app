@@ -16,6 +16,7 @@ import 'pages/timer_page.dart';
 import 'pages/wardrobe_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
+import 'utils/app_restart.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
@@ -32,7 +33,7 @@ import 'utils/weight_records.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  runApp(const RootRestart(child: MyApp()));
 }
 
 Future<_StartupState> _loadStartupState() async {

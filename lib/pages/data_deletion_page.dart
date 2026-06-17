@@ -6,12 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
-import '../utils/audio_settings_service.dart';
-import '../utils/bgm_service.dart';
-import '../utils/coin_service.dart';
+import '../utils/app_restart.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
-import '../utils/wardrobe_store.dart';
 
 class DataDeletionPage extends StatefulWidget {
   const DataDeletionPage({super.key});
@@ -408,23 +405,29 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
   Future<void> _resetAll() async {
     final confirm = await _confirmDeleteWord();
     if (!confirm || !mounted) return;
+    await _doReset();
+  }
+
+  // 清空資料並乾淨重啟整棵 app。不用 pushNamedAndRemoveUntil 逐一強拆
+  // route stack（會把含 AnimatedSwitcher(GlobalKey) 的 home route 拆到
+  // InheritedElement 還有 dependent，觸發 _dependents.isEmpty 斷言、
+  // wrong build scope、RenderFlex overflow 等連鎖崩潰）。
+  //
+  // 改成 RootRestart：把整棵 MyApp 當一個單位丟棄重建，MyApp 會以全新
+  // state 重跑 startup，從清空後的 prefs 重載金幣/衣櫃/音訊並落在
+  // onboarding，所以這裡只要 clear prefs + restart，不必手動 reset 各服務。
+  Future<void> _doReset() async {
+    final prefs = _prefs;
+    if (prefs == null || !mounted) return;
     setState(() => _busy = true);
-    // 先收鍵盤：釋放確認對話框中 autofocus TextField 的 Focus 依賴，
-    // 否則待會把整個路由樹一次拆掉時，還掛著 inherited 依賴的
-    // EditableText 會觸發 framework 的 _dependents.isEmpty 斷言。
+    // 收鍵盤：釋放確認對話框 autofocus TextField 的 Focus 依賴，並等它的
+    // 退場動畫結束、route 完全移除，再動整棵樹。
     FocusManager.instance.primaryFocus?.unfocus();
-    final nav = Navigator.of(context);
-    await _prefs?.clear();
-    WardrobeStore.reset();
-    await AudioSettingsService.instance.setAllMuted(false);
-    await CoinService.load();
-    unawaited(BgmService.instance.play('sounds/bgm_onboarding.m4a'));
-    // 等確認對話框的退場動畫完全結束（Material 對話框約 150ms），
-    // 確保它的 route 已被移除，再用 pushNamedAndRemoveUntil 拆掉整個
-    // back stack；否則會連同還在動畫中的對話框 route 一起強拆而崩潰。
     await Future<void>.delayed(const Duration(milliseconds: 250));
     if (!mounted) return;
-    unawaited(nav.pushNamedAndRemoveUntil('/onboarding', (_) => false));
+    await prefs.clear();
+    if (!mounted) return;
+    RootRestart.restart(context);
   }
 
   void _showDone(String message) {
@@ -804,11 +807,18 @@ class _HoldToConfirmButtonState extends State<_HoldToConfirmButton>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: v,
-              child: DecoratedBox(
-                decoration: BoxDecoration(color: base.withValues(alpha: 0.9)),
+            // 用 Positioned.fill 把進度條移出 Stack 的 intrinsic 寬度計算：
+            // AlertDialog 會用 IntrinsicWidth 量 content，而 FractionallySizedBox
+            // 在 widthFactor=0（剛開啟時）的 intrinsic 寬會算出 0/0=NaN，
+            // 連帶讓整個對話框 layout 崩掉（child!.hasSize 斷言失敗）。
+            // 改成 positioned 後它只在實際 layout 階段被定尺寸，不參與量測。
+            Positioned.fill(
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: v,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: base.withValues(alpha: 0.9)),
+                ),
               ),
             ),
             Center(
