@@ -61,6 +61,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late Animation<double> _celebScale;
   // 進度列尾端亮點的呼吸光暈（達標時 repeat，未達標停在 0）
   late AnimationController _glowCtrl;
+  // 首頁場景用的低調流動光效：只驅動 CustomPainter，不重建整頁。
+  late AnimationController _sceneFxCtrl;
   // 編輯模式所有卡片共用的抖動驅動（一條 ticker，各卡片用不同相位）。
   // 不放在每張卡上，避免被拖曳 reparent 時帶著正在跑的 ticker 撞 element 生命週期。
   late AnimationController _jiggleCtrl;
@@ -85,6 +87,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
+    _sceneFxCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
     _jiggleCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 620),
@@ -97,6 +103,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     _celebCtrl.dispose();
     _glowCtrl.dispose();
+    _sceneFxCtrl.dispose();
     _jiggleCtrl.dispose();
     super.dispose();
   }
@@ -780,16 +787,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               left: 0,
               right: 0,
               height: MediaQuery.of(context).size.height * 0.56,
-              child: const RoomAmbientOverlay(),
+              child: const RoomAmbientOverlay(companionTiming: true),
             ),
-            // 互動狀態效果（完成星光、連續天數獎盃）
+            // 互動狀態效果（完成星光、場景柔光）
             Positioned.fill(
               child: CustomPaint(
                 painter: RoomSceneEffectsPainter(
                   accent: colors.accent,
                   progress: sceneProgress.clamp(0.0, 1.0),
                   allDone: allDone0 && habits.isNotEmpty,
-                  streak: streak,
+                  motion: _sceneFxCtrl,
                 ),
               ),
             ),
@@ -921,25 +928,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // 房間背景圖上的時段色罩（順序與 _sceneColors 一致：全完成 > 夜 > 晨 > 暮）
   Color get _sceneTint {
-    final hour = sceneHourNow().floor();
+    final hour = sceneHourNow();
     if (allDone0 && habits.isNotEmpty) {
       return const Color(0xFFFFF3C4).withValues(alpha: 0.10);
     }
-    if (hour >= 22 || hour < 6) {
-      return const Color(0xFF3F456B).withValues(alpha: 0.12);
+    if (hour >= 18 || hour < 6) {
+      return const Color(0xFFFFD7A0).withValues(alpha: 0.055);
     }
-    if (hour < 9) {
-      return const Color(0xFFFFC4AD).withValues(alpha: 0.10);
+    if (hour < 8) {
+      return const Color(0xFFFFE0B8).withValues(alpha: 0.045);
     }
-    if (hour >= 17) {
-      return const Color(0xFFC9A1E8).withValues(alpha: 0.10);
+    if (hour >= 16 && hour < 18) {
+      return const Color(0xFFFFB36B).withValues(alpha: 0.075);
     }
     return Colors.transparent;
   }
 
-  // 場景配色：全完成 > 夜晚(22-6) > 清晨(6-9 粉金) > 傍晚(17-22 橘紫) > 白天
+  // 場景配色：全完成 > 夜晚暖燈 > 清晨 > 黃昏 > 白天
   ({Color top, Color bottom, Color accent}) get _sceneColors {
-    final hour = sceneHourNow().floor();
+    final hour = sceneHourNow();
     if (allDone0 && habits.isNotEmpty) {
       return (
         top: const Color(0xFFE8F8E5),
@@ -947,27 +954,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         accent: const Color(0xFF66BB6A),
       );
     }
-    if (hour >= 22 || hour < 6) {
+    if (hour >= 18 || hour < 6) {
       return (
-        top: const Color(0xFFE8EAF6),
-        bottom: const Color(0xFFC5CAE9),
-        accent: const Color(0xFF7986CB),
+        top: const Color(0xFFFFF4E8),
+        bottom: const Color(0xFFEED8C4),
+        accent: const Color(0xFFC28A55),
       );
     }
-    if (hour < 9) {
+    if (hour < 8) {
       // 清晨：粉金日出
       return (
-        top: const Color(0xFFFFF1E8),
-        bottom: const Color(0xFFFFD9CB),
-        accent: const Color(0xFFF0826E),
+        top: const Color(0xFFFFF6EA),
+        bottom: const Color(0xFFFFE0C5),
+        accent: const Color(0xFFF08A62),
       );
     }
-    if (hour >= 17) {
-      // 傍晚：橘光收進薰衣草暮色
+    if (hour >= 16 && hour < 18) {
+      // 黃昏：陽光收進溫柔金橘
       return (
-        top: const Color(0xFFFFE6CD),
-        bottom: const Color(0xFFE9D7F2),
-        accent: const Color(0xFFA984D6),
+        top: const Color(0xFFFFEACF),
+        bottom: const Color(0xFFF1C9A8),
+        accent: const Color(0xFFC47A52),
       );
     }
     return (

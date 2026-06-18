@@ -11,7 +11,8 @@ import 'home/room_ambient_overlay.dart';
 
 /// 開發者測試頁。
 ///
-/// 僅 debug build 從設定頁進得來（release 不顯示入口、也不讀這些 key）。
+/// 由 `kDevToolsEnabled` 控制是否從設定頁進得來（目前 release 也暫時開，
+/// 正式版改回 `kDebugMode` 就會只在 debug build 顯示、release 不讀這些 key）。
 /// 目前提供：
 ///  - 模擬分頁開關：像正式功能開關一樣加減 debug 分頁，預覽底部列版面。
 ///  - 場景時段：覆寫 `sceneHourNow()`，讓首頁場景 / 底部裝飾條切到早中晚。

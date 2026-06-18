@@ -16,24 +16,24 @@
 //
 // 效能：兩層各自單 Ticker 節流 ~30fps + RepaintBoundary，只重繪自己。
 //
-// 截圖驗證用 debug 覆寫：kDebugMode 下從 prefs 讀
-// PrefsKeys.debugSceneHour（HomeSceneDebug），release 完全不讀。
+// 截圖驗證用 debug 覆寫：kDevToolsEnabled 開啟時從 prefs 讀
+// PrefsKeys.debugSceneHour（HomeSceneDebug）；正式版關掉就一律走真實時間。
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/feature_flags.dart';
 import '../../utils/prefs_keys.dart';
 
-/// debug 覆寫（截圖驗證時段用）。release 一律走真實時間。
+/// debug 覆寫（截圖驗證時段用）。kDevToolsEnabled 關掉時一律走真實時間。
 abstract final class HomeSceneDebug {
   static double? hourOverride;
 
   static void loadFromPrefs(SharedPreferences prefs) {
-    if (!kDebugMode) return;
+    if (!kDevToolsEnabled) return;
     // 只有 prefs 真的有值才覆蓋，避免把程式裡手動寫死的預覽值洗掉
     final v = prefs.getDouble(PrefsKeys.debugSceneHour);
     if (v != null) hourOverride = v;
@@ -180,9 +180,14 @@ class _WindowBackdropPainter extends CustomPainter {
 
   // 夜空星點（窗區座標：x = 區寬比例、y = 區高比例的上半）
   static const _stars = <(double, double, double)>[
-    (0.16, 0.10, 1.1), (0.36, 0.05, 0.9), (0.55, 0.14, 1.3),
-    (0.74, 0.08, 0.9), (0.88, 0.18, 1.1), (0.27, 0.24, 0.8),
-    (0.64, 0.30, 1.0), (0.45, 0.38, 0.8),
+    (0.16, 0.10, 1.1),
+    (0.36, 0.05, 0.9),
+    (0.55, 0.14, 1.3),
+    (0.74, 0.08, 0.9),
+    (0.88, 0.18, 1.1),
+    (0.27, 0.24, 0.8),
+    (0.64, 0.30, 1.0),
+    (0.45, 0.38, 0.8),
   ];
 
   @override
@@ -213,11 +218,10 @@ class _WindowBackdropPainter extends CustomPainter {
     canvas.drawRect(
       region,
       Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(0, top),
-          Offset(0, bottom),
-          [pal.top, pal.bot],
-        ),
+        ..shader = ui.Gradient.linear(Offset(0, top), Offset(0, bottom), [
+          pal.top,
+          pal.bot,
+        ]),
     );
 
     // 2. 星星（夜間，各自相位眨眼）
@@ -226,8 +230,9 @@ class _WindowBackdropPainter extends CustomPainter {
       for (var i = 0; i < _stars.length; i++) {
         final (sx, sy, sr) = _stars[i];
         final tw = 0.55 + 0.45 * math.sin(t * (1.3 + i * 0.31) + i * 2.1);
-        starPaint.color = const Color(0xFFFFF6DE)
-            .withValues(alpha: (pal.star * tw).clamp(0.0, 1.0));
+        starPaint.color = const Color(
+          0xFFFFF6DE,
+        ).withValues(alpha: (pal.star * tw).clamp(0.0, 1.0));
         canvas.drawCircle(
           Offset(xL + winW * sx, top + region.height * sy),
           sr,
@@ -250,28 +255,51 @@ class _WindowBackdropPainter extends CustomPainter {
       final c = Offset(xL + winW * fx, top + region.height * cy);
       canvas.drawOval(
         Rect.fromCenter(
-            center: c, width: winW * 0.34 * s, height: winW * 0.13 * s),
+          center: c,
+          width: winW * 0.34 * s,
+          height: winW * 0.13 * s,
+        ),
         cloudPaint,
       );
-      canvas.drawCircle(c.translate(-winW * 0.07 * s, -winW * 0.045 * s),
-          winW * 0.075 * s, cloudPaint);
-      canvas.drawCircle(c.translate(winW * 0.05 * s, -winW * 0.035 * s),
-          winW * 0.06 * s, cloudPaint);
+      canvas.drawCircle(
+        c.translate(-winW * 0.07 * s, -winW * 0.045 * s),
+        winW * 0.075 * s,
+        cloudPaint,
+      );
+      canvas.drawCircle(
+        c.translate(winW * 0.05 * s, -winW * 0.035 * s),
+        winW * 0.06 * s,
+        cloudPaint,
+      );
     }
 
     // 5. 遠/近兩層灌木剪影帶（顏色隨時段入夜變深）
     final far = Color.lerp(
-        const Color(0xFFA7CF8B), const Color(0xFF46566E), pal.nightness)!;
+      const Color(0xFFA7CF8B),
+      const Color(0xFF46566E),
+      pal.nightness,
+    )!;
     final near = Color.lerp(
-        const Color(0xFF86BB68), const Color(0xFF38485C), pal.nightness)!;
+      const Color(0xFF86BB68),
+      const Color(0xFF38485C),
+      pal.nightness,
+    )!;
     _paintBushBand(canvas, region, 0.60, 14, 16, 2.1, 0, far);
     _paintBushBand(canvas, region, 0.76, 10, 14, 1.7, 1, near);
 
     canvas.restore();
   }
 
-  void _paintBushBand(Canvas canvas, Rect region, double topFrac,
-      double stagger, double arc, double seed, int phase, Color color) {
+  void _paintBushBand(
+    Canvas canvas,
+    Rect region,
+    double topFrac,
+    double stagger,
+    double arc,
+    double seed,
+    int phase,
+    Color color,
+  ) {
     final bandTop = region.top + region.height * topFrac;
     const bumps = 4;
     final path = Path()
@@ -284,8 +312,7 @@ class _WindowBackdropPainter extends CustomPainter {
       if (i == 0) {
         path.lineTo(bx, by);
       } else {
-        path.quadraticBezierTo(
-            bx - region.width / bumps / 2, by - arc, bx, by);
+        path.quadraticBezierTo(bx - region.width / bumps / 2, by - arc, bx, by);
       }
     }
     path
@@ -308,12 +335,18 @@ class _WindowBackdropPainter extends CustomPainter {
     final lift = math.sin(math.pi * tArc.clamp(0.0, 1.0));
     final c = Offset(
       xL + winW * ui.lerpDouble(0.18, 0.82, tArc)!,
-      ui.lerpDouble(bottom - (bottom - top) * 0.32,
-          top + (bottom - top) * 0.14, lift)!,
+      ui.lerpDouble(
+        bottom - (bottom - top) * 0.32,
+        top + (bottom - top) * 0.14,
+        lift,
+      )!,
     );
     if (!isMoon) {
-      final disc =
-          Color.lerp(const Color(0xFFFFB36B), const Color(0xFFFFE9A8), lift)!;
+      final disc = Color.lerp(
+        const Color(0xFFFFB36B),
+        const Color(0xFFFFE9A8),
+        lift,
+      )!;
       canvas.drawCircle(
         c,
         winW * 0.30,
@@ -339,9 +372,12 @@ class _WindowBackdropPainter extends CustomPainter {
       final crescent = Path.combine(
         PathOperation.difference,
         Path()..addOval(Rect.fromCircle(center: c, radius: r)),
-        Path()
-          ..addOval(Rect.fromCircle(
-              center: c.translate(r * 0.45, -r * 0.25), radius: r * 0.88)),
+        Path()..addOval(
+          Rect.fromCircle(
+            center: c.translate(r * 0.45, -r * 0.25),
+            radius: r * 0.88,
+          ),
+        ),
       );
       canvas.drawPath(crescent, Paint()..color = moon);
     }
@@ -403,10 +439,15 @@ class RoomAmbientOverlay extends StatefulWidget {
   /// （還含全完成特例），所以維持 false；其他頁設 true 由本層代畫。
   final bool tint;
 
+  /// 首頁陪伴感光影時序：6 點日光起、12 點最強、16 點收光，
+  /// 16~18 點黃昏，夜晚以暖桌燈為主。預設 false，避免影響其他頁。
+  final bool companionTiming;
+
   const RoomAmbientOverlay({
     super.key,
     this.lampCenter = const Offset(0.645, 0.41),
     this.tint = false,
+    this.companionTiming = false,
   });
 
   @override
@@ -427,6 +468,7 @@ class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
             time: _time,
             lampCenter: widget.lampCenter,
             tint: widget.tint,
+            companionTiming: widget.companionTiming,
           ),
         ),
       ),
@@ -438,11 +480,13 @@ class _RoomAmbientPainter extends CustomPainter {
   final ValueNotifier<double> time;
   final Offset? lampCenter;
   final bool tint;
+  final bool companionTiming;
 
   _RoomAmbientPainter({
     required this.time,
     required this.lampCenter,
     required this.tint,
+    required this.companionTiming,
   }) : super(repaint: time);
 
   // 塵埃微粒：固定 seed，沿光束軸向參數化（s = 0~1 位置、off = 垂直偏移）
@@ -475,26 +519,57 @@ class _RoomAmbientPainter extends CustomPainter {
       }
     }
 
-    // ── 時段強度曲線（連續、平滑）──
-    // 窗光：5:30 亮起、晨間最強、白天轉柔、16~19 收掉
-    final shaft = _smooth(5.5, 7.5, h) * (1 - _smooth(16.0, 18.8, h));
-    final dayness = _smooth(7.5, 11.0, h); // 0 = 晨金, 1 = 晝奶油
-    final shaftStrength = shaft * (1.0 - 0.875 * dayness);
-    // 檯燈：傍晚 16:30 漸亮、清晨 5~6:30 漸滅（跨日分段）
-    final lamp = h >= 12 ? _smooth(16.5, 18.0, h) : (1 - _smooth(5.0, 6.5, h));
-    // 月光：22 點後 / 清晨 5 點前的極淡冷色窗光
-    final moon = h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h));
+    late final double lamp;
+    late final double moon;
+    if (companionTiming) {
+      final sun = _companionSun(h);
+      final noon = _smooth(6.0, 12.0, h);
+      final dusk = _smooth(16.0, 16.8, h) * (1 - _smooth(17.4, 18.0, h));
+      if (sun > 0.01) {
+        _paintSunShafts(canvas, w, imgH, t, 0.68 * sun, noon, spreadScale: 8.0);
+      }
+      if (dusk > 0.01) {
+        _paintSunShafts(
+          canvas,
+          w,
+          imgH,
+          t,
+          0.22 * dusk,
+          0.22,
+          colorOverride: const Color(0xFFFFB36F),
+          spreadScale: 3.2,
+        );
+      }
+      lamp = h >= 12 ? _smooth(17.2, 18.0, h) : (1 - _smooth(5.4, 6.4, h));
+      moon =
+          (h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h))) *
+          0.45;
+    } else {
+      // ── 時段強度曲線（連續、平滑）──
+      // 窗光：5:30 亮起、晨間最強、白天轉柔、16~19 收掉
+      final shaft = _smooth(5.5, 7.5, h) * (1 - _smooth(16.0, 18.8, h));
+      final dayness = _smooth(7.5, 11.0, h); // 0 = 晨金, 1 = 晝奶油
+      final shaftStrength = shaft * (1.0 - 0.875 * dayness);
+      if (shaftStrength > 0.01) {
+        _paintSunShafts(canvas, w, imgH, t, shaftStrength, dayness);
+      }
+      // 檯燈：傍晚 16:30 漸亮、清晨 5~6:30 漸滅（跨日分段）
+      lamp = h >= 12 ? _smooth(16.5, 18.0, h) : (1 - _smooth(5.0, 6.5, h));
+      // 月光：22 點後 / 清晨 5 點前的極淡冷色窗光
+      moon = h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h));
+    }
 
-    if (shaftStrength > 0.01) {
-      _paintSunShafts(canvas, w, imgH, t, shaftStrength, dayness);
-    }
-    if (moon > 0.01) {
-      _paintMoonShaft(canvas, w, imgH, moon);
-    }
+    if (moon > 0.01) _paintMoonShaft(canvas, w, imgH, moon);
     final lc = lampCenter;
     if (lamp > 0.01 && lc != null) {
       _paintLampGlow(canvas, w, imgH, t, lamp, lc);
     }
+  }
+
+  double _companionSun(double h) {
+    if (h < 6 || h >= 16) return 0;
+    if (h <= 12) return _smooth(6.0, 12.0, h);
+    return 1 - _smooth(12.0, 16.0, h);
   }
 
   // ── 窗光光束 + 地板光池 + 塵埃 ──────────────────────────────
@@ -504,19 +579,23 @@ class _RoomAmbientPainter extends CustomPainter {
     double imgH,
     double t,
     double strength,
-    double dayness,
-  ) {
-    final color = Color.lerp(
-      const Color(0xFFFFC388), // 晨金
-      const Color(0xFFFFEFCF), // 晝奶油
-      dayness,
-    )!;
+    double dayness, {
+    Color? colorOverride,
+    double spreadScale = 11.0,
+  }) {
+    final color =
+        colorOverride ??
+        Color.lerp(
+          const Color(0xFFFFC388), // 晨金
+          const Color(0xFFFFEFCF), // 晝奶油
+          dayness,
+        )!;
     final dir = Offset(1, 0.9) / Offset(1, 0.9).distance;
     final perp = Offset(-dir.dy, dir.dx);
     final len = w * 0.95;
     // 白天太陽高 → 光束大幅加寬成一片柔光（晨光 dayness≈0 仍窄而戲劇）。
     // 調這個係數改白天「範圍」：越大越寬。
-    final spread = 1.0 + 11.0 * dayness;
+    final spread = 1.0 + spreadScale * dayness;
 
     // 三道光束沿窗格錯開，亮度微微呼吸（極慢，幾乎察覺不到才高級）
     final beams = <({Offset start, double halfW, double alpha})>[
@@ -533,14 +612,8 @@ class _RoomAmbientPainter extends CustomPainter {
       final end = b.start + dir * len;
       final hw = b.halfW * spread;
       final path = Path()
-        ..moveTo(
-          b.start.dx + perp.dx * hw,
-          b.start.dy + perp.dy * hw,
-        )
-        ..lineTo(
-          b.start.dx - perp.dx * hw,
-          b.start.dy - perp.dy * hw,
-        )
+        ..moveTo(b.start.dx + perp.dx * hw, b.start.dy + perp.dy * hw)
+        ..lineTo(b.start.dx - perp.dx * hw, b.start.dy - perp.dy * hw)
         // 尾端略張開，像真的光錐
         ..lineTo(end.dx - perp.dx * hw * 1.6, end.dy - perp.dy * hw * 1.6)
         ..lineTo(end.dx + perp.dx * hw * 1.6, end.dy + perp.dy * hw * 1.6)
@@ -557,9 +630,11 @@ class _RoomAmbientPainter extends CustomPainter {
     final motePaint = Paint()..blendMode = BlendMode.plus;
     for (final m in _motes) {
       final s = (m.s + t * 0.009) % 1.0;
-      final wobble = perp *
+      final wobble =
+          perp *
           (m.off * mid.halfW * 2.2 + w * 0.012 * math.sin(t * 0.13 + m.p2));
-      final pos = mid.start +
+      final pos =
+          mid.start +
           dir * (s * len * 0.92 + w * 0.015 * math.sin(t * 0.09 + m.p1)) +
           wobble;
       final twinkle = 0.5 + 0.5 * math.sin(t * (0.6 + m.p1 * 0.2) + m.p2);
@@ -633,5 +708,7 @@ class _RoomAmbientPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RoomAmbientPainter old) =>
-      old.lampCenter != lampCenter || old.tint != tint;
+      old.lampCenter != lampCenter ||
+      old.tint != tint ||
+      old.companionTiming != companionTiming;
 }

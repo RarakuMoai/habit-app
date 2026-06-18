@@ -12,3 +12,9 @@ final ValueNotifier<int> featureFlagsRevision = ValueNotifier<int>(0);
 
 /// 存完任一功能開關後呼叫，廣播一次讓 MainPage 即時套用。
 void bumpFeatureFlags() => featureFlagsRevision.value++;
+
+/// 開發者工具總開關（設定頁的「開發者測試」入口、模擬分頁、場景時段覆寫…）。
+///
+/// 暫時連 release 也開啟，方便實機測試。**正式上架前改回 `kDebugMode`**
+/// 就會恢復「只有 debug build 顯示」的行為。
+const bool kDevToolsEnabled = true; // TODO(release): 上架前改回 kDebugMode

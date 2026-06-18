@@ -161,7 +161,7 @@ abstract final class PrefsKeys {
   // ── 單位系統 ─────────────────────────────────────────────
   static const unitSystem = 'unit_system';
 
-  // ── Debug（僅 kDebugMode 讀取，截圖驗證用，release 不碰）──
+  // ── Debug（kDevToolsEnabled 控制讀取；目前 release 也暫時開，正式版會移除）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24
   static const debugStartTab = 'debug_start_tab'; // int 啟動分頁 index
   static const debugFakeTabCount = 'debug_fake_tab_count'; // 舊版 int 假分頁數，保留供清除

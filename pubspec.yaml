@@ -96,8 +96,6 @@ flutter:
     - assets/sounds/
     - assets/music/covers/
     - assets/mascot/core/
-    # 開發用：兔咪向量版預覽頁的對照參考圖（上架前可移除）
-    - assets/mascot/ref/tumi_neutral_front.JPG
     - assets/scenes/home/
     - assets/scenes/timer/
     - assets/scenes/water/

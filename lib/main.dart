@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -431,8 +430,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       _wardrobeEnabled = prefs.getBool(PrefsKeys.wardrobeEnabled) ?? true;
       _waterGoalReached = prefs.getString(PrefsKeys.waterGoalDate) == today;
       _weightHabitAutoComplete = weightRecordedToday;
-      // debug 截圖用：指定啟動分頁（release 不讀）
-      if (kDebugMode) {
+      // 開發者工具：指定啟動分頁 / 模擬分頁（kDevToolsEnabled 控制）
+      if (kDevToolsEnabled) {
         final tab = prefs.getInt(PrefsKeys.debugStartTab);
         if (tab != null) _currentIndex = tab;
         _debugFakeTabIds =
@@ -649,8 +648,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         ),
       );
     }
-    // debug：像正式功能開關一樣，開哪個模擬功能就真的多哪個分頁（release 不讀）。
-    if (kDebugMode && _debugFakeTabIds.isNotEmpty) {
+    // 開發者工具：像正式功能開關一樣，開哪個模擬功能就真的多哪個分頁。
+    if (kDevToolsEnabled && _debugFakeTabIds.isNotEmpty) {
       for (final spec in debugFakeTabSpecs) {
         if (_debugFakeTabIds.contains(spec.id)) {
           list.add(_debugFeatureTab(spec));
@@ -897,8 +896,13 @@ class _DebugFeatureChip extends StatelessWidget {
   }
 }
 
+// 底部列「單排」高度（1~5 個 tab 共用，含只有習慣頁的裝飾條）。
+// 從 kBottomNavigationBarHeight(56) 加厚到 72，讓底部更穩重，也縮小與
+// 兩排(96)的落差——5↔6 個 tab 切換時的跳動從 40 降到 24。
+const double _kSingleRowNavHeight = 72;
+
 // 「只有習慣頁」時的底部裝飾條。
-// 高度跟 BottomNavigationBar 一致，避免功能開關後版面跳動。
+// 高度跟單排底部列一致，避免功能開關後版面跳動。
 // 視覺：warm 漸層 + 中央三顆淡色小裝飾，跟兔咪場景配色呼應。
 class _DecorativeFloor extends StatelessWidget {
   const _DecorativeFloor();
@@ -910,7 +914,7 @@ class _DecorativeFloor extends StatelessWidget {
     final isNight = hour >= 22 || hour < 6;
     final bottomPad = MediaQuery.of(context).padding.bottom;
     return Container(
-      height: kBottomNavigationBarHeight + bottomPad,
+      height: _kSingleRowNavHeight + bottomPad,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isNight
@@ -985,7 +989,7 @@ class _AdaptiveBottomNavState extends State<_AdaptiveBottomNav> {
     final n = widget.tabs.length;
     final isTwoRow = n > 5;
     final columnCount = isTwoRow ? (n / 2).ceil() : n;
-    final rowHeight = isTwoRow ? _twoRowHeight : kBottomNavigationBarHeight;
+    final rowHeight = isTwoRow ? _twoRowHeight : _kSingleRowNavHeight;
     final bottomIdx = [
       for (var i = 0; i < (isTwoRow ? columnCount : n); i++) i,
     ];

@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/feature_flags.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
@@ -393,8 +393,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
 
-                // ── 區塊4：開發者測試（僅 debug build 顯示，release 不出現）──
-                if (kDebugMode) ...[
+                // ── 區塊4：開發者測試（kDevToolsEnabled 控制；目前 release 也暫時開）──
+                if (kDevToolsEnabled) ...[
                   const SizedBox(height: 24),
                   _sectionTitle('開發者測試', Icons.science_outlined),
                   DecoratedBox(
@@ -425,7 +425,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       subtitle: Text(
-                        '模擬分頁、場景時段…（僅 debug）',
+                        '模擬分頁、場景時段…（測試用，正式版會移除）',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -619,12 +619,15 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
 
   // 設定／修改救援安全問題。initial=true 是「首次設密碼後的引導」，可略過。
   Future<void> _setupSecurityQuestion({bool initial = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final current = ParentPin.securityQuestion(prefs);
     final result = await showDialog<({String question, String answer})>(
       context: context,
-      builder: (_) => _SecurityQuestionDialog(initial: initial),
+      builder: (_) =>
+          _SecurityQuestionDialog(initial: initial, initialQuestion: current),
     );
     if (result == null || !mounted) return;
-    final prefs = await SharedPreferences.getInstance();
     await ParentPin.saveSecurityQuestion(prefs, result.question, result.answer);
     if (!mounted) return;
     setState(() => _hasQA = true);
@@ -861,11 +864,13 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
   }
 }
 
-// 救援問題設定對話框：問題＋答案都填才可儲存。controller 由 State 持有，
-// dispose 綁 widget 生命週期（避免退場期間被存取）。
+// 救援問題設定對話框：從預設問題挑一題（或自訂），填答案才可儲存。
+// 預設清單避免使用者每次都要自己想問題；最後一項「自訂問題…」保留彈性。
+// controller 由 State 持有，dispose 綁 widget 生命週期（避免退場期間被存取）。
 class _SecurityQuestionDialog extends StatefulWidget {
   final bool initial;
-  const _SecurityQuestionDialog({required this.initial});
+  final String? initialQuestion; // 修改時帶入現有問題，預選對應項
+  const _SecurityQuestionDialog({required this.initial, this.initialQuestion});
 
   @override
   State<_SecurityQuestionDialog> createState() =>
@@ -873,8 +878,34 @@ class _SecurityQuestionDialog extends StatefulWidget {
 }
 
 class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
-  final _qCtrl = TextEditingController();
+  // 預設救援問題。問句設計成答案短、唯一、不易隨時間改變。
+  static const _presetQuestions = <String>[
+    '我的第一隻寵物叫什麼名字？',
+    '我母親（媽媽）的名字是？',
+    '我出生的城市是哪裡？',
+    '我就讀的第一所學校叫什麼？',
+    '我童年最好的朋友叫什麼名字？',
+    '我最喜歡的一道菜是什麼？',
+  ];
+  static const _customValue = '__custom__'; // 下拉「自訂問題…」的哨兵值
+
+  final _qCtrl = TextEditingController(); // 僅自訂時使用
   final _aCtrl = TextEditingController();
+  String? _selected; // 選中的預設問題，或 _customValue
+
+  @override
+  void initState() {
+    super.initState();
+    final q = widget.initialQuestion;
+    if (q != null && q.isNotEmpty) {
+      if (_presetQuestions.contains(q)) {
+        _selected = q;
+      } else {
+        _selected = _customValue;
+        _qCtrl.text = q;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -883,10 +914,12 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
     super.dispose();
   }
 
+  bool get _isCustom => _selected == _customValue;
+
   @override
   Widget build(BuildContext context) {
-    final ready =
-        _qCtrl.text.trim().isNotEmpty && _aCtrl.text.trim().isNotEmpty;
+    final hasQuestion = _isCustom ? _qCtrl.text.trim().isNotEmpty : _selected != null;
+    final ready = hasQuestion && _aCtrl.text.trim().isNotEmpty;
     return AlertDialog(
       title: const Text('設定救援問題'),
       content: SingleChildScrollView(
@@ -895,20 +928,44 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '忘記密碼時，答對這題就能重設密碼，資料不會被清除。請設一個只有你知道答案的問題。',
+              '忘記密碼時，答對這題就能重設密碼，資料不會被清除。挑一題只有你知道答案的問題。',
               style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 14),
-            TextField(
-              controller: _qCtrl,
-              autofocus: true,
+            DropdownButtonFormField<String>(
+              initialValue: _selected,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: '問題',
-                hintText: '例如：我的第一隻寵物叫什麼？',
                 border: OutlineInputBorder(),
               ),
-              onChanged: (_) => setState(() {}),
+              hint: const Text('選擇一個問題'),
+              items: [
+                for (final q in _presetQuestions)
+                  DropdownMenuItem(
+                    value: q,
+                    child: Text(q, overflow: TextOverflow.ellipsis),
+                  ),
+                const DropdownMenuItem(
+                  value: _customValue,
+                  child: Text('自訂問題…'),
+                ),
+              ],
+              onChanged: (v) => setState(() => _selected = v),
             ),
+            if (_isCustom) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _qCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: '自訂問題',
+                  hintText: '例如：我的機車車牌末三碼？',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               controller: _aCtrl,
@@ -933,7 +990,10 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
           onPressed: ready
               ? () => Navigator.pop(
                   context,
-                  (question: _qCtrl.text.trim(), answer: _aCtrl.text),
+                  (
+                    question: _isCustom ? _qCtrl.text.trim() : _selected!,
+                    answer: _aCtrl.text,
+                  ),
                 )
               : null,
           child: const Text('儲存'),
