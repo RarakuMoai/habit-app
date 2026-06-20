@@ -86,6 +86,9 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   Future<void> _onTap() async {
     unawaited(MascotPanelPrefs.markHintSeen());
     playHaptic(HapticLevel.light);
+    // 共用全域值才是真相：別頁（IndexedStack 保活）切換後可能已改過
+    // openValue，而本頁 _ctl 沒跟上會過時，先對齊再決策避免反向跳動。
+    _ctl.value = MascotPanelPrefs.openValue.value;
     final target = _ctl.value >= 0.5 ? 0.0 : 1.0;
     unawaited(_pressCtl.reverse());
     await _animateToWithSpring(target);
@@ -95,6 +98,8 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   void _onDragStart(DragStartDetails _) {
     unawaited(MascotPanelPrefs.markHintSeen());
     _ctl.stop();
+    // 同上：拖曳起手前先對齊共用真相，避免從過時值起跳。
+    _ctl.value = MascotPanelPrefs.openValue.value;
     _pressCtl.forward();
   }
 
