@@ -33,11 +33,11 @@ class WardrobePreviewController {
   }) async {
     _restoreAsset = restoreAsset;
     previewingTrackId.value = trackId;
-    if (asset == restoreAsset) {
-      await BgmService.instance.ensurePlaying(asset);
-    } else {
-      await BgmService.instance.play(asset);
-    }
+    // 一律走 play()：它同步把 _intendedAsset 切成這首，且「已在播同一首」會自動
+    // no-op（不會打斷正在當背景音樂的目前曲）。不能用 ensurePlaying：剛試聽過別首
+    // 時 BgmService 的 intent 還停在別首，ensurePlaying 會判定「別人有不同 intent」
+    // 而 bail，造成按了目前曲（= restoreAsset）的試聽卻仍放著別首歌。
+    await BgmService.instance.play(asset);
   }
 
   static Future<void> restore() async {
