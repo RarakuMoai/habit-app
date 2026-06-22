@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
 import '../utils/coin_service.dart';
 import '../utils/mascot.dart';
@@ -86,7 +87,11 @@ class _WardrobePageState extends State<WardrobePage> {
   }
 
   Future<void> _buyOutfit(OutfitSpec outfit) async {
-    if (!await _confirmPurchase(outfit.name, outfit.unlockType, outfit.coinPrice)) {
+    if (!await _confirmPurchase(
+      outfit.name,
+      outfit.unlockType,
+      outfit.coinPrice,
+    )) {
       return;
     }
     final result = await WardrobeStore.purchaseOutfit(outfit.id);
@@ -94,7 +99,11 @@ class _WardrobePageState extends State<WardrobePage> {
     if (result == PurchaseResult.success) {
       playFeedback(SfxCue.success);
       await WardrobeStore.setOutfit(outfit.id);
-      MascotPersona.set(MascotEmotion.happy.assetPath, '謝謝你...我很喜歡。', force: true);
+      MascotPersona.set(
+        MascotEmotion.happy.assetPath,
+        '謝謝你...我很喜歡。',
+        force: true,
+      );
       _toast('已解鎖並換上 ${outfit.name}');
     } else {
       _reportPurchaseFail(result);
@@ -132,6 +141,29 @@ class _WardrobePageState extends State<WardrobePage> {
     _applyCurrentTrackChange(changed);
   }
 
+  Future<void> _reorderPlaylist(int oldIndex, int newIndex) async {
+    playHaptic(HapticLevel.selection);
+    // ReorderableListView 的 newIndex 是「移除前」的位置，往後移要 -1。
+    if (newIndex > oldIndex) newIndex -= 1;
+    await WardrobeStore.reorder(oldIndex, newIndex);
+  }
+
+  // 循環模式輪切：單曲循環 → 列表循環 → 隨機 → …
+  Future<void> _cyclePlayMode() async {
+    playHaptic(HapticLevel.selection);
+    const order = [PlayMode.loopOne, PlayMode.loopAll, PlayMode.shuffle];
+    final cur = WardrobeStore.playMode.value;
+    await WardrobeStore.setPlayMode(
+      order[(order.indexOf(cur) + 1) % order.length],
+    );
+  }
+
+  // 暫停 / 繼續：複用全域 BGM 靜音（本就是淡出＋pause/resume），不另開狀態。
+  Future<void> _togglePause() async {
+    playHaptic(HapticLevel.selection);
+    await BgmService.instance.setMuted(!AudioSettingsService.musicMuted.value);
+  }
+
   // 目前曲改變時：清掉試聽狀態並直接切到新的目前曲。
   // 兩個 play 不阻塞，靠 BgmService 既有的 intent/requestId 並發互讓收斂到新曲，
   // 避免試聽中先把舊曲淡入數秒才換歌。
@@ -142,7 +174,11 @@ class _WardrobePageState extends State<WardrobePage> {
   }
 
   Future<void> _buyTrack(MusicTrackSpec track) async {
-    if (!await _confirmPurchase(track.title, track.unlockType, track.coinPrice)) {
+    if (!await _confirmPurchase(
+      track.title,
+      track.unlockType,
+      track.coinPrice,
+    )) {
       return;
     }
     final result = await WardrobeStore.purchaseTrack(track.id);
@@ -275,6 +311,8 @@ class _WardrobePageState extends State<WardrobePage> {
                   WardrobeStore.selectedOutfit,
                   WardrobeStore.ownedOutfits,
                   WardrobeStore.playlist,
+                  WardrobeStore.currentTrackId,
+                  WardrobeStore.playMode,
                   WardrobeStore.ownedTracks,
                   CoinService.notifier,
                 ]),
@@ -347,28 +385,25 @@ class _WardrobePageState extends State<WardrobePage> {
         _MusicSummaryCard(
           currentTrack: current,
           playlistCount: playlistTracks.length,
+          onTogglePause: _togglePause,
+          onStopPreview: WardrobePreviewController.restore,
         ),
-        const SizedBox(height: 14),
-        _WardrobeHeader(
-          icon: Icons.queue_music_rounded,
-          title: '我的循環',
-          subtitle: '目前播放：${current.title}',
-          trailing: '${playlistTracks.length} 首',
-          color: kMusicAccent,
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _PlaylistCard(
           tracks: playlistTracks,
           currentId: current.id,
+          playMode: WardrobeStore.playMode.value,
+          onCyclePlayMode: _cyclePlayMode,
           onRemove: _removeTrack,
           onSetCurrent: _setCurrentTrack,
+          onReorder: _reorderPlaylist,
           onDetail: _openTrackDetail,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         _WardrobeHeader(
           icon: Icons.library_music_rounded,
           title: '曲庫',
-          subtitle: '依心情挑選，點專輯看詳情',
+          subtitle: '依心情挑選',
           trailing: '${ownedTracks.length}/${trackCatalog.length}',
           color: kMusicAccent,
         ),
@@ -379,10 +414,12 @@ class _WardrobePageState extends State<WardrobePage> {
   }
 
   Widget _buildMoodGroup(MusicMood mood) {
+    final tracks = tracksOfMood(mood);
     return _MoodSection(
       mood: mood,
+      previewTracks: tracks.take(3).toList(),
       tiles: [
-        for (final track in tracksOfMood(mood))
+        for (final track in tracks)
           _TrackGridCard(
             track: track,
             owned: WardrobeStore.ownedTracks.value.contains(track.id),
@@ -637,64 +674,123 @@ class _OutfitCard extends StatelessWidget {
   }
 }
 
+// 「現在播放」常駐卡：永遠反映「實際出聲的是哪一首」。
+// 試聽中 → 顯示試聽曲 +「試聽中」+ 停止鈕；否則 → 顯示目前曲 +「現在播放」+
+// 暫停/繼續鈕（綁全域 BGM 靜音）。把「臨時試聽」與「常駐播放」在視覺上分清楚。
 class _MusicSummaryCard extends StatelessWidget {
   final MusicTrackSpec currentTrack;
   final int playlistCount;
+  final Future<void> Function() onTogglePause;
+  final Future<void> Function() onStopPreview;
 
   const _MusicSummaryCard({
     required this.currentTrack,
     required this.playlistCount,
+    required this.onTogglePause,
+    required this.onStopPreview,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            kMusicAccent.withValues(alpha: 0.14),
-            const Color(0xFFF4F7FF),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppCardStyle.radius),
-        border: Border.all(color: kMusicAccent.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        children: [
-          _TrackCover(track: currentTrack, size: 48),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '目前音樂',
-                  style: TextStyle(
-                    color: AppInk.soft,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  currentTrack.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppInk.strong,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+    return ValueListenableBuilder<String?>(
+      valueListenable: WardrobePreviewController.previewingTrackId,
+      builder: (_, previewingId, _) {
+        final previewing = previewingId != null;
+        final track = previewing ? trackById(previewingId) : currentTrack;
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: previewing
+                  ? [
+                      const Color(0xFFE0894F).withValues(alpha: 0.16),
+                      const Color(0xFFFFF6EE),
+                    ]
+                  : [
+                      kMusicAccent.withValues(alpha: 0.14),
+                      const Color(0xFFF4F7FF),
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
+            border: Border.all(
+              color: (previewing ? const Color(0xFFE0894F) : kMusicAccent)
+                  .withValues(alpha: 0.16),
             ),
           ),
-          _SoftPill(text: '循環 $playlistCount 首', color: kMusicAccent),
-        ],
-      ),
+          child: Row(
+            children: [
+              _TrackCover(track: track, size: 56),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          previewing
+                              ? Icons.headphones_rounded
+                              : Icons.graphic_eq_rounded,
+                          size: 15,
+                          color: previewing
+                              ? const Color(0xFFE0894F)
+                              : kMusicAccent,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          previewing ? '試聽中（暫時）' : '現在播放',
+                          style: TextStyle(
+                            color: previewing
+                                ? const Color(0xFFB9763B)
+                                : AppInk.soft,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppInk.strong,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (previewing)
+                _RoundIconButton(
+                  icon: Icons.stop_rounded,
+                  color: const Color(0xFFE0894F),
+                  tooltip: '停止試聽',
+                  onTap: () => unawaited(onStopPreview()),
+                )
+              else
+                ValueListenableBuilder<bool>(
+                  valueListenable: AudioSettingsService.musicMuted,
+                  builder: (_, muted, _) => _RoundIconButton(
+                    icon: muted
+                        ? Icons.play_arrow_rounded
+                        : Icons.pause_rounded,
+                    color: kMusicAccent,
+                    tooltip: muted ? '繼續播放' : '暫停',
+                    onTap: () => unawaited(onTogglePause()),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              _SoftPill(text: '$playlistCount 首', color: kMusicAccent),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -702,20 +798,27 @@ class _MusicSummaryCard extends StatelessWidget {
 class _PlaylistCard extends StatelessWidget {
   final List<MusicTrackSpec> tracks;
   final String currentId;
+  final PlayMode playMode;
+  final VoidCallback onCyclePlayMode;
   final ValueChanged<MusicTrackSpec> onRemove;
   final ValueChanged<MusicTrackSpec> onSetCurrent;
+  final void Function(int oldIndex, int newIndex) onReorder;
   final ValueChanged<MusicTrackSpec> onDetail;
 
   const _PlaylistCard({
     required this.tracks,
     required this.currentId,
+    required this.playMode,
+    required this.onCyclePlayMode,
     required this.onRemove,
     required this.onSetCurrent,
+    required this.onReorder,
     required this.onDetail,
   });
 
   @override
   Widget build(BuildContext context) {
+    final reorderable = tracks.length > 1;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -725,17 +828,57 @@ class _PlaylistCard extends StatelessWidget {
         boxShadow: AppShadows.flat,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var i = 0; i < tracks.length; i++)
-            _PlaylistRow(
-              index: i + 1,
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: kMusicAccent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.queue_music_rounded,
+                  color: kMusicAccent,
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: 9),
+              const Expanded(
+                child: Text(
+                  '播放清單',
+                  style: TextStyle(
+                    color: AppInk.strong,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              _PlayModeButton(mode: playMode, onTap: onCyclePlayMode),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            padding: EdgeInsets.zero,
+            itemCount: tracks.length,
+            onReorder: onReorder,
+            itemBuilder: (_, i) => _PlaylistRow(
+              key: ValueKey(tracks[i].id),
+              index: i,
               track: tracks[i],
               isCurrent: tracks[i].id == currentId,
-              removable: tracks.length > 1,
+              removable: reorderable,
+              reorderable: reorderable,
               onRemove: () => onRemove(tracks[i]),
               onSetCurrent: () => onSetCurrent(tracks[i]),
               onDetail: () => onDetail(tracks[i]),
             ),
+          ),
         ],
       ),
     );
@@ -747,15 +890,18 @@ class _PlaylistRow extends StatelessWidget {
   final MusicTrackSpec track;
   final bool isCurrent;
   final bool removable;
+  final bool reorderable;
   final VoidCallback onRemove;
   final VoidCallback onSetCurrent;
   final VoidCallback onDetail;
 
   const _PlaylistRow({
+    super.key,
     required this.index,
     required this.track,
     required this.isCurrent,
     required this.removable,
+    required this.reorderable,
     required this.onRemove,
     required this.onSetCurrent,
     required this.onDetail,
@@ -764,23 +910,32 @@ class _PlaylistRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: isCurrent
+          ? kMusicAccent.withValues(alpha: 0.07)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onDetail,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 7),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             children: [
-              Text(
-                '$index',
-                style: AppType.digits(
-                  fontSize: 15,
-                  color: AppInk.faint,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(width: 10),
+              if (reorderable)
+                ReorderableDragStartListener(
+                  index: index,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 2),
+                    child: Icon(
+                      Icons.drag_indicator_rounded,
+                      size: 20,
+                      color: AppInk.iconFaint,
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _TrackCover(track: track, size: 34),
               const SizedBox(width: 9),
               Expanded(
@@ -788,10 +943,10 @@ class _PlaylistRow extends StatelessWidget {
                   track.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppInk.strong,
                     fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: isCurrent ? FontWeight.w900 : FontWeight.w800,
                   ),
                 ),
               ),
@@ -810,8 +965,86 @@ class _PlaylistRow extends StatelessWidget {
                 onPressed: removable ? onRemove : null,
                 icon: const Icon(Icons.close_rounded, size: 18),
                 color: AppInk.iconFaint,
+                tooltip: '從清單移除',
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// 循環模式切換鈕：顯示目前模式（圖示＋字），點一下輪切到下一個模式。
+class _PlayModeButton extends StatelessWidget {
+  final PlayMode mode;
+  final VoidCallback onTap;
+
+  const _PlayModeButton({required this.mode, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (mode) {
+      PlayMode.loopOne => Icons.repeat_one_rounded,
+      PlayMode.loopAll => Icons.repeat_rounded,
+      PlayMode.shuffle => Icons.shuffle_rounded,
+    };
+    return Material(
+      color: kMusicAccent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: kMusicAccent),
+              const SizedBox(width: 5),
+              Text(
+                playModeLabel(mode),
+                style: const TextStyle(
+                  color: kMusicAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// 圓形圖示鈕（現在播放卡的暫停 / 停止試聽用）。
+class _RoundIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _RoundIconButton({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: color.withValues(alpha: 0.14),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, size: 22, color: color),
           ),
         ),
       ),
@@ -824,9 +1057,14 @@ class _PlaylistRow extends StatelessWidget {
 // 重建都會保留（位置穩定）。
 class _MoodSection extends StatefulWidget {
   final MusicMood mood;
+  final List<MusicTrackSpec> previewTracks;
   final List<Widget> tiles;
 
-  const _MoodSection({required this.mood, required this.tiles});
+  const _MoodSection({
+    required this.mood,
+    required this.previewTracks,
+    required this.tiles,
+  });
 
   @override
   State<_MoodSection> createState() => _MoodSectionState();
@@ -842,50 +1080,83 @@ class _MoodSectionState extends State<_MoodSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(16),
             onTap: () {
               playHaptic(HapticLevel.selection);
               setState(() => _expanded = !_expanded);
             },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: _expanded ? 0.12 : 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: color.withValues(alpha: 0.14)),
+              ),
               child: Row(
                 children: [
-                  Icon(
-                    relax ? Icons.spa_rounded : Icons.bolt_rounded,
-                    size: 16,
-                    color: color,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    moodLabel(widget.mood),
-                    style: TextStyle(
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      relax ? Icons.spa_rounded : Icons.bolt_rounded,
+                      size: 18,
                       color: color,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w900,
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          moodLabel(widget.mood),
+                          style: const TextStyle(
+                            color: AppInk.strong,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          _moodCaption(widget.mood),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppInk.soft,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _SoftPill(text: '${widget.tiles.length} 首', color: color),
                   const SizedBox(width: 7),
-                  Text(
-                    '${widget.tiles.length}',
-                    style: TextStyle(
-                      color: color.withValues(alpha: 0.6),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const Spacer(),
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      Icons.expand_more_rounded,
-                      size: 22,
-                      color: color.withValues(alpha: 0.75),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.78),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.expand_more_rounded,
+                        size: 21,
+                        color: color.withValues(alpha: 0.82),
+                      ),
                     ),
                   ),
                 ],
@@ -896,7 +1167,10 @@ class _MoodSectionState extends State<_MoodSection> {
         const SizedBox(height: 8),
         AnimatedCrossFade(
           firstChild: _TrackGrid(tiles: widget.tiles),
-          secondChild: const SizedBox(width: double.infinity),
+          secondChild: _CollapsedTrackPreview(
+            tracks: widget.previewTracks,
+            color: color,
+          ),
           crossFadeState: _expanded
               ? CrossFadeState.showFirst
               : CrossFadeState.showSecond,
@@ -904,6 +1178,53 @@ class _MoodSectionState extends State<_MoodSection> {
           sizeCurve: Curves.easeInOutCubic,
         ),
       ],
+    );
+  }
+}
+
+String _moodCaption(MusicMood mood) => switch (mood) {
+  MusicMood.relax => '慢一點、軟一點',
+  MusicMood.focus => '穩定節奏、進入狀態',
+};
+
+class _CollapsedTrackPreview extends StatelessWidget {
+  final List<MusicTrackSpec> tracks;
+  final Color color;
+
+  const _CollapsedTrackPreview({required this.tracks, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    if (tracks.isEmpty) return const SizedBox(width: double.infinity);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.09)),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < tracks.length; i++) ...[
+            _TrackCover(track: tracks[i], size: 30),
+            if (i != tracks.length - 1) const SizedBox(width: 6),
+          ],
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              tracks.map((track) => track.title).join(' / '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppInk.soft,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -939,7 +1260,7 @@ class _TrackGrid extends StatelessWidget {
   }
 }
 
-// 專輯小卡：方形封面（點 → 詳情＝創作者資訊）＋曲名／作者＋試聽／加入循環。
+// 專輯小卡：方形封面（點 → 詳情＝創作者資訊）＋曲名／作者＋試聽／加入清單。
 class _TrackGridCard extends StatelessWidget {
   final MusicTrackSpec track;
   final bool owned;
@@ -1120,7 +1441,10 @@ class _SquareCover extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [track.color.withValues(alpha: 0.78), const Color(0xFFE7F0FF)],
+          colors: [
+            track.color.withValues(alpha: 0.78),
+            const Color(0xFFE7F0FF),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1203,7 +1527,7 @@ class _TrackDetailSheet extends StatelessWidget {
     }
     if (!inPlaylist) {
       return _PrimaryMiniButton(
-        label: '加入循環',
+        label: '加入清單',
         icon: Icons.playlist_add_rounded,
         color: kMusicAccent,
         onTap: onAddToPlaylist,
@@ -1435,7 +1759,11 @@ class _InfoLine extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.open_in_new_rounded, size: 14, color: kMusicAccent),
+              const Icon(
+                Icons.open_in_new_rounded,
+                size: 14,
+                color: kMusicAccent,
+              ),
             ],
           )
         : Text(
@@ -1507,10 +1835,14 @@ class _TrackProgressBarState extends State<_TrackProgressBar> {
       stream: bgm.positionStream,
       builder: (context, snapshot) {
         final onThisTrack = bgm.loadedAsset == widget.assetPath;
-        final duration = onThisTrack ? (bgm.duration ?? Duration.zero) : Duration.zero;
+        final duration = onThisTrack
+            ? (bgm.duration ?? Duration.zero)
+            : Duration.zero;
         final totalMs = duration.inMilliseconds;
         final live = (snapshot.data ?? bgm.position).inMilliseconds;
-        final posMs = onThisTrack ? live.clamp(0, totalMs == 0 ? 0 : totalMs) : 0;
+        final posMs = onThisTrack
+            ? live.clamp(0, totalMs == 0 ? 0 : totalMs)
+            : 0;
         final maxMs = totalMs == 0 ? 1.0 : totalMs.toDouble();
         final value = (_dragMs ?? posMs.toDouble()).clamp(0.0, maxMs);
         final seekable = onThisTrack && totalMs > 0;
@@ -1528,9 +1860,7 @@ class _TrackProgressBarState extends State<_TrackProgressBar> {
               child: Slider(
                 value: value,
                 max: maxMs,
-                onChanged: seekable
-                    ? (v) => setState(() => _dragMs = v)
-                    : null,
+                onChanged: seekable ? (v) => setState(() => _dragMs = v) : null,
                 onChangeEnd: seekable
                     ? (v) {
                         bgm.seek(Duration(milliseconds: v.round()));
@@ -1727,4 +2057,3 @@ class _SoftPill extends StatelessWidget {
     );
   }
 }
-

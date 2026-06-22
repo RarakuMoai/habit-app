@@ -73,6 +73,17 @@ class BgmService with WidgetsBindingObserver {
   bool _initialized = false;
   bool _wasPlayingBeforeBackground = false;
 
+  // 多軌輪播：true = 這首播完不循環、改通知 [onTrackCompleted] 換下一首；
+  // false = LoopMode.one 單曲 gapless 循環（預設、單軌氛圍曲）。
+  bool _advanceMode = false;
+
+  /// 多軌模式下，目前曲自然播完時呼叫（由播放清單協調器設定）。純通知，
+  /// 換哪一首由呼叫端決定後再呼叫 [play]；BgmService 不認識 playlist。
+  void Function()? onTrackCompleted;
+  // 全期單例（隨 app 生命週期存在、不 dispose），訂閱刻意常駐不取消。
+  // ignore: cancel_subscriptions
+  StreamSubscription<ProcessingState>? _completeSub;
+
   // ── 播放進度（衣櫃試聽進度條用）──
   // 唯讀 + seek，不影響 engage/fade/淡入救援核心。注意 source 是
   // ClippingAudioSource（跳開頭 _aacPrimingTrim），所以 position/duration
@@ -99,8 +110,30 @@ class BgmService with WidgetsBindingObserver {
     await _player.setVolume(0);
     _currentVolume = 0;
 
+    // 多軌模式（LoopMode.off）下，目前曲自然播完 → 通知協調器換下一首。
+    // 單曲循環（LoopMode.one）永遠不會走到 completed，所以平時不觸發。
+    _completeSub ??= _player.processingStateStream.listen((state) {
+      if (state == ProcessingState.completed &&
+          _advanceMode &&
+          !AudioSettingsService.musicMuted.value) {
+        onTrackCompleted?.call();
+      }
+    });
+
     WidgetsBinding.instance.addObserver(this);
     _initialized = true;
+  }
+
+  /// 設定「目前曲播完是否換下一首」。多軌列表循環 / 隨機 = true（LoopMode.off）；
+  /// 單曲循環或只有一首 = false（LoopMode.one，gapless）。
+  Future<void> setAdvanceMode(bool value) async {
+    if (_advanceMode == value) return;
+    _advanceMode = value;
+    // 已有載入中的 source 才需即時改 loop 行為；否則交給下次 _loadAsset 帶到。
+    if (_currentAsset != null &&
+        _player.processingState != ProcessingState.idle) {
+      await _player.setLoopMode(value ? LoopMode.off : LoopMode.one);
+    }
   }
 
   /// 切換到指定 BGM 資產（路徑相對 `assets/`，例如 `sounds/bgm_main.m4a`）。
@@ -237,7 +270,7 @@ class BgmService with WidgetsBindingObserver {
         child: AudioSource.asset('assets/$asset'),
       ),
     );
-    await _player.setLoopMode(LoopMode.one);
+    await _player.setLoopMode(_advanceMode ? LoopMode.off : LoopMode.one);
   }
 
   // iOS/just_audio workaround：新的 AudioSource 第一次 play() 有機率 silent fail。

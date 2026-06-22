@@ -17,6 +17,7 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'utils/app_restart.dart';
 import 'utils/audio_settings_service.dart';
+import 'utils/bgm_playlist.dart';
 import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
@@ -60,6 +61,9 @@ Future<void> _startInitialAudio({required bool onboardingDone}) async {
   try {
     await Future<void>.delayed(const Duration(milliseconds: 900));
     await BgmService.instance.init();
+    // 接上播放清單協調器（換歌鉤子 + loop 行為同步），必須在首播之前，
+    // 讓多軌列表循環使用者的冷啟動首曲就帶正確 loop 行為、播完會輪替。
+    BgmPlaylist.init();
     // 進主頁播使用者在音樂盒選的目前曲（預設仍是 bgm_main，既有用戶無感）；
     // 前導流程固定播 onboarding 曲。
     final asset = onboardingDone

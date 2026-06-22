@@ -28,6 +28,34 @@ String moodLabel(MusicMood mood) => switch (mood) {
   MusicMood.focus => '專注感',
 };
 
+/// 播放清單的循環模式。
+/// - [loopOne]：單曲循環（gapless，預設氛圍曲就是這樣無縫接）。
+/// - [loopAll]：列表循環，依清單順序播完接下一首，到底回第一首。
+/// - [shuffle]：隨機，播完跳清單裡另一首。
+enum PlayMode { loopOne, loopAll, shuffle }
+
+String playModeLabel(PlayMode mode) => switch (mode) {
+  PlayMode.loopOne => '單曲循環',
+  PlayMode.loopAll => '列表循環',
+  PlayMode.shuffle => '隨機播放',
+};
+
+/// 持久化用字串（沿用舊 `bgm_mode` key；舊值 single/playlist 在 store 端遷移）。
+String playModeKey(PlayMode mode) => switch (mode) {
+  PlayMode.loopOne => 'loopOne',
+  PlayMode.loopAll => 'loopAll',
+  PlayMode.shuffle => 'shuffle',
+};
+
+/// 從持久化字串還原 [PlayMode]，含舊值遷移；無法辨識回傳 [fallback]。
+PlayMode playModeFromKey(String? raw, {PlayMode fallback = PlayMode.loopAll}) =>
+    switch (raw) {
+      'loopOne' || 'single' => PlayMode.loopOne,
+      'loopAll' || 'playlist' => PlayMode.loopAll,
+      'shuffle' => PlayMode.shuffle,
+      _ => fallback,
+    };
+
 class OutfitSpec {
   final String id;
   final String name;
