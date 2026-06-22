@@ -149,8 +149,7 @@ class _WardrobePageState extends State<WardrobePage> {
     if (!mounted) return;
     if (result == PurchaseResult.success) {
       playFeedback(SfxCue.success);
-      await WardrobeStore.addTrack(track.id);
-      _toast('已解鎖 ${track.title}，並加入循環');
+      _toast('已解鎖 ${track.title}');
     } else {
       _reportPurchaseFail(result);
     }

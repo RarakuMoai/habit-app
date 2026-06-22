@@ -41,6 +41,12 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   late final AnimationController _pressCtl;
   late final Animation<double> _pressScale;
 
+  // 進行中 spring 動畫的目標端點（沒有動畫時為 null）。頁面被切到背景、
+  // TickerMode 凍結 _ctl 時用它把面板收斂到該去的端點。
+  double? _animTarget;
+  // 這一頁的 TickerMode 是否還在跑（= 是否為當前可見頁）。
+  bool _ticking = true;
+
   // iOS spring 物理參數（接近系統 sheet）
   static const SpringDescription _spring = SpringDescription(
     mass: 1,
@@ -127,8 +133,34 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   }
 
   Future<void> _animateToWithSpring(double target, {double velocity = 0}) {
+    _animTarget = target;
     final sim = SpringSimulation(_spring, _ctl.value, target, velocity);
-    return _ctl.animateWith(sim);
+    return _ctl.animateWith(sim).whenComplete(() {
+      // 正常跑完才清；被取消（whenComplete 不會觸發）或被新動畫覆蓋時不動它。
+      if (_animTarget == target) _animTarget = null;
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    // 先讓 TickerProviderStateMixin 依 TickerMode 靜音/恢復 ticker。
+    super.didChangeDependencies();
+    final ticking = TickerMode.valuesOf(context).enabled;
+    // 這一頁被切到背景：TickerMode 會凍結 _ctl 的 ticker，spring 動畫會卡在半途，
+    // 而 openValue 是全 app 共用的真相 → 害每一頁的卡片都卡在一半（且動畫的
+    // await 永遠不會完成）。若切走當下還在動畫中，直接把面板收斂到該去的端點。
+    if (_ticking && !ticking && (_ctl.isAnimating || _animTarget != null)) {
+      final target = _animTarget ?? (_ctl.value >= 0.5 ? 1.0 : 0.0);
+      // 此刻正處於 build/依賴變更階段，直接改共用的 openValue 會動到正在 build
+      // 的其他頁；延到 frame 結束再吸附（最多殘留一影格的半開，不會永久卡住）。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _ctl.value = target; // 同步 notify → openValue 收斂到端點、停掉 sim
+        _animTarget = null;
+        unawaited(_persist());
+      });
+    }
+    _ticking = ticking;
   }
 
   @override
