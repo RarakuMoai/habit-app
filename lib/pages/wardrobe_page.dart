@@ -368,7 +368,7 @@ class _WardrobePageState extends State<WardrobePage> {
         _WardrobeHeader(
           icon: Icons.library_music_rounded,
           title: '曲庫',
-          subtitle: '依心情挑選，附創作者資訊',
+          subtitle: '依心情挑選，點專輯看詳情',
           trailing: '${ownedTracks.length}/${trackCatalog.length}',
           color: kMusicAccent,
         ),
@@ -379,30 +379,21 @@ class _WardrobePageState extends State<WardrobePage> {
   }
 
   Widget _buildMoodGroup(MusicMood mood) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 8),
-        _MoodLabel(mood: mood),
-        const SizedBox(height: 8),
-        for (final track in tracksOfMood(mood)) _trackTile(track),
+    return _MoodSection(
+      mood: mood,
+      tiles: [
+        for (final track in tracksOfMood(mood))
+          _TrackGridCard(
+            track: track,
+            owned: WardrobeStore.ownedTracks.value.contains(track.id),
+            inPlaylist: WardrobeStore.playlist.value.contains(track.id),
+            isCurrent: WardrobeStore.currentTrack.id == track.id,
+            onPreview: () => _previewTrack(track),
+            onDetail: () => _openTrackDetail(track),
+            onAddToPlaylist: () => _addTrack(track),
+            onBuy: () => _buyTrack(track),
+          ),
       ],
-    );
-  }
-
-  Widget _trackTile(MusicTrackSpec track) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: _TrackCard(
-        track: track,
-        owned: WardrobeStore.ownedTracks.value.contains(track.id),
-        inPlaylist: WardrobeStore.playlist.value.contains(track.id),
-        isCurrent: WardrobeStore.currentTrack.id == track.id,
-        onPreview: () => _previewTrack(track),
-        onDetail: () => _openTrackDetail(track),
-        onAddToPlaylist: () => _addTrack(track),
-        onBuy: () => _buyTrack(track),
-      ),
     );
   }
 }
@@ -828,7 +819,128 @@ class _PlaylistRow extends StatelessWidget {
   }
 }
 
-class _TrackCard extends StatelessWidget {
+// 曲庫的可收合心情分區（悠閒感／專注感）。標題列可點收合，內容是
+// 一排兩格的方形專輯牆。收合狀態存在自己的 State，IndexedStack/反應式
+// 重建都會保留（位置穩定）。
+class _MoodSection extends StatefulWidget {
+  final MusicMood mood;
+  final List<Widget> tiles;
+
+  const _MoodSection({required this.mood, required this.tiles});
+
+  @override
+  State<_MoodSection> createState() => _MoodSectionState();
+}
+
+class _MoodSectionState extends State<_MoodSection> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final relax = widget.mood == MusicMood.relax;
+    final color = relax ? const Color(0xFF5A88D8) : const Color(0xFFE0894F);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              playHaptic(HapticLevel.selection);
+              setState(() => _expanded = !_expanded);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  Icon(
+                    relax ? Icons.spa_rounded : Icons.bolt_rounded,
+                    size: 16,
+                    color: color,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    moodLabel(widget.mood),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    '${widget.tiles.length}',
+                    style: TextStyle(
+                      color: color.withValues(alpha: 0.6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.expand_more_rounded,
+                      size: 22,
+                      color: color.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        AnimatedCrossFade(
+          firstChild: _TrackGrid(tiles: widget.tiles),
+          secondChild: const SizedBox(width: double.infinity),
+          crossFadeState: _expanded
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
+          duration: const Duration(milliseconds: 220),
+          sizeCurve: Curves.easeInOutCubic,
+        ),
+      ],
+    );
+  }
+}
+
+// 一排兩格的專輯牆。每格結構一致（方形封面＋單行曲名／作者＋固定高按鈕列），
+// 同寬即同高，不必 IntrinsicHeight 也能對齊。
+class _TrackGrid extends StatelessWidget {
+  final List<Widget> tiles;
+
+  const _TrackGrid({required this.tiles});
+
+  @override
+  Widget build(BuildContext context) {
+    const gap = 11.0;
+    final rows = <Widget>[];
+    for (var i = 0; i < tiles.length; i += 2) {
+      final hasNext = i + 1 < tiles.length;
+      rows.add(
+        Padding(
+          padding: EdgeInsets.only(bottom: i + 2 < tiles.length ? gap : 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: tiles[i]),
+              const SizedBox(width: gap),
+              Expanded(child: hasNext ? tiles[i + 1] : const SizedBox()),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(children: rows);
+  }
+}
+
+// 專輯小卡：方形封面（點 → 詳情＝創作者資訊）＋曲名／作者＋試聽／加入循環。
+class _TrackGridCard extends StatelessWidget {
   final MusicTrackSpec track;
   final bool owned;
   final bool inPlaylist;
@@ -838,7 +950,7 @@ class _TrackCard extends StatelessWidget {
   final VoidCallback onAddToPlaylist;
   final VoidCallback onBuy;
 
-  const _TrackCard({
+  const _TrackGridCard({
     required this.track,
     required this.owned,
     required this.inPlaylist,
@@ -849,12 +961,11 @@ class _TrackCard extends StatelessWidget {
     required this.onBuy,
   });
 
-  // 試聽鈕：試聽中→停止；（沒在試聽且）這首正是目前曲→顯示「播放中」停用，
-  // 避免對正在當背景音樂播放的曲按「試聽」沒反應；其餘→試聽。
+  // 試聽鈕：試聽中→停止；（沒在試聽且）這首正是目前曲→「播放中」停用；其餘→試聽。
   Widget _previewButton(bool previewing, String? previewingId) {
     if (previewing) {
       return _PrimaryMiniButton(
-        label: '停止試聽',
+        label: '停止',
         icon: Icons.stop_rounded,
         color: kMusicAccent,
         onTap: onPreview,
@@ -877,6 +988,20 @@ class _TrackCard extends StatelessWidget {
     );
   }
 
+  Widget _actionButton() {
+    return _PrimaryMiniButton(
+      label: owned
+          ? (inPlaylist ? '已加入' : '加入')
+          : unlockLabel(track.unlockType, track.coinPrice),
+      icon: owned
+          ? (inPlaylist ? Icons.check_rounded : Icons.playlist_add_rounded)
+          : Icons.lock_open_rounded,
+      color: kMusicAccent,
+      enabled: !owned || !inPlaylist,
+      onTap: owned ? onAddToPlaylist : onBuy,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String?>(
@@ -884,7 +1009,7 @@ class _TrackCard extends StatelessWidget {
       builder: (_, previewingId, _) {
         final previewing = previewingId == track.id;
         return Container(
-          padding: const EdgeInsets.all(13),
+          padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
@@ -897,83 +1022,149 @@ class _TrackCard extends StatelessWidget {
             boxShadow: AppShadows.card,
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  _TrackCover(track: track, size: 54),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppInk.strong,
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          track.artistName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppInk.soft,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 5,
-                          runSpacing: 4,
-                          children: [
-                            for (final tag in track.tags)
-                              _TinyTag(text: tag, color: track.color),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: onDetail,
-                    icon: const Icon(Icons.info_outline_rounded),
-                    color: AppInk.iconFaint,
-                  ),
-                ],
+              GestureDetector(
+                onTap: onDetail,
+                behavior: HitTestBehavior.opaque,
+                child: _SquareCover(
+                  track: track,
+                  isCurrent: isCurrent,
+                  previewing: previewing,
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppInk.strong,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                track.artistName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppInk.soft,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(
-                    child: _previewButton(previewing, previewingId),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _PrimaryMiniButton(
-                      label: owned
-                          ? (inPlaylist ? '已加入' : '加入循環')
-                          : unlockLabel(track.unlockType, track.coinPrice),
-                      icon: owned
-                          ? (inPlaylist
-                                ? Icons.check_rounded
-                                : Icons.playlist_add_rounded)
-                          : Icons.lock_open_rounded,
-                      color: kMusicAccent,
-                      enabled: !owned || !inPlaylist,
-                      onTap: owned ? onAddToPlaylist : onBuy,
-                    ),
-                  ),
+                  Expanded(child: _previewButton(previewing, previewingId)),
+                  const SizedBox(width: 6),
+                  Expanded(child: _actionButton()),
                 ],
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+// 方形 CD 封面（BoxFit.cover 把 16:9 原圖置中裁成方形）。目前正在當背景音樂
+// 的那首，右下角顯示律動標記。
+class _SquareCover extends StatelessWidget {
+  final MusicTrackSpec track;
+  final bool isCurrent;
+  final bool previewing;
+
+  const _SquareCover({
+    required this.track,
+    required this.isCurrent,
+    required this.previewing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _coverImage(),
+            if (isCurrent && !previewing)
+              const Positioned(right: 6, bottom: 6, child: _NowPlayingBadge()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _coverImage() {
+    final cover = track.coverAsset;
+    if (cover != null) {
+      return Image.asset(
+        cover,
+        fit: BoxFit.cover,
+        // 原圖 1280×720，方格只顯示中等尺寸；限制解碼寬度省記憶體。
+        cacheWidth: 400,
+        errorBuilder: (_, _, _) => _fallback(),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [track.color.withValues(alpha: 0.78), const Color(0xFFE7F0FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.music_note_rounded, color: Colors.white, size: 34),
+      ),
+    );
+  }
+}
+
+class _NowPlayingBadge extends StatelessWidget {
+  const _NowPlayingBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: kMusicAccent,
+        borderRadius: BorderRadius.circular(99),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.graphic_eq_rounded, size: 12, color: Colors.white),
+          SizedBox(width: 3),
+          Text(
+            '播放中',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1537,58 +1728,3 @@ class _SoftPill extends StatelessWidget {
   }
 }
 
-class _MoodLabel extends StatelessWidget {
-  final MusicMood mood;
-
-  const _MoodLabel({required this.mood});
-
-  @override
-  Widget build(BuildContext context) {
-    final relax = mood == MusicMood.relax;
-    final color = relax ? const Color(0xFF5A88D8) : const Color(0xFFE0894F);
-    return Row(
-      children: [
-        Icon(
-          relax ? Icons.spa_rounded : Icons.bolt_rounded,
-          size: 16,
-          color: color,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          moodLabel(mood),
-          style: TextStyle(
-            color: color,
-            fontSize: 13.5,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TinyTag extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _TinyTag({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
