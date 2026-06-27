@@ -22,6 +22,8 @@ abstract final class PrefsKeys {
   static const coinLedger = 'coin_ledger';
   static const coinLoginLevel = 'coin_login_level';
   static const coinLastLoginDate = 'coin_last_login_date';
+  // 連續登入天數（給 weeklyStreak 里程碑用；與等級曲線分開計）
+  static const coinLoginStreak = 'coin_login_streak';
 
   // 每日一次型來源的防重複 key（date 格式 yyyy-MM-dd）
   static const coinClaimPrefix = 'coin_claim_';
@@ -97,6 +99,8 @@ abstract final class PrefsKeys {
   static const weightTrackingEnabled = 'weight_tracking_enabled';
   static const familyEnabled = 'family_enabled';
   static const wardrobeEnabled = 'wardrobe_enabled';
+  // 底部分頁的使用者自訂排序（存 TabIds 字串清單，非 index）
+  static const tabOrder = 'tab_order';
 
   // ── 習慣 / 連續天數 ──────────────────────────────────────
   static const habits = 'habits';
@@ -108,6 +112,9 @@ abstract final class PrefsKeys {
   static const waterGoalMl = 'water_goal_ml';
   static const waterGoalDate = 'water_goal_date';
   static const waterGoalSuggestionDismissed = 'water_goal_suggestion_dismissed';
+  // 收起建議卡時記下「當下的建議值（ml）」。之後體重等資料變動讓新建議
+  // 與這個基準差距夠大，就解除收起、讓提示重新出現（避免錯過更新）。
+  static const waterGoalSuggestionBaseline = 'water_goal_suggestion_baseline';
 
   // 帶日期的 key（date 格式 yyyy-MM-dd）。
   // 注意：water_page 掃 getKeys() 時長 prefix 要先比對，
@@ -155,11 +162,20 @@ abstract final class PrefsKeys {
   static const bgmPlaylist = 'bgm_playlist';
   static const bgmOwnedTracks = 'bgm_owned_tracks';
 
+  // ── 回憶本（特殊事件 / 劇情）──────────────────────────────
+  static const storyUnlocked = 'story_unlocked'; // JSON：[{id, date}]，依解鎖時間
+  static const storyUnread = 'story_unread'; // 未讀事件 id（未來「書發亮」用）
+
   // ── 訂閱（佔位，之後接金流時填寫真正狀態）────────────────
   static const subscriptionActive = 'subscription_active';
 
   // ── 單位系統 ─────────────────────────────────────────────
   static const unitSystem = 'unit_system';
+
+  // ── 換日線（一天從幾點開始；夜貓族把午夜往後挪）────────────
+  // int 小時 0~6；只套用在習慣/喝水/體重的「紀錄日」，金幣發獎判重
+  // 刻意維持純日曆午夜（見 coin_service），避免靠切設定重複領獎。
+  static const dayStartHour = 'day_start_hour';
 
   // ── Debug（kDevToolsEnabled 控制讀取；目前 release 也暫時開，正式版會移除）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24

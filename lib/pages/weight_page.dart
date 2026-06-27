@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/input_formatters.dart';
+import '../utils/logical_date.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
@@ -46,6 +48,8 @@ class _WeightPageState extends State<WeightPage> {
   int _chartRangeIndex = 0;
   // 顯示用單位（公制 / 英制）
   UnitSystem _unit = UnitSystem.metric;
+  // 換日線（一天從幾點開始）；_loadData 會從 prefs 重讀並同步。
+  int _dayStartHour = LogicalDate.defaultHour;
   bool _loaded = false;
 
   // 公制→當下單位的顯示值（kg → kg 或 lb）
@@ -65,12 +69,14 @@ class _WeightPageState extends State<WeightPage> {
   void initState() {
     super.initState();
     UnitSystem.notifier.addListener(_onUnitChanged);
+    LogicalDate.notifier.addListener(_onDayStartChanged);
     _loadData();
   }
 
   @override
   void dispose() {
     UnitSystem.notifier.removeListener(_onUnitChanged);
+    LogicalDate.notifier.removeListener(_onDayStartChanged);
     _weightCtrl.dispose();
     _fatCtrl.dispose();
     super.dispose();
@@ -80,6 +86,13 @@ class _WeightPageState extends State<WeightPage> {
   void _onUnitChanged() {
     if (!mounted) return;
     setState(() => _unit = UnitSystem.notifier.value);
+  }
+
+  // 設定頁改換日時間 → 重讀資料（「今天」的紀錄槽可能換成另一天）。
+  void _onDayStartChanged() {
+    if (!mounted) return;
+    _dayStartHour = LogicalDate.notifier.value;
+    _loadData();
   }
 
   Future<void> _loadData() async {
@@ -109,6 +122,7 @@ class _WeightPageState extends State<WeightPage> {
           prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _targetWeight = prefs.getDouble(PrefsKeys.targetWeight);
       _unit = UnitSystem.load(prefs);
+      _dayStartHour = LogicalDate.load(prefs);
       _loaded = true;
     });
   }
@@ -120,13 +134,11 @@ class _WeightPageState extends State<WeightPage> {
     widget.onRecordsChanged?.call();
   }
 
-  // 今天日期字串（yyyy-MM-dd）
-  String _todayString() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-  }
+  // 今天日期字串（yyyy-MM-dd）；換日線往後挪時，睡前的記錄仍算前一天。
+  String _todayString() =>
+      LogicalDate.stringFor(DateTime.now(), _dayStartHour);
 
-  // DateTime 轉 yyyy-MM-dd 字串
+  // DateTime 轉 yyyy-MM-dd 字串（使用者明確挑選的日曆日，不套換日 offset）
   String _dateStr(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -471,9 +483,11 @@ class _WeightPageState extends State<WeightPage> {
   // existing 不為 null 時為編輯模式，預填現有資料；
   // 新增模式預填上次體重（全選，直接打字就覆蓋），通常只需微調
   void _openAddSheet({Map<String, dynamic>? existing}) {
+    // 新增預設「今天」要用換日後的邏輯日（凌晨記錄仍算前一天），
+    // 才會跟「今天是否已記錄」的判斷（_todayString）對得起來。
     var selectedDate = existing != null
         ? (DateTime.tryParse(existing['date'] as String) ?? DateTime.now())
-        : DateTime.now();
+        : LogicalDate.dayOf(DateTime.now(), _dayStartHour);
     if (existing != null) {
       _weightCtrl.text = _fmtWeight((existing['weight'] as num).toDouble());
     } else if (_records.isNotEmpty) {
@@ -534,7 +548,17 @@ class _WeightPageState extends State<WeightPage> {
               var text = pristine ? '' : ctrl.text.trim();
               if (text.length >= maxLength) return;
               if (text == '0') text = '';
-              ctrl.text = '$text$digit';
+              var next = '$text$digit';
+              // 極高機率漏打小數點時自動補上：體脂 0–75；公制體重 10–250
+              // （英制 lb 不補，鍵盤本來就停用小數點）。例：體脂打 365 → 36.5
+              if (isWeight) {
+                if (_unit != UnitSystem.imperial) {
+                  next = autoDecimalForRange(next, UserRanges.weightMaxKg);
+                }
+              } else {
+                next = autoDecimalForRange(next, 75);
+              }
+              ctrl.text = next;
               setSheetState(() {
                 if (isWeight) {
                   weightPristine = false;

@@ -46,6 +46,7 @@ dependencies:
   just_audio: ^0.10.5
   audio_session: ^0.2.3
   url_launcher: ^6.3.1
+  flutter_slidable: ^4.0.3
 
 # path_provider_foundation 2.6.0 改用 FFI（package:objective_c），其
 # objective_c.framework 走 native assets 簽名管線，實機安裝常出現
@@ -96,12 +97,14 @@ flutter:
     - assets/sounds/
     - assets/music/covers/
     - assets/mascot/core/
+    - assets/story/
     - assets/scenes/home/
     - assets/scenes/timer/
     - assets/scenes/water/
     - assets/scenes/weight/
     - assets/scenes/family/
     - assets/scenes/onboarding/
+    - assets/scenes/wardrobe/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

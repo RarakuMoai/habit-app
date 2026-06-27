@@ -22,6 +22,11 @@ enum PurchaseResult { success, alreadyOwned, needCoins, needSubscription }
 class WardrobeStore {
   WardrobeStore._();
 
+  static Set<String> get _freeTrackIds => trackCatalog
+      .where((track) => track.unlockType == UnlockType.free)
+      .map((track) => track.id)
+      .toSet();
+
   /// 目前選用的造型 id。
   static final ValueNotifier<String> selectedOutfit = ValueNotifier<String>(
     defaultOutfit.id,
@@ -47,7 +52,7 @@ class WardrobeStore {
 
   /// 已擁有的曲目 id 集合。
   static final ValueNotifier<Set<String>> ownedTracks =
-      ValueNotifier<Set<String>>({defaultTrack.id});
+      ValueNotifier<Set<String>>(_freeTrackIds);
 
   static bool _subscriber = false;
   static bool _loaded = false;
@@ -79,14 +84,17 @@ class WardrobeStore {
   /// 載入持久化狀態（冪等，可重複呼叫）。
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final owned = (prefs.getStringList(PrefsKeys.bgmOwnedTracks) ?? const [])
-        .toSet()
-      ..add(defaultTrack.id);
+    final owned =
+        (prefs.getStringList(PrefsKeys.bgmOwnedTracks) ?? const []).toSet()
+          ..addAll(_freeTrackIds);
     final ownedFits =
         (prefs.getStringList(PrefsKeys.wardrobeOwnedOutfits) ?? const [])
             .toSet()
           ..add(defaultOutfit.id);
-    final list = _safePlaylist(prefs.getStringList(PrefsKeys.bgmPlaylist), owned);
+    final list = _safePlaylist(
+      prefs.getStringList(PrefsKeys.bgmPlaylist),
+      owned,
+    );
 
     ownedTracks.value = owned;
     ownedOutfits.value = ownedFits;
@@ -114,7 +122,7 @@ class WardrobeStore {
   /// 資料全部刪除時呼叫：把記憶體狀態歸零回預設，
   /// 避免清空 prefs 後仍殘留已不擁有的造型/曲目。
   static void reset() {
-    ownedTracks.value = {defaultTrack.id};
+    ownedTracks.value = _freeTrackIds;
     ownedOutfits.value = {defaultOutfit.id};
     selectedOutfit.value = defaultOutfit.id;
     playlist.value = [defaultTrack.id];
@@ -231,14 +239,15 @@ class WardrobeStore {
   static Future<PurchaseResult> purchaseOutfit(String id) async {
     if (ownedOutfits.value.contains(id)) return PurchaseResult.alreadyOwned;
     final spec = outfitById(id);
-    final paid = await _charge(spec.unlockType, spec.coinPrice, '購買造型：${spec.name}');
+    final paid = await _charge(
+      spec.unlockType,
+      spec.coinPrice,
+      '購買造型：${spec.name}',
+    );
     if (paid != PurchaseResult.success) return paid;
     final prefs = await SharedPreferences.getInstance();
     final next = {...ownedOutfits.value, id};
-    await prefs.setStringList(
-      PrefsKeys.wardrobeOwnedOutfits,
-      next.toList(),
-    );
+    await prefs.setStringList(PrefsKeys.wardrobeOwnedOutfits, next.toList());
     ownedOutfits.value = next;
     return PurchaseResult.success;
   }
@@ -246,7 +255,11 @@ class WardrobeStore {
   static Future<PurchaseResult> purchaseTrack(String id) async {
     if (ownedTracks.value.contains(id)) return PurchaseResult.alreadyOwned;
     final spec = trackById(id);
-    final paid = await _charge(spec.unlockType, spec.coinPrice, '購買音樂：${spec.title}');
+    final paid = await _charge(
+      spec.unlockType,
+      spec.coinPrice,
+      '購買音樂：${spec.title}',
+    );
     if (paid != PurchaseResult.success) return paid;
     final prefs = await SharedPreferences.getInstance();
     final next = {...ownedTracks.value, id};

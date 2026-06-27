@@ -14,61 +14,75 @@ void main() {
   final d0612 = DateTime(2026, 6, 12, 9);
 
   group('award / revoke', () {
-    test('固定金額來源入帳 + notifier 同步', () async {
-      final got = await CoinService.award(CoinSource.habitDone, now: d0612);
-      expect(got, CoinConfig.habitDone);
-      expect(await CoinService.balance(), CoinConfig.habitDone);
-      expect(CoinService.notifier.value, CoinConfig.habitDone);
+    test('已啟用的固定金額來源入帳 + notifier 同步', () async {
+      final got = await CoinService.award(CoinSource.specialEvent, now: d0612);
+      expect(got, CoinConfig.specialEvent);
+      expect(await CoinService.balance(), CoinConfig.specialEvent);
+      expect(CoinService.notifier.value, CoinConfig.specialEvent);
     });
 
-    test('打卡來源可重複入帳（一天多個習慣）', () async {
-      await CoinService.award(CoinSource.habitDone, now: d0612);
-      await CoinService.award(CoinSource.habitDone, now: d0612);
-      expect(await CoinService.balance(), CoinConfig.habitDone * 2);
+    test('暫停中的來源不入帳、不記帳', () async {
+      final habit = await CoinService.award(CoinSource.habitDone, now: d0612);
+      final allDone = await CoinService.award(
+        CoinSource.allHabitsDone,
+        now: d0612,
+      );
+      final water = await CoinService.award(CoinSource.waterGoal, now: d0612);
+      expect(habit, 0);
+      expect(allDone, 0);
+      expect(water, 0);
+      expect(await CoinService.balance(), 0);
+      expect(await CoinService.ledger(), isEmpty);
     });
 
     test('每日一次型來源同日第二次回 0', () async {
-      final first = await CoinService.award(CoinSource.waterGoal, now: d0612);
-      final second = await CoinService.award(CoinSource.waterGoal, now: d0612);
-      expect(first, CoinConfig.waterGoal);
+      final first = await CoinService.award(
+        CoinSource.weeklyStreak,
+        now: d0612,
+      );
+      final second = await CoinService.award(
+        CoinSource.weeklyStreak,
+        now: d0612,
+      );
+      expect(first, CoinConfig.weeklyStreak);
       expect(second, 0);
-      expect(await CoinService.balance(), CoinConfig.waterGoal);
+      expect(await CoinService.balance(), CoinConfig.weeklyStreak);
     });
 
     test('每日一次型來源隔天可再領', () async {
-      await CoinService.award(CoinSource.waterGoal, now: d0612);
+      await CoinService.award(CoinSource.weeklyStreak, now: d0612);
       final next = await CoinService.award(
-        CoinSource.waterGoal,
+        CoinSource.weeklyStreak,
         now: d0612.add(const Duration(days: 1)),
       );
-      expect(next, CoinConfig.waterGoal);
+      expect(next, CoinConfig.weeklyStreak);
     });
 
     test('revoke 對稱扣回；餘額地板 0', () async {
-      await CoinService.award(CoinSource.habitDone, now: d0612);
-      await CoinService.revoke(CoinSource.habitDone, now: d0612);
+      await CoinService.award(CoinSource.specialEvent, now: d0612);
+      await CoinService.revoke(CoinSource.specialEvent, now: d0612);
       expect(await CoinService.balance(), 0);
       // 餘額 0 再 revoke 不會變負
-      await CoinService.revoke(CoinSource.habitDone, now: d0612);
+      await CoinService.revoke(CoinSource.specialEvent, now: d0612);
       expect(await CoinService.balance(), 0);
       expect(CoinService.notifier.value, 0);
     });
 
     test('帳本新到舊、有撤銷負項', () async {
-      await CoinService.award(CoinSource.habitDone, now: d0612);
+      await CoinService.award(CoinSource.specialEvent, now: d0612);
       await CoinService.revoke(
-        CoinSource.habitDone,
+        CoinSource.specialEvent,
         now: d0612.add(const Duration(minutes: 1)),
       );
       final entries = await CoinService.ledger();
       expect(entries.length, 2);
-      expect(entries.first.amount, -CoinConfig.habitDone); // 最新在前
-      expect(entries.last.amount, CoinConfig.habitDone);
+      expect(entries.first.amount, -CoinConfig.specialEvent); // 最新在前
+      expect(entries.last.amount, CoinConfig.specialEvent);
     });
 
     test('帳本封頂不超過上限', () async {
       for (var i = 0; i < CoinConfig.ledgerMaxEntries + 5; i++) {
-        await CoinService.award(CoinSource.habitDone, now: d0612);
+        await CoinService.debugAdd(1);
       }
       final entries = await CoinService.ledger();
       expect(entries.length, CoinConfig.ledgerMaxEntries);

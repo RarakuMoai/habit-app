@@ -943,11 +943,11 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   Widget _buildPage1() {
-    // 依打字進度切換情緒：第1句剛醒(sleep) → 自我介紹(neutral) → 陪伴宣告(smile)
+    // 依打字進度切換情緒：第1句剛醒(wake) → 自我介紹(neutral) → 陪伴宣告(smile)
     final wakeEmotion = _page1Done
         ? 'smile'
         : (_lineIndex == 0
-              ? 'sleep'
+              ? 'wake'
               : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
     return _mascotPage(
       emotion: wakeEmotion,
@@ -1635,12 +1635,21 @@ class _OnboardingPageState extends State<OnboardingPage>
     String? errorText,
     Widget? suffixWidget,
     FocusNode? focusNode,
+    // 非 null 時掛上自動補小數（只在公制欄位傳，傳該欄位的公制合理上限）
+    num? decimalMax,
   }) {
     return TextField(
       controller: controller,
       focusNode: focusNode,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [maxValueFormatter(999)],
+      inputFormatters: [
+        // 公制：bodyMetricFormatter（含自動補小數，例 1708→170.8）
+        // 英制 / 無 max：維持原本 3 位整數上限
+        if (decimalMax != null)
+          bodyMetricFormatter(decimalMax)
+        else
+          maxValueFormatter(999),
+      ],
       decoration: InputDecoration(
         labelText: label,
         errorText: errorText,
@@ -1774,6 +1783,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               focusNode: _heightFocus,
               label: '身高（cm）',
               errorText: _heightErrText,
+              decimalMax: UserRanges.heightMaxCm,
             ),
           const SizedBox(height: 10),
           // 體重
@@ -1782,6 +1792,10 @@ class _OnboardingPageState extends State<OnboardingPage>
             focusNode: _weightFocus,
             label: '體重（${UnitFormat.weightLabel(_unit)}）',
             errorText: _weightErrText,
+            // 英制(lb)不補小數
+            decimalMax: _unit == UnitSystem.imperial
+                ? null
+                : UserRanges.weightMaxKg,
           ),
           const SizedBox(height: 10),
           // 目標體重（選填）
@@ -1791,6 +1805,9 @@ class _OnboardingPageState extends State<OnboardingPage>
             label: '目標體重（${UnitFormat.weightLabel(_unit)}，選填）',
             errorText: _targetWeightErrText,
             suffixWidget: _targetWeightSuggestSuffix(),
+            decimalMax: _unit == UnitSystem.imperial
+                ? null
+                : UserRanges.targetWeightMaxKg,
           ),
           _targetWeightHint(),
           const SizedBox(height: 10),
@@ -1948,7 +1965,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   // ── 畫面7：收尾 ──
   Widget _buildPage7() {
     return _mascotPage(
-      emotion: 'cheer',
+      emotion: 'pop_happy',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

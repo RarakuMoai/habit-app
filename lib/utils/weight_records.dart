@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'logical_date.dart';
 import 'prefs_keys.dart';
 
 const String kWeightHabitName = '體重紀錄';
@@ -48,7 +49,8 @@ Future<void> upsertSavedWeightRecord(
 }) async {
   final ts = at ?? DateTime.now();
   final records = parseWeightRecords(prefs.getString(PrefsKeys.weightRecords));
-  final date = weightRecordDate(ts);
+  // 明確指定 [at] 時照它的日曆日；否則用換日後的「今天」。
+  final date = at != null ? weightRecordDate(ts) : LogicalDate.today(prefs);
   records
     ..removeWhere((r) => r['date'] == date)
     ..add({'date': date, 'time': weightRecordTime(ts), 'weight': weightKg})
@@ -67,7 +69,11 @@ Future<bool> syncWeightHabitForDate(
   SharedPreferences prefs, {
   DateTime? date,
 }) async {
-  final targetDate = weightRecordDate(date ?? DateTime.now());
+  // 明確指定 [date] 時照它的日曆日；否則用換日後的「今天」，
+  // 才會跟 weight_page._todayString 的紀錄槽對得起來。
+  final targetDate = date != null
+      ? weightRecordDate(date)
+      : LogicalDate.today(prefs);
   final records = parseWeightRecords(prefs.getString(PrefsKeys.weightRecords));
   final done = hasWeightRecordForDate(records, targetDate);
   final habits = _loadHabits(prefs);

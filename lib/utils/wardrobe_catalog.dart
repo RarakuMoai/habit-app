@@ -159,6 +159,23 @@ const List<MusicTrackSpec> trackCatalog = [
     licenseNote: _kFreeLicense,
     attributionText: _kFreeAttribution,
   ),
+  MusicTrackSpec(
+    id: 'bgm_onboarding',
+    title: 'cotton bear',
+    artistName: '茶葉のぎか',
+    channelName: '茶葉のぎか',
+    sourceUrl: 'https://www.youtube.com/watch?v=tEPLpqIqU4I',
+    assetPath: 'sounds/bgm_onboarding.m4a',
+    coverAsset: 'assets/music/covers/bgm_onboarding.png',
+    durationLabel: '1:51',
+    mood: MusicMood.relax,
+    color: _kRelaxColor,
+    tags: ['前導', '慢'],
+    unlockType: UnlockType.free,
+    coinPrice: 0,
+    licenseNote: _kFreeLicense,
+    attributionText: _kFreeAttribution,
+  ),
 
   // ── 悠閒感 ─────────────────────────────────────────────
   MusicTrackSpec(
@@ -427,11 +444,15 @@ bool outfitExists(String id) => outfitCatalog.any((o) => o.id == id);
 
 bool trackExists(String id) => trackCatalog.any((t) => t.id == id);
 
-OutfitSpec outfitById(String id) =>
-    outfitCatalog.firstWhere((o) => o.id == id, orElse: () => outfitCatalog.first);
+OutfitSpec outfitById(String id) => outfitCatalog.firstWhere(
+  (o) => o.id == id,
+  orElse: () => outfitCatalog.first,
+);
 
-MusicTrackSpec trackById(String id) =>
-    trackCatalog.firstWhere((t) => t.id == id, orElse: () => trackCatalog.first);
+MusicTrackSpec trackById(String id) => trackCatalog.firstWhere(
+  (t) => t.id == id,
+  orElse: () => trackCatalog.first,
+);
 
 List<MusicTrackSpec> tracksOfMood(MusicMood mood) =>
     trackCatalog.where((t) => t.mood == mood).toList();

@@ -1,17 +1,39 @@
-# habit_app
+# 兔咪好習慣 — 我的指令小抄
 
-A new Flutter project.
+## 🚀 裝到手機（實機）— 三個指令
 
-## Getting Started
+| 指令 | 模式 | 哪顆 App | 用途 / 特性 |
+|------|------|---------|------------|
+| **`prod`** | release | 兔咪好習慣（正式） | 每天真的用；沿用既有資料，更新不會清空 |
+| **`dev`** | release | 兔咪(測試) | 能脫離電腦獨立跑的測試版；資料獨立 |
+| **`dev debug`** | debug | 兔咪(測試)＊ | 開發用，按 **r** 熱重載／**R** 熱重啟、可一直改一直測 |
 
-This project is a starting point for a Flutter application.
+＊`dev` 和 `dev debug` 是**同一顆**測試 App（同 bundle id），只是 build 模式不同、會互相覆蓋。
+平常開發用 `dev debug`（熱重載最快）；想要一顆不接電腦也能跑的測試版就 `dev`（release）。
 
-A few resources to get you started if this is your first Flutter project:
+- 手機上只有**兩顆** App（正式 / 測試）並排，圖示與資料都分開。
+- 從任何資料夾都能打（捷徑在 `~/.zshrc`，會自動進專案）；要指定裝置可加參數，例如 `prod -d <裝置名>`。
+- 縮寫對照：`prod` = `flutter run --release --flavor prod`、`dev` = `flutter run --release --flavor dev`、`dev debug` = `flutter run --debug --flavor dev`。
+- 舊寫法 `dev --debug` 仍可用；之後優先用 `dev debug`，比較不容易跟 Flutter mode flag 打架。
+- ⚠️ **別再用沒帶 flavor 的 `flutter run`**：它會落在「正式版」那顆（蓋過去）。要測就 `dev`／`dev debug`，要更新正式版才 `prod`。
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## ⚠️ 免費 Apple 帳號：每 7 天要重簽
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+App 過 7 天點不開（顯示無法驗證）很正常 → 插線把那顆對應的 `prod` 或 `dev` **再跑一次**就好。
+**資料會保留**，除非你「手動刪 App」。兩顆各自 7 天獨立計算。
+
+## 🧹 flutter clean 安全嗎？
+
+安全。只刪 Mac 上的編譯產物，**不碰手機 App、不碰資料、不碰上面這些設定**。
+唯一影響：下次跑 `prod`／`dev` 會完整重建（比較久）。平常切換版本**不需要** clean。
+
+## 🔁 prod / dev 程式碼怎麼同步？
+
+**不用同步——它們跑的是同一份程式碼。** prod 和 dev 只差「裝在手機上是哪顆 App ＋各自的資料」，
+程式碼（`lib/`）是共用的。所以你改完功能，想讓哪顆有新版本，就**重跑那顆**即可：
+
+- 改完很滿意 → 要套到測試版：再跑一次 `dev`。
+- 改完很滿意 → 要更新自己天天用那顆：跑一次 `prod`（**資料保留**）。
+
+prod 那顆**只有你真的跑 `prod` 時才更新**；平常你邊改邊 `dev`，碰不到 prod。
+唯一不互通的是**各自的資料**（不同 App = 不同儲存空間）。

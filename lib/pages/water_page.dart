@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/logical_date.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
@@ -22,6 +23,9 @@ const Color _kBgTop = Color(0xFFE8FAFF);
 const Color _kBgMid = Color(0xFFDFF5FF);
 const Color _kBgBottom = Color(0xFFFFFFFF);
 const Color _kChipBg = Color(0xFFEAF8FF);
+const Color _kWaterBright = Color(0xFF35BFE3);
+const Color _kWaterDeep = Color(0xFF1284A3);
+const Color _kGoalGold = Color(0xFFFFC857);
 
 class WaterPage extends StatefulWidget {
   final void Function(bool)? onGoalStatusChanged;
@@ -59,6 +63,10 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   static const int _maxCupMl = 1000;
   static const int _minGoalMl = 500;
   static const int _maxGoalMl = 6000;
+  // 建議卡被「套用 / 不使用」收起後，要等資料明顯變動才重新提示：新建議與
+  // 收起當下的建議值差距 ≥ 這條線（≈ 5–6kg 體重或一級運動量變化）才解除收起，
+  // 避免每天體重小波動就一直冒提示。
+  static const int _goalResuggestThresholdMl = 200;
   static const int _historyRetainDays = 30;
   static const String _entryKeyPrefix = PrefsKeys.waterEntriesPrefix;
   static const String _keyPrefix = PrefsKeys.waterDayPrefix;
@@ -80,6 +88,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   // 跨界只提醒一次，避免每加一杯就跳，惹人厭
   bool _shownOverhydrationToast = false;
   UnitSystem _unit = UnitSystem.metric;
+  // 換日線（一天從幾點開始）；_loadWater 會從 prefs 重讀並同步。
+  int _dayStartHour = LogicalDate.defaultHour;
   _WaterGoalSuggestion? _goalSuggestion;
   bool _goalSuggestionDismissed = false;
 
@@ -107,12 +117,14 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     UnitSystem.notifier.addListener(_onUnitChanged);
+    LogicalDate.notifier.addListener(_onDayStartChanged);
     _loadWater();
   }
 
   @override
   void dispose() {
     UnitSystem.notifier.removeListener(_onUnitChanged);
+    LogicalDate.notifier.removeListener(_onDayStartChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -122,6 +134,13 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _unit = UnitSystem.notifier.value);
     unawaited(_refreshGoalSuggestion());
+  }
+
+  // 設定頁改換日時間 → 重讀「今天」並載入對應紀錄（可能換成新的一天）。
+  void _onDayStartChanged() {
+    if (!mounted) return;
+    _dayStartHour = LogicalDate.notifier.value;
+    _loadWater();
   }
 
   @override
@@ -140,12 +159,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     }
   }
 
-  String _todayString() {
-    final now = DateTime.now();
-    final m = now.month.toString().padLeft(2, '0');
-    final d = now.day.toString().padLeft(2, '0');
-    return '${now.year}-$m-$d';
-  }
+  String _todayString() =>
+      LogicalDate.stringFor(DateTime.now(), _dayStartHour);
 
   void _notifyGoalStatus({bool force = false}) {
     if (!force && _lastReportedReached == _goalReached) return;
@@ -189,6 +204,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   Future<void> _loadWater() async {
     final prefs = await SharedPreferences.getInstance();
     await _cleanupOldKeys(prefs);
+    _dayStartHour = LogicalDate.load(prefs); // 算「今天」前先讀換日設定
     final today = _todayString();
     final todayKey = '$_keyPrefix$today';
     final entriesKey = '$_entryKeyPrefix$today';
@@ -227,12 +243,30 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshGoalSuggestion() async {
-    if (_goalSuggestionDismissed) {
-      if (mounted) setState(() => _goalSuggestion = null);
-      return;
-    }
     final suggestion = await _suggestGoal();
     if (!mounted) return;
+    if (_goalSuggestionDismissed) {
+      // 收起狀態下仍重算建議：若新建議與「收起當下的建議值」差距夠大
+      // （資料明顯變動），就解除收起讓提示回來；否則維持收起。
+      final prefs = await SharedPreferences.getInstance();
+      final baseline = prefs.getInt(PrefsKeys.waterGoalSuggestionBaseline);
+      final changedEnough =
+          baseline == null ||
+          (suggestion.ml - baseline).abs() >= _goalResuggestThresholdMl;
+      if (!mounted) return;
+      if (changedEnough) {
+        await prefs.setBool(PrefsKeys.waterGoalSuggestionDismissed, false);
+        await prefs.remove(PrefsKeys.waterGoalSuggestionBaseline);
+        if (!mounted) return;
+        setState(() {
+          _goalSuggestionDismissed = false;
+          _goalSuggestion = suggestion;
+        });
+      } else {
+        setState(() => _goalSuggestion = null);
+      }
+      return;
+    }
     setState(() => _goalSuggestion = suggestion);
   }
 
@@ -455,6 +489,11 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     'female': 'female',
     'F': 'female',
   };
+  // 每公斤飲水量（ml/kg）。臨床慣用的 30–35 ml/kg 估的是「總水分需求」
+  // （口服＋食物＋維持量、且被註明偏寬鬆）；食物約供 20%、飲料約 80%。
+  // 本 App 目標是「飲水（補水）」而非總水分，故取貼近 EFSA 飲水基準的
+  // 30 ml/kg：70kg≈2100ml（EFSA 男飲水 ~2.0L＋小幅 buffer），不用總水分的 35。
+  static const int _mlPerKg = 30;
   static const Map<String, int> _activityBonusMl = {
     '輕度': 250,
     'light': 250,
@@ -498,18 +537,20 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     num base;
     String reason;
     if (weight != null && weight >= 20 && weight <= 250) {
-      base = weight * 35;
+      base = weight * _mlPerKg;
       final wDisp = UnitFormat.weight(weight, _unit);
       reason = usingTracked ? '依最新體重 $wDisp 估算' : '依體重 $wDisp 估算';
     } else if (height != null && height >= 100 && height <= 230) {
+      // 無體重時用 BMI 22 估健康體重，再套同一個 ml/kg。
       final h = height / 100;
-      base = 22 * h * h * 35;
+      base = 22 * h * h * _mlPerKg;
       reason = '依身高估算健康體重';
     } else if (gender == 'male') {
-      base = 2500;
+      // EFSA 飲水基準：男 ~2.0L、女 ~1.6L（總水分 2.5/2.0L 的 ~80%）。
+      base = 2000;
       reason = '依男性一般成人預設';
     } else if (gender == 'female') {
-      base = 2000;
+      base = 1600;
       reason = '依女性一般成人預設';
     } else {
       base = _defaultGoalMl;
@@ -594,13 +635,20 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                   final t = ((box.maxHeight - 360) / 100).clamp(0.0, 1.0);
                   double sp(double tight, double roomy) =>
                       tight + (roomy - tight) * t;
-                  final showNodes = box.maxHeight >= 300;
-                  final showGoalSuggestion = box.maxHeight >= 420;
+                  // 拖曳到中段（內容區約 360–440px）時，節點列會讓固定內容超過
+                  // 可用高度 → RenderFlex 溢出（debug 黃黑斜紋＝失敗區域）。
+                  // 所以節點列等夠高（≥440）才顯示，把那段壓縮帶讓出來。
+                  final showNodes = box.maxHeight >= 440;
+                  // 夠高才把建議卡顯示在今日補水卡「下方」（多佔約 100px）；
+                  // 空間不足時改成讓建議卡「覆蓋」今日補水卡（同一張卡換內容），
+                  // 覆蓋不增加高度 → 面板縮小動畫不會把 Column 撐爆（黃黑斜線），
+                  // 而且面板展開時建議仍然看得到。
+                  final suggestionBelow = box.maxHeight >= 520;
                   return Padding(
                     padding: EdgeInsets.fromLTRB(22, 8, 22, sp(10, 20)),
                     child: Column(
                       children: [
-                        _summaryCard(showGoalSuggestion: showGoalSuggestion),
+                        _summaryCard(suggestionBelow: suggestionBelow),
                         SizedBox(height: sp(4, 8)),
                         Expanded(
                           child: Center(
@@ -635,7 +683,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _summaryCard({required bool showGoalSuggestion}) {
+  Widget _summaryCard({required bool suggestionBelow}) {
     final left = math.max(0, _goalMl - _totalMl);
     final goalDisp = _volStr(_goalMl);
     final leftDisp = _volStr(left);
@@ -646,88 +694,198 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
         ? UnitConvert.mlToFlOz(_totalMl.toDouble()).round().toString()
         : _totalMl.toString();
     final suggestion = _goalSuggestion;
-    final showSuggestion =
-        showGoalSuggestion &&
+    final hasSuggestion =
         !_goalSuggestionDismissed &&
         suggestion != null &&
         (suggestion.ml - _goalMl).abs() >= 50;
+    // 夠高 → 建議卡顯示在今日補水卡「下方」；空間不足 → 建議卡「覆蓋」整張
+    // 今日補水卡（同一張卡換成建議內容）。覆蓋比原本詳情更矮、又不另佔高度，
+    // 所以面板縮小時版面不會溢出，建議也一直看得到。
+    final showBelow = hasSuggestion && suggestionBelow;
+    final coverWithSuggestion = hasSuggestion && !suggestionBelow;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.95),
+            const Color(0xFFEAFBFF).withValues(alpha: 0.92),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.88)),
         boxShadow: [
           BoxShadow(
-            color: Colors.cyan.withValues(alpha: 0.10),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: _kWaterBright.withValues(alpha: 0.13),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: _kInk.withValues(alpha: 0.05),
+            blurRadius: 7,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      // 空間不足時整張卡換成建議內容（覆蓋今日補水詳情）；否則正常顯示詳情。
+      child: coverWithSuggestion
+          ? _goalSuggestionCard(suggestion)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '今日補水',
+                      style: TextStyle(
+                        color: _kInkSoft,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    _summaryStatusPill(),
+                    const SizedBox(width: 8),
+                    _summarySettingsButton(),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      totalDisp,
+                      style: const TextStyle(
+                        color: _kInk,
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _volLabel,
+                      style: TextStyle(
+                        color: _kInkSoft,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: _kInkSoft,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 9),
+                _waterMoodLine(),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: showBelow
+                      ? Padding(
+                          key: ValueKey(suggestion.ml),
+                          padding: const EdgeInsets.only(top: 10),
+                          child: _goalSuggestionCard(suggestion),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _summaryStatusPill() {
+    final reached = _goalReached;
+    final color = reached ? const Color(0xFFA87400) : _kInk;
+    final bg = reached
+        ? _kGoalGold.withValues(alpha: 0.24)
+        : _kChipBg.withValues(alpha: 0.86);
+    final label = reached ? '已照顧好' : '${(_progress * 100).round()}%';
+    final icon = reached ? Icons.check_rounded : Icons.water_drop_rounded;
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Text(
-                '今日補水',
-                style: TextStyle(
-                  color: _kInkSoft,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              _summarySettingsButton(),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                totalDisp,
-                style: const TextStyle(
-                  color: _kInk,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w900,
-                  height: 1.0,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _volLabel,
-                style: TextStyle(
-                  color: _kInkSoft,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 4),
           Text(
-            subtitle,
+            label,
             style: TextStyle(
-              color: _kInkSoft,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: showSuggestion
-                ? Padding(
-                    key: ValueKey(suggestion.ml),
-                    padding: const EdgeInsets.only(top: 10),
-                    child: _goalSuggestionCard(suggestion),
-                  )
-                : const SizedBox.shrink(),
+        ],
+      ),
+    );
+  }
+
+  Widget _waterMoodLine() {
+    final text = _totalMl >= _warnTotalMl
+        ? '今天已經喝很多了，先休息一下。'
+        : _goalReached
+        ? '今天的補水已經照顧好了。'
+        : _progress >= 0.75
+        ? '快到目標了，小口慢慢來。'
+        : _progress >= 0.5
+        ? '已經過一半了，身體有被照顧到。'
+        : _totalMl > 0
+        ? '小口小口累積，也很好。'
+        : '先喝一口，讓身體慢慢醒來。';
+    final reached = _goalReached && _totalMl < _warnTotalMl;
+    final icon = reached
+        ? Icons.auto_awesome_rounded
+        : Icons.local_drink_rounded;
+    final color = reached ? const Color(0xFF7E6100) : _kInk;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: reached
+            ? _kGoalGold.withValues(alpha: 0.16)
+            : Colors.white.withValues(alpha: 0.64),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: reached
+              ? _kGoalGold.withValues(alpha: 0.22)
+              : Colors.white.withValues(alpha: 0.72),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color.withValues(alpha: 0.86)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color.withValues(alpha: 0.86),
+                fontSize: 12.5,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -737,17 +895,56 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   Widget _summarySettingsButton() {
     return Semantics(
       button: true,
-      label: '補水設定',
-      child: Material(
-        color: _kChipBg,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: _openWaterSettings,
-          child: SizedBox(
-            width: 34,
-            height: 34,
-            child: Icon(Icons.tune_rounded, size: 18, color: _kInk),
+      label: '調整補水目標',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [
+            BoxShadow(
+              color: _kWaterDeep.withValues(alpha: 0.16),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: _openWaterSettings,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 34),
+              padding: const EdgeInsets.fromLTRB(11, 7, 8, 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: _kWaterDeep.withValues(alpha: 0.22),
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.flag_rounded, size: 15, color: _kWaterDeep),
+                  const SizedBox(width: 5),
+                  const Text(
+                    '調整目標',
+                    style: TextStyle(
+                      color: _kInk,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 17,
+                    color: _kWaterDeep.withValues(alpha: 0.82),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -824,9 +1021,11 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _setGoalSuggestionDismissed() async {
+  // baselineMl：收起當下的建議值，之後用來判斷資料是否「明顯變動」需重新提示。
+  Future<void> _setGoalSuggestionDismissed(int baselineMl) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(PrefsKeys.waterGoalSuggestionDismissed, true);
+    await prefs.setInt(PrefsKeys.waterGoalSuggestionBaseline, baselineMl);
     if (!mounted) return;
     setState(() {
       _goalSuggestionDismissed = true;
@@ -835,13 +1034,14 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   Future<void> _dismissGoalSuggestion() async {
+    final baseline = _goalSuggestion?.ml ?? _goalMl;
     unawaited(SfxService.instance.play(SfxCue.cancel));
-    await _setGoalSuggestionDismissed();
+    await _setGoalSuggestionDismissed(baseline);
   }
 
   Future<void> _applySuggestedGoal(_WaterGoalSuggestion suggestion) async {
     unawaited(SfxService.instance.play(SfxCue.tap));
-    await _setGoalSuggestionDismissed();
+    await _setGoalSuggestionDismissed(suggestion.ml);
     await _saveWaterSettings(cupMl: _cupMl, goalMl: suggestion.ml);
   }
 
@@ -861,33 +1061,10 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
             children: List.generate(nodeCount, (i) {
               final filled = i < filledNodes;
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOut,
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: filled
-                        ? (_goalReached
-                              ? Colors.green.shade400
-                              : Colors.cyan.shade400)
-                        : Colors.white.withValues(alpha: 0.75),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: filled ? Colors.transparent : Colors.cyan.shade100,
-                      width: 1.2,
-                    ),
-                    boxShadow: filled
-                        ? [
-                            BoxShadow(
-                              color: Colors.cyan.withValues(alpha: 0.25),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                child: _WaterProgressDrop(
+                  filled: filled,
+                  reached: _goalReached,
                 ),
               );
             }),
@@ -941,63 +1118,147 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   Widget _mainCupButton({required bool atMax}) {
+    final reached = _goalReached && !atMax;
+    final colors = atMax
+        ? const [Color(0xFF8BB7C4), Color(0xFF6E9DAB)]
+        : reached
+        ? const [Color(0xFF27A58E), Color(0xFF56C9AC)]
+        : const [_kInk, _kWaterDeep];
+    final title = atMax
+        ? '先休息一下'
+        : reached
+        ? '再補一點水'
+        : '我喝了一杯';
+    final icon = reached ? Icons.check_rounded : Icons.local_drink_rounded;
     return Semantics(
       button: true,
       label: '我喝了一杯，每杯 ${_volStr(_cupMl)}',
-      child: Material(
-        color: _kInk,
-        borderRadius: BorderRadius.circular(22),
-        elevation: 6,
-        shadowColor: Colors.cyan.withValues(alpha: 0.35),
-        child: InkWell(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(22),
-          onTap: atMax ? _onAddCupPressed : _addCup,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.local_drink_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '我喝了一杯',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        height: 1.1,
+          boxShadow: [
+            BoxShadow(
+              color: colors.last.withValues(alpha: 0.28),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(22),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: atMax ? _onAddCupPressed : _addCup,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.20),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.14),
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _volStr(_cupMl),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Icon(icon, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 14),
+                  Flexible(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          atMax ? '今天先慢一點' : _volStr(_cupMl),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.86),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WaterProgressDrop extends StatelessWidget {
+  final bool filled;
+  final bool reached;
+
+  const _WaterProgressDrop({required this.filled, required this.reached});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = filled
+        ? (reached ? _kGoalGold : _kWaterBright)
+        : Colors.white.withValues(alpha: 0.78);
+    final outline = filled
+        ? Colors.transparent
+        : _kWaterBright.withValues(alpha: 0.28);
+    return AnimatedScale(
+      scale: filled ? 1.0 : 0.86,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      child: SizedBox(
+        width: 20,
+        height: 24,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (filled)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.28),
+                      blurRadius: 10,
+                      spreadRadius: 1,
                     ),
                   ],
                 ),
-              ],
+                child: const SizedBox(width: 14, height: 14),
+              ),
+            Icon(
+              filled ? Icons.water_drop_rounded : Icons.water_drop_outlined,
+              size: filled ? 20 : 18,
+              color: color,
             ),
-          ),
+            if (!filled)
+              Icon(Icons.water_drop_outlined, size: 18, color: outline),
+          ],
         ),
       ),
     );
@@ -1742,7 +2003,6 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
   );
   String? _cupErr;
   String? _goalErr;
-  String? _appliedHint;
 
   bool get _imperial => widget.unit == UnitSystem.imperial;
   String get _label => UnitFormat.volumeLabel(widget.unit);
@@ -1771,13 +2031,12 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
     super.dispose();
   }
 
+  // 「套用」＝立即生效：把建議值帶入欄位後直接走儲存流程關閉面板，
+  // 與摘要卡的「套用」語意一致，不再是「只填欄位、要再按儲存」的兩段式。
   void _applySuggestion() {
-    final suggMl = widget.suggestion.ml;
-    _goalCtrl.text = _initial(suggMl);
-    setState(() {
-      _goalErr = null;
-      _appliedHint = '已套用建議 ${UnitFormat.volume(suggMl, widget.unit)}';
-    });
+    _goalCtrl.text = _initial(widget.suggestion.ml);
+    _goalErr = null;
+    _submit();
   }
 
   void _submit() {
@@ -1868,10 +2127,9 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _appliedHint ??
-                          '建議 ${UnitFormat.volume(widget.suggestion.ml, widget.unit)}\n'
-                              '${widget.suggestion.reason}'
-                              '${widget.suggestion.needsActivity ? '\n補上每週運動天數，水量建議會更貼近你。' : ''}',
+                      '建議 ${UnitFormat.volume(widget.suggestion.ml, widget.unit)}\n'
+                      '${widget.suggestion.reason}'
+                      '${widget.suggestion.needsActivity ? '\n補上每週運動天數，水量建議會更貼近你。' : ''}',
                       style: TextStyle(
                         color: Colors.cyan.shade900,
                         fontSize: 13,

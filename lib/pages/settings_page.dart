@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/feature_flags.dart';
+import '../utils/logical_date.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
@@ -34,6 +35,9 @@ class _SettingsPageState extends State<SettingsPage> {
   // 公制 / 英制
   UnitSystem _unitSystem = UnitSystem.metric;
 
+  // 換日線：一天從幾點開始（0~6 小時）
+  int _dayStartHour = LogicalDate.defaultHour;
+
   SharedPreferences? _prefs;
   bool _openedInitialPinSettings = false;
 
@@ -51,6 +55,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _hasPin = hasPin;
       _pinDigits = _prefs!.getInt(PrefsKeys.pinDigits) ?? 4;
       _unitSystem = UnitSystem.load(_prefs!);
+      _dayStartHour = LogicalDate.load(_prefs!);
       _loaded = true;
     });
     if (widget.openPinSettingsOnLoad && !_openedInitialPinSettings) {
@@ -67,6 +72,18 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _unitSystem = v);
     if (_prefs != null) await UnitSystem.save(_prefs!, v);
   }
+
+  Future<void> _setDayStartHour(int h) async {
+    final v = h.clamp(LogicalDate.minHour, LogicalDate.maxHour);
+    if (v == _dayStartHour) return;
+    playHaptic(HapticLevel.selection);
+    setState(() => _dayStartHour = v);
+    if (_prefs != null) await LogicalDate.save(_prefs!, v);
+  }
+
+  // 換日時間顯示文字（0 點 = 一般午夜換日）。
+  String _dayStartLabel(int h) =>
+      h == 0 ? '午夜 0:00（一般換日）' : '凌晨 $h:00';
 
   // 區塊標題（顏色跟隨當前主題主色）
   Widget _sectionTitle(String title, IconData icon) {
@@ -221,6 +238,67 @@ class _SettingsPageState extends State<SettingsPage> {
                         _unitSystem == UnitSystem.metric
                             ? 'cm · kg · ml' // units-ok
                             : 'ft / in · lb · fl oz', // units-ok
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 32, thickness: 1),
+
+                // ── 區塊：換日時間（夜貓族把午夜往後挪）──
+                _sectionTitle('換日時間', Icons.bedtime_outlined),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '幾點之後才算新的一天。睡前（這個時間以前）紀錄的喝水、'
+                        '體重、習慣都還算「昨天」，晚睡也不會被換日。',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          IconButton.filledTonal(
+                            onPressed: _dayStartHour <= LogicalDate.minHour
+                                ? null
+                                : () => _setDayStartHour(_dayStartHour - 1),
+                            icon: const Icon(Icons.remove),
+                          ),
+                          Expanded(
+                            child: Text(
+                              _dayStartLabel(_dayStartHour),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            onPressed: _dayStartHour >= LogicalDate.maxHour
+                                ? null
+                                : () => _setDayStartHour(_dayStartHour + 1),
+                            icon: const Icon(Icons.add),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '金幣每日獎勵不受影響，仍以午夜計算。',
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.grey.shade500,

@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_restart.dart';
 import '../utils/coin_service.dart';
 import '../utils/debug_fake_tabs.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/story_store.dart';
 import 'home/room_ambient_overlay.dart';
 
 /// 開發者測試頁。
@@ -67,8 +69,9 @@ class _DevTestPageState extends State<DevTestPage> {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
-  // 快轉一天：把每日狀態日期標記往前推一天。重開 App 後真實時鐘一比對，
-  // 就會跑真正的換日流程（習慣勾選清空、streak 計算、登入獎勵重開）。
+  // 快轉一天：把每日狀態日期標記往前推一天，接著程式內重建整棵 app。
+  // 重建後真實時鐘一比對，就會跑真正的換日流程
+  // （習慣勾選清空、streak 計算、登入獎勵重開）。
   // 第一次快轉前先整包快照 prefs，供「還原換日」回復。
   Future<void> _fastForwardOneDay() async {
     final prefs = _prefs;
@@ -95,9 +98,7 @@ class _DevTestPageState extends State<DevTestPage> {
     await prefs.setInt(PrefsKeys.debugDayShift, n);
     if (!mounted) return;
     setState(() => _dayShift = n);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已快轉一天，重開 App 看換日效果')));
+    RootRestart.restart(context);
   }
 
   // 整包快照（restore 用）。值型別 bool/int/double/String/List<String> 都帶 tag。
@@ -150,9 +151,7 @@ class _DevTestPageState extends State<DevTestPage> {
     bumpFeatureFlags();
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已還原換日，重開 App 生效')));
+    RootRestart.restart(context);
   }
 
   Future<void> _setFakeTab(String id, bool enabled) async {
@@ -189,6 +188,13 @@ class _DevTestPageState extends State<DevTestPage> {
       HomeSceneDebug.hourOverride = hour;
     }
     setState(() => _sceneHour = hour);
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _reset() async {
@@ -243,9 +249,54 @@ class _DevTestPageState extends State<DevTestPage> {
                               child: Text('+$n'),
                             ),
                           OutlinedButton(
-                            onPressed: () =>
-                                CoinService.debugAdd(-CoinService.notifier.value),
+                            onPressed: () => CoinService.debugAdd(
+                              -CoinService.notifier.value,
+                            ),
                             child: const Text('歸零'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                _card(
+                  title: '回憶本（測試）',
+                  icon: Icons.auto_stories_outlined,
+                  description: '手動解鎖回憶事件，不用真的連 7 天。'
+                      '解鎖後到衣櫃 → 回憶 翻閱。',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ValueListenableBuilder<List<StoryUnlock>>(
+                        valueListenable: StoryStore.unlocked,
+                        builder: (_, list, _) => Text(
+                          '已解鎖：${list.length} 則',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonal(
+                            onPressed: () async {
+                              final ok = await StoryStore.unlock('streak_7');
+                              if (!mounted) return;
+                              _toast(ok ? '已解鎖：連續第七天' : '已經解鎖過了');
+                            },
+                            child: const Text('解鎖 連續第七天'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () async {
+                              await StoryStore.clear();
+                              if (!mounted) return;
+                              _toast('已清空回憶');
+                            },
+                            child: const Text('清空回憶'),
                           ),
                         ],
                       ),
@@ -298,7 +349,7 @@ class _DevTestPageState extends State<DevTestPage> {
                   title: '換日（快轉一天）',
                   icon: Icons.fast_forward_outlined,
                   description:
-                      '把每日狀態日期推前一天，重開 App 後會跑真正的換日：'
+                      '把每日狀態日期推前一天，按下後會自動刷新並跑真正的換日：'
                       '習慣勾選清空、streak 重算、登入獎勵重開。'
                       '喝水/番茄鐘累計按真實日期存、不歸零。目前已快轉 $_dayShift 天。',
                   child: Row(

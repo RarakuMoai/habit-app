@@ -14,9 +14,11 @@ import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
 import '../utils/input_formatters.dart';
+import '../utils/logical_date.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../utils/story_store.dart';
 import '../utils/weight_records.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
@@ -53,7 +55,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _nickname = '你';
   String mascotName0 = '兔咪';
   bool yesterdayAllDone = false;
+  // 換日線（一天從幾點開始）；loadHabits 每次顯示首頁時從 prefs 重讀。
+  int _dayStartHour = LogicalDate.defaultHour;
   DateTime? onboardingDate;
+  DateTime? userBirthday;
 
   // 兔咪近期採 CG/PNG 差分 + Flutter 輕量演出，不以 Rive 作為近期主線。
 
@@ -71,6 +76,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // 抖動排序模式（像 iOS 主畫面長按 App）：全卡片抖動＋可拖，底部換成完成鈕。
   // 進入＝長按任一卡片或「⋯」選單的「移動」；退出＝點「完成」。
   bool _editMode = false;
+
+  // ── 首頁裝飾動畫的閒置凍結（省電 / 降溫）─────────────────────
+  // 窗景 / 室內光影 / 場景流光是每幀重繪、且每幀跑 MaskFilter.blur 的層，
+  // 停在首頁不互動時持續算繪會讓 GPU 一直滿載、機身發熱。沒人在操作時就
+  // 凍結這些層，一有觸碰立刻恢復——觀感無損（沒人看才停）。
+  // 兔咪本體呼吸不在此列：成本低且是情緒主體，保持活著。
+  static const Duration _sceneIdleDelay = Duration(seconds: 20);
+  Timer? _sceneIdleTimer;
+  bool _sceneIdle = false;
+  // 追蹤本頁是否為當前可見分頁（外層 TickerMode），切回來時喚醒場景。
+  bool _wasVisible = true;
+
+  // 有互動：取消計時、若正凍結則喚醒，並重排下一次閒置。
+  void _markSceneActive() {
+    _sceneIdleTimer?.cancel();
+    if (_sceneIdle) {
+      setState(() => _sceneIdle = false);
+      _sceneFxCtrl.repeat();
+    }
+    _sceneIdleTimer = Timer(_sceneIdleDelay, _goSceneIdle);
+  }
+
+  // 閒置到時：凍結裝飾層（TickerMode 會靜音子樹 ticker）+ 停場景流光。
+  void _goSceneIdle() {
+    if (!mounted || _sceneIdle) return;
+    setState(() => _sceneIdle = true);
+    _sceneFxCtrl.stop();
+  }
 
   @override
   void initState() {
@@ -101,6 +134,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _sceneIdleTimer?.cancel();
     _celebCtrl.dispose();
     _glowCtrl.dispose();
     _sceneFxCtrl.dispose();
@@ -111,11 +145,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Future<void> loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
     HomeSceneDebug.loadFromPrefs(prefs); // debug 截圖用時段覆寫，release no-op
+    _dayStartHour = LogicalDate.load(prefs); // 算「今天」前先讀換日設定
     final today = todayString();
     final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
     streak = prefs.getInt(PrefsKeys.streak) ?? 0;
     _nickname = prefs.getString(PrefsKeys.userNickname) ?? '你';
     mascotName0 = prefs.getString(PrefsKeys.mascotName) ?? '兔咪';
+    userBirthday = DateTime.tryParse(
+      prefs.getString(PrefsKeys.userBirthday) ?? '',
+    );
 
     final obDateStr = prefs.getString(PrefsKeys.onboardingDate);
     if (obDateStr != null) {
@@ -143,14 +181,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       yesterdayAllDone = allDailyDone;
       if (dailyHabits.isNotEmpty) {
         if (allDailyDone) {
+          // 連勝里程碑金幣已改綁「連續登入」（見 CoinService.claimDailyLogin），
+          // 這裡只維持習慣連勝天數本身供顯示用，不再發幣。
           streak++;
-          // 連續達標每滿 7 天發里程碑獎勵（每日一次 key 防重複）
-          if (streak % 7 == 0) {
-            await CoinService.award(
-              CoinSource.weeklyStreak,
-              note: '連續 $streak 天',
-            );
-          }
         } else {
           streak = 0;
         }
@@ -163,6 +196,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
       await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
+
+    // 連勝里程碑 → 解鎖回憶事件（冪等：已解鎖會 no-op；既有高連勝用戶下次開啟補發）
+    unawaited(StoryEvents.onHabitStreak(streak));
 
     // Always recompute done for weekly habits from weeklyDates
     for (final habit in habits) {
@@ -194,6 +230,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final isFirstOpenToday = lastOpen != today;
     await prefs.setString(PrefsKeys.lastOpenDate, today);
     setState(() => isLoading = false);
+    _markSceneActive(); // 內容出現後開始計閒置
 
     if (isFirstOpenToday && mounted) {
       Future.delayed(const Duration(milliseconds: 400), () {
@@ -206,25 +243,59 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     showGreetingBanner(buildGreetingMessage(lastOpen));
   }
 
+  int? _daysSinceDateString(String? raw, DateTime now) {
+    if (raw == null) return null;
+    final parts = raw.split('-');
+    if (parts.length != 3) return null;
+    final lastDate = DateTime.tryParse(
+      '${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}',
+    );
+    if (lastDate == null) return null;
+    final today = DateTime(now.year, now.month, now.day);
+    final lastDay = DateTime(lastDate.year, lastDate.month, lastDate.day);
+    return today.difference(lastDay).inDays;
+  }
+
   String buildGreetingMessage(String? lastOpen) {
-    if (lastOpen != null) {
-      final parts = lastOpen.split('-');
-      if (parts.length == 3) {
-        final lastDate = DateTime.tryParse(
-          '${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}',
-        );
-        if (lastDate != null &&
-            DateTime.now().difference(lastDate).inDays >= 2) {
-          return '你回來了。\n我還在。';
-        }
-      }
+    final now = DateTime.now();
+    final birthday = userBirthday;
+    if (birthday != null &&
+        birthday.month == now.month &&
+        birthday.day == now.day) {
+      return '生日快樂，$_nickname。\n今天也讓我陪你。';
     }
-    if (streak >= 7) return '連續一週了。\n你一直有回來。';
+
+    // lastOpen 是用邏輯日存的，比對也要用邏輯日的今天。
+    final daysAway = _daysSinceDateString(
+      lastOpen,
+      LogicalDate.dayOf(now, _dayStartHour),
+    );
+    if (daysAway != null && daysAway >= 14) {
+      return '你回來了。\n我有把這裡留著。';
+    }
+    if (daysAway != null && daysAway >= 2) return '你回來了。\n我還在。';
+
+    if (streak >= 30 && streak % 10 == 0) {
+      return '連續 $streak 天了。\n你真的一天一天走過來。';
+    }
+    if (streak == 14) return '連續兩週了。\n這已經是你的節奏了。';
+    if (streak == 7) return '連續一週了。\n你一直有回來。';
     if (yesterdayAllDone) return '昨天也完成了。\n兔咪有看到。';
+
     if (onboardingDate != null) {
-      final daysSince = DateTime.now().difference(onboardingDate!).inDays + 1;
-      if (daysSince <= 3) return '第$daysSince天。\n我們慢慢熟起來了。';
+      final start = onboardingDate!;
+      final daysSince =
+          DateTime(
+            now.year,
+            now.month,
+            now.day,
+          ).difference(DateTime(start.year, start.month, start.day)).inDays +
+          1;
+      if (daysSince == 1) return '第一天。\n我們慢慢熟起來。';
+      if (daysSince == 3) return '第 3 天。\n你又回來了。';
+      if (daysSince == 7) return '第 7 天。\n我開始記得你的節奏了。';
     }
+    if (now.weekday == DateTime.monday) return '新的一週。\n先從小小的一件事開始。';
     return '早安，$_nickname。\n今天也從一點點開始？';
   }
 
@@ -250,11 +321,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return '${d.year}-$m-$day';
   }
 
-  String todayString() => _fmtDate(DateTime.now());
+  // 換日線往後挪時，睡前完成的習慣仍算前一天（與喝水/體重一致）。
+  String todayString() => LogicalDate.stringFor(DateTime.now(), _dayStartHour);
 
   List<String> _currentWeekStrings() {
-    final now = DateTime.now();
-    final monday = now.subtract(Duration(days: now.weekday - 1));
+    // 用邏輯日的今天決定本週，weeklyDates 也是用 todayString() 存的。
+    final today = LogicalDate.dayOf(DateTime.now(), _dayStartHour);
+    final monday = today.subtract(Duration(days: today.weekday - 1));
     return List.generate(7, (i) => _fmtDate(monday.add(Duration(days: i))));
   }
 
@@ -398,7 +471,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _onMascotTap() {
     _celebCtrl.forward(from: 0);
-    final speech = MascotLines.randomLineFor(MascotContext.tapReaction);
+    final speech = MascotLines.randomHomeTapLineFor(_mascotContext);
     setState(() {
       _transientSpeech = speech;
       _mascotReactionTick++;
@@ -416,8 +489,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  void _onMascotHeadPet() {
+    MascotPersona.interact(MascotContext.headPet);
+  }
+
   // 兔咪圖選擇器（按進度、時間、streak 決定）。
-  // 透過 [MascotEmotion.assetPath] 取，會自動走 _migratedToCG 的新/舊圖路由。
+  // 透過 [MascotEmotion.assetPath] 取對應的 CG 立繪。
   String get _mascotAsset {
     if (_transientMascot != null) {
       final emo = MascotEmotion.values.firstWhere(
@@ -726,6 +803,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     final colors = _sceneColors;
     final sceneProgress = habits.isEmpty ? 0.0 : doneCount / habits.length;
+    // 從別的分頁切回首頁時（外層 TickerMode 由 false→true）喚醒裝飾場景。
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && !_wasVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _markSceneActive();
+      });
+    }
+    _wasVisible = visible;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
@@ -733,76 +818,90 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         accent: colors.accent,
         onSettingsReturn: () => widget.onSettingsChanged?.call(),
       ),
-      body: AnimatedContainer(
-        duration: const Duration(milliseconds: 600),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [colors.top, colors.bottom],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Stack(
-          children: [
-            // 窗外景：墊在背景圖之下，透過挖掉的窗玻璃露出來
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: MediaQuery.of(context).size.height * 0.56,
-              child: const WindowBackdrop(),
+      // 任何觸碰都視為互動：取消閒置凍結、重排計時。translucent 才不會
+      // 攔掉底下卡片/兔咪的點擊。
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _markSceneActive(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 600),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [colors.top, colors.bottom],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: MediaQuery.of(context).size.height * 0.56,
-              child: ClipRect(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Image.asset(
-                    // 窗玻璃挖透明的版本（原圖保留為 home_bg.png）
-                    'assets/scenes/home/home_bg_glassless.png',
-                    height: double.infinity,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+          ),
+          child: Stack(
+            children: [
+              // 窗外景：墊在背景圖之下，透過挖掉的窗玻璃露出來
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: MediaQuery.of(context).size.height * 0.56,
+                // 閒置時凍結：TickerMode 靜音子樹 ticker，停止每幀重繪。
+                child: TickerMode(
+                  enabled: !_sceneIdle,
+                  child: const WindowBackdrop(),
+                ),
+              ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: MediaQuery.of(context).size.height * 0.56,
+                child: ClipRect(
+                  child: Align(
                     alignment: Alignment.topCenter,
+                    child: Image.asset(
+                      // 窗玻璃挖透明的版本（原圖保留為 home_bg.png）
+                      'assets/scenes/home/home_bg_glassless.png',
+                      height: double.infinity,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                    ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: MediaQuery.of(context).size.height * 0.56,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 600),
-                color: _sceneTint,
-              ),
-            ),
-            // 動態光影層：窗光/塵埃/檯燈暈，讓靜態房間活起來
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: MediaQuery.of(context).size.height * 0.56,
-              child: const RoomAmbientOverlay(companionTiming: true),
-            ),
-            // 互動狀態效果（完成星光、場景柔光）
-            Positioned.fill(
-              child: CustomPaint(
-                painter: RoomSceneEffectsPainter(
-                  accent: colors.accent,
-                  progress: sceneProgress.clamp(0.0, 1.0),
-                  allDone: allDone0 && habits.isNotEmpty,
-                  motion: _sceneFxCtrl,
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: MediaQuery.of(context).size.height * 0.56,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 600),
+                  color: _sceneTint,
                 ),
               ),
-            ),
-            // 內容
-            SafeArea(child: _buildMascotScene()),
-          ],
+              // 動態光影層：窗光/塵埃/檯燈暈，讓靜態房間活起來
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: MediaQuery.of(context).size.height * 0.56,
+                // 最吃 GPU 的層（每幀 MaskFilter.blur）：閒置時一起凍結。
+                child: TickerMode(
+                  enabled: !_sceneIdle,
+                  child: const RoomAmbientOverlay(companionTiming: true),
+                ),
+              ),
+              // 互動狀態效果（完成星光、場景柔光）
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: RoomSceneEffectsPainter(
+                    accent: colors.accent,
+                    progress: sceneProgress.clamp(0.0, 1.0),
+                    allDone: allDone0 && habits.isNotEmpty,
+                    motion: _sceneFxCtrl,
+                  ),
+                ),
+              ),
+              // 內容
+              SafeArea(child: _buildMascotScene()),
+            ],
+          ),
         ),
       ),
     );
@@ -823,6 +922,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           accent: colors.accent,
           reactionTick: _mascotReactionTick,
           onTap: _onMascotTap,
+          onHeadPet: _onMascotHeadPet,
+          paused: _sceneIdle, // 閒置時連兔咪呼吸/眨眼一起凍結 → 畫面全靜止
         ),
       ),
       child: _habitCardContent(

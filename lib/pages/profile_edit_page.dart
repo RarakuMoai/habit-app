@@ -668,7 +668,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             decimal: true,
                           ),
                           suffix: 'cm',
-                          inputFormatters: [maxValueFormatter(999)],
+                          // 公制身高：含自動補小數（例 1708 → 170.8）
+                          inputFormatters: [
+                            bodyMetricFormatter(UserRanges.heightMaxCm),
+                          ],
                           errorText: _heightError,
                           hint: '170',
                         ),
@@ -680,7 +683,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           decimal: true,
                         ),
                         suffix: UnitFormat.weightLabel(_unit),
-                        inputFormatters: [maxValueFormatter(999)],
+                        // 英制(lb)維持整數；公制含自動補小數（例 705 → 70.5）
+                        inputFormatters: [
+                          if (_unit == UnitSystem.imperial)
+                            maxValueFormatter(999)
+                          else
+                            bodyMetricFormatter(UserRanges.weightMaxKg),
+                        ],
                         errorText: _weightError ?? _bmiError,
                         hint: '60',
                       ),
@@ -692,7 +701,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           decimal: true,
                         ),
                         suffix: UnitFormat.weightLabel(_unit),
-                        inputFormatters: [maxValueFormatter(999)],
+                        inputFormatters: [
+                          if (_unit == UnitSystem.imperial)
+                            maxValueFormatter(999)
+                          else
+                            bodyMetricFormatter(UserRanges.targetWeightMaxKg),
+                        ],
                         errorText: _targetWeightError,
                         trailing: _targetWeightSuggestSuffix(),
                         hint: '選填',

@@ -28,6 +28,8 @@ import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
 import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
+import 'utils/story_store.dart';
+import 'utils/tab_catalog.dart';
 import 'utils/wardrobe_store.dart';
 import 'utils/weight_records.dart';
 
@@ -49,6 +51,8 @@ Future<_StartupState> _loadStartupState() async {
   await CoinService.load();
   // 衣櫃/音樂盒狀態載進全域 notifier（首頁兔咪皮膚、目前曲在 MainPage build 前就緒）
   await WardrobeStore.load();
+  // 回憶本（特殊事件）已解鎖狀態載進全域 notifier
+  await StoryStore.load();
   await AudioSettingsService.instance.init();
   // 初始化本機通知（計時頁倒數結束鈴用）；權限到第一次排通知才會跳 dialog
   await NotificationService.init();
@@ -354,6 +358,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   bool _weightHabitAutoComplete = false;
   bool _loaded = false;
   int _waterReloadTrigger = 0;
+  List<String> _tabOrder = const []; // 使用者自訂的底部分頁順序（TabIds 字串）
   Set<String> _debugFakeTabIds = const {}; // debug：模擬功能分頁開關（release 不讀）
 
   @override
@@ -425,6 +430,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     final today = _todayString();
     final weightRecordedToday = await hasSavedWeightRecordForDate(prefs, today);
+    // 開關/排序改變前先記住目前選的分頁 id，重組後盡量回到同一頁，
+    // 避免重排後 _currentIndex 指向別的分頁（看起來像跳頁）。
+    final prevId = (_loaded && _currentIndex < _tabs.length)
+        ? _tabs[_currentIndex].id
+        : null;
     setState(() {
       _waterEnabled = prefs.getBool(PrefsKeys.waterEnabled) ?? false;
       _timerEnabled = prefs.getBool(PrefsKeys.timerEnabled) ?? true;
@@ -432,6 +442,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _familyEnabled = prefs.getBool(PrefsKeys.familyEnabled) ?? false;
       _wardrobeEnabled = prefs.getBool(PrefsKeys.wardrobeEnabled) ?? true;
+      _tabOrder =
+          prefs.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
       _waterGoalReached = prefs.getString(PrefsKeys.waterGoalDate) == today;
       _weightHabitAutoComplete = weightRecordedToday;
       // 開發者工具：指定啟動分頁 / 模擬分頁（kDevToolsEnabled 控制）
@@ -444,6 +456,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       }
       _loaded = true;
     });
+    // 重組後把選中頁對回原本那一頁（首次載入 prevId 為 null，保留 dev 起始分頁）。
+    if (prevId != null) {
+      final idx = _tabs.indexWhere((t) => t.id == prevId);
+      if (idx != -1 && idx != _currentIndex && mounted) {
+        setState(() => _currentIndex = idx);
+      }
+    }
   }
 
   Future<void> _handleWaterGoal(bool reached) async {
@@ -460,6 +479,9 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   void _handleWeightRecordsChanged() {
     unawaited(_refreshWeightHabitAutoComplete());
+    // 體重變動（含初次記錄）→ 喝水頁重新依最新體重估算建議水量。
+    // 喝水頁常駐在 IndexedStack，不 bump 就不會重算建議卡。
+    setState(() => _waterReloadTrigger++);
   }
 
   Future<void> _refreshWeightHabitAutoComplete() async {
@@ -595,8 +617,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   // 依功能開關動態組裝頁籤
   List<_TabItem> get _tabs {
-    final list = <_TabItem>[
-      _TabItem(
+    // 先建「已啟用」分頁（id -> 分頁）。習慣永遠在。
+    final enabled = <String, _TabItem>{
+      TabIds.habit: _TabItem(
+        id: TabIds.habit,
         page: HomePage(
           onSettingsChanged: _loadSettings,
           waterHabitAutoComplete: _waterGoalReached,
@@ -606,53 +630,60 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         icon: Icons.home,
         label: '習慣',
       ),
-    ];
+    };
     if (_timerEnabled) {
-      list.add(
-        _TabItem(page: const TimerPage(), icon: Icons.timer, label: '計時'),
+      enabled[TabIds.timer] = _TabItem(
+        id: TabIds.timer,
+        page: const TimerPage(),
+        icon: Icons.timer,
+        label: '計時',
       );
     }
     if (_waterEnabled) {
-      list.add(
-        _TabItem(
-          page: WaterPage(
-            onGoalStatusChanged: _handleWaterGoal,
-            reloadTrigger: _waterReloadTrigger,
-          ),
-          icon: Icons.water_drop,
-          label: '喝水',
+      enabled[TabIds.water] = _TabItem(
+        id: TabIds.water,
+        page: WaterPage(
+          onGoalStatusChanged: _handleWaterGoal,
+          reloadTrigger: _waterReloadTrigger,
         ),
+        icon: Icons.water_drop,
+        label: '喝水',
       );
     }
     // 體重頁籤，依 weight_tracking_enabled 開關決定是否顯示
     if (_weightTrackingEnabled) {
-      list.add(
-        _TabItem(
-          page: WeightPage(onRecordsChanged: _handleWeightRecordsChanged),
-          icon: Icons.monitor_weight,
-          label: '體重',
-        ),
+      enabled[TabIds.weight] = _TabItem(
+        id: TabIds.weight,
+        page: WeightPage(onRecordsChanged: _handleWeightRecordsChanged),
+        icon: Icons.monitor_weight,
+        label: '體重',
       );
     }
     if (_familyEnabled) {
-      list.add(
-        _TabItem(
-          page: FamilyPage(onSettingsChanged: _loadSettings),
-          icon: Icons.family_restroom,
-          label: '家庭',
-        ),
+      enabled[TabIds.family] = _TabItem(
+        id: TabIds.family,
+        page: FamilyPage(onSettingsChanged: _loadSettings),
+        icon: Icons.family_restroom,
+        label: '家庭',
       );
     }
     if (_wardrobeEnabled) {
-      list.add(
-        const _TabItem(
-          page: WardrobePage(),
-          icon: Icons.checkroom_rounded,
-          label: '衣櫃',
-        ),
+      enabled[TabIds.wardrobe] = const _TabItem(
+        id: TabIds.wardrobe,
+        page: WardrobePage(),
+        icon: Icons.checkroom_rounded,
+        label: '衣櫃',
       );
     }
+
+    // 依使用者自訂排序排好（未排過的新分頁照預設順序補在後面）。
+    final list = [
+      for (final id in orderedTabIds(_tabOrder, enabled.keys.toSet()))
+        enabled[id]!,
+    ];
+
     // 開發者工具：像正式功能開關一樣，開哪個模擬功能就真的多哪個分頁。
+    // 模擬分頁不參與使用者排序，固定附加在尾端。
     if (kDevToolsEnabled && _debugFakeTabIds.isNotEmpty) {
       for (final spec in debugFakeTabSpecs) {
         if (_debugFakeTabIds.contains(spec.id)) {
@@ -665,6 +696,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   _TabItem _debugFeatureTab(DebugFakeTabSpec spec) {
     return _TabItem(
+      id: 'debug_${spec.id}',
       page: _DebugFeaturePage(spec: spec),
       icon: spec.icon,
       label: spec.label,
@@ -674,11 +706,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   // 底部列點擊：單排/兩排共用。
   void _onTabTapped(List<_TabItem> tabs, int index) {
     // 離開家庭頁籤時清除家長 Session，下次進入需重新驗證
-    final familyIdx = tabs.indexWhere((t) => t.label == '家庭');
+    final familyIdx = tabs.indexWhere((t) => t.id == TabIds.family);
     if (familyIdx != -1 && _currentIndex == familyIdx && index != familyIdx) {
       parentSession.value = false;
     }
-    final wardrobeIdx = tabs.indexWhere((t) => t.label == '衣櫃');
+    final wardrobeIdx = tabs.indexWhere((t) => t.id == TabIds.wardrobe);
     if (wardrobeIdx != -1 &&
         _currentIndex == wardrobeIdx &&
         index != wardrobeIdx) {
@@ -704,7 +736,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           final tab = tabs[i];
           return TickerMode(
             enabled: i == _currentIndex,
-            child: KeyedSubtree(key: ValueKey(tab.label), child: tab.page),
+            child: KeyedSubtree(key: ValueKey(tab.id), child: tab.page),
           );
         }),
       ),
@@ -723,10 +755,16 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
 // 頁籤資料結構
 class _TabItem {
+  final String id;
   final Widget page;
   final IconData icon;
   final String label;
-  const _TabItem({required this.page, required this.icon, required this.label});
+  const _TabItem({
+    required this.id,
+    required this.page,
+    required this.icon,
+    required this.label,
+  });
 }
 
 class _DebugFeaturePage extends StatelessWidget {

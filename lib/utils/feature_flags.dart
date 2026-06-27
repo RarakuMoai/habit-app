@@ -15,6 +15,8 @@ void bumpFeatureFlags() => featureFlagsRevision.value++;
 
 /// 開發者工具總開關（設定頁的「開發者測試」入口、模擬分頁、場景時段覆寫…）。
 ///
-/// 暫時連 release 也開啟，方便實機測試。**正式上架前改回 `kDebugMode`**
-/// 就會恢復「只有 debug build 顯示」的行為。
-const bool kDevToolsEnabled = true; // TODO(release): 上架前改回 kDebugMode
+/// 目前 **release 也暫時開啟**，讓自己用的 prod / dev 兩個版本都看得到開發者測試。
+///
+/// ⚠️ 正式對外發布前，把這行改回 `kDebugMode`（或 `false`），正式使用者就看不到任何
+///    開發者工具。`grep kDevToolsEnabled lib/` 可一次找出所有相關位置。
+const bool kDevToolsEnabled = true; // RELEASE-BEFORE-PUBLISH: 上架前改回 kDebugMode

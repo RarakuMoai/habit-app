@@ -173,7 +173,7 @@ _ExConfig _defaultConfig(ExerciseKind k) => switch (k) {
     cooldownOn: true,
     cooldown: 120,
     bpm: 180,
-    metronomeOn: true,
+    metronomeOn: false,
     metronomeSoundOn: true,
     metronomeVolume: 0.75,
     metronomeTone: MetronomeTone.wood,
@@ -2380,7 +2380,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                               const SizedBox(height: 8),
                               _exSwitchTile(
                                 label: '觸覺節拍',
-                                sub: '靜音時用震動跟拍',
+                                sub: '靜音可用，會略增加耗電',
                                 icon: Icons.vibration_rounded,
                                 color: meta.color,
                                 value: c.metronomeOn,

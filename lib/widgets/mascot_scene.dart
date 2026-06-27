@@ -15,6 +15,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
@@ -25,16 +26,32 @@ class PersonaScene extends StatelessWidget {
   final Color accent;
   final int reactionTick;
   final VoidCallback? onTap;
+  final VoidCallback? onHeadPet;
+
+  /// 閒置凍結：true 時兔咪暫停呼吸與眨眼，讓畫面完全靜止省電；
+  /// 一有互動由上層轉回 false 即恢復。
+  final bool paused;
 
   const PersonaScene({
     super.key,
     required this.accent,
     this.reactionTick = 0,
     this.onTap,
+    this.onHeadPet,
+    this.paused = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    void handleHeadPet() {
+      final callback = onHeadPet;
+      if (callback != null) {
+        callback();
+      } else {
+        MascotPersona.interact(MascotContext.headPet);
+      }
+    }
+
     return ValueListenableBuilder<MascotState>(
       valueListenable: MascotPersona.current,
       builder: (_, state, _) => ValueListenableBuilder<String>(
@@ -49,6 +66,8 @@ class PersonaScene extends StatelessWidget {
           speech: state.speech,
           reactionTick: reactionTick,
           onTap: onTap,
+          onHeadPet: handleHeadPet,
+          paused: paused,
         ),
       ),
     );
@@ -72,6 +91,12 @@ class MascotScene extends StatelessWidget {
   /// 點擊兔咪的 callback；不需互動可省略。
   final VoidCallback? onTap;
 
+  /// 摸到兔咪頭時的 callback；不需特殊副作用可省略。
+  final VoidCallback? onHeadPet;
+
+  /// 閒置凍結：暫停兔咪呼吸與眨眼（見 [PersonaScene.paused]）。
+  final bool paused;
+
   const MascotScene({
     super.key,
     required this.asset,
@@ -79,6 +104,8 @@ class MascotScene extends StatelessWidget {
     required this.speech,
     this.reactionTick = 0,
     this.onTap,
+    this.onHeadPet,
+    this.paused = false,
   });
 
   @override
@@ -99,6 +126,8 @@ class MascotScene extends StatelessWidget {
             accent: accent,
             reactionTick: reactionTick,
             onTap: onTap ?? () {},
+            onHeadPet: onHeadPet,
+            paused: paused,
           ),
         ),
       ],
@@ -209,6 +238,10 @@ class MascotStage extends StatefulWidget {
   final Color accent;
   final int reactionTick;
   final VoidCallback onTap;
+  final VoidCallback? onHeadPet;
+
+  /// 閒置凍結：暫停呼吸與眨眼（見 [PersonaScene.paused]）。
+  final bool paused;
 
   const MascotStage({
     super.key,
@@ -216,6 +249,8 @@ class MascotStage extends StatefulWidget {
     required this.accent,
     required this.reactionTick,
     required this.onTap,
+    this.onHeadPet,
+    this.paused = false,
   });
 
   @override
@@ -227,6 +262,7 @@ class _MascotStageState extends State<MascotStage>
   late final AnimationController _reactionCtrl;
   late final Animation<double> _reactionScale;
   late final Animation<double> _reactionLift;
+  late final AnimationController _petCtrl;
   late final AnimationController _breathCtrl;
   late final Animation<double> _breath;
 
@@ -235,6 +271,8 @@ class _MascotStageState extends State<MascotStage>
   final math.Random _rng = math.Random();
   Timer? _blinkTimer;
   bool _eyesClosed = false;
+  bool _isPetting = false;
+  double _petDrag = 0;
 
   @override
   void initState() {
@@ -257,11 +295,17 @@ class _MascotStageState extends State<MascotStage>
       TweenSequenceItem(tween: Tween(begin: -6, end: 0), weight: 62),
     ]).animate(curved);
 
+    _petCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 680),
+    );
+
     // idle 呼吸：以腳底為錨點的細微縱向縮放，一吸一吐 ~2.6 秒
     _breathCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1300),
-    )..repeat(reverse: true);
+    );
+    if (!widget.paused) _breathCtrl.repeat(reverse: true);
     _breath = CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut);
 
     _scheduleNextBlink();
@@ -269,6 +313,7 @@ class _MascotStageState extends State<MascotStage>
 
   void _scheduleNextBlink() {
     _blinkTimer?.cancel();
+    if (widget.paused) return; // 閒置凍結時不排下一次眨眼
     // 人類眨眼間隔大約 2~6 秒，取隨機避免機械感
     _blinkTimer = Timer(
       Duration(milliseconds: 2400 + _rng.nextInt(3200)),
@@ -299,14 +344,77 @@ class _MascotStageState extends State<MascotStage>
     if (oldWidget.reactionTick != widget.reactionTick) {
       _reactionCtrl.forward(from: 0);
     }
+    if (oldWidget.paused != widget.paused) {
+      if (widget.paused) {
+        // 閒置凍結：停呼吸、取消眨眼，畫面靜止省電。
+        _breathCtrl.stop();
+        _blinkTimer?.cancel();
+        _eyesClosed = false; // 不要定格在閉眼；隨即重建會套用
+      } else {
+        // 恢復：重新開始呼吸與眨眼。
+        if (!_breathCtrl.isAnimating) _breathCtrl.repeat(reverse: true);
+        _scheduleNextBlink();
+      }
+    }
   }
 
   @override
   void dispose() {
     _blinkTimer?.cancel();
+    _petCtrl.dispose();
     _breathCtrl.dispose();
     _reactionCtrl.dispose();
     super.dispose();
+  }
+
+  bool _isHeadHit(Offset position, {bool relaxed = false}) {
+    const center = Offset(126, 88);
+    final radiusX = relaxed ? 116.0 : 94.0;
+    final radiusY = relaxed ? 88.0 : 70.0;
+    final dx = (position.dx - center.dx) / radiusX;
+    final dy = (position.dy - center.dy) / radiusY;
+    return dx * dx + dy * dy <= 1;
+  }
+
+  double _headDragAmount(Offset position) =>
+      ((position.dx - 126) / 94).clamp(-1.0, 1.0).toDouble();
+
+  void _triggerTapReaction() {
+    _reactionCtrl.forward(from: 0);
+    widget.onTap();
+  }
+
+  void _triggerHeadPet({required bool held}) {
+    _petDrag = 0;
+    playHaptic(HapticLevel.selection);
+    widget.onHeadPet?.call();
+    if (held) {
+      _isPetting = true;
+      _petCtrl.repeat();
+    } else {
+      _isPetting = false;
+      _petCtrl.forward(from: 0);
+    }
+  }
+
+  void _updateHeadPet(Offset position) {
+    if (!_isPetting) return;
+    if (!_isHeadHit(position, relaxed: true)) {
+      _endHeadPet();
+      return;
+    }
+    _petDrag = _headDragAmount(position);
+  }
+
+  void _endHeadPet() {
+    if (!_isPetting) return;
+    _isPetting = false;
+    _petDrag = 0;
+    _petCtrl.animateTo(
+      1,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   /// 兔咪本體。有閉眼差分時把兩張圖都放進樹裡（用 opacity 切換），
@@ -334,22 +442,43 @@ class _MascotStageState extends State<MascotStage>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        // 按到就自動彈一下（每頁都有反應），再交給外面的 onTap 處理其他副作用
-        _reactionCtrl.forward(from: 0);
-        widget.onTap();
+      onTapUp: (details) {
+        if (_isHeadHit(details.localPosition)) {
+          _triggerHeadPet(held: false);
+        } else {
+          // 按到就自動彈一下（每頁都有反應），再交給外面的 onTap 處理其他副作用
+          _triggerTapReaction();
+        }
       },
+      onPanStart: (details) {
+        if (_isHeadHit(details.localPosition)) {
+          _triggerHeadPet(held: true);
+        }
+      },
+      onPanUpdate: (details) {
+        _updateHeadPet(details.localPosition);
+      },
+      onPanEnd: (_) => _endHeadPet(),
+      onPanCancel: _endHeadPet,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 252,
         height: 252,
         child: AnimatedBuilder(
-          animation: _reactionCtrl,
+          animation: Listenable.merge([_reactionCtrl, _petCtrl]),
           builder: (context, child) {
             // 地面陰影：依 _reactionLift 同步縮小變淡 → 「離開地面」的感覺
             // 位置 bottom 要對到兔咪 CG 圖裡腳的位置（1024×1024 畫布，腳在 ~80%）
             final lift = _reactionLift.value; // 0 ~ -6
             final liftProgress = (-lift / 6).clamp(0.0, 1.0);
+            final pet = _petCtrl.value;
+            final petPress = math.sin(math.pi * pet).clamp(0.0, 1.0).toDouble();
+            final petRub = math.sin(math.pi * 2 * pet);
+            final petScaleX = 1 + 0.012 * petPress;
+            final petScaleY = 1 - 0.018 * petPress;
+            final petOffsetX = (petRub * 1.9 + _petDrag * 2.4) * petPress;
+            final petOffsetY = 1.4 * petPress;
+            final petTilt = (petRub * 0.014 + _petDrag * 0.012) * petPress;
             final shadowScale = ui.lerpDouble(1, 0.88, liftProgress)!;
             final shadowOpacity = ui.lerpDouble(0.24, 0.13, liftProgress)!;
             final shadowColor = Color.lerp(
@@ -384,20 +513,35 @@ class _MascotStageState extends State<MascotStage>
                 ),
                 Positioned.fill(
                   child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _MascotSparklePainter(
-                        progress: _reactionCtrl.value,
-                        color: widget.accent,
-                      ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CustomPaint(
+                          painter: _MascotSparklePainter(
+                            progress: _reactionCtrl.value,
+                            color: widget.accent,
+                          ),
+                        ),
+                        CustomPaint(
+                          painter: _MascotPetPainter(
+                            progress: pet,
+                            color: widget.accent,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Transform.translate(
-                  offset: Offset(0, _reactionLift.value),
-                  child: Transform.scale(
-                    scaleX: _reactionScale.value,
-                    scaleY: _reactionScale.value,
-                    child: child,
+                  offset: Offset(petOffsetX, _reactionLift.value + petOffsetY),
+                  child: Transform.rotate(
+                    angle: petTilt,
+                    alignment: Alignment.bottomCenter,
+                    child: Transform.scale(
+                      scaleX: _reactionScale.value * petScaleX,
+                      scaleY: _reactionScale.value * petScaleY,
+                      child: child,
+                    ),
                   ),
                 ),
               ],
@@ -554,6 +698,48 @@ class _MascotSparklePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MascotSparklePainter old) =>
+      old.progress != progress || old.color != color;
+}
+
+class _MascotPetPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  _MascotPetPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0 || progress >= 1) return;
+    final opacity = math.sin(math.pi * progress).clamp(0.0, 1.0).toDouble();
+    if (opacity <= 0) return;
+
+    final rub = math.sin(math.pi * 2 * progress);
+    final petColor = Color.lerp(color, const Color(0xFFEFA1A8), 0.7)!;
+    final center = Offset(size.width / 2 + rub * 4, size.height * 0.23);
+    final stroke = Paint()
+      ..color = petColor.withValues(alpha: 0.50 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2.3;
+
+    for (var i = 0; i < 3; i++) {
+      final arcCenter = center + Offset((i - 1) * 18, i.isEven ? 0 : -3);
+      final rect = Rect.fromCenter(
+        center: arcCenter,
+        width: 26 + i * 4,
+        height: 15 + i * 2,
+      );
+      canvas.drawArc(rect, math.pi * 1.08, math.pi * 0.84, false, stroke);
+    }
+
+    final dotPaint = Paint()
+      ..color = petColor.withValues(alpha: 0.34 * opacity);
+    canvas.drawCircle(center + Offset(-48, 14 - opacity * 4), 2.1, dotPaint);
+    canvas.drawCircle(center + Offset(47, 10 - opacity * 3), 1.8, dotPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MascotPetPainter old) =>
       old.progress != progress || old.color != color;
 }
 

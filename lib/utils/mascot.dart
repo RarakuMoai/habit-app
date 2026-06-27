@@ -11,38 +11,31 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'sfx_service.dart';
 
-// 8 種情緒。
+// 兔咪情緒。每個情緒 = assets/mascot/core/tumi_<assetKey>.png 一張 CG 立繪。
 //
-// 過渡期：已遷移到新 CG 風格的情緒走 `assets/mascot/core/tumi_<key>.png`，
-// 還沒遷移的暫時退回 `happy` 表情當佔位。使用者生好新 CG 後加進 [_migratedToCG]。
+// 基礎圖按「身體姿勢／手的高度」分（兔咪嘴巴不動，情緒靠眼/耳/手表達；
+// 更細的情境之後再靠情緒泡泡 overlay 疊加，不必每種情緒各畫一張）。
+// 快樂梯度＝手的高度：smile(手垂) → happy(手胸前) → popHappy(雙手高舉)。
+// expect 與 happy 共用「手胸前」身體，只差眼睛（圓眼/笑眼）。
+// 狀態盤點見 docs/tumi_character_guide.md 與 assets/mascot/candidates/。
 enum MascotEmotion {
-  neutralFront('neutral_front'),
-  sleep('sleep'),
-  expect('expect'),
-  smile('smile'),
-  happy('happy'),
-  streak('streak'),
-  sad('sad'),
-  night('night');
+  neutralFront('neutral_front'), // 站姿中性：待機、招呼
+  sleep('sleep'), // 打瞌睡：還沒開始、懶懶等你
+  wake('wake'), // 揉眼剛醒：被喚醒、剛開始動
+  expect('expect'), // 手胸前＋圓眼：開始期待、進度在動
+  smile('smile'), // 手垂＋笑眼：完成一件、安心陪跑
+  happy('happy'), // 手胸前＋笑眼：今日全部完成
+  popHappy('pop_happy'), // 雙手高舉雀躍：大慶祝
+  streak('streak'), // 連續達成：雀躍（同 pop 美術，靠台詞/特效區分）
+  sad('sad'), // 心疼低落：撤銷、中斷（暫用 V1，V2 尚無此圖）
+  night('night'), // 夜晚閉眼：深夜小聲
+  invite('invite'), // 伸手邀請：空狀態、邀請新增第一個習慣
+  question('question'); // 歪頭疑問：溫柔提醒、喝水過量
 
   final String assetKey;
   const MascotEmotion(this.assetKey);
 
-  // 已換成新 CG 風格的情緒（其他仍走舊圖避免 app 出現破圖）
-  static const Set<MascotEmotion> _migratedToCG = {
-    MascotEmotion.neutralFront,
-    MascotEmotion.sleep,
-    MascotEmotion.expect,
-    MascotEmotion.smile,
-    MascotEmotion.happy,
-    MascotEmotion.sad,
-    MascotEmotion.night,
-  };
-
-  String get assetPath => _migratedToCG.contains(this)
-      ? 'assets/mascot/core/tumi_$assetKey.png'
-      // 還沒生 CG 的情緒（目前只剩 streak），暫時用 happy 代替避免破圖
-      : 'assets/mascot/core/tumi_happy.png';
+  String get assetPath => 'assets/mascot/core/tumi_$assetKey.png';
 
   // 有閉眼差分圖（tumi_<key>_blink.png）的情緒。
   // 眨眼動畫由 MascotStage 處理；新增差分圖後把情緒加進這裡即可生效。
@@ -73,6 +66,8 @@ enum MascotContext {
   night,
   // 點兔咪本身的隨機反應
   tapReaction,
+  // 摸兔咪頭時的反應
+  headPet,
   // 還沒有任何習慣時（空狀態）
   emptyHabits,
   // 喝水過量警告（>=4L/day，醫學上「過量但還沒到水中毒」灰色地帶）
@@ -91,8 +86,11 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.undone: MascotEmotion.sad,
   MascotContext.night: MascotEmotion.night,
   MascotContext.tapReaction: MascotEmotion.neutralFront,
-  MascotContext.emptyHabits: MascotEmotion.neutralFront,
-  MascotContext.overhydration: MascotEmotion.sad,
+  MascotContext.headPet: MascotEmotion.smile,
+  // 空狀態用「伸手邀請」姿勢，比中性更主動地邀使用者新增第一個習慣
+  MascotContext.emptyHabits: MascotEmotion.invite,
+  // 喝水過量改用「歪頭疑問」溫柔提醒，而非心疼的 sad
+  MascotContext.overhydration: MascotEmotion.question,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -150,6 +148,15 @@ const Map<MascotContext, List<String>> _lines = {
     '我陪你。',
   ],
 
+  // ── 摸頭反應 ──
+  MascotContext.headPet: [
+    '嗯...舒服。',
+    '頭頂被摸到了。',
+    '再一下下也可以。',
+    '我有點開心。',
+    '好，我乖乖的。',
+  ],
+
   // ── 還沒新增任何習慣（空狀態） ──
   MascotContext.emptyHabits: ['先新增一個小習慣吧。', '從一個小小的開始。', '不用很多，一個就好。'],
 
@@ -161,6 +168,28 @@ const Map<MascotContext, List<String>> _lines = {
     '再喝下去身體會吃不消。',
     '記得補一點電解質。',
   ],
+};
+
+// 首頁點兔咪時的情境回應。這組比一般 tapReaction 更像「兔咪看見今天的狀態」：
+// 不給指令、不評分，只把使用者當下的進度接住。
+const Map<MascotContext, List<String>> _homeTapLines = {
+  MascotContext.emptyHabits: [
+    '我們可以先放一件很小的事。',
+    '不用急著變很多。\n先從一個開始。',
+    '你想養成什麼，我會陪著記。',
+  ],
+  MascotContext.notStarted: [
+    '還沒開始也沒關係。',
+    '我在等你。\n第一件可以很小。',
+    '今天先做一點點就好。',
+    '要不要從最簡單那個開始？',
+  ],
+  MascotContext.completedOne: ['剛剛那一下，我有看到。', '已經開始了。\n這很重要。', '你有往前一點點了。'],
+  MascotContext.halfDone: ['你已經做到一半了。', '照這個速度慢慢來就好。', '我有點醒了。\n你做得不錯。'],
+  MascotContext.allDone: ['今天的份已經完成了。', '可以安心休息一下。', '你有把今天照顧好。'],
+  MascotContext.streak: ['你已經連續回來好多天了。', '這段時間，我都有記得。', '你不是突然做到的。\n是一天一天來的。'],
+  MascotContext.undone: ['改掉也沒關係。', '今天可以重新調整。', '我們慢慢來，不用硬撐。'],
+  MascotContext.night: ['很晚了，我小聲一點。', '今天先不要太逼自己。', '如果累了，明天再繼續也可以。'],
 };
 
 class MascotLines {
@@ -179,6 +208,13 @@ class MascotLines {
   static String randomLineFor(MascotContext c) {
     final list = _lines[c] ?? const ['...'];
     if (list.isEmpty) return '...';
+    return list[Random().nextInt(list.length)];
+  }
+
+  /// 首頁點兔咪：依目前進度抽一句更貼身的回應。
+  static String randomHomeTapLineFor(MascotContext c) {
+    final list = _homeTapLines[c] ?? _lines[MascotContext.tapReaction];
+    if (list == null || list.isEmpty) return '...';
     return list[Random().nextInt(list.length)];
   }
 
@@ -284,6 +320,7 @@ class MascotPersona {
       case MascotContext.allDone:
       case MascotContext.completedOne:
       case MascotContext.streak:
+      case MascotContext.headPet:
         return SfxCue.tumiHappy;
       case MascotContext.undone:
       case MascotContext.overhydration:
@@ -321,6 +358,8 @@ class MascotPersona {
         return 12;
       case MascotContext.completedOne:
         return 10;
+      case MascotContext.headPet:
+        return 6;
       case MascotContext.tapReaction:
       case MascotContext.openApp:
       case MascotContext.notStarted:

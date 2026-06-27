@@ -159,7 +159,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   String _tempoNoteId = _tempoQuarter.id; // BPM 對應的音符拍值
   int _subParts = 1; // 每「主拍」切幾下（1=主拍一下）
   bool _accent = true; // 第一拍重音
-  bool _haptic = true; // 觸覺跟拍
+  bool _haptic = false; // 觸覺跟拍
   double _volume = 0.75;
   MetronomeTone _tone = MetronomeTone.wood;
   bool _loaded = false;
@@ -229,7 +229,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
       // 若存的細分不適用目前拍號律動，退回主拍。
       if (!_subOptions.any((o) => o.parts == _subParts)) _subParts = 1;
       _accent = p.getBool(PrefsKeys.metronomeAccent) ?? true;
-      _haptic = p.getBool(PrefsKeys.metronomeHaptic) ?? true;
+      _haptic = p.getBool(PrefsKeys.metronomeHaptic) ?? false;
       _volume = (p.getDouble(PrefsKeys.metronomeVolume) ?? 0.75).clamp(
         0.0,
         1.0,
@@ -1374,7 +1374,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                               Icons.vibration_rounded,
                               color,
                               '觸覺跟拍',
-                              '靜音時用震動跟拍',
+                              '靜音可用，會略增加耗電',
                               _haptic,
                               (v) => apply(() => _setHaptic(v)),
                             ),

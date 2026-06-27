@@ -1,0 +1,4 @@
+interface:
+  display_name: "兔咪差分"
+  short_description: "兔咪 CG 差分的局部修改流程"
+  default_prompt: "Use $tumi-image-variants to create a local-edit-only Tumi image variant."

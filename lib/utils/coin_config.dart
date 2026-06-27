@@ -21,18 +21,22 @@ enum CoinSource {
   /// 當日喝水達標
   waterGoal,
 
-  /// 連續達標滿 7 天
+  /// 連續登入滿 7 天里程碑（2026-06-23 起改綁登入，不再綁習慣達標）
   weeklyStreak,
+
+  /// 特殊活動 / 節日（呼叫端待活動系統，先鋪佔位）
+  specialEvent,
 }
 
 abstract final class CoinConfig {
   /// 目前實際發放的來源；不在此集合的 award/revoke 一律 no-op。
-  /// （2026-06-13 與用戶定案：先只給「每日登入」「習慣全達成」，其餘暫停。
-  /// 要重新開放某來源，把它加回這裡即可，呼叫端都還在。）
+  /// （2026-06-23 與用戶定案：金幣只給「每日登入相關」與「特殊活動」，
+  /// 其餘習慣/喝水/功能使用一律不發。allHabitsDone 等呼叫端都還在，
+  /// 要重新開放某來源把它加回這裡即可。）
   static const Set<CoinSource> enabledSources = {
     CoinSource.dailyLogin, // 每日登入（金額隨連續登入等級遞增）
-    CoinSource.allHabitsDone, // 當日習慣全達成
-    CoinSource.weeklyStreak, // 連續達標滿 7 天里程碑
+    CoinSource.weeklyStreak, // 連續登入滿 7 天里程碑
+    CoinSource.specialEvent, // 特殊活動 / 節日（呼叫端待活動系統）
   };
 
 
@@ -43,6 +47,7 @@ abstract final class CoinConfig {
   static const int exerciseDone = 3;
   static const int waterGoal = 5;
   static const int weeklyStreak = 20;
+  static const int specialEvent = 20;
 
   /// 各來源固定金額（dailyLogin 走等級曲線，不在這裡）
   static int amountOf(CoinSource source) => switch (source) {
@@ -52,6 +57,7 @@ abstract final class CoinConfig {
     CoinSource.exerciseDone => exerciseDone,
     CoinSource.waterGoal => waterGoal,
     CoinSource.weeklyStreak => weeklyStreak,
+    CoinSource.specialEvent => specialEvent,
     // dailyLogin 金額依等級，呼叫端用 loginRewardAt(level)
     CoinSource.dailyLogin => loginBase,
   };
@@ -72,6 +78,9 @@ abstract final class CoinConfig {
   /// 等級對應的登入金幣：5, 6, 7, 8, 9, 10（封頂）
   static int loginRewardAt(int level) =>
       loginBase + (level.clamp(1, loginMaxLevel) - 1);
+
+  /// 連續登入每滿幾天發一次 weeklyStreak 里程碑（+[weeklyStreak] 金幣）
+  static const int loginStreakMilestone = 7;
 
   // ── 帳本 ──
   /// 帳本只留最近 N 筆（給明細頁/除錯用，餘額才是真相來源）

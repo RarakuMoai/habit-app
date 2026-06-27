@@ -33,12 +33,12 @@ Future<Map<String, PresetConfig>?> showHabitPresetSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) => StatefulBuilder(
-      builder: (_, setS) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        maxChildSize: 0.92,
-        minChildSize: 0.4,
-        expand: false,
-        builder: (_, scrollCtrl) => Column(
+      builder: (_, setS) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
@@ -82,9 +82,9 @@ Future<Map<String, PresetConfig>?> showHabitPresetSheet(
               ),
             ),
             const Divider(height: 1),
-            Expanded(
+            Flexible(
               child: ListView.builder(
-                controller: scrollCtrl,
+                shrinkWrap: true,
                 itemCount: available.length,
                 itemBuilder: (_, i) {
                   final p = available[i];

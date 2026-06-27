@@ -178,10 +178,13 @@ class CoinService {
     if (last == today) return null;
 
     final oldLevel = prefs.getInt(PrefsKeys.coinLoginLevel) ?? 0;
+    final oldStreak = prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0;
     int level;
+    int loginStreak;
     var graceUsed = false;
     if (last == null || oldLevel < 1) {
       level = 1;
+      loginStreak = 1;
     } else {
       final lastDate = DateTime.tryParse(last);
       final missed = lastDate == null
@@ -194,20 +197,24 @@ class CoinService {
                 1;
       if (missed <= 0) {
         level = (oldLevel + 1).clamp(1, CoinConfig.loginMaxLevel);
+        loginStreak = oldStreak + 1;
       } else if (missed <= CoinConfig.loginGraceDays) {
         level = oldLevel.clamp(1, CoinConfig.loginMaxLevel);
+        loginStreak = oldStreak + 1; // 寬限內仍算連續，里程碑不中斷
         graceUsed = true;
       } else {
         level = (oldLevel - CoinConfig.loginLevelDrop).clamp(
           1,
           CoinConfig.loginMaxLevel,
         );
+        loginStreak = 1; // 中斷超過寬限，里程碑重新累積
       }
     }
 
     final amount = CoinConfig.loginRewardAt(level);
     await prefs.setString(PrefsKeys.coinLastLoginDate, today);
     await prefs.setInt(PrefsKeys.coinLoginLevel, level);
+    await prefs.setInt(PrefsKeys.coinLoginStreak, loginStreak);
     // 登入獎勵也走 award 的 per-day claim（雙保險）；金額用等級算好的
     final awarded = await award(
       CoinSource.dailyLogin,
@@ -216,6 +223,14 @@ class CoinService {
       now: ts,
     );
     if (awarded == 0) return null;
+    // 連續登入滿 N 天的里程碑（靜默入帳；per-day claim 防重複）
+    if (loginStreak % CoinConfig.loginStreakMilestone == 0) {
+      await award(
+        CoinSource.weeklyStreak,
+        note: '連續登入 $loginStreak 天',
+        now: ts,
+      );
+    }
     return LoginReward(level: level, amount: amount, graceUsed: graceUsed);
   }
 

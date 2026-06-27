@@ -19,7 +19,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
-  testWidgets('從打字動畫一路走到最後一頁，含追問子步驟的返回', (tester) async {
+  testWidgets('從打字動畫一路走到最後一頁', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const MaterialApp(home: OnboardingPage()));
 
@@ -39,24 +39,17 @@ void main() {
     await tester.pump();
     await tapAndSettle(tester, '下一步');
 
-    // 畫面4（喝水）：進追問子步驟後按返回，應退回初始選項而不是上一頁
-    expect(find.text('有，但常常忘記'), findsOneWidget);
-    await tapAndSettle(tester, '有，但常常忘記');
+    // 畫面4（喝水）：新版引導預設開啟，接受後直接前進
     expect(find.text('好，幫我記'), findsOneWidget);
-    await tester.tap(find.byTooltip('回上一步'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('有，但常常忘記'), findsOneWidget);
-    // 走不追問的選項直接前進
-    await tapAndSettle(tester, '我自己會注意，不用記錄');
+    await tapAndSettle(tester, '好，幫我記');
 
-    // 畫面5（番茄鐘）：「我很專注」不追問直接前進
-    expect(find.text('我很專注'), findsOneWidget);
-    await tapAndSettle(tester, '我很專注');
+    // 畫面5（番茄鐘）
+    expect(find.text('好，開著'), findsOneWidget);
+    await tapAndSettle(tester, '好，開著');
 
     // 畫面6（家庭）
-    expect(find.text('沒有'), findsOneWidget);
-    await tapAndSettle(tester, '沒有');
+    expect(find.text('好，開著'), findsOneWidget);
+    await tapAndSettle(tester, '好，開著');
 
     // 畫面7（習慣挑選）：不選任何習慣 → 按鈕顯示「略過」
     expect(find.text('略過'), findsOneWidget);

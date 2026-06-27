@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _a = 'bgm_main'; // = defaultTrack.id
 const _b = 'bgm_aquamarine';
 const _c = 'bgm_nothing';
+const _onboarding = 'bgm_onboarding';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +55,13 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getStringList(PrefsKeys.bgmPlaylist), [defaultTrack.id]);
     expect(prefs.getString(PrefsKeys.bgmSelectedTrack), defaultTrack.id);
+  });
+
+  test('免費內建曲會自動進入已擁有曲庫，但不自動加入清單', () async {
+    await WardrobeStore.load();
+
+    expect(WardrobeStore.ownedTracks.value, contains(_onboarding));
+    expect(WardrobeStore.playlist.value, [defaultTrack.id]);
   });
 
   test('addTrack 把已解鎖曲目加到清單尾端、不動目前曲', () async {

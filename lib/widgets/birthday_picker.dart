@@ -79,6 +79,7 @@ class _BirthdayPickerDialog extends StatefulWidget {
 class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
   late DateTime _sel;
   final _ctrl = TextEditingController();
+  final _focus = FocusNode();
   bool _syncing = false;
   _Mode _mode = _Mode.day;
   ScrollController? _yearScroll;
@@ -98,13 +99,32 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
     _sel = _clamp(d);
     _writeField(_sel);
     _ctrl.addListener(_onFieldChanged);
+    _focus.addListener(_onFocusChange);
   }
 
   @override
   void dispose() {
+    _focus.dispose();
     _ctrl.dispose();
     _yearScroll?.dispose();
     super.dispose();
+  }
+
+  // 進入手打就清空原本日期，方便直接打 8 碼（_sel 仍保留，按完成照樣送出）；
+  // 離開焦點時若沒打出完整有效日期，把欄位還原成目前選定日，避免留半截。
+  void _onFocusChange() {
+    if (_focus.hasFocus) {
+      _syncing = true;
+      _ctrl.clear();
+      _syncing = false;
+      if (_inputInvalid) setState(() => _inputInvalid = false);
+    } else {
+      final digits = _ctrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.length < 8 || _inputInvalid) {
+        _writeField(_sel);
+        if (_inputInvalid) setState(() => _inputInvalid = false);
+      }
+    }
   }
 
   DateTime _clamp(DateTime d) {
@@ -278,6 +298,7 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
   Widget _inputField(Color accent) {
     return TextField(
       controller: _ctrl,
+      focusNode: _focus,
       keyboardType: TextInputType.number,
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => FocusScope.of(context).unfocus(),
