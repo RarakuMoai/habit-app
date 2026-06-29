@@ -4,25 +4,70 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import 'room_ambient_overlay.dart' show sceneHourNow;
+import 'room_ambient_overlay.dart' show sceneHourNow, ThrottledSceneTicker;
+
+/// 首頁互動效果層（地板光池 / 檯燈氛圍 / 完成光暈）。
+/// 與 [WindowBackdrop]/[RoomAmbientOverlay] 同模式：30fps 節流 ticker +
+/// RepaintBoundary，只重繪自己；外層用 TickerMode(enabled: !idle) 凍結省電。
+/// 之前這層用 full-rate AnimationController 直驅、又沒包 RepaintBoundary，
+/// 是全頁唯一漏掉節流的動態層（每幀全螢幕跑數個 MaskFilter.blur ＝ 發熱大戶）。
+class RoomSceneEffects extends StatefulWidget {
+  final Color accent;
+  final double progress;
+  final bool allDone;
+
+  const RoomSceneEffects({
+    super.key,
+    required this.accent,
+    required this.progress,
+    required this.allDone,
+  });
+
+  @override
+  State<RoomSceneEffects> createState() => _RoomSceneEffectsState();
+}
+
+class _RoomSceneEffectsState extends State<RoomSceneEffects>
+    with SingleTickerProviderStateMixin, ThrottledSceneTicker {
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: CustomPaint(
+          isComplex: true,
+          willChange: true,
+          size: Size.infinite,
+          painter: RoomSceneEffectsPainter(
+            accent: widget.accent,
+            progress: widget.progress,
+            allDone: widget.allDone,
+            time: sceneTime,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // ── 生成背景上方的互動效果層：保留狀態回饋，不再重畫整個房間 ──
 class RoomSceneEffectsPainter extends CustomPainter {
   final Color accent;
   final double progress;
   final bool allDone;
-  final Animation<double> motion;
+  /// 開場至今秒數（無界）；12 秒一圈換算成 phase。節流由 [RoomSceneEffects] 的
+  /// ticker 負責，這裡只負責把秒數映射成相位。
+  final ValueNotifier<double> time;
 
   RoomSceneEffectsPainter({
     required this.accent,
     required this.progress,
     required this.allDone,
-    required this.motion,
-  }) : super(repaint: motion);
+    required this.time,
+  }) : super(repaint: time);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final phase = motion.value * math.pi * 2;
+    final phase = time.value * (math.pi / 6.0); // 2π / 12s
     final sceneH = size.height * 0.56;
     final floorY = sceneH * 0.82;
     final hour = sceneHourNow();
@@ -296,6 +341,6 @@ class RoomSceneEffectsPainter extends CustomPainter {
   bool shouldRepaint(covariant RoomSceneEffectsPainter old) =>
       old.accent != accent ||
       old.progress != progress ||
-      old.allDone != allDone ||
-      old.motion != motion;
+      old.allDone != allDone;
+  // time 由 super(repaint: time) 驅動每幀重繪，不必列入 shouldRepaint。
 }

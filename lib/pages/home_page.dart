@@ -13,6 +13,7 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
+import '../utils/habit_history.dart';
 import '../utils/input_formatters.dart';
 import '../utils/logical_date.dart';
 import '../utils/mascot.dart';
@@ -30,6 +31,7 @@ import 'home/habit_sheets.dart';
 import 'home/home_presets.dart';
 import 'home/room_ambient_overlay.dart';
 import 'home/room_scene_painters.dart';
+import 'review_page.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
@@ -66,8 +68,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late Animation<double> _celebScale;
   // 進度列尾端亮點的呼吸光暈（達標時 repeat，未達標停在 0）
   late AnimationController _glowCtrl;
-  // 首頁場景用的低調流動光效：只驅動 CustomPainter，不重建整頁。
-  late AnimationController _sceneFxCtrl;
+  // 首頁場景的低調流動光效改由 RoomSceneEffects 自帶 30fps 節流 ticker 驅動，
+  // 不再需要本頁持有 AnimationController（也就沒有 full-rate 重繪 / 漏 RepaintBoundary）。
   // 編輯模式所有卡片共用的抖動驅動（一條 ticker，各卡片用不同相位）。
   // 不放在每張卡上，避免被拖曳 reparent 時帶著正在跑的 ticker 撞 element 生命週期。
   late AnimationController _jiggleCtrl;
@@ -93,16 +95,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _sceneIdleTimer?.cancel();
     if (_sceneIdle) {
       setState(() => _sceneIdle = false);
-      _sceneFxCtrl.repeat();
     }
     _sceneIdleTimer = Timer(_sceneIdleDelay, _goSceneIdle);
   }
 
-  // 閒置到時：凍結裝飾層（TickerMode 會靜音子樹 ticker）+ 停場景流光。
+  // 閒置到時：凍結所有裝飾動態層（窗景/光影/流光的 ticker 由 TickerMode 一起靜音）。
   void _goSceneIdle() {
     if (!mounted || _sceneIdle) return;
     setState(() => _sceneIdle = true);
-    _sceneFxCtrl.stop();
   }
 
   @override
@@ -120,10 +120,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _sceneFxCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    )..repeat();
     _jiggleCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 620),
@@ -137,7 +133,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _sceneIdleTimer?.cancel();
     _celebCtrl.dispose();
     _glowCtrl.dispose();
-    _sceneFxCtrl.dispose();
     _jiggleCtrl.dispose();
     super.dispose();
   }
@@ -170,6 +165,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (habitsJson != null) {
       final decoded = jsonDecode(habitsJson) as List<dynamic>;
       habits.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
+    }
+
+    // 遷移：補上穩定 id 與建立日（補打勾 / 統計用）。舊習慣不知道真正的
+    // 建立日，退而用 onboarding 日期（至少不會晚於實際），再不行才用今天。
+    // 之後新增的習慣會在建立當下就帶 id/createdAt，不靠這裡。
+    var habitsMigrated = false;
+    final fallbackCreated = onboardingDate != null
+        ? _fmtDate(onboardingDate!)
+        : today;
+    for (final habit in habits) {
+      if (habit['id'] is! String || (habit['id'] as String).isEmpty) {
+        habit['id'] = HabitHistory.newId();
+        habitsMigrated = true;
+      }
+      if (habit['createdAt'] is! String ||
+          (habit['createdAt'] as String).isEmpty) {
+        habit['createdAt'] = fallbackCreated;
+        habitsMigrated = true;
+      }
+    }
+    if (habitsMigrated) {
+      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
 
     if (lastOpen != null && lastOpen != today) {
@@ -226,6 +243,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       habits[weightIdx]['done'] = widget.weightHabitAutoComplete;
       await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
+
+    // 把今天每日習慣的完成狀態寫進歷史（跨日 reset 後是空集合＝今天重新開始；
+    // 同日重開則與當下勾選一致）。歷史只增不洗掉過去的日期。
+    await _syncTodayHistory(prefs);
 
     final isFirstOpenToday = lastOpen != today;
     await prefs.setString(PrefsKeys.lastOpenDate, today);
@@ -342,6 +363,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
   }
 
+  // 把「今天已完成的每日習慣 id」覆寫進歷史。每日習慣以 done 為準（set 語意）；
+  // 每週習慣的逐日紀錄另存在 weeklyDates，不在這裡。
+  Future<void> _syncTodayHistory(SharedPreferences prefs) async {
+    final ids = _dailyHabits
+        .where((h) => h['done'] == true)
+        .map((h) => h['id'])
+        .whereType<String>()
+        .toList();
+    await HabitHistory.setDoneIdsOn(prefs, todayString(), ids);
+  }
+
+  // 互動後 fire-and-forget 更新今天的歷史（取自家的 prefs 實例）。
+  Future<void> _recordTodayHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await _syncTodayHistory(prefs);
+  }
+
   void _startMovingHabits() {
     if (_editMode) return;
     setState(() => _editMode = true);
@@ -406,6 +444,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (idx == -1 || habits[idx]['done'] == done) return;
     setState(() => habits[idx]['done'] = done);
     saveHabits();
+    unawaited(_recordTodayHistory());
   }
 
   void _syncWeightHabit(bool done) {
@@ -417,6 +456,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (idx == -1 || habits[idx]['done'] == done) return;
     setState(() => habits[idx]['done'] = done);
     saveHabits();
+    unawaited(_recordTodayHistory());
   }
 
   List<Map<String, dynamic>> get _dailyHabits =>
@@ -585,6 +625,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     }
     saveHabits();
+    // 每日習慣的完成集合進歷史；每週走 weeklyDates，不在此記。
+    if (!isWeekly) unawaited(_recordTodayHistory());
     if (!wasAllDone && allDone0) {
       // 當日全完成加碼（每日一次，service 內建防重複）
       CoinService.award(CoinSource.allHabitsDone, note: '今日全完成');
@@ -632,10 +674,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void deleteHabit(int index) {
-    final name = habits[index]['name'] as String;
+    final habit = habits[index];
+    final name = habit['name'] as String;
+    final id = habit['id'] as String?;
+    final createdAt = habit['createdAt'] as String?;
+    final frequency = (habit['frequency'] ?? 'daily') as String;
     _animatedIn.remove(name);
     setState(() => habits.removeAt(index));
     saveHabits();
+    // 留一筆墓碑：補打勾仍能顯示「當時存在、後來刪掉」的條目。
+    // 同時刷新今天的歷史（刪掉的習慣不該再算在今天的完成集合裡）。
+    if (id != null) {
+      SharedPreferences.getInstance().then((prefs) async {
+        await HabitHistory.addTombstone(
+          prefs,
+          id: id,
+          name: name,
+          frequency: frequency,
+          createdAt: createdAt ?? todayString(),
+          deletedAt: todayString(),
+        );
+        await _syncTodayHistory(prefs);
+      });
+    }
     if (name == '喝足夠的水') {
       SharedPreferences.getInstance().then((prefs) async {
         await prefs.setBool(PrefsKeys.waterEnabled, false);
@@ -720,6 +781,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           }
         });
         saveHabits();
+        unawaited(_recordTodayHistory());
       },
     );
   }
@@ -759,7 +821,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ? '$customName $customMinutes 分鐘'
                     : customName;
                 final map = <String, dynamic>{
+                  'id': HabitHistory.newId(),
                   'name': fullName,
+                  'createdAt': todayString(),
                   'done':
                       isWeightHabitName(fullName) &&
                       widget.weightHabitAutoComplete,
@@ -778,7 +842,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ? '${p.name} ${cfg.minutes} 分鐘'
                     : p.name;
                 final map = <String, dynamic>{
+                  'id': HabitHistory.newId(),
                   'name': habitName,
+                  'createdAt': todayString(),
                   'done':
                       isWeightHabitName(habitName) &&
                       widget.weightHabitAutoComplete,
@@ -792,6 +858,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               }
             });
             unawaited(saveHabits());
+            unawaited(_recordTodayHistory());
           },
     );
   }
@@ -816,6 +883,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       backgroundColor: Colors.transparent,
       appBar: MascotAppBar(
         accent: colors.accent,
+        extraActions: [_buildReviewButton()],
         onSettingsReturn: () => widget.onSettingsChanged?.call(),
       ),
       // 任何觸碰都視為互動：取消閒置凍結、重排計時。translucent 才不會
@@ -887,14 +955,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   child: const RoomAmbientOverlay(companionTiming: true),
                 ),
               ),
-              // 互動狀態效果（完成星光、場景柔光）
+              // 互動狀態效果（完成星光、場景柔光）：最吃 GPU 的全螢幕 blur 層，
+              // 比照窗景/光影層做 30fps 節流 + RepaintBoundary，閒置時 TickerMode 凍結。
               Positioned.fill(
-                child: CustomPaint(
-                  painter: RoomSceneEffectsPainter(
+                child: TickerMode(
+                  enabled: !_sceneIdle,
+                  child: RoomSceneEffects(
                     accent: colors.accent,
                     progress: sceneProgress.clamp(0.0, 1.0),
                     allDone: allDone0 && habits.isNotEmpty,
-                    motion: _sceneFxCtrl,
                   ),
                 ),
               ),
@@ -1082,6 +1151,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       top: const Color(0xFFFFF4E0),
       bottom: const Color(0xFFFFE5C7),
       accent: const Color(0xFFFF8A50),
+    );
+  }
+
+  // 標題列的「足跡」鈕：白底圓鈕（與設定鈕同視覺語言），開回顧頁（日/週/月）。
+  // 補登（日）只改過去日期的歷史、回顧（週/月）唯讀，都不影響今天的 live
+  // 狀態，回來不需重載首頁。
+  Widget _buildReviewButton() {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.88),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: IconButton(
+          icon: Icon(
+            Icons.calendar_month_outlined,
+            color: Colors.grey.shade800,
+          ),
+          tooltip: '足跡',
+          onPressed: () {
+            Navigator.of(context).push(
+              PageRouteBuilder<void>(
+                pageBuilder: (_, _, _) => const ReviewPage(),
+                transitionsBuilder: (_, anim, _, child) => SlideTransition(
+                  position:
+                      Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                          .chain(CurveTween(curve: Curves.easeInOut))
+                          .animate(anim),
+                  child: child,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 

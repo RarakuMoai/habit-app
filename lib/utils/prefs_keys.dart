@@ -107,6 +107,14 @@ abstract final class PrefsKeys {
   static const streak = 'streak';
   static const lastOpenDate = 'last_open_date';
 
+  // 習慣的逐日完成歷史（補打勾 / 統計用）。每個邏輯日一個 key，值是當天
+  // 「已完成的每日習慣 id」清單（JSON）。打勾/取消當下寫入，跨日不清除。
+  static const habitDoneDayPrefix = 'habit_done_';
+  static String habitDoneDay(String date) => '$habitDoneDayPrefix$date';
+  // 已刪除習慣的墓碑（JSON 清單：{id,name,frequency,createdAt,deletedAt}），
+  // 讓歷史/補打勾仍能顯示「某天當時存在、後來刪掉」的條目。
+  static const habitTombstones = 'habit_tombstones';
+
   // ── 喝水 ─────────────────────────────────────────────────
   static const waterCupMl = 'water_cup_ml';
   static const waterGoalMl = 'water_goal_ml';

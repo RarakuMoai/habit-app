@@ -105,13 +105,17 @@ double _smooth(double a, double b, double x) {
   return t * t * (3 - 2 * t);
 }
 
-/// 30fps Ticker + ValueNotifier 的共用底座（兩個動態層都用這個模式）。
-mixin _ThrottledTicker<T extends StatefulWidget>
+/// 30fps Ticker + ValueNotifier 的共用底座（三個動態層都用這個模式）。
+mixin ThrottledSceneTicker<T extends StatefulWidget>
     on State<T>, SingleTickerProviderStateMixin<T> {
   late final Ticker _ticker;
   // painter 的 repaint listenable：值 = 開場至今秒數（無界）
   final ValueNotifier<double> _time = ValueNotifier<double>(0);
   double _lastNotified = 0;
+
+  /// painter 的 repaint listenable（跨檔案重用，例：room_scene_painters 的
+  /// [RoomSceneEffects]）。同檔案內仍可直接用 `_time`。
+  ValueNotifier<double> get sceneTime => _time;
 
   @override
   void initState() {
@@ -152,7 +156,7 @@ class WindowBackdrop extends StatefulWidget {
 }
 
 class _WindowBackdropState extends State<WindowBackdrop>
-    with SingleTickerProviderStateMixin, _ThrottledTicker {
+    with SingleTickerProviderStateMixin, ThrottledSceneTicker {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
@@ -455,7 +459,7 @@ class RoomAmbientOverlay extends StatefulWidget {
 }
 
 class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
-    with SingleTickerProviderStateMixin, _ThrottledTicker {
+    with SingleTickerProviderStateMixin, ThrottledSceneTicker {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
