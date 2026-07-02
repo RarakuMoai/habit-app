@@ -171,7 +171,7 @@ class _MyAppState extends State<MyApp> {
         scaffoldBackgroundColor: const Color(0xFFF7F3EF),
         cardTheme: CardThemeData(
           elevation: 2,
-          shadowColor: Colors.black12,
+          shadowColor: const Color(0x1F8D6E63),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -1130,7 +1130,7 @@ class _AdaptiveBottomNavState extends State<_AdaptiveBottomNav> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final selectedColor = theme.colorScheme.primary;
-    const unselectedColor = Colors.grey;
+    const unselectedColor = AppInk.soft;
 
     final n = widget.tabs.length;
     final isTwoRow = n > 5;

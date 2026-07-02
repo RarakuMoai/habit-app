@@ -81,7 +81,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.only(right: 8),
           child: _circleAction(
             icon: Icons.settings_outlined,
-            iconColor: Colors.grey.shade800,
+            iconColor: AppInk.strong,
             tooltip: '設定',
             onPressed: () async {
               await Navigator.of(
@@ -112,7 +112,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
+              color: const Color(0xFF8D6E63).withValues(alpha: 0.22),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -228,7 +228,7 @@ class _CoinBalanceButton extends StatelessWidget {
             border: Border.all(color: _reviewAmber.withValues(alpha: 0.24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
+                color: const Color(0xFF8D6E63).withValues(alpha: 0.22),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -414,7 +414,7 @@ class MascotPill extends StatelessWidget {
         border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: const Color(0xFF8D6E63).withValues(alpha: 0.26),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -431,10 +431,7 @@ class MascotPill extends StatelessWidget {
             offset: const Offset(0, 1.2),
             child: Text(
               label,
-              style: AppType.digits(
-                color: Colors.grey.shade800,
-                fontSize: 11.5,
-              ),
+              style: AppType.digits(color: AppInk.strong, fontSize: 11.5),
             ),
           ),
         ],

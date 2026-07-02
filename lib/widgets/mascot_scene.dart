@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/app_style.dart';
 import '../utils/mascot.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
@@ -252,10 +253,10 @@ class _MascotSpeechBubbleState extends State<MascotSpeechBubble> {
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800,
+                      color: AppInk.strong,
                       height: 1.35,
                     ),
                   ),

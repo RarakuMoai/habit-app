@@ -17,6 +17,7 @@ import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
+import '../widgets/app_dialogs.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -328,9 +329,9 @@ class _WardrobePageState extends State<WardrobePage>
           ],
         ),
         actions: [
-          TextButton(
+          dialogCancelAction(
+            dialogCtx,
             onPressed: () => Navigator.pop(dialogCtx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(
@@ -2579,9 +2580,9 @@ Future<void> _openExternal(BuildContext context, String url) async {
       title: const Text('開啟外部連結'),
       content: Text('將離開 App，用瀏覽器開啟：\n$url'),
       actions: [
-        TextButton(
+        dialogCancelAction(
+          dialogCtx,
           onPressed: () => Navigator.pop(dialogCtx, false),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(backgroundColor: kMusicAccent),

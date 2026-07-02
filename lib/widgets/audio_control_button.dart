@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../utils/app_style.dart';
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
 import '../utils/sfx_service.dart';
@@ -98,8 +99,8 @@ class _AudioControlButtonState extends State<AudioControlButton> {
                       ? Icons.volume_down_rounded
                       : Icons.volume_up_rounded);
             final color = widget.style == AudioControlStyle.onboarding
-                ? (allMuted ? Colors.grey.shade600 : widget.accent)
-                : Colors.grey.shade800;
+                ? (allMuted ? AppInk.soft : widget.accent)
+                : AppInk.strong;
             return _AudioCircle(
               key: _buttonKey,
               style: widget.style,
@@ -149,9 +150,8 @@ class _AudioCircle extends StatelessWidget {
                 : null,
             boxShadow: [
               BoxShadow(
-                color: (onboarding ? accent : Colors.black).withValues(
-                  alpha: onboarding ? 0.12 : 0.10,
-                ),
+                color: (onboarding ? accent : const Color(0xFF8D6E63))
+                    .withValues(alpha: onboarding ? 0.12 : 0.22),
                 blurRadius: onboarding ? 14 : 10,
                 offset: Offset(0, onboarding ? 5 : 3),
               ),
@@ -271,7 +271,7 @@ class _AudioSettingsPanel extends StatelessWidget {
             border: Border.all(color: accent.withValues(alpha: 0.14)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.14),
+                color: const Color(0xFF8D6E63).withValues(alpha: 0.30),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -390,12 +390,12 @@ class _AudioTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: enabled
                     ? accent.withValues(alpha: 0.11)
-                    : Colors.grey.withValues(alpha: 0.065),
+                    : AppInk.faint.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: enabled
                       ? accent.withValues(alpha: 0.26)
-                      : Colors.grey.withValues(alpha: 0.18),
+                      : AppInk.faint.withValues(alpha: 0.30),
                 ),
               ),
               child: Stack(
@@ -408,7 +408,7 @@ class _AudioTile extends StatelessWidget {
                       width: 30,
                       height: 30,
                       decoration: BoxDecoration(
-                        color: enabled ? accent : Colors.grey.shade400,
+                        color: enabled ? accent : AppInk.faint,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(icon, color: Colors.white, size: 17),
@@ -424,13 +424,13 @@ class _AudioTile extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: enabled
                             ? accent.withValues(alpha: 0.16)
-                            : Colors.grey.withValues(alpha: 0.12),
+                            : AppInk.faint.withValues(alpha: 0.18),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         enabled ? Icons.check_rounded : Icons.close_rounded,
                         size: 12.5,
-                        color: enabled ? accent : Colors.grey.shade500,
+                        color: enabled ? accent : AppInk.soft,
                       ),
                     ),
                   ),
@@ -442,9 +442,7 @@ class _AudioTile extends StatelessWidget {
                         fontSize: 13.5,
                         height: 1,
                         fontWeight: FontWeight.w800,
-                        color: enabled
-                            ? Colors.grey.shade900
-                            : Colors.grey.shade600,
+                        color: enabled ? AppInk.strong : AppInk.soft,
                       ),
                     ),
                   ),
