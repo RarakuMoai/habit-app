@@ -2,7 +2,6 @@
 // 陰影遵循插畫慣例：雙層（ambient 大模糊淡 + contact 小模糊貼地），
 // 一律帶棕色調、不用純黑，跟兔咪暖色世界觀一致。
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// 字型階層：內文走 theme 預設（Nunito + 中文系統字），
 /// 數字/計數類元素用更圓滾的 display 字型做對比。
@@ -14,7 +13,8 @@ abstract final class AppType {
     FontWeight fontWeight = FontWeight.w700,
     Color? color,
     double? letterSpacing,
-  }) => GoogleFonts.baloo2(
+  }) => TextStyle(
+    fontFamily: 'Baloo 2',
     fontSize: fontSize,
     fontWeight: fontWeight,
     color: color,

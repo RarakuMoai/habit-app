@@ -40,7 +40,6 @@ dependencies:
   crypto: ^3.0.7
   shared_preferences: ^2.5.5
   fl_chart: ^0.69.0
-  google_fonts: ^6.2.1
   flutter_local_notifications: ^21.0.0
   timezone: ^0.11.0
   just_audio: ^0.10.5
@@ -106,6 +105,9 @@ flutter:
     - assets/scenes/family/
     - assets/scenes/onboarding/
     - assets/scenes/wardrobe/
+    # 字型授權文字（LicenseRegistry 註冊用；ttf 本體走下方 fonts: 不重複打包）
+    - assets/fonts/Nunito-OFL.txt
+    - assets/fonts/Baloo2-OFL.txt
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -113,22 +115,33 @@ flutter:
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
 
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
-  # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
-  #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+  # 打包字型（roadmap §6 上架前待辦：取代 google_fonts 執行期下載）。
+  # Nunito = 全域內文/拉丁；Baloo 2 = 數字 display（AppType.digits）。
+  # Baloo 2 官方只到 800，程式裡的 w900 由 Flutter 就近取 800。
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Nunito-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Nunito-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Nunito-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Nunito-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Nunito-Black.ttf
+          weight: 900
+    - family: Baloo 2
+      fonts:
+        - asset: assets/fonts/Baloo2-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Baloo2-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Baloo2-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Baloo2-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Baloo2-ExtraBold.ttf
+          weight: 800

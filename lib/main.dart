@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'pages/family_page.dart';
@@ -37,6 +37,14 @@ import 'utils/weight_records.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // 打包字型（Nunito / Baloo 2）為 OFL 授權，依授權條款把全文註冊進
+  // Flutter licenses 頁（showLicensePage / AboutDialog 可見）。
+  LicenseRegistry.addLicense(() async* {
+    final nunito = await rootBundle.loadString('assets/fonts/Nunito-OFL.txt');
+    yield LicenseEntryWithLineBreaks(const ['Nunito'], nunito);
+    final baloo2 = await rootBundle.loadString('assets/fonts/Baloo2-OFL.txt');
+    yield LicenseEntryWithLineBreaks(const ['Baloo 2'], baloo2);
+  });
   runApp(const RootRestart(child: MyApp()));
 }
 
@@ -157,7 +165,7 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7043)),
         useMaterial3: true,
-        fontFamily: GoogleFonts.nunito().fontFamily,
+        fontFamily: 'Nunito',
         scaffoldBackgroundColor: const Color(0xFFF7F3EF),
         cardTheme: CardThemeData(
           elevation: 2,
@@ -172,7 +180,8 @@ class _MyAppState extends State<MyApp> {
           foregroundColor: Colors.white,
           elevation: 0,
           iconTheme: const IconThemeData(color: Colors.white),
-          titleTextStyle: GoogleFonts.nunito(
+          titleTextStyle: const TextStyle(
+            fontFamily: 'Nunito',
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -307,8 +316,9 @@ class _StartupSplashState extends State<_StartupSplash>
                     const SizedBox(height: 22),
                     Text(
                       '兔咪好習慣',
-                      style: GoogleFonts.nunito(
-                        color: const Color(0xFF6D4C41),
+                      style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        color: Color(0xFF6D4C41),
                         fontSize: 25,
                         fontWeight: FontWeight.w900,
                       ),
