@@ -11,6 +11,7 @@ import 'pages/family_page.dart';
 import 'pages/home/room_ambient_overlay.dart';
 import 'pages/home_page.dart';
 import 'pages/onboarding_page.dart';
+import 'pages/story_reveal_page.dart';
 import 'pages/timer_page.dart';
 import 'pages/wardrobe_page.dart';
 import 'pages/water_page.dart';
@@ -28,6 +29,7 @@ import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
 import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
+import 'utils/story_catalog.dart';
 import 'utils/story_store.dart';
 import 'utils/tab_catalog.dart';
 import 'utils/wardrobe_store.dart';
@@ -368,15 +370,20 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     _loadSettings();
     // 功能開關一改就即時重組頁籤（不必等退出設定頁）
     featureFlagsRevision.addListener(_loadSettings);
+    // 特殊事件解鎖 → 佇列有東西就播全螢幕揭曉（story_reveal_page.dart）
+    StoryStore.pendingReveal.addListener(_onPendingRevealChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureMainBgm();
       _claimDailyLoginReward();
+      _checkSeasonStories();
+      _maybeShowStoryReveal(); // 上次沒看完的揭曉（佇列有持久化）啟動補播
     });
   }
 
   @override
   void dispose() {
     featureFlagsRevision.removeListener(_loadSettings);
+    StoryStore.pendingReveal.removeListener(_onPendingRevealChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -392,12 +399,18 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     // 跨日後從背景回來也能領當天的登入獎勵（已領過會直接 no-op）
     if (state == AppLifecycleState.resumed) {
       _claimDailyLoginReward();
+      _checkSeasonStories();
     }
   }
 
   // 每日登入獎勵：兔咪報喜。延遲一拍讓開場問候先落地，再換成領獎台詞。
   Future<void> _claimDailyLoginReward() async {
     final reward = await CoinService.claimDailyLogin();
+    // 連續登入回憶事件：不論這次有沒有新領（冪等），照登入連勝天數判定
+    final prefs = await SharedPreferences.getInstance();
+    unawaited(
+      StoryEvents.onLoginStreak(prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0),
+    );
     if (reward == null || !mounted) return;
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
@@ -406,7 +419,49 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         : reward.level >= CoinConfig.loginMaxLevel
         ? '連續報到 Lv.${reward.level}！今天 +${reward.amount} 金幣。'
         : '你來了！見面禮 +${reward.amount} 金幣。';
-    MascotPersona.set(MascotEmotion.happy.assetPath, line, force: true);
+    MascotPersona.setForContext(
+      MascotEmotion.happy.assetPath,
+      MascotContext.allDone,
+      speech: line,
+      force: true,
+    );
+  }
+
+  // 節日回憶事件：啟動與回前景時用「真實日曆日」檢查（不跟換日設定走，
+  // 節日就是節日；解鎖冪等所以重複檢查沒關係）。
+  void _checkSeasonStories() {
+    unawaited(StoryEvents.onSeasonDay(DateTime.now()));
+  }
+
+  // ── 全螢幕揭曉佇列 ─────────────────────────────────────────
+  // 觸發判定只負責把事件排進 StoryStore.pendingReveal；這裡統一播放：
+  // 等一拍讓打勾/金幣/問候動畫先落地 → push 揭曉頁 → 看完 consume →
+  // 佇列還有就接著播（同一時刻解鎖多個事件會排隊逐一亮相）。
+  bool _storyRevealShowing = false;
+
+  void _onPendingRevealChanged() => _maybeShowStoryReveal();
+
+  Future<void> _maybeShowStoryReveal() async {
+    if (_storyRevealShowing || !mounted) return;
+    if (StoryStore.pendingReveal.value.isEmpty) return;
+    _storyRevealShowing = true;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      while (StoryStore.pendingReveal.value.isNotEmpty) {
+        if (!mounted) return;
+        final id = StoryStore.pendingReveal.value.first;
+        final unlock = StoryStore.unlocked.value.where((u) => u.id == id);
+        await Navigator.of(context).push(
+          StoryRevealPage.route(
+            event: storyEventById(id),
+            date: unlock.isEmpty ? null : unlock.first.date,
+          ),
+        );
+        await StoryStore.consumeReveal(id);
+      }
+    } finally {
+      _storyRevealShowing = false;
+    }
   }
 
   Future<void> _ensureMainBgm() async {
@@ -442,8 +497,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _familyEnabled = prefs.getBool(PrefsKeys.familyEnabled) ?? false;
       _wardrobeEnabled = prefs.getBool(PrefsKeys.wardrobeEnabled) ?? true;
-      _tabOrder =
-          prefs.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
+      _tabOrder = prefs.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
       _waterGoalReached = prefs.getString(PrefsKeys.waterGoalDate) == today;
       _weightHabitAutoComplete = weightRecordedToday;
       // 開發者工具：指定啟動分頁 / 模擬分頁（kDevToolsEnabled 控制）

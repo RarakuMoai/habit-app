@@ -8,8 +8,10 @@ import '../utils/coin_service.dart';
 import '../utils/debug_fake_tabs.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 import 'home/room_ambient_overlay.dart';
+import 'story_reveal_page.dart';
 
 /// 開發者測試頁。
 ///
@@ -197,6 +199,55 @@ class _DevTestPageState extends State<DevTestPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _unlockMemory(String id) async {
+    final ok = await StoryStore.unlock(id);
+    if (!mounted) return;
+    final title = storyEventById(id).title;
+    _toast(ok ? '已解鎖：$title（揭曉即將自動播放）' : '已經解鎖過了：$title');
+  }
+
+  /// 免解鎖直接看揭曉動畫與繪本排版（不動任何狀態，怎麼看都不會誤解鎖）。
+  void _previewReveal(StoryEventSpec event) {
+    Navigator.of(context).push(StoryRevealPage.route(event: event));
+  }
+
+  /// 走「真實觸發判定」：跟正式接線呼叫同一個 API，驗證門檻、冪等、
+  /// 佇列與揭曉播放整條路。
+  Future<void> _simulateTrigger(
+    String label,
+    Future<String?> Function() run,
+  ) async {
+    final id = await run();
+    if (!mounted) return;
+    _toast(
+      id != null
+          ? '$label → 解鎖「${storyEventById(id).title}」，揭曉即將播放'
+          : '$label → 沒有新事件（未達門檻或已解鎖過）',
+    );
+  }
+
+  Future<void> _simulateSeason(String label, DateTime date) async {
+    final ids = await StoryEvents.onSeasonDay(date);
+    if (!mounted) return;
+    _toast(
+      ids.isNotEmpty
+          ? '$label → 解鎖 ${ids.map((i) => '「${storyEventById(i).title}」').join('、')}'
+          : '$label → 沒有命中的節日事件（或已解鎖過）',
+    );
+  }
+
+  Widget _memorySection(String label) => Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 8),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w800,
+        color: Colors.brown.shade400,
+      ),
+    ),
+  );
+
   Future<void> _reset() async {
     final prefs = _prefs;
     if (prefs != null) {
@@ -260,41 +311,116 @@ class _DevTestPageState extends State<DevTestPage> {
                   ),
                 ),
                 _card(
-                  title: '回憶本（測試）',
+                  title: '回憶本 / 特殊事件（測試）',
                   icon: Icons.auto_stories_outlined,
-                  description: '手動解鎖回憶事件，不用真的連 7 天。'
-                      '解鎖後到衣櫃 → 回憶 翻閱。',
+                  description:
+                      '預覽＝免解鎖直接看揭曉動畫與排版；模擬觸發＝走真實判定，'
+                      '驗證門檻/冪等/揭曉整條路。解鎖後到衣櫃 → 回憶 翻閱。',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ValueListenableBuilder<List<StoryUnlock>>(
-                        valueListenable: StoryStore.unlocked,
-                        builder: (_, list, _) => Text(
-                          '已解鎖：${list.length} 則',
+                      AnimatedBuilder(
+                        animation: Listenable.merge([
+                          StoryStore.unlocked,
+                          StoryStore.unread,
+                          StoryStore.pendingReveal,
+                        ]),
+                        builder: (_, _) => Text(
+                          '已解鎖：${StoryStore.unlocked.value.length} 則'
+                          '　未讀：${StoryStore.unread.value.length} 則'
+                          '　待揭曉：${StoryStore.pendingReveal.value.length} 則',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      _memorySection('預覽揭曉（不動資料，看圖與動畫排版）'),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final event in storyCatalog)
+                            OutlinedButton.icon(
+                              icon: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 18,
+                              ),
+                              onPressed: () => _previewReveal(event),
+                              label: Text(event.title),
+                            ),
+                        ],
+                      ),
+                      _memorySection('模擬觸發（走真實判定與揭曉佇列）'),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
                           FilledButton.tonal(
-                            onPressed: () async {
-                              final ok = await StoryStore.unlock('streak_7');
-                              if (!mounted) return;
-                              _toast(ok ? '已解鎖：連續第七天' : '已經解鎖過了');
-                            },
-                            child: const Text('解鎖 連續第七天'),
+                            onPressed: () => _simulateTrigger(
+                              '第一次建立習慣',
+                              StoryEvents.onFirstHabitCreated,
+                            ),
+                            child: const Text('第一次建立習慣'),
                           ),
+                          FilledButton.tonal(
+                            onPressed: () => _simulateTrigger(
+                              '第一次全完成',
+                              StoryEvents.onFirstAllDone,
+                            ),
+                            child: const Text('第一次全完成'),
+                          ),
+                          FilledButton.tonal(
+                            onPressed: () => _simulateTrigger(
+                              '連勝 7 天',
+                              () => StoryEvents.onHabitStreak(7),
+                            ),
+                            child: const Text('連勝 7 天'),
+                          ),
+                          FilledButton.tonal(
+                            onPressed: () => _simulateTrigger(
+                              '久違 7 天回來',
+                              () => StoryEvents.onComeback(7),
+                            ),
+                            child: const Text('久違 7 天回來'),
+                          ),
+                          FilledButton.tonal(
+                            onPressed: () =>
+                                _simulateSeason('節日檢查（今天）', DateTime.now()),
+                            child: const Text('節日檢查（今天）'),
+                          ),
+                          // 目錄裡每個節日事件都給一顆「假裝今天是那天」的按鈕
+                          for (final event in storyCatalog)
+                            if (event.trigger == StoryTrigger.season &&
+                                event.season != null)
+                              FilledButton.tonal(
+                                onPressed: () => _simulateSeason(
+                                  '模擬 ${event.title} 當天',
+                                  DateTime(
+                                    DateTime.now().year,
+                                    event.season!.month,
+                                    event.season!.day,
+                                  ),
+                                ),
+                                child: Text('模擬 ${event.title} 當天'),
+                              ),
+                        ],
+                      ),
+                      _memorySection('直接解鎖（跳過判定；也會排進揭曉佇列）'),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final event in storyCatalog)
+                            FilledButton.tonal(
+                              onPressed: () => _unlockMemory(event.id),
+                              child: Text('解鎖 ${event.title}'),
+                            ),
                           OutlinedButton(
                             onPressed: () async {
                               await StoryStore.clear();
                               if (!mounted) return;
-                              _toast('已清空回憶');
+                              _toast('已清空回憶（含待揭曉佇列）');
                             },
                             child: const Text('清空回憶'),
                           ),

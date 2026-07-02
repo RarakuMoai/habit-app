@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../utils/app_feedback.dart';
@@ -5,11 +7,22 @@ import '../utils/app_style.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 
-/// 全螢幕「回憶本」繪本閱讀器：橫向翻頁，一個事件一頁（單圖繪本）。
+/// 閱讀器的一個跨頁：某個已解鎖事件的第 [pageNo] 頁。
+class _SpreadEntry {
+  final StoryEventSpec event;
+  final StoryPage page;
+  final int pageNo; // 1-based
+  final DateTime date;
+  const _SpreadEntry(this.event, this.page, this.pageNo, this.date);
+}
+
+/// 全螢幕「回憶本」繪本閱讀器：橫向翻頁，一個事件一或多頁（每頁單圖）。
 /// 翻到的那頁會標記為已讀（清掉未讀，未來控制「書發亮」熄滅）。
 class MemoryBookReader extends StatefulWidget {
   /// 已解鎖事件，依解鎖時間排序（舊→新）。
   final List<StoryUnlock> entries;
+
+  /// 初始翻到第幾個「事件」（多頁事件會落在它的第一頁）。
   final int initialIndex;
 
   const MemoryBookReader({
@@ -24,12 +37,24 @@ class MemoryBookReader extends StatefulWidget {
 
 class _MemoryBookReaderState extends State<MemoryBookReader> {
   late final PageController _controller;
+  late final List<_SpreadEntry> _spreads;
   late int _index;
 
   @override
   void initState() {
     super.initState();
-    _index = widget.initialIndex.clamp(0, widget.entries.length - 1);
+    // 事件攤平成跨頁（多頁事件依序展開，像同一本書的連續幾頁）。
+    _spreads = [
+      for (final u in widget.entries)
+        for (final (pi, page) in storyEventById(u.id).pages.indexed)
+          _SpreadEntry(storyEventById(u.id), page, pi + 1, u.date),
+    ];
+    final eventIndex = widget.initialIndex.clamp(0, widget.entries.length - 1);
+    final targetId = widget.entries.isEmpty
+        ? null
+        : widget.entries[eventIndex].id;
+    final start = _spreads.indexWhere((s) => s.event.id == targetId);
+    _index = start < 0 ? 0 : start;
     _controller = PageController(initialPage: _index);
     _markRead(_index);
   }
@@ -41,8 +66,8 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
   }
 
   void _markRead(int i) {
-    if (i < 0 || i >= widget.entries.length) return;
-    StoryStore.markRead(widget.entries[i].id);
+    if (i < 0 || i >= _spreads.length) return;
+    StoryStore.markRead(_spreads[i].event.id);
   }
 
   void _onPageChanged(int i) {
@@ -53,7 +78,7 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = widget.entries;
+    final entries = _spreads;
     return Scaffold(
       backgroundColor: const Color(0xFFFBF3E8), // 暖書頁底
       body: SafeArea(
@@ -64,8 +89,9 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
               itemCount: entries.length,
               onPageChanged: _onPageChanged,
               itemBuilder: (_, i) => _MemorySpread(
-                event: storyEventById(entries[i].id),
-                date: entries[i].date,
+                // 換頁重掛，台詞才會重新逐句浮現
+                key: ValueKey('${entries[i].event.id}_${entries[i].pageNo}'),
+                entry: entries[i],
               ),
             ),
             Positioned(
@@ -91,13 +117,14 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
 }
 
 class _MemorySpread extends StatelessWidget {
-  final StoryEventSpec event;
-  final DateTime date;
+  final _SpreadEntry entry;
 
-  const _MemorySpread({required this.event, required this.date});
+  const _MemorySpread({super.key, required this.entry});
 
   @override
   Widget build(BuildContext context) {
+    final event = entry.event;
+    final multiPage = event.pages.length > 1;
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 18, 22, 34),
       child: Column(
@@ -115,7 +142,7 @@ class _MemorySpread extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: Image.asset(
-                event.image,
+                entry.page.image,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => const _ImageFallback(),
               ),
@@ -123,7 +150,7 @@ class _MemorySpread extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            event.title,
+            multiPage ? '${event.title}・${entry.pageNo}' : event.title,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: AppInk.strong,
@@ -133,7 +160,7 @@ class _MemorySpread extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(
-            _formatDate(date),
+            _formatDate(entry.date),
             style: TextStyle(
               color: kMemoryAccent.withValues(alpha: 0.9),
               fontSize: 12,
@@ -142,22 +169,76 @@ class _MemorySpread extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          for (final line in event.captions)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 5),
-              child: Text(
-                line,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppInk.soft,
-                  fontSize: 14.5,
-                  height: 1.5,
-                  fontWeight: FontWeight.w700,
+          _CaptionsFadeIn(lines: entry.page.captions),
+        ],
+      ),
+    );
+  }
+}
+
+/// 台詞逐句浮現（掛上畫面時每句依序淡入＋微上浮，錯開一小拍）。
+/// 全部先佔位（透明），出現時版面不會往下跳。
+class _CaptionsFadeIn extends StatefulWidget {
+  final List<String> lines;
+
+  const _CaptionsFadeIn({required this.lines});
+
+  @override
+  State<_CaptionsFadeIn> createState() => _CaptionsFadeInState();
+}
+
+class _CaptionsFadeInState extends State<_CaptionsFadeIn> {
+  int _shown = 0;
+  final List<Timer> _timers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    for (var i = 0; i < widget.lines.length; i++) {
+      _timers.add(
+        Timer(Duration(milliseconds: 240 + i * 420), () {
+          if (mounted) setState(() => _shown = i + 1);
+        }),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final t in _timers) {
+      t.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final (i, line) in widget.lines.indexed)
+          AnimatedSlide(
+            offset: i < _shown ? Offset.zero : const Offset(0, 0.25),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: i < _shown ? 1 : 0,
+              duration: const Duration(milliseconds: 420),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Text(
+                  line,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppInk.soft,
+                    fontSize: 14.5,
+                    height: 1.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

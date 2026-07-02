@@ -134,7 +134,12 @@ class _WardrobePageState extends State<WardrobePage>
   Future<void> _wearOutfit(OutfitSpec outfit) async {
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
     await WardrobeStore.setOutfit(outfit.id);
-    MascotPersona.set(MascotEmotion.smile.assetPath, '嗯...這套很好看。', force: true);
+    MascotPersona.setForContext(
+      MascotEmotion.smile.assetPath,
+      MascotContext.headPet,
+      speech: '嗯...這套很好看。',
+      force: true,
+    );
   }
 
   Future<void> _buyOutfit(OutfitSpec outfit) async {
@@ -150,9 +155,10 @@ class _WardrobePageState extends State<WardrobePage>
     if (result == PurchaseResult.success) {
       playFeedback(SfxCue.success);
       await WardrobeStore.setOutfit(outfit.id);
-      MascotPersona.set(
+      MascotPersona.setForContext(
         MascotEmotion.popHappy.assetPath,
-        '謝謝你...我很喜歡。',
+        MascotContext.allDone,
+        speech: '謝謝你...我很喜歡。',
         force: true,
       );
       _toast('已解鎖並換上 ${outfit.name}');
@@ -398,6 +404,7 @@ class _WardrobePageState extends State<WardrobePage>
                   children: [
                     _SectionSwitch(
                       value: _section,
+                      hasUnreadMemories: StoryStore.hasUnread,
                       onChanged: (value) {
                         playHaptic(HapticLevel.selection);
                         setState(() => _section = value);
@@ -604,7 +611,7 @@ class _MemoryCard extends StatelessWidget {
                   height: 64,
                   color: kMemoryAccent.withValues(alpha: 0.10),
                   child: Image.asset(
-                    event.image,
+                    event.cover,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => Icon(
                       Icons.auto_stories_rounded,
@@ -715,9 +722,14 @@ String _memoryDate(DateTime d) =>
 
 class _SectionSwitch extends StatelessWidget {
   final _WardrobeSection value;
+  final bool hasUnreadMemories;
   final ValueChanged<_WardrobeSection> onChanged;
 
-  const _SectionSwitch({required this.value, required this.onChanged});
+  const _SectionSwitch({
+    required this.value,
+    required this.hasUnreadMemories,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -743,6 +755,7 @@ class _SectionSwitch extends StatelessWidget {
             section: _WardrobeSection.memories,
             icon: Icons.auto_stories_rounded,
             label: '回憶',
+            showDot: hasUnreadMemories,
           ),
         ],
       ),
@@ -753,6 +766,7 @@ class _SectionSwitch extends StatelessWidget {
     required _WardrobeSection section,
     required IconData icon,
     required String label,
+    bool showDot = false,
   }) {
     final selected = value == section;
     final color = switch (section) {
@@ -791,6 +805,17 @@ class _SectionSwitch extends StatelessWidget {
                     color: selected ? color : AppInk.soft,
                   ),
                 ),
+                if (showDot) ...[
+                  const SizedBox(width: 5),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

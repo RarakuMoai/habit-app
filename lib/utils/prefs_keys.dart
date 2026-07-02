@@ -53,8 +53,9 @@ abstract final class PrefsKeys {
   static String timerFocusMinutesDay(String date) =>
       '$timerFocusMinutesDayPrefix$date';
 
-  // ── 計時頁：上層模式（專注/運動/節拍器）與運動子模式 ──────────────
-  static const timerMode = 'timer_mode'; // 'focus' | 'exercise' | 'metronome'
+  // ── 計時頁：上層模式（專注/運動/節拍器/遊戲）與運動子模式 ──────────────
+  static const timerMode =
+      'timer_mode'; // 'focus' | 'exercise' | 'metronome' | 'game'
   static const exerciseSubMode = 'exercise_submode'; // tabata/hiit/emom/gym/jog
 
   // 各運動子模式的設定，key 由 子模式 id + 欄位 組成（id：tabata/hiit/emom/gym/jog）
@@ -92,6 +93,16 @@ abstract final class PrefsKeys {
   static const metronomeSubdivision = 'metronome_subdivision'; // 細分拍
   static const metronomeAccent = 'metronome_accent'; // 第一拍重音
   static const metronomeHaptic = 'metronome_haptic'; // 觸覺跟拍
+
+  // ── 計時頁：遊戲計時器（桌遊／下棋輪流計時）──────────────────
+  static const gameTimerPlayerCount = 'game_timer_player_count'; // 人數 2–8
+  static const gameTimerNames = 'game_timer_names'; // List<String> 玩家標籤
+  static const gameTimerMode = 'game_timer_mode'; // 'turn'（每回合）| 'bank'（棋鐘累計）
+  static const gameTimerTurnSeconds = 'game_timer_turn_seconds'; // 每回合秒數
+  static const gameTimerBankSeconds = 'game_timer_bank_seconds'; // 棋鐘起始總秒數
+  static const gameTimerIncrement = 'game_timer_increment'; // Fischer 每手增秒（棋鐘）
+  static const gameTimerWarnEnabled = 'game_timer_warn_enabled'; // 倒數提示音開關
+  static const gameTimerWarnSeconds = 'game_timer_warn_seconds'; // 最後幾秒開始提示
 
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';
@@ -173,6 +184,8 @@ abstract final class PrefsKeys {
   // ── 回憶本（特殊事件 / 劇情）──────────────────────────────
   static const storyUnlocked = 'story_unlocked'; // JSON：[{id, date}]，依解鎖時間
   static const storyUnread = 'story_unread'; // 未讀事件 id（未來「書發亮」用）
+  // 已解鎖但還沒播過全螢幕揭曉的事件 id（看完才消化；中途關 app 下次補播）
+  static const storyPendingReveal = 'story_pending_reveal';
 
   // ── 訂閱（佔位，之後接金流時填寫真正狀態）────────────────
   static const subscriptionActive = 'subscription_active';

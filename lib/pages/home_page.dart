@@ -30,8 +30,8 @@ import 'home/habit_card.dart';
 import 'home/habit_sheets.dart';
 import 'home/home_presets.dart';
 import 'home/room_ambient_overlay.dart';
+import 'home/room_metrics.dart';
 import 'home/room_scene_painters.dart';
-import 'review_page.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
@@ -108,6 +108,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    MascotPersona.current.addListener(_handleMascotActivity);
     _celebCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -130,11 +131,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    MascotPersona.current.removeListener(_handleMascotActivity);
     _sceneIdleTimer?.cancel();
     _celebCtrl.dispose();
     _glowCtrl.dispose();
     _jiggleCtrl.dispose();
     super.dispose();
+  }
+
+  void _handleMascotActivity() {
+    _markSceneActive();
   }
 
   Future<void> loadHabits() async {
@@ -189,7 +195,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
     }
 
-    if (lastOpen != null && lastOpen != today) {
+    // 跨日結算只在「邏輯日真的往前走」時做（結算昨天連勝 + 重置今天勾選）。
+    // 換日時間往後調（夜貓把午夜往後挪）會讓「今天」字串往回跳，那不是真的
+    // 新的一天——舊版只比 lastOpen != today，使用者凌晨反覆調換日時間就會反覆
+    // 觸發結算，把連勝歸零、勾選清空。改用日期方向判斷，往回跳一律略過。
+    // （金幣防重複另走真實日曆日 key，見 CoinService，本來就不受換日設定影響。）
+    final lastOpenDay = lastOpen == null ? null : DateTime.tryParse(lastOpen);
+    final todayDay = LogicalDate.dayOf(DateTime.now(), _dayStartHour);
+    final crossedToNewDay =
+        lastOpenDay != null && todayDay.isAfter(lastOpenDay);
+    if (crossedToNewDay) {
       final dailyHabits = habits
           .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
           .toList();
@@ -216,6 +231,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     // 連勝里程碑 → 解鎖回憶事件（冪等：已解鎖會 no-op；既有高連勝用戶下次開啟補發）
     unawaited(StoryEvents.onHabitStreak(streak));
+    // 第一個習慣：新增當下也會觸發（_showAddHabitSheet），這裡是補發——
+    // 涵蓋 onboarding 建的習慣與既有資料，冪等所以重複呼叫沒關係。
+    if (habits.isNotEmpty) unawaited(StoryEvents.onFirstHabitCreated());
+    // 久違回來：要在 lastOpen 被覆寫成今天之前算天數（與問候語同一把尺）。
+    final daysAwayForStory = _daysSinceDateString(lastOpen, todayDay);
+    if (daysAwayForStory != null) {
+      unawaited(StoryEvents.onComeback(daysAwayForStory));
+    }
 
     // Always recompute done for weekly habits from weeklyDates
     for (final habit in habits) {
@@ -248,8 +271,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 同日重開則與當下勾選一致）。歷史只增不洗掉過去的日期。
     await _syncTodayHistory(prefs);
 
-    final isFirstOpenToday = lastOpen != today;
-    await prefs.setString(PrefsKeys.lastOpenDate, today);
+    final isFirstOpenToday = crossedToNewDay || lastOpenDay == null;
+    // lastOpen 只往前推進，不因換日設定往回調而回退（否則調回來再開又重觸發結算）。
+    if (lastOpenDay == null || todayDay.isAfter(lastOpenDay)) {
+      await prefs.setString(PrefsKeys.lastOpenDate, today);
+    }
     setState(() => isLoading = false);
     _markSceneActive(); // 內容出現後開始計閒置
 
@@ -633,6 +659,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       playFeedback(SfxCue.complete);
       _celebCtrl.forward(from: 0);
       setState(() => _mascotReactionTick++);
+      // 第一次全完成 → 回憶事件（冪等；揭曉由 MainPage 佇列稍後接手播）
+      unawaited(StoryEvents.onFirstAllDone());
     } else if (habits[index]['done'] == true) {
       if (!wasHabitDone) {
         playFeedback(SfxCue.success);
@@ -859,6 +887,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             });
             unawaited(saveHabits());
             unawaited(_recordTodayHistory());
+            // 第一個習慣誕生的當下就觸發回憶事件（冪等，之後再加都是 no-op）
+            if (habits.isNotEmpty) {
+              unawaited(StoryEvents.onFirstHabitCreated());
+            }
           },
     );
   }
@@ -870,6 +902,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     final colors = _sceneColors;
     final sceneProgress = habits.isEmpty ? 0.0 : doneCount / habits.length;
+    // 背景場景高度改吃「螢幕寬」等比（房間圖 cover-by-width，地板線只跟寬走）。
+    // 14PM（寬 430）時 == 舊的 screenH×0.56，對作者實機零位移。
+    final bgH = roomSceneHeight(MediaQuery.of(context).size.width);
     // 從別的分頁切回首頁時（外層 TickerMode 由 false→true）喚醒裝飾場景。
     final visible = TickerMode.valuesOf(context).enabled;
     if (visible && !_wasVisible) {
@@ -883,7 +918,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       backgroundColor: Colors.transparent,
       appBar: MascotAppBar(
         accent: colors.accent,
-        extraActions: [_buildReviewButton()],
         onSettingsReturn: () => widget.onSettingsChanged?.call(),
       ),
       // 任何觸碰都視為互動：取消閒置凍結、重排計時。translucent 才不會
@@ -907,7 +941,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 top: 0,
                 left: 0,
                 right: 0,
-                height: MediaQuery.of(context).size.height * 0.56,
+                height: bgH,
                 // 閒置時凍結：TickerMode 靜音子樹 ticker，停止每幀重繪。
                 child: TickerMode(
                   enabled: !_sceneIdle,
@@ -918,7 +952,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 top: 0,
                 left: 0,
                 right: 0,
-                height: MediaQuery.of(context).size.height * 0.56,
+                height: bgH,
                 child: ClipRect(
                   child: Align(
                     alignment: Alignment.topCenter,
@@ -937,7 +971,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 top: 0,
                 left: 0,
                 right: 0,
-                height: MediaQuery.of(context).size.height * 0.56,
+                height: bgH,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 600),
                   color: _sceneTint,
@@ -948,7 +982,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 top: 0,
                 left: 0,
                 right: 0,
-                height: MediaQuery.of(context).size.height * 0.56,
+                height: bgH,
                 // 最吃 GPU 的層（每幀 MaskFilter.blur）：閒置時一起凍結。
                 child: TickerMode(
                   enabled: !_sceneIdle,
@@ -978,6 +1012,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildMascotScene() {
     final colors = _sceneColors;
+    // 兔咪場景區高度也吃「螢幕寬」等比，讓卡片頂緣對齊地毯線、兔咪踩在地板上。
+    // 場景區在 SafeArea 內，所以扣掉 top inset。14PM 時 == 舊的 safeAreaH×5/11。
+    // 兔咪場景區高度只吃「螢幕寬」等比（與背景圖 cover-by-width 同參考系），
+    // 14PM 時 == 舊的 shellMaxH×5/11，對作者實機零位移。見 home/room_metrics.dart。
+    final sceneHeight = homeSceneRegionHeight(MediaQuery.of(context).size.width);
     final dl = _dailyHabits;
     final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
@@ -985,6 +1024,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     return MascotPageShell(
       accent: colors.accent,
+      sceneHeight: sceneHeight,
       scene: ScaleTransition(
         scale: _celebScale,
         child: PersonaScene(
@@ -1151,51 +1191,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       top: const Color(0xFFFFF4E0),
       bottom: const Color(0xFFFFE5C7),
       accent: const Color(0xFFFF8A50),
-    );
-  }
-
-  // 標題列的「足跡」鈕：白底圓鈕（與設定鈕同視覺語言），開回顧頁（日/週/月）。
-  // 補登（日）只改過去日期的歷史、回顧（週/月）唯讀，都不影響今天的 live
-  // 狀態，回來不需重載首頁。
-  Widget _buildReviewButton() {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.88),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: IconButton(
-          icon: Icon(
-            Icons.calendar_month_outlined,
-            color: Colors.grey.shade800,
-          ),
-          tooltip: '足跡',
-          onPressed: () {
-            Navigator.of(context).push(
-              PageRouteBuilder<void>(
-                pageBuilder: (_, _, _) => const ReviewPage(),
-                transitionsBuilder: (_, anim, _, child) => SlideTransition(
-                  position:
-                      Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
-                          .chain(CurveTween(curve: Curves.easeInOut))
-                          .animate(anim),
-                  child: child,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
     );
   }
 
