@@ -22,6 +22,7 @@ import '../utils/sfx_service.dart';
 import '../utils/story_store.dart';
 import '../utils/usage_stats.dart';
 import '../utils/weight_records.dart';
+import '../widgets/app_dialogs.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -754,10 +755,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           decoration: const InputDecoration(labelText: '習慣名稱'),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
+          dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('儲存'),
@@ -774,24 +772,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _confirmDeleteHabit(int index) async {
     final name = habits[index]['name'] as String;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('刪除習慣'),
-        content: Text('確定要刪除「$name」嗎？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('刪除', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final confirm = await showAppConfirmDialog(
+      context,
+      title: '刪除習慣',
+      message: '確定要刪除「$name」嗎？',
+      confirmLabel: '刪除',
+      danger: true,
     );
-    if (confirm == true) deleteHabit(index);
+    if (confirm) deleteHabit(index);
   }
 
   Future<void> _editHabitSheet(int index) async {
@@ -1374,7 +1362,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           child: Material(
             color: Colors.transparent,
             elevation: 10 * animation.value,
-            shadowColor: Colors.black.withValues(alpha: 0.18),
+            shadowColor: const Color(0xFF8D6E63).withValues(alpha: 0.30),
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
             child: child,
           ),

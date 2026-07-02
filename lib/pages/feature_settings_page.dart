@@ -67,9 +67,10 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppSurfaces.divider),
+        boxShadow: AppShadows.flat,
       ),
       child: SwitchListTile(
         secondary: Container(
@@ -83,11 +84,15 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
         ),
         title: Text(
           title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppInk.strong,
+          ),
         ),
         subtitle: Text(
           subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          style: const TextStyle(fontSize: 12, color: AppInk.soft),
         ),
         value: value,
         activeThumbColor: Colors.orange,

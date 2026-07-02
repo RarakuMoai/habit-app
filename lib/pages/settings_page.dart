@@ -11,6 +11,8 @@ import '../utils/logical_date.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
+import '../widgets/app_dialogs.dart';
+import '../widgets/settings_ui.dart';
 import 'advanced_settings_page.dart';
 import 'dev_test_page.dart';
 import 'family/parent_pin_recovery.dart';
@@ -144,77 +146,32 @@ class _SettingsPageState extends State<SettingsPage> {
                 // ── 區塊1：基本資料（進入子頁面編輯）──
                 _sectionTitle('基本資料', Icons.person_outline),
 
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    leading: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                SettingsTileCard(
+                  icon: Icons.edit_outlined,
+                  iconColor: Colors.orange,
+                  title: '基本資料',
+                  subtitle: '暱稱、吉祥物名字、身高體重…',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ProfileEditPage(),
                       ),
-                      child: const Icon(
-                        Icons.edit_outlined,
-                        color: Colors.orange,
-                        size: 20,
-                      ),
-                    ),
-                    title: const Text(
-                      '基本資料',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '暱稱、吉祥物名字、身高體重…',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey.shade400,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const ProfileEditPage(),
-                        ),
-                      );
-                    },
-                  ),
+                    );
+                  },
                 ),
 
                 const Divider(height: 32, thickness: 1),
 
                 // ── 區塊：單位（公制／英制）──
                 _sectionTitle('單位', Icons.straighten_outlined),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
+                SettingsGroupCard(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         '身高、體重、容量的顯示方式',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
+                        style: TextStyle(fontSize: 12, color: AppInk.soft),
                       ),
                       const SizedBox(height: 10),
                       SegmentedButton<UnitSystem>(
@@ -238,9 +195,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         _unitSystem == UnitSystem.metric
                             ? 'cm · kg · ml' // units-ok
                             : 'ft / in · lb · fl oz', // units-ok
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11,
-                          color: Colors.grey.shade500,
+                          color: AppInk.soft,
                         ),
                       ),
                     ],
@@ -251,12 +208,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 // ── 區塊：換日時間（夜貓族把午夜往後挪）──
                 _sectionTitle('換日時間', Icons.bedtime_outlined),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
+                SettingsGroupCard(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,55 +277,18 @@ class _SettingsPageState extends State<SettingsPage> {
                 // ── 區塊2：功能開關（進入獨立子頁面）──
                 _sectionTitle('功能開關', Icons.tune_outlined),
 
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    leading: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: Colors.teal.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                SettingsTileCard(
+                  icon: Icons.tune_outlined,
+                  iconColor: Colors.teal,
+                  title: '功能開關',
+                  subtitle: '計時、喝水、體重、家庭模式…',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const FeatureSettingsPage(),
                       ),
-                      child: const Icon(
-                        Icons.tune_outlined,
-                        color: Colors.teal,
-                        size: 20,
-                      ),
-                    ),
-                    title: const Text(
-                      '功能開關',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '計時、喝水、體重、家庭模式…',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey.shade400,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const FeatureSettingsPage(),
-                        ),
-                      );
-                    },
-                  ),
+                    );
+                  },
                 ),
 
                 const Divider(height: 32, thickness: 1),
@@ -381,50 +296,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 // ── 安全性區塊：PIN 設定 ──
                 _sectionTitle('安全性', Icons.security_outlined),
 
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    leading: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: Colors.indigo.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.lock_outline,
-                        color: Colors.indigo,
-                        size: 20,
-                      ),
-                    ),
-                    title: const Text(
-                      '數字密碼設定',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    // 依是否設定數字密碼顯示不同狀態文字
-                    subtitle: Text(
-                      _hasPin ? '已設定（$_pinDigits 位）' : '目前未設定',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey.shade400,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    onTap: _showPinSettings,
-                  ),
+                SettingsTileCard(
+                  icon: Icons.lock_outline,
+                  iconColor: Colors.indigo,
+                  title: '數字密碼設定',
+                  // 依是否設定數字密碼顯示不同狀態文字
+                  subtitle: _hasPin ? '已設定（$_pinDigits 位）' : '目前未設定',
+                  onTap: _showPinSettings,
                 ),
 
                 const Divider(height: 32, thickness: 1),
@@ -432,110 +310,36 @@ class _SettingsPageState extends State<SettingsPage> {
                 // ── 區塊3：進階 ──
                 _sectionTitle('進階', Icons.admin_panel_settings_outlined),
 
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    leading: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: Colors.deepOrange.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                SettingsTileCard(
+                  icon: Icons.admin_panel_settings_outlined,
+                  iconColor: Colors.deepOrange,
+                  title: '進階設定',
+                  subtitle: '資料刪除等較高風險操作',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const AdvancedSettingsPage(),
                       ),
-                      child: const Icon(
-                        Icons.admin_panel_settings_outlined,
-                        color: Colors.deepOrange,
-                        size: 20,
-                      ),
-                    ),
-                    title: const Text(
-                      '進階設定',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '資料刪除等較高風險操作',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey.shade400,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const AdvancedSettingsPage(),
-                        ),
-                      );
-                    },
-                  ),
+                    );
+                  },
                 ),
 
                 // ── 區塊4：開發者測試（kDevToolsEnabled 控制；目前 release 也暫時開）──
                 if (kDevToolsEnabled) ...[
                   const SizedBox(height: 24),
                   _sectionTitle('開發者測試', Icons.science_outlined),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: ListTile(
-                      leading: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Colors.blueGrey.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
+                  SettingsTileCard(
+                    icon: Icons.science_outlined,
+                    iconColor: Colors.blueGrey,
+                    title: '開發者測試',
+                    subtitle: '模擬分頁、場景時段…（測試用，正式版會移除）',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const DevTestPage(),
                         ),
-                        child: const Icon(
-                          Icons.science_outlined,
-                          color: Colors.blueGrey,
-                          size: 20,
-                        ),
-                      ),
-                      title: const Text(
-                        '開發者測試',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        '模擬分頁、場景時段…（測試用，正式版會移除）',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey.shade400,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const DevTestPage(),
-                          ),
-                        );
-                      },
-                    ),
+                      );
+                    },
                   ),
                 ],
 
@@ -622,12 +426,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             },
             onSubmitted: (v) => Navigator.pop(dialogCtx, v),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-          ],
+          actions: [dialogCancelAction(dialogCtx)],
         ),
       ),
     );
@@ -665,10 +464,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             },
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-            ),
+            dialogCancelAction(dialogCtx),
             TextButton(
               // 位數未達要求時禁用確認按鈕
               onPressed: ctrl.text.length == _digits
@@ -890,7 +686,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
               child: Center(
                 child: Text(
                   '目前已設定 $_digits 位數字密碼',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  style: const TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
               ),
             ),
@@ -899,10 +695,10 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             const SizedBox(height: 10),
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.help_outline_rounded,
                   size: 20,
-                  color: Colors.grey.shade600,
+                  color: AppInk.soft,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -921,9 +717,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
                         _hasQA ? '已設定，忘記密碼可用它重設' : '尚未設定（建議設定，免得忘記只能清空）',
                         style: TextStyle(
                           fontSize: 12,
-                          color: _hasQA
-                              ? Colors.grey.shade500
-                              : Colors.orange.shade700,
+                          color: _hasQA ? AppInk.soft : Colors.orange.shade700,
                         ),
                       ),
                     ],
@@ -940,7 +734,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
               child: TextButton.icon(
                 onPressed: _forgotPassword,
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.grey.shade700,
+                  foregroundColor: AppInk.soft,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
                 icon: const Icon(Icons.lock_reset_rounded, size: 18),
@@ -1017,9 +811,9 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               '忘記密碼時，答對這題就能重設密碼，資料不會被清除。挑一題只有你知道答案的問題。',
-              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 12.5, color: AppInk.soft),
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
@@ -1069,13 +863,7 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            widget.initial ? '略過' : '取消',
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-        ),
+        dialogCancelAction(context, label: widget.initial ? '略過' : '取消'),
         TextButton(
           onPressed: ready
               ? () => Navigator.pop(
@@ -1111,9 +899,9 @@ class _DigitChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: selected ? color : Colors.grey.shade100,
+        color: selected ? color : AppSurfaces.fill,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: selected ? color : Colors.grey.shade300),
+        border: Border.all(color: selected ? color : AppSurfaces.divider),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1131,7 +919,7 @@ class _DigitChip extends StatelessWidget {
             child: Text(
               '$digits 位',
               style: TextStyle(
-                color: selected ? Colors.white : Colors.grey.shade700,
+                color: selected ? Colors.white : AppInk.soft,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
@@ -1309,14 +1097,14 @@ class _DayStartTimelineState extends State<_DayStartTimeline> {
                         const SizedBox(height: 1),
                         // 固定高度的「建議」列，讓每個刻度等高、不跳行
                         SizedBox(
-                          height: 12,
+                          height: 14,
                           child: recommended
                               ? Text(
                                   '建議',
                                   style: TextStyle(
-                                    fontSize: 9,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w700,
-                                    color: night.withValues(alpha: 0.7),
+                                    color: night.withValues(alpha: 0.8),
                                   ),
                                 )
                               : null,

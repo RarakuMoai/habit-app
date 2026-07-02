@@ -17,6 +17,7 @@ import 'pages/wardrobe_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'utils/app_restart.dart';
+import 'utils/app_style.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_playlist.dart';
 import 'utils/bgm_service.dart';
@@ -190,7 +191,7 @@ class _MyAppState extends State<MyApp> {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: AppSurfaces.fill,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -198,6 +199,24 @@ class _MyAppState extends State<MyApp> {
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 14,
+          ),
+        ),
+        // 分隔線統一暖沙色，設定頁等處的裸 Divider 不再是冷灰。
+        dividerTheme: const DividerThemeData(color: AppSurfaces.divider),
+        // SnackBar 統一暖棕底 + 米白字 + floating，取代預設黑灰浮條。
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: const Color(0xFF4E342E),
+          contentTextStyle: const TextStyle(
+            fontFamily: 'Nunito',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFFFF6ED),
+          ),
+          actionTextColor: const Color(0xFFFFC49B),
+          behavior: SnackBarBehavior.floating,
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
@@ -226,6 +245,17 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
       ),
+      // 動態字體護欄：版面大量使用固定高度膠囊／導覽列，放大不設限一定破版。
+      // clamp 到 1.0–1.3：仍尊重系統放大（可讀性 +30%），但不會炸版；
+      // 縮小方向不跟（本來字就不大）。
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        final scale = mq.textScaler.scale(1.0).clamp(1.0, 1.3);
+        return MediaQuery(
+          data: mq.copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        );
+      },
       home: _buildHome(),
       routes: {
         '/onboarding': (_) => const OnboardingPage(),

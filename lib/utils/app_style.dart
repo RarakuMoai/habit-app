@@ -32,13 +32,34 @@ abstract final class AppInk {
   static const Color strong = Color(0xFF453229);
 
   /// 次要文字（說明、副標）。
-  static const Color soft = Color(0xFF8C7A6E);
+  /// 2026-07-02 從 #8C7A6E 調深一階：對白底對比 4.0 → 4.7，
+  /// 11–12px 說明字才過 WCAG AA（4.5:1）。
+  static const Color soft = Color(0xFF837161);
 
-  /// 淡化文字（完成後劃線、停用、佔位）。
+  /// 淡化文字（完成後劃線、停用、佔位）。低對比是刻意的——
+  /// 只用在「已完成 / 停用」語意，不拿來排還需要閱讀的內容。
   static const Color faint = Color(0xFFBDAA9E);
 
   /// 淡化的圖示（more 選單、裝飾性 icon）。
   static const Color iconFaint = Color(0xFFC9BAAE);
+
+  /// 危險操作（刪除、清空）：暖磚紅，取代裸寫 Colors.red。
+  static const Color danger = Color(0xFFBF4E3B);
+}
+
+/// 表面／分隔色（暖色系，取代 Colors.white + grey.shade50~300 那組）。
+abstract final class AppSurfaces {
+  /// 暖白卡面（與 mascot_page_shell、popup/dialog theme 同色）。
+  static const Color card = Color(0xFFFFFDF9);
+
+  /// 輸入框、未選取 chip 的暖淺填色（取代 grey.shade50/100）。
+  static const Color fill = Color(0xFFF7F1EA);
+
+  /// 分隔線／描邊（取代 grey.shade200/300 與預設 Divider）。
+  static const Color divider = Color(0xFFEDE4DA);
+
+  /// bottom sheet 頂端拖曳把手。
+  static const Color dragHandle = Color(0xFFDCCFC2);
 }
 
 /// 卡片陰影：暖棕雙層。

@@ -1,6 +1,8 @@
 // 首頁共用小元件：調整按鈕與頻率切換 chip。
 import 'package:flutter/material.dart';
 
+import '../../utils/app_style.dart';
+
 // ── 調整按鈕（＋ / −）──
 class AdjustBtn extends StatelessWidget {
   final IconData icon;
@@ -23,9 +25,9 @@ class AdjustBtn extends StatelessWidget {
         height: 32,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: enabled ? Colors.white : Colors.grey.shade100,
+          color: enabled ? Colors.white : AppSurfaces.fill,
           border: Border.all(
-            color: enabled ? Colors.orange.shade300 : Colors.grey.shade200,
+            color: enabled ? Colors.orange.shade300 : AppSurfaces.divider,
             width: 1.5,
           ),
           boxShadow: enabled
@@ -41,7 +43,7 @@ class AdjustBtn extends StatelessWidget {
         child: Icon(
           icon,
           size: 16,
-          color: enabled ? Colors.orange.shade700 : Colors.grey.shade400,
+          color: enabled ? Colors.orange.shade700 : AppInk.iconFaint,
         ),
       ),
     );
@@ -71,7 +73,7 @@ class FreqChip extends StatelessWidget {
           color: selected ? Colors.orange : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.orange : Colors.grey.shade300,
+            color: selected ? Colors.orange : AppSurfaces.divider,
             width: 1.5,
           ),
           boxShadow: selected
@@ -89,7 +91,7 @@ class FreqChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : Colors.grey.shade600,
+            color: selected ? Colors.white : AppInk.soft,
           ),
         ),
       ),

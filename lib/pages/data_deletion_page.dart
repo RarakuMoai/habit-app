@@ -7,8 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_restart.dart';
+import '../utils/app_style.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
+import '../widgets/app_dialogs.dart';
 import 'family/parent_pin_recovery.dart';
 
 class DataDeletionPage extends StatefulWidget {
@@ -165,11 +167,11 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
                   onConfirmed: () => Navigator.pop(dialogCtx, true),
                 ),
                 const SizedBox(height: 8),
-                Center(
+                const Center(
                   child: Text(
                     '按住直到填滿才會刪除，中途放開即取消',
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: AppInk.soft,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -183,7 +185,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
                   minimumSize: const Size(72, 46),
                 ),
                 onPressed: () => Navigator.pop(dialogCtx, false),
-                child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+                child: const Text('取消', style: TextStyle(color: AppInk.soft)),
               ),
             ],
           ),
@@ -428,9 +430,9 @@ class _DeleteItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = enabled ? color : Colors.grey.shade400;
+    final fg = enabled ? color : AppInk.iconFaint;
     return Material(
-      color: Colors.white,
+      color: AppSurfaces.card,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -439,7 +441,7 @@ class _DeleteItemCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: AppSurfaces.divider),
           ),
           child: Row(
             children: [
@@ -460,7 +462,7 @@ class _DeleteItemCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        color: enabled ? const Color(0xFF3E3029) : Colors.grey,
+                        color: enabled ? AppInk.strong : AppInk.faint,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
@@ -468,8 +470,8 @@ class _DeleteItemCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
+                      style: const TextStyle(
+                        color: AppInk.soft,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -477,8 +479,8 @@ class _DeleteItemCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       detail,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
+                      style: const TextStyle(
+                        color: AppInk.soft,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w500,
                       ),
@@ -486,7 +488,7 @@ class _DeleteItemCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.grey.shade400),
+              const Icon(Icons.chevron_right, color: AppInk.iconFaint),
             ],
           ),
         ),
@@ -776,12 +778,9 @@ class _PinVerifyDialogState extends State<_PinVerifyDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, _PinResult.forgot),
-          child: Text('忘記密碼？', style: TextStyle(color: Colors.grey.shade600)),
+          child: const Text('忘記密碼？', style: TextStyle(color: AppInk.soft)),
         ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
-        ),
+        dialogCancelAction(context),
       ],
     );
   }
@@ -832,11 +831,11 @@ class _DeleteWordDialogState extends State<_DeleteWordDialog> {
         TextButton(
           style: TextButton.styleFrom(minimumSize: const Size(72, 46)),
           onPressed: () => Navigator.pop(context, false),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          child: const Text('取消', style: TextStyle(color: AppInk.soft)),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
-            backgroundColor: Colors.red,
+            backgroundColor: AppInk.danger,
             minimumSize: const Size(0, 48),
             padding: const EdgeInsets.symmetric(horizontal: 18),
             textStyle: const TextStyle(

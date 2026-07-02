@@ -212,10 +212,10 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
             child: InkWell(
               borderRadius: cardRadius,
               onTap: widget.isMoving ? null : _handleTap,
-              splashColor: (done ? Colors.grey : Colors.green).withValues(
+              splashColor: (done ? AppInk.faint : Colors.green).withValues(
                 alpha: 0.12,
               ),
-              highlightColor: (done ? Colors.grey : Colors.green).withValues(
+              highlightColor: (done ? AppInk.faint : Colors.green).withValues(
                 alpha: 0.06,
               ),
               child: Stack(

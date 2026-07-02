@@ -118,7 +118,7 @@ class WeeklyAdjustBtn extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: active ? Colors.indigo.shade50 : Colors.grey.shade100,
+        color: active ? Colors.indigo.shade50 : AppSurfaces.fill,
       ),
       child: Material(
         color: Colors.transparent,
@@ -131,7 +131,7 @@ class WeeklyAdjustBtn extends StatelessWidget {
           child: Icon(
             icon,
             size: size * 0.53,
-            color: active ? Colors.indigo.shade500 : Colors.grey.shade400,
+            color: active ? Colors.indigo.shade500 : AppInk.iconFaint,
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_style.dart';
 import 'data_deletion_page.dart';
 
 class AdvancedSettingsPage extends StatelessWidget {
@@ -49,12 +50,12 @@ class AdvancedSettingsPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         '這裡放影響範圍比較大的操作，進入前可以先確認自己真的需要。',
                         style: TextStyle(
                           fontSize: 12.5,
                           height: 1.4,
-                          color: Colors.brown.shade500,
+                          color: AppInk.soft,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -67,33 +68,38 @@ class AdvancedSettingsPage extends StatelessWidget {
           const SizedBox(height: 16),
           DecoratedBox(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppSurfaces.card,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.red.withValues(alpha: 0.16)),
+              border: Border.all(color: AppInk.danger.withValues(alpha: 0.20)),
+              boxShadow: AppShadows.flat,
             ),
             child: ListTile(
               leading: Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.10),
+                  color: AppInk.danger.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.delete_forever_outlined,
-                  color: Colors.red,
+                  color: AppInk.danger,
                   size: 20,
                 ),
               ),
               title: const Text(
                 '資料刪除',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppInk.strong,
+                ),
               ),
-              subtitle: Text(
+              subtitle: const Text(
                 '清除體重、喝水、家庭資料，或重置全部',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 12, color: AppInk.soft),
               ),
-              trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+              trailing: const Icon(Icons.chevron_right, color: AppInk.iconFaint),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
