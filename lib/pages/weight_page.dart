@@ -1239,7 +1239,7 @@ class _WeightPageState extends State<WeightPage> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: _TodayActionButton(
-                      label: todayRec != null ? '更新今日體重' : '記錄今天體重',
+                      label: todayRec != null ? '更新今日體重' : '紀錄今天體重',
                       icon: todayRec != null
                           ? Icons.edit_rounded
                           : Icons.add_rounded,
@@ -2488,45 +2488,44 @@ class _TodayActionButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          splashColor: Colors.white.withValues(alpha: 0.16),
-          highlightColor: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          splashColor: Colors.orange.withValues(alpha: 0.15),
+          highlightColor: Colors.orange.withValues(alpha: 0.08),
           child: Ink(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange.shade400, Colors.deepOrange.shade400],
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFF8EC), Color(0xFFFFEFDA)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.orange.withValues(alpha: 0.24),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+              boxShadow: AppShadows.flat,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 28,
-                  height: 28,
+                  width: 24,
+                  height: 24,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.20),
+                    color: Colors.orange.shade400,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, size: 17, color: Colors.white),
+                  child: Icon(icon, size: 16, color: Colors.white),
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ],

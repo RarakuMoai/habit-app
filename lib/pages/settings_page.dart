@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
+import '../utils/app_style.dart';
 import '../utils/feature_flags.dart';
 import '../utils/logical_date.dart';
 import '../utils/parent_pin.dart';
@@ -81,9 +82,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_prefs != null) await LogicalDate.save(_prefs!, v);
   }
 
-  // 換日時間顯示文字（0 點 = 一般午夜換日）。
-  String _dayStartLabel(int h) =>
-      h == 0 ? '午夜 0:00（一般換日）' : '凌晨 $h:00';
+  // 換日時間顯示文字（0 點 = 午夜；建議值 4 點另在時間軸上標「建議」）。
+  String _dayStartLabel(int h) => h == 0 ? '午夜 0:00' : '凌晨 $h:00';
 
   // 區塊標題（顏色跟隨當前主題主色）
   Widget _sectionTitle(String title, IconData icon) {
@@ -257,52 +257,64 @@ class _SettingsPageState extends State<SettingsPage> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.grey.shade200),
                   ),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         '幾點之後才算新的一天。睡前（這個時間以前）紀錄的喝水、'
                         '體重、習慣都還算「昨天」，晚睡也不會被換日。',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          height: 1.5,
+                          color: AppInk.soft,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          IconButton.filledTonal(
-                            onPressed: _dayStartHour <= LogicalDate.minHour
-                                ? null
-                                : () => _setDayStartHour(_dayStartHour - 1),
-                            icon: const Icon(Icons.remove),
+                      const SizedBox(height: 16),
+                      _DayStartTimeline(
+                        value: _dayStartHour,
+                        minHour: LogicalDate.minHour,
+                        maxHour: LogicalDate.maxHour,
+                        onChanged: _setDayStartHour,
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                          Expanded(
-                            child: Text(
-                              _dayStartLabel(_dayStartHour),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          decoration: BoxDecoration(
+                            color: _DayStartTimeline.night.withValues(
+                              alpha: 0.08,
                             ),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          IconButton.filledTonal(
-                            onPressed: _dayStartHour >= LogicalDate.maxHour
-                                ? null
-                                : () => _setDayStartHour(_dayStartHour + 1),
-                            icon: const Icon(Icons.add),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.nightlight_round,
+                                size: 14,
+                                color: _DayStartTimeline.night,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _dayStartLabel(_dayStartHour),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppInk.strong,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '金幣每日獎勵不受影響，仍以午夜計算。',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        '金幣每日獎勵不受影響，仍以午夜計算。',
+                        style: TextStyle(fontSize: 11, color: AppInk.faint),
                       ),
                     ],
                   ),
@@ -1128,4 +1140,261 @@ class _DigitChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 換日時間視覺化軸：一條「夜→晨」的橫軸，左側染成夜色代表「還算昨天」，
+/// 右側淺底代表「新的一天」，把手停在換日點。整條軸切成 (時數+1) 個等寬
+/// 槽位，把手中心永遠對齊下方刻度；點任一刻度或直接拖把手都能調整。
+/// 點刻度時把手會滑過去（easeOutCubic）；拖曳時即時跟手不延遲。
+class _DayStartTimeline extends StatefulWidget {
+  const _DayStartTimeline({
+    required this.value,
+    required this.minHour,
+    required this.maxHour,
+    required this.onChanged,
+  });
+
+  final int value;
+  final int minHour;
+  final int maxHour;
+  final ValueChanged<int> onChanged;
+
+  /// 夜色（還算昨天）— 沉穩夜靛，與暖色世界觀不打架。
+  static const Color night = Color(0xFF514B86);
+  static const Color _nightSoft = Color(0xFF6F66A6);
+
+  /// 白天（新的一天）— 暖金，呼應清晨日出 accent。
+  static const Color _dawn = Color(0xFFD89A5B);
+
+  static const double _trackH = 56;
+  static const double _knobR = 15;
+
+  @override
+  State<_DayStartTimeline> createState() => _DayStartTimelineState();
+}
+
+class _DayStartTimelineState extends State<_DayStartTimeline> {
+  // 拖曳中把手即時跟手（不動畫）；點選/外部變更才滑動過去。
+  bool _dragging = false;
+
+  int get _slotCount => widget.maxHour - widget.minHour + 1;
+
+  void _emit(double dx, double width) {
+    final slotW = width / _slotCount;
+    if (slotW <= 0) return;
+    final h = (dx / slotW).floor() + widget.minHour;
+    widget.onChanged(h.clamp(widget.minHour, widget.maxHour));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const night = _DayStartTimeline.night;
+    const dawn = _DayStartTimeline._dawn;
+    const trackH = _DayStartTimeline._trackH;
+    const knobR = _DayStartTimeline._knobR;
+    final duration =
+        _dragging ? Duration.zero : const Duration(milliseconds: 300);
+    const curve = Curves.easeOutCubic;
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final width = c.maxWidth;
+        final slotW = width / _slotCount;
+        // 把手中心對齊「value 槽」的正中央。
+        final knobX = slotW * (widget.value - widget.minHour + 0.5);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 上排區段標籤：左夜右晨
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _ZoneLabel(Icons.bedtime_rounded, '還算昨天', night),
+                  _ZoneLabel(Icons.wb_twilight_rounded, '新的一天', dawn),
+                ],
+              ),
+            ),
+            const SizedBox(height: 9),
+            // 軌道 + 夜色填充 + 把手
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => _emit(d.localPosition.dx, width),
+              onPanStart: (d) {
+                setState(() => _dragging = true);
+                _emit(d.localPosition.dx, width);
+              },
+              onPanUpdate: (d) => _emit(d.localPosition.dx, width),
+              onPanEnd: (_) => setState(() => _dragging = false),
+              onPanCancel: () => setState(() => _dragging = false),
+              child: SizedBox(
+                height: trackH,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // 底軌（新的一天）：淺夜靛
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFEDF7),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0x14514B86)),
+                        ),
+                      ),
+                    ),
+                    // 夜色填充（還算昨天）：左端到把手，寬度隨值滑動
+                    AnimatedPositioned(
+                      duration: duration,
+                      curve: curve,
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: knobX.clamp(0.0, width),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: const Stack(
+                          children: [
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [night, _DayStartTimeline._nightSoft],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // 夜色裡的小星點，隨夜色變寬陸續露出。
+                            ..._stars,
+                          ],
+                        ),
+                      ),
+                    ),
+                    // 把手：白圓 + 夜靛描邊 + 月亮，滑動過去
+                    AnimatedPositioned(
+                      duration: duration,
+                      curve: curve,
+                      left: knobX - knobR,
+                      top: trackH / 2 - knobR,
+                      child: _knob(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // 下排刻度：每槽一個，點擊可直接選；建議值（4）標「建議」
+            Row(
+              children: List.generate(_slotCount, (i) {
+                final h = widget.minHour + i;
+                final selected = h == widget.value;
+                final recommended = h == LogicalDate.defaultHour;
+                return Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => widget.onChanged(h),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          h == 0 ? '午夜' : '$h',
+                          textAlign: TextAlign.center,
+                          style: AppType.digits(
+                            fontSize: h == 0 ? 11 : 13,
+                            fontWeight:
+                                selected ? FontWeight.w800 : FontWeight.w600,
+                            color: selected ? night : AppInk.faint,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        // 固定高度的「建議」列，讓每個刻度等高、不跳行
+                        SizedBox(
+                          height: 12,
+                          child: recommended
+                              ? Text(
+                                  '建議',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: night.withValues(alpha: 0.7),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static const List<Widget> _stars = [
+    Positioned(left: 16, top: 14, child: _Star(2.5)),
+    Positioned(left: 38, top: 32, child: _Star(2)),
+    Positioned(left: 64, top: 18, child: _Star(3)),
+    Positioned(left: 92, top: 36, child: _Star(2)),
+    Positioned(left: 120, top: 16, child: _Star(2.5)),
+  ];
+
+  Widget _knob() => Container(
+    width: _DayStartTimeline._knobR * 2,
+    height: _DayStartTimeline._knobR * 2,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      shape: BoxShape.circle,
+      border: Border.all(color: _DayStartTimeline.night, width: 2.5),
+      boxShadow: AppShadows.flat,
+    ),
+    child: const Icon(
+      Icons.nightlight_round,
+      size: 13,
+      color: _DayStartTimeline.night,
+    ),
+  );
+}
+
+/// 時間軸上方的區段標籤（左夜右晨）。
+class _ZoneLabel extends StatelessWidget {
+  const _ZoneLabel(this.icon, this.text, this.color);
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 14, color: color),
+      const SizedBox(width: 4),
+      Text(
+        text,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    ],
+  );
+}
+
+/// 夜色填充裡的小星點。
+class _Star extends StatelessWidget {
+  const _Star(this.size);
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: const BoxDecoration(
+      color: Color(0x80FFFFFF),
+      shape: BoxShape.circle,
+    ),
+  );
 }

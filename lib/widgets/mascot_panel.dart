@@ -66,6 +66,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
           MascotPanelPrefs.openValue.value = v;
         }
       });
+    MascotPanelPrefs.settleRequest.addListener(_handleSettleRequest);
     _pressCtl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 130),
@@ -78,6 +79,7 @@ class _MascotToggleBarState extends State<MascotToggleBar>
 
   @override
   void dispose() {
+    MascotPanelPrefs.settleRequest.removeListener(_handleSettleRequest);
     _ctl.dispose();
     _pressCtl.dispose();
     super.dispose();
@@ -86,19 +88,21 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   // 落地到 prefs（拖曳/動畫結束才呼叫）
   Future<void> _persist() => MascotPanelPrefs.persist();
 
+  void _handleSettleRequest() {
+    final request = MascotPanelPrefs.settleRequest.value;
+    if (request == null) return;
+    unawaited(_settleTo(request.target, markHintSeen: true, feedback: false));
+  }
+
   void _onTapDown(TapDownDetails _) => _pressCtl.forward();
   void _onTapCancel() => _pressCtl.reverse();
 
   Future<void> _onTap() async {
-    unawaited(MascotPanelPrefs.markHintSeen());
-    playHaptic(HapticLevel.light);
     // 共用全域值才是真相：別頁（IndexedStack 保活）切換後可能已改過
     // openValue，而本頁 _ctl 沒跟上會過時，先對齊再決策避免反向跳動。
     _ctl.value = MascotPanelPrefs.openValue.value;
     final target = _ctl.value >= 0.5 ? 0.0 : 1.0;
-    unawaited(_pressCtl.reverse());
-    await _animateToWithSpring(target);
-    await _persist();
+    await _settleTo(target, markHintSeen: true, feedback: true);
   }
 
   void _onDragStart(DragStartDetails _) {
@@ -127,8 +131,26 @@ class _MascotToggleBarState extends State<MascotToggleBar>
     } else {
       target = _ctl.value >= 0.5 ? 1.0 : 0.0;
     }
-    playHaptic(HapticLevel.light);
-    await _animateToWithSpring(target, velocity: velocityFraction);
+    await _settleTo(
+      target,
+      velocity: velocityFraction,
+      markHintSeen: false,
+      feedback: true,
+    );
+  }
+
+  Future<void> _settleTo(
+    double target, {
+    double velocity = 0,
+    required bool markHintSeen,
+    required bool feedback,
+  }) async {
+    if (markHintSeen) unawaited(MascotPanelPrefs.markHintSeen());
+    if (feedback) playHaptic(HapticLevel.light);
+    _ctl.stop();
+    _ctl.value = MascotPanelPrefs.openValue.value;
+    unawaited(_pressCtl.reverse());
+    await _animateToWithSpring(target, velocity: velocity);
     await _persist();
   }
 

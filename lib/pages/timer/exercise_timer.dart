@@ -15,6 +15,7 @@ import '../../utils/notification_service.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
 import '../../utils/timer_mutex.dart';
+import '../../utils/wake_guard.dart';
 import '../../widgets/hold_repeat_button.dart';
 import '../../widgets/timer_ring_painter.dart';
 
@@ -266,6 +267,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _metroTicker?.dispose();
     _pendAngle.dispose();
     _breath.dispose();
+    WakeGuard.release('exercise');
     TimerMutex.unregister(ActiveTimer.exercise);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -276,10 +278,13 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       _stopMetronome();
+      // 進背景就放開喚醒（計時靠 wall-clock+通知照走）；回前景跑動中再開回來。
+      WakeGuard.release('exercise');
     }
     if (state == AppLifecycleState.resumed && _isRunning) {
       _refreshFromEndTime();
       _syncMetronome();
+      WakeGuard.acquire('exercise');
     }
   }
 
@@ -725,6 +730,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _endTime = null;
     });
     _stopMetronome();
+    WakeGuard.release('exercise');
     TimerMutex.release(ActiveTimer.exercise);
   }
 
@@ -760,6 +766,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _scheduleNotifs();
     _timer = Timer.periodic(_tickerInterval, (_) => _refreshFromEndTime());
     _syncMetronome();
+    // 運動中不碰手機，畫面與每秒提示音要持續：前景跑動時保持喚醒（背景會自動放開）
+    WakeGuard.acquire('exercise');
     MascotPersona.interact(MascotContext.halfDone);
     playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
   }
@@ -777,6 +785,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _endTime = null;
       _completedWorkSeconds = 0;
     });
+    WakeGuard.release('exercise');
     TimerMutex.release(ActiveTimer.exercise);
     MascotPersona.interact(MascotContext.notStarted);
     playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
@@ -814,6 +823,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       _endTime = null;
     });
     _stopMetronome();
+    WakeGuard.release('exercise');
     TimerMutex.release(ActiveTimer.exercise);
     _recordSession(workSeconds);
     if (workSeconds >= 30) {

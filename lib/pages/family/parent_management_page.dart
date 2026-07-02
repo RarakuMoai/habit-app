@@ -11,6 +11,7 @@ import 'add_children_sheet.dart';
 import 'deduction_sheets.dart';
 import 'family_models.dart';
 import 'family_store.dart';
+import 'family_widgets.dart';
 import 'habit_sheets.dart';
 import 'reward_sheets.dart';
 
@@ -475,7 +476,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           actions: [
             IconButton(
               color: AppInk.strong,
-              icon: const Icon(Icons.person_add_outlined),
+              icon: const Icon(Icons.person_add_alt_1_rounded),
               tooltip: '新增小孩',
               onPressed: _addChild,
             ),
@@ -509,7 +510,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       ),
       child: Row(
         children: [
-          Icon(Icons.lock_open_rounded, color: Colors.orange.shade700, size: 20),
+          Icon(
+            Icons.lock_open_rounded,
+            color: Colors.orange.shade700,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
@@ -530,7 +535,8 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             onPressed: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const SettingsPage(openPinSettingsOnLoad: true),
+                  builder: (_) =>
+                      const SettingsPage(openPinSettingsOnLoad: true),
                 ),
               );
               // 設定完回來：若已設密碼就把橫幅收掉
@@ -547,7 +553,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             tooltip: '關閉',
             visualDensity: VisualDensity.compact,
             onPressed: () => setState(() => _pinWarnDismissed = true),
-            icon: Icon(Icons.close_rounded, size: 18, color: Colors.orange.shade700),
+            icon: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: Colors.orange.shade700,
+            ),
           ),
         ],
       ),
@@ -555,52 +565,23 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   }
 
   Widget _buildEmpty() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.10),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.child_care_rounded,
-                size: 38,
-                color: Colors.orange.shade700,
-              ),
+    final accent = Colors.orange.shade700;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOut,
+          builder: (_, v, child) => Opacity(
+            opacity: v,
+            child: Transform.translate(
+              offset: Offset(0, 10 * (1 - v)),
+              child: child,
             ),
-            const SizedBox(height: 16),
-            const Text(
-              '還沒有小孩資料',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: AppInk.strong,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              '先新增小孩，再建立習慣、扣分理由和獎勵。',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppInk.soft,
-                fontSize: 13,
-                height: 1.45,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _addChild,
-              icon: const Icon(Icons.person_add_outlined),
-              label: const Text('新增小孩'),
-            ),
-          ],
+          ),
+          child: FamilyEmptyInvite(accent: accent, onAdd: _addChild),
         ),
       ),
     );
@@ -704,7 +685,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         // ── 小孩管理區塊 ──
         _sectionTitle(
           '小孩管理',
-          Icons.child_care,
+          Icons.child_care_rounded,
           Colors.orange,
           trailing: '${_children.length} 位',
         ),
@@ -713,7 +694,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           final child = entry.value;
           return _buildChildCard(child, i);
         }),
-        _addButton('新增小孩', Icons.person_add_outlined, Colors.orange, _addChild),
+        _addButton(
+          '新增小孩',
+          Icons.person_add_alt_1_rounded,
+          Colors.orange,
+          _addChild,
+        ),
 
         const SizedBox(height: 24),
 

@@ -20,10 +20,12 @@ import '../widgets/mascot_scene.dart';
 import '../widgets/timer_ring_painter.dart';
 import 'home/room_ambient_overlay.dart';
 import 'timer/exercise_timer.dart';
+import 'timer/game_timer.dart';
 import 'timer/metronome_timer.dart';
 
-// 計時頁上層模式：專注（番茄鐘）／運動（間歇訓練）／節拍器（單純打拍）
-enum _TimerMode { focus, exercise, metronome }
+// 計時頁上層模式：專注（番茄鐘）／運動（間歇訓練）／節拍器（單純打拍）／
+// 遊戲（桌遊／下棋輪流計時）。
+enum _TimerMode { focus, exercise, metronome, game }
 
 // 專注模式階段。idle=待機、finished=整節完成；長休息只在整節最後（可關）。
 enum _Phase { idle, focus, shortBreak, longBreak, finished }
@@ -53,8 +55,16 @@ class _TimerPageState extends State<TimerPage>
   static const int _notifIdBase = 1001;
   static const int _maxChainNotifs = 20;
 
-  // 上層模式（專注/運動），記住上次選擇
+  // 上層模式（專注/運動/節拍器/遊戲），記住上次選擇
   _TimerMode _topMode = _TimerMode.focus;
+
+  // 切換列顯示順序（四個都常駐；遊戲計時器預設開、不再走功能開關）。
+  static const List<_TimerMode> _availableModes = [
+    _TimerMode.focus,
+    _TimerMode.exercise,
+    _TimerMode.metronome,
+    _TimerMode.game,
+  ];
 
   // ── 設定（持久化）──
   // 目前生效中的設定（驅動計時，等於「選中那一格」的值）
@@ -143,6 +153,7 @@ class _TimerPageState extends State<TimerPage>
       _topMode = switch (prefs.getString(PrefsKeys.timerMode)) {
         'exercise' => _TimerMode.exercise,
         'metronome' => _TimerMode.metronome,
+        'game' => _TimerMode.game,
         _ => _TimerMode.focus,
       };
       // 3 個自訂槽：槽0 讀不到新 key 就回退舊單槽 key（向後相容遷移）。
@@ -475,9 +486,7 @@ class _TimerPageState extends State<TimerPage>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('請先按「重設」歸零，才能切換方案喔')),
-        );
+        ..showSnackBar(const SnackBar(content: Text('請先按「重設」歸零，才能切換方案喔')));
       return;
     }
     setState(() {
@@ -528,17 +537,27 @@ class _TimerPageState extends State<TimerPage>
 
   static const Color _exerciseAccent = Color(0xFF26A69A);
 
-  // 各模式主色：專注=番茄色（隨階段變）、運動=青綠、節拍器=紫
+  // 各模式主色：專注=番茄色（隨階段變）、運動=青綠、節拍器=紫、遊戲=藍
   Color _accentFor(_TimerMode mode) => switch (mode) {
     _TimerMode.focus => _phaseColor,
     _TimerMode.exercise => _exerciseAccent,
     _TimerMode.metronome => kMetronomeAccent,
+    _TimerMode.game => kGameAccent,
   };
 
   ActiveTimer _activeTimerFor(_TimerMode mode) => switch (mode) {
     _TimerMode.focus => ActiveTimer.focus,
     _TimerMode.exercise => ActiveTimer.exercise,
     _TimerMode.metronome => ActiveTimer.metronome,
+    _TimerMode.game => ActiveTimer.game,
+  };
+
+  // 切換列每個模式的圖示與標籤。
+  (IconData, String) _modeChrome(_TimerMode mode) => switch (mode) {
+    _TimerMode.focus => (Icons.psychology_rounded, '專注'),
+    _TimerMode.exercise => (Icons.directions_run_rounded, '運動'),
+    _TimerMode.metronome => (Icons.av_timer_rounded, '節拍器'),
+    _TimerMode.game => (Icons.casino_rounded, '遊戲'),
   };
 
   void _switchMode(_TimerMode mode) {
@@ -551,9 +570,7 @@ class _TimerPageState extends State<TimerPage>
       final verb = _topMode == _TimerMode.metronome ? '停止' : '重設';
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text('請先按「$verb」，才能切換模式喔')),
-        );
+        ..showSnackBar(SnackBar(content: Text('請先按「$verb」，才能切換模式喔')));
       return;
     }
     setState(() => _topMode = mode);
@@ -561,6 +578,7 @@ class _TimerPageState extends State<TimerPage>
       (p) => p.setString(PrefsKeys.timerMode, switch (mode) {
         _TimerMode.exercise => 'exercise',
         _TimerMode.metronome => 'metronome',
+        _TimerMode.game => 'game',
         _TimerMode.focus => 'focus',
       }),
     );
@@ -606,19 +624,22 @@ class _TimerPageState extends State<TimerPage>
                   const SizedBox(height: 6),
                   _buildModeSwitch(color),
                   const SizedBox(height: 4),
-                  // 三模式都常駐（IndexedStack）：切換時各自計時狀態不會被丟掉
+                  // 四模式都常駐（IndexedStack）：切換時各自計時狀態不會被丟掉。
+                  // 遊戲固定佔 index 3；四模式都保活，切回來不會丟計時狀態。
                   Expanded(
                     child: IndexedStack(
                       index: switch (_topMode) {
                         _TimerMode.focus => 0,
                         _TimerMode.exercise => 1,
                         _TimerMode.metronome => 2,
+                        _TimerMode.game => 3,
                       },
                       sizing: StackFit.expand,
                       children: [
                         _buildTimerContent(_phaseColor),
                         const ExerciseTimer(),
                         const MetronomeTimer(),
+                        const GameTimer(),
                       ],
                     ),
                   ),
@@ -631,12 +652,19 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  // 專注 / 運動 分段切換（玻璃膠囊風，跟全 app 卡片語彙一致）
+  // 模式分段切換（玻璃膠囊風，跟全 app 卡片語彙一致）。只渲染已啟用的模式
+  // 四欄較擠時自動縮小圖示/字級給 SE 排下。
   Widget _buildModeSwitch(Color color) {
-    // 三欄較擠：圖示縮小、字距收緊，SE 也排得下
-    Widget seg(_TimerMode mode, IconData icon, String label) {
+    final modes = _availableModes;
+    final crowded = modes.length >= 4;
+    final iconSize = crowded ? 15.0 : 16.0;
+    final fontSize = crowded ? 12.5 : 13.5;
+    final iconGap = crowded ? 3.0 : 4.0;
+
+    Widget seg(_TimerMode mode) {
       final selected = _topMode == mode;
       final segColor = _accentFor(mode);
+      final (icon, label) = _modeChrome(mode);
       return Expanded(
         child: GestureDetector(
           onTap: () => _switchMode(mode),
@@ -662,10 +690,10 @@ class _TimerPageState extends State<TimerPage>
               children: [
                 Icon(
                   icon,
-                  size: 16,
+                  size: iconSize,
                   color: selected ? Colors.white : AppInk.soft,
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: iconGap),
                 Flexible(
                   child: Text(
                     label,
@@ -673,7 +701,7 @@ class _TimerPageState extends State<TimerPage>
                     overflow: TextOverflow.fade,
                     softWrap: false,
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: fontSize,
                       fontWeight: FontWeight.w800,
                       color: selected ? Colors.white : AppInk.soft,
                     ),
@@ -697,11 +725,10 @@ class _TimerPageState extends State<TimerPage>
       ),
       child: Row(
         children: [
-          seg(_TimerMode.focus, Icons.psychology_rounded, '專注'),
-          const SizedBox(width: 4),
-          seg(_TimerMode.exercise, Icons.directions_run_rounded, '運動'),
-          const SizedBox(width: 4),
-          seg(_TimerMode.metronome, Icons.av_timer_rounded, '節拍器'),
+          for (var i = 0; i < modes.length; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            seg(modes[i]),
+          ],
         ],
       ),
     );
@@ -1219,9 +1246,7 @@ class _TimerPageState extends State<TimerPage>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('請先按「重設」歸零，才能切換方案喔')),
-        );
+        ..showSnackBar(const SnackBar(content: Text('請先按「重設」歸零，才能切換方案喔')));
       return;
     }
     // 點自訂＝選中自訂槽，預覽立刻換成記住的自訂配置

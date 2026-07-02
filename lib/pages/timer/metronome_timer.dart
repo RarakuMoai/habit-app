@@ -12,6 +12,7 @@ import '../../utils/metronome_service.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
 import '../../utils/timer_mutex.dart';
+import '../../utils/wake_guard.dart';
 import '../../widgets/hold_repeat_button.dart';
 
 // 節拍器主色（跟專注番茄色、運動青綠明顯區分）
@@ -48,14 +49,12 @@ class _TempoNoteOption {
   final String id;
   final String label;
   final String shortLabel;
-  final String hint;
   final int units; // 以十六分音符為 1：八分=2、四分=4、附點四分=6。
   final _SubOption glyph;
   const _TempoNoteOption({
     required this.id,
     required this.label,
     required this.shortLabel,
-    required this.hint,
     required this.units,
     required this.glyph,
   });
@@ -65,7 +64,6 @@ const _tempoQuarter = _TempoNoteOption(
   id: 'quarter',
   label: '四分音符',
   shortLabel: '四分',
-  hint: '= BPM',
   units: 4,
   glyph: _SubOption(1, '四分', hint: '每拍一下'),
 );
@@ -74,7 +72,6 @@ const _tempoEighth = _TempoNoteOption(
   id: 'eighth',
   label: '八分音符',
   shortLabel: '八分',
-  hint: '= BPM',
   units: 2,
   glyph: _SubOption(1, '八分', hint: '每拍一下', beams: 1),
 );
@@ -83,7 +80,6 @@ const _tempoDottedQuarter = _TempoNoteOption(
   id: 'dotted_quarter',
   label: '附點四分',
   shortLabel: '附點四分',
-  hint: '= BPM',
   units: 6,
   glyph: _SubOption(1, '附點四分', hint: '每大拍一下', dotted: true),
 );
@@ -274,6 +270,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     _lastTickElapsed = Duration.zero;
     _lastBeatIndex = -1;
     _ticker?.start();
+    // 跟拍時別讓螢幕自動鎖：背景會整個停掉節拍器（見 didChangeAppLifecycleState）
+    WakeGuard.acquire('metronome');
     _regenLoop();
     playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
   }
@@ -288,6 +286,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     _pendAngle.value = 0;
     _currentBeat.value = -1;
     unawaited(MetronomeService.instance.stopLoop());
+    WakeGuard.release('metronome');
     TimerMutex.release(ActiveTimer.metronome);
   }
 
@@ -365,6 +364,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     'dotted_quarter' => _compoundSubs,
     _ => _simpleSubs,
   };
+  String get _tempoNoteSummary => '${_tempoNote.label} = $_bpm';
+
   _SubOption get _currentSub => _subOptions.firstWhere(
     (o) => o.parts == _subParts,
     orElse: () => _subOptions.first,
@@ -564,7 +565,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
               ),
             ),
             const SizedBox(height: 6),
-            _bpmReadout(color, numberSize: 52),
+            _bpmReadout(numberSize: 52),
             const SizedBox(height: 12),
             _beatDots(color),
             const SizedBox(height: 16),
@@ -601,7 +602,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _bpmReadout(color, numberSize: 36),
+                          _bpmReadout(numberSize: 36),
                           const SizedBox(height: 8),
                           _beatDots(color),
                           const SizedBox(height: 12),
@@ -695,8 +696,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     );
   }
 
-  // BPM 大數字 + 速度術語（節拍器與超慢跑共用的讀數樣式）
-  Widget _bpmReadout(Color color, {required double numberSize}) {
+  // BPM 大數字。BPM 拍值屬進階設定，收在節拍器設定內。
+  Widget _bpmReadout({required double numberSize}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -706,41 +707,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
             fontSize: numberSize,
             fontWeight: FontWeight.w900,
             color: AppInk.strong,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Builder(
-          builder: (btnCtx) => Material(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(99),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(99),
-              onTap: () => _showTempoNoteMenu(btnCtx, color),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _TempoNoteGlyph(
-                      option: _tempoNote,
-                      color: color,
-                      height: (numberSize * 0.34).clamp(15.0, 18.0),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '= $_bpm',
-                      style: TextStyle(
-                        fontSize: (numberSize * 0.26).clamp(11.0, 13.5),
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                        color: AppInk.strong,
-                      ),
-                    ),
-                    Icon(Icons.arrow_drop_down_rounded, size: 17, color: color),
-                  ],
-                ),
-              ),
-            ),
           ),
         ),
       ],
@@ -1028,50 +994,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
       topLeft.dy,
       overlay.size.width - topLeft.dx - box.size.width,
       overlay.size.height - topLeft.dy - box.size.height,
-    );
-  }
-
-  Future<void> _showTempoNoteMenu(BuildContext anchor, Color color) async {
-    playFeedback(SfxCue.tap);
-    await showMenu<void>(
-      context: context,
-      position: _anchorRect(anchor),
-      color: const Color(0xFFFFFDF9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      items: [
-        PopupMenuItem<void>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: SizedBox(
-            width: 240,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final o in _tempoNoteOptionsForSignature)
-                    _menuRow(
-                      color: color,
-                      selected: o.id == _tempoNote.id,
-                      onTap: () => _setTempoNote(o.id),
-                      leading: SizedBox(
-                        width: 46,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: _TempoNoteGlyph(
-                            option: o,
-                            color: AppInk.strong,
-                          ),
-                        ),
-                      ),
-                      label: o.label,
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1438,7 +1360,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         const SizedBox(height: 8),
         _sheetSignatureChoices(color, apply),
         const SizedBox(height: 12),
-        _sheetMiniLabel('BPM 拍值'),
+        _sheetMiniLabel('BPM 拍值：$_tempoNoteSummary'),
         const SizedBox(height: 8),
         _sheetTempoNoteChoices(color, apply),
         const SizedBox(height: 12),
@@ -1546,7 +1468,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                   height: 24,
                 ),
                 title: o.shortLabel,
-                sub: o.hint,
+                sub: '= $_bpm',
                 onTap: () => apply(() => _setTempoNote(o.id)),
               ),
           ],

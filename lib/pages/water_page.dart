@@ -92,6 +92,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   int _dayStartHour = LogicalDate.defaultHour;
   _WaterGoalSuggestion? _goalSuggestion;
   bool _goalSuggestionDismissed = false;
+  static const Duration _visualIdleDelay = Duration(seconds: 20);
+  Timer? _visualIdleTimer;
+  bool _visualIdle = false;
 
   // 顯示用：把公制 ml 轉成目前單位（imperial 顯示 fl oz）
   String _volStr(int ml) => UnitFormat.volume(ml, _unit);
@@ -119,10 +122,12 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     UnitSystem.notifier.addListener(_onUnitChanged);
     LogicalDate.notifier.addListener(_onDayStartChanged);
     _loadWater();
+    _markVisualActive();
   }
 
   @override
   void dispose() {
+    _visualIdleTimer?.cancel();
     UnitSystem.notifier.removeListener(_onUnitChanged);
     LogicalDate.notifier.removeListener(_onDayStartChanged);
     WidgetsBinding.instance.removeObserver(this);
@@ -134,6 +139,20 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _unit = UnitSystem.notifier.value);
     unawaited(_refreshGoalSuggestion());
+  }
+
+  void _markVisualActive() {
+    MascotVisualActivity.markActive();
+    _visualIdleTimer?.cancel();
+    if (_visualIdle && mounted) {
+      setState(() => _visualIdle = false);
+    }
+    _visualIdleTimer = Timer(_visualIdleDelay, _goVisualIdle);
+  }
+
+  void _goVisualIdle() {
+    if (!mounted || _visualIdle) return;
+    setState(() => _visualIdle = true);
   }
 
   // 設定頁改換日時間 → 重讀「今天」並載入對應紀錄（可能換成新的一天）。
@@ -159,8 +178,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     }
   }
 
-  String _todayString() =>
-      LogicalDate.stringFor(DateTime.now(), _dayStartHour);
+  String _todayString() => LogicalDate.stringFor(DateTime.now(), _dayStartHour);
 
   void _notifyGoalStatus({bool force = false}) {
     if (!force && _lastReportedReached == _goalReached) return;
@@ -604,81 +622,87 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFEFF9FF),
       appBar: MascotAppBar(accent: _kInk, onSettingsReturn: _loadWater),
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _BackdropDecor()),
-          // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: MediaQuery.of(context).size.height * 0.56,
-            child: const MascotSceneBackground(
-              'assets/scenes/water/water_bg.png',
-              ambience: SceneAmbience(
-                tint: true,
-                glasslessAsset: 'assets/scenes/water/water_bg_glassless.png',
-                windowRect: Rect.fromLTRB(0.017, 0.0, 0.238, 0.29),
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _markVisualActive(),
+        onPointerSignal: (_) => _markVisualActive(),
+        child: Stack(
+          children: [
+            const Positioned.fill(child: _BackdropDecor()),
+            // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MediaQuery.of(context).size.height * 0.56,
+              child: const MascotSceneBackground(
+                'assets/scenes/water/water_bg.png',
+                ambience: SceneAmbience(
+                  tint: true,
+                  glasslessAsset: 'assets/scenes/water/water_bg_glassless.png',
+                  windowRect: Rect.fromLTRB(0.017, 0.0, 0.238, 0.29),
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            child: MascotPageShell(
-              accent: _kInk,
-              scene: const PersonaScene(accent: _kInk),
-              child: LayoutBuilder(
-                builder: (context, box) {
-                  // 面板展開時卡片只剩約半屏高，summary 卡＋節點列＋控制列
-                  // 這些固定高度區塊會把 Column 撐爆（iPhone 17 超出 12px）。
-                  // 依可用高度線性收緊間距與底部留白（拖曳中也平滑），水瓶
-                  // 本身在 Expanded 裡會自行縮放；極小高度時再讓掉節點列。
-                  final t = ((box.maxHeight - 360) / 100).clamp(0.0, 1.0);
-                  double sp(double tight, double roomy) =>
-                      tight + (roomy - tight) * t;
-                  // 拖曳到中段（內容區約 360–440px）時，節點列會讓固定內容超過
-                  // 可用高度 → RenderFlex 溢出（debug 黃黑斜紋＝失敗區域）。
-                  // 所以節點列等夠高（≥440）才顯示，把那段壓縮帶讓出來。
-                  final showNodes = box.maxHeight >= 440;
-                  // 夠高才把建議卡顯示在今日補水卡「下方」（多佔約 100px）；
-                  // 空間不足時改成讓建議卡「覆蓋」今日補水卡（同一張卡換內容），
-                  // 覆蓋不增加高度 → 面板縮小動畫不會把 Column 撐爆（黃黑斜線），
-                  // 而且面板展開時建議仍然看得到。
-                  final suggestionBelow = box.maxHeight >= 520;
-                  return Padding(
-                    padding: EdgeInsets.fromLTRB(22, 8, 22, sp(10, 20)),
-                    child: Column(
-                      children: [
-                        _summaryCard(suggestionBelow: suggestionBelow),
-                        SizedBox(height: sp(4, 8)),
-                        Expanded(
-                          child: Center(
-                            child: RepaintBoundary(
-                              child: ValueListenableBuilder<double>(
-                                valueListenable: MascotPanelPrefs.openValue,
-                                builder: (_, openValue, _) => _WaterBottle(
-                                  progress: _progress,
-                                  reached: _goalReached,
-                                  bumpKey: _entries.length,
-                                  panelOpenValue: openValue,
+            SafeArea(
+              child: MascotPageShell(
+                accent: _kInk,
+                scene: const PersonaScene(accent: _kInk),
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    // 面板展開時卡片只剩約半屏高，summary 卡＋節點列＋控制列
+                    // 這些固定高度區塊會把 Column 撐爆（iPhone 17 超出 12px）。
+                    // 依可用高度線性收緊間距與底部留白（拖曳中也平滑），水瓶
+                    // 本身在 Expanded 裡會自行縮放；極小高度時再讓掉節點列。
+                    final t = ((box.maxHeight - 360) / 100).clamp(0.0, 1.0);
+                    double sp(double tight, double roomy) =>
+                        tight + (roomy - tight) * t;
+                    // 拖曳到中段（內容區約 360–440px）時，節點列會讓固定內容超過
+                    // 可用高度 → RenderFlex 溢出（debug 黃黑斜紋＝失敗區域）。
+                    // 所以節點列等夠高（≥440）才顯示，把那段壓縮帶讓出來。
+                    final showNodes = box.maxHeight >= 440;
+                    // 夠高才把建議卡顯示在今日補水卡「下方」（多佔約 100px）；
+                    // 空間不足時改成讓建議卡「覆蓋」今日補水卡（同一張卡換內容），
+                    // 覆蓋不增加高度 → 面板縮小動畫不會把 Column 撐爆（黃黑斜線），
+                    // 而且面板展開時建議仍然看得到。
+                    final suggestionBelow = box.maxHeight >= 520;
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(22, 8, 22, sp(10, 20)),
+                      child: Column(
+                        children: [
+                          _summaryCard(suggestionBelow: suggestionBelow),
+                          SizedBox(height: sp(4, 8)),
+                          Expanded(
+                            child: Center(
+                              child: RepaintBoundary(
+                                child: ValueListenableBuilder<double>(
+                                  valueListenable: MascotPanelPrefs.openValue,
+                                  builder: (_, openValue, _) => _WaterBottle(
+                                    progress: _progress,
+                                    reached: _goalReached,
+                                    bumpKey: _entries.length,
+                                    panelOpenValue: openValue,
+                                    paused: _visualIdle,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        if (showNodes) ...[
-                          SizedBox(height: sp(6, 12)),
-                          _progressNodes(),
+                          if (showNodes) ...[
+                            SizedBox(height: sp(6, 12)),
+                            _progressNodes(),
+                          ],
+                          SizedBox(height: sp(8, 18)),
+                          _controls(),
                         ],
-                        SizedBox(height: sp(8, 18)),
-                        _controls(),
-                      ],
-                    ),
-                  );
-                },
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1442,12 +1466,14 @@ class _WaterBottle extends StatefulWidget {
   // bumpKey changes (e.g. cup count) trigger a brief scale bounce.
   final int bumpKey;
   final double panelOpenValue;
+  final bool paused;
 
   const _WaterBottle({
     required this.progress,
     required this.reached,
     required this.bumpKey,
     required this.panelOpenValue,
+    required this.paused,
   });
 
   @override
@@ -1500,9 +1526,9 @@ class _WaterBottleState extends State<_WaterBottle>
     _syncClock();
   }
 
-  // 空瓶時畫面上沒有會動的東西，停掉主時鐘省電；有水才轉
+  // 空瓶或頁面閒置時畫面上沒有必要持續動，停掉主時鐘省電；有水且未閒置才轉。
   void _syncClock() {
-    final needsTick = widget.progress > 0 || widget.reached;
+    final needsTick = !widget.paused && (widget.progress > 0 || widget.reached);
     if (needsTick && !_clock.isAnimating) {
       _clock.repeat();
     } else if (!needsTick && _clock.isAnimating) {

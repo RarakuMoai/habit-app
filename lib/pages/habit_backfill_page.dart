@@ -9,6 +9,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_style.dart';
@@ -22,30 +23,36 @@ const String _kWaterHabitName = '喝足夠的水';
 bool _isLinkedHabit(String? name) =>
     name == _kWaterHabitName || isWeightHabitName(name);
 
-/// 補打勾的整頁版（標題列 + 日視圖）。日視圖本身也內嵌在「足跡」頁的「日」分頁。
+/// 補打勾的整頁版（標題列 + 日視圖）。日視圖本身也內嵌在「足跡」頁的「補習慣」分頁。
 class HabitBackfillPage extends StatelessWidget {
   const HabitBackfillPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF5EC),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        foregroundColor: AppInk.strong,
-        title: const Text(
-          '補上之前的足跡',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 17,
-            color: AppInk.strong,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFBF5EC),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          systemOverlayStyle: SystemUiOverlayStyle.dark,
+          foregroundColor: AppInk.strong,
+          iconTheme: const IconThemeData(color: AppInk.strong),
+          actionsIconTheme: const IconThemeData(color: AppInk.strong),
+          title: const Text(
+            '補上之前的足跡',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              color: AppInk.strong,
+            ),
           ),
         ),
+        body: const BackfillDayView(),
       ),
-      body: const BackfillDayView(),
     );
   }
 }
@@ -347,9 +354,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppCardStyle.radius),
               border: Border.all(
-                color: done
-                    ? const Color(0xFFAED581)
-                    : const Color(0xFFEADBC8),
+                color: done ? const Color(0xFFAED581) : const Color(0xFFEADBC8),
               ),
             ),
             child: Row(

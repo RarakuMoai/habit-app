@@ -20,6 +20,27 @@ import '../utils/mascot.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 
+class MascotIdleScope extends InheritedWidget {
+  final bool paused;
+
+  const MascotIdleScope({
+    super.key,
+    required this.paused,
+    required super.child,
+  });
+
+  static bool pausedOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<MascotIdleScope>()
+            ?.paused ??
+        false;
+  }
+
+  @override
+  bool updateShouldNotify(covariant MascotIdleScope oldWidget) =>
+      oldWidget.paused != paused;
+}
+
 /// 從 [MascotPersona.current] 自動讀情緒 + 台詞 的場景；
 /// 切頁不會重建兔咪狀態，只有互動會推新狀態。
 class PersonaScene extends StatelessWidget {
@@ -43,6 +64,8 @@ class PersonaScene extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectivePaused = paused || MascotIdleScope.pausedOf(context);
+
     void handleHeadPet() {
       final callback = onHeadPet;
       if (callback != null) {
@@ -64,10 +87,12 @@ class PersonaScene extends StatelessWidget {
           ),
           accent: accent,
           speech: state.speech,
+          bubble: state.bubble,
+          bubbleTick: state.bubbleTick,
           reactionTick: reactionTick,
           onTap: onTap,
           onHeadPet: handleHeadPet,
-          paused: paused,
+          paused: effectivePaused,
         ),
       ),
     );
@@ -81,8 +106,14 @@ class MascotScene extends StatelessWidget {
   /// 主色，影響對話框邊框與點擊時星星顏色。
   final Color accent;
 
-  /// 要顯示的台詞。
-  final String speech;
+  /// 要顯示的台詞；null / 空字串 = 這次不冒文字泡泡（只留頭頂符號）。
+  final String? speech;
+
+  /// 頭頂情緒泡泡；null = 這次不冒。換成新值（或非 null）時冒一下後淡出。
+  final EmotionBubble? bubble;
+
+  /// 泡泡事件序號；同一種泡泡連續觸發時也用它重播動畫。
+  final int bubbleTick;
 
   /// 每次 +1 觸發一次「驚喜」反應動畫（往上跳 + 星星）。
   /// 不需要的話傳 0 即可。
@@ -102,6 +133,8 @@ class MascotScene extends StatelessWidget {
     required this.asset,
     required this.accent,
     required this.speech,
+    this.bubble,
+    this.bubbleTick = 0,
     this.reactionTick = 0,
     this.onTap,
     this.onHeadPet,
@@ -113,17 +146,20 @@ class MascotScene extends StatelessWidget {
     return Stack(
       alignment: Alignment.center,
       children: [
-        Positioned(
-          top: 50,
-          left: 28,
-          right: 28,
-          child: MascotSpeechBubble(text: speech, accent: accent),
-        ),
+        if (speech != null && speech!.isNotEmpty)
+          Positioned(
+            top: 50,
+            left: 28,
+            right: 28,
+            child: MascotSpeechBubble(text: speech!, accent: accent),
+          ),
         Align(
           alignment: const Alignment(0, 0.92),
           child: MascotStage(
             asset: asset,
             accent: accent,
+            bubble: bubble,
+            bubbleTick: bubbleTick,
             reactionTick: reactionTick,
             onTap: onTap ?? () {},
             onHeadPet: onHeadPet,
@@ -236,6 +272,10 @@ class _MascotSpeechBubbleState extends State<MascotSpeechBubble> {
 class MascotStage extends StatefulWidget {
   final String asset;
   final Color accent;
+
+  /// 頭頂情緒泡泡；變化（或從 null 變成非 null）時冒一下後淡出。
+  final EmotionBubble? bubble;
+  final int bubbleTick;
   final int reactionTick;
   final VoidCallback onTap;
   final VoidCallback? onHeadPet;
@@ -247,6 +287,8 @@ class MascotStage extends StatefulWidget {
     super.key,
     required this.asset,
     required this.accent,
+    this.bubble,
+    this.bubbleTick = 0,
     required this.reactionTick,
     required this.onTap,
     this.onHeadPet,
@@ -265,6 +307,11 @@ class _MascotStageState extends State<MascotStage>
   late final AnimationController _petCtrl;
   late final AnimationController _breathCtrl;
   late final Animation<double> _breath;
+
+  // 頭頂情緒泡泡：彈出 → 停留 → 上浮淡出的一次性動畫。
+  // 觸發見 didUpdateWidget；繪製見 _MascotEmotionBubblePainter。
+  late final AnimationController _bubbleCtrl;
+  EmotionBubble? _bubbleShown; // 動畫期間正在畫的泡泡（即使 widget 換新值也畫到淡出）
 
   // 眨眼：閉眼差分換圖。只有 MascotEmotion.blinkAssetForPath 有對應圖的
   // 情緒會眨；其他情緒 timer 照走但跳過，等換回有差分的圖自然恢復。
@@ -308,6 +355,14 @@ class _MascotStageState extends State<MascotStage>
     if (!widget.paused) _breathCtrl.repeat(reverse: true);
     _breath = CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut);
 
+    _bubbleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2100),
+    );
+    // 進場若已帶泡泡（例如直接落在某情緒），冒一次。
+    _bubbleShown = widget.bubble;
+    if (widget.bubble != null) _bubbleCtrl.forward(from: 0);
+
     _scheduleNextBlink();
   }
 
@@ -344,6 +399,15 @@ class _MascotStageState extends State<MascotStage>
     if (oldWidget.reactionTick != widget.reactionTick) {
       _reactionCtrl.forward(from: 0);
     }
+    // 情緒事件帶了泡泡，且（事件序號、泡泡或立繪改變）就重冒一次。
+    // 同情境連點會被 MascotPersona 的 holdDuration 擋掉，不會狂閃。
+    if (widget.bubble != null &&
+        (oldWidget.bubbleTick != widget.bubbleTick ||
+            oldWidget.bubble != widget.bubble ||
+            oldWidget.asset != widget.asset)) {
+      _bubbleShown = widget.bubble;
+      _bubbleCtrl.forward(from: 0);
+    }
     if (oldWidget.paused != widget.paused) {
       if (widget.paused) {
         // 閒置凍結：停呼吸、取消眨眼，畫面靜止省電。
@@ -364,6 +428,7 @@ class _MascotStageState extends State<MascotStage>
     _petCtrl.dispose();
     _breathCtrl.dispose();
     _reactionCtrl.dispose();
+    _bubbleCtrl.dispose();
     super.dispose();
   }
 
@@ -465,7 +530,7 @@ class _MascotStageState extends State<MascotStage>
         width: 252,
         height: 252,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_reactionCtrl, _petCtrl]),
+          animation: Listenable.merge([_reactionCtrl, _petCtrl, _bubbleCtrl]),
           builder: (context, child) {
             // 地面陰影：依 _reactionLift 同步縮小變淡 → 「離開地面」的感覺
             // 位置 bottom 要對到兔咪 CG 圖裡腳的位置（1024×1024 畫布，腳在 ~80%）
@@ -541,6 +606,18 @@ class _MascotStageState extends State<MascotStage>
                       scaleX: _reactionScale.value * petScaleX,
                       scaleY: _reactionScale.value * petScaleY,
                       child: child,
+                    ),
+                  ),
+                ),
+                // 頭頂情緒泡泡：畫在最上層（蓋住頭頂前方），不吃點擊。
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _MascotEmotionBubblePainter(
+                        progress: _bubbleCtrl.value,
+                        bubble: _bubbleShown,
+                        color: widget.accent,
+                      ),
                     ),
                   ),
                 ),
@@ -741,6 +818,234 @@ class _MascotPetPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MascotPetPainter old) =>
       old.progress != progress || old.color != color;
+}
+
+/// 頭頂情緒泡泡：在兔咪頭頂右上方冒一顆漫畫符號，彈出→停留→上浮淡出。
+/// 符號全用 Path / 文字幾何畫（同 sparkle／pet 那套），可隨頁面主色上色。
+class _MascotEmotionBubblePainter extends CustomPainter {
+  // DEBUG: true 時一次畫出全部泡泡（截圖檢查符號用），驗證後改回 false。
+  static const bool _kDebugBubbleStrip = false;
+
+  final double progress; // 0..1；0 或 1 不畫
+  final EmotionBubble? bubble;
+  final Color color; // 頁面主色（部分符號用固定語意色，不吃 accent）
+
+  _MascotEmotionBubblePainter({
+    required this.progress,
+    required this.bubble,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final b = bubble;
+    if (!_kDebugBubbleStrip && (b == null || progress <= 0 || progress >= 1)) {
+      return;
+    }
+
+    // 彈出(0~0.14) → 停留(~0.68) → 上浮淡出(0.68~1)
+    final appear = (progress / 0.14).clamp(0.0, 1.0);
+    final scale = Curves.easeOutBack.transform(appear);
+    final fadeOut = progress < 0.68
+        ? 1.0
+        : (1 - (progress - 0.68) / 0.32).clamp(0.0, 1.0);
+    final opacity = Curves.easeOut.transform(appear) * fadeOut;
+
+    final rise = -16 * Curves.easeOut.transform(progress);
+    final anchor = Offset(size.width * 0.655, size.height * 0.17 + rise);
+    final s = 13.0 * scale;
+
+    // DEBUG: 一次畫出全部泡泡，方便截圖檢查符號外觀（驗證後移除）。
+    if (_kDebugBubbleStrip) {
+      final all = EmotionBubble.values;
+      for (var i = 0; i < all.length; i++) {
+        canvas.save();
+        canvas.translate(
+          size.width * (0.13 + 0.74 * i / (all.length - 1)),
+          size.height * 0.14,
+        );
+        _paintSymbol(canvas, all[i], 13.0, 1.0);
+        canvas.restore();
+      }
+      return;
+    }
+
+    if (opacity <= 0 || scale <= 0) return;
+    canvas.save();
+    canvas.translate(anchor.dx, anchor.dy);
+    _paintSymbol(canvas, b!, s, opacity);
+    canvas.restore();
+  }
+
+  void _paintSymbol(Canvas canvas, EmotionBubble b, double s, double opacity) {
+    final tint = _tintFor(b);
+    switch (b) {
+      case EmotionBubble.heart:
+        _fillSymbol(canvas, _heartPath(s), tint, opacity);
+      case EmotionBubble.star:
+        _fillSymbol(canvas, _starPath(s), tint, opacity);
+      case EmotionBubble.sweat:
+        _fillSymbol(canvas, _dropPath(s), tint, opacity);
+      case EmotionBubble.note:
+        _drawNote(canvas, s, tint, opacity);
+      case EmotionBubble.zzz:
+        _drawZzz(canvas, s, tint, opacity);
+      case EmotionBubble.exclaim:
+        _paintGlyph(canvas, '!', s * 2.2, tint, opacity, Offset.zero);
+      case EmotionBubble.question:
+        _paintGlyph(canvas, '?', s * 2.2, tint, opacity, Offset.zero);
+    }
+  }
+
+  Color _tintFor(EmotionBubble b) {
+    switch (b) {
+      case EmotionBubble.heart:
+        return const Color(0xFFF26B82);
+      case EmotionBubble.note:
+        return Color.lerp(color, const Color(0xFF3B3B4E), 0.2)!;
+      case EmotionBubble.star:
+        return const Color(0xFFFFB938);
+      case EmotionBubble.sweat:
+        return const Color(0xFF58B4E6);
+      case EmotionBubble.zzz:
+        return const Color(0xFF93A4BC);
+      case EmotionBubble.exclaim:
+        return const Color(0xFFEF6B5A);
+      case EmotionBubble.question:
+        return Color.lerp(color, const Color(0xFF3B3B4E), 0.1)!;
+    }
+  }
+
+  // 白色描邊當 halo（提升在場景背景上的可讀性）+ 彩色實心。
+  void _fillSymbol(Canvas c, Path path, Color tint, double opacity) {
+    final halo = Paint()
+      ..color = Colors.white.withValues(alpha: 0.92 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.5
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 1.4);
+    c.drawPath(path, halo);
+    c.drawPath(path, Paint()..color = tint.withValues(alpha: opacity));
+  }
+
+  Path _heartPath(double s) => Path()
+    ..moveTo(0, s * 0.85)
+    ..cubicTo(-s * 1.5, -s * 0.1, -s * 0.65, -s * 1.15, 0, -s * 0.35)
+    ..cubicTo(s * 0.65, -s * 1.15, s * 1.5, -s * 0.1, 0, s * 0.85)
+    ..close();
+
+  Path _dropPath(double s) => Path()
+    ..moveTo(0, -s * 1.05)
+    ..cubicTo(s * 0.95, -s * 0.05, s * 0.78, s * 0.95, 0, s * 0.95)
+    ..cubicTo(-s * 0.78, s * 0.95, -s * 0.95, -s * 0.05, 0, -s * 1.05)
+    ..close();
+
+  Path _starPath(double s) {
+    final p = Path();
+    const spikes = 4;
+    for (var i = 0; i < spikes * 2; i++) {
+      final r = i.isEven ? s : s * 0.38;
+      final a = -math.pi / 2 + i * math.pi / spikes;
+      final pt = Offset(math.cos(a) * r, math.sin(a) * r);
+      i == 0 ? p.moveTo(pt.dx, pt.dy) : p.lineTo(pt.dx, pt.dy);
+    }
+    return p..close();
+  }
+
+  void _drawNote(Canvas c, double s, Color tint, double opacity) {
+    final halo = Paint()
+      ..color = Colors.white.withValues(alpha: 0.92 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 1.4);
+    final solid = Paint()..color = tint.withValues(alpha: opacity);
+    final stem = Paint()
+      ..color = tint.withValues(alpha: opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * 0.3
+      ..strokeCap = StrokeCap.round;
+
+    final stemTop = Offset(s * 0.55, -s * 1.0);
+    final stemBottom = Offset(s * 0.05, s * 0.55);
+    final headCenter = Offset(-s * 0.45, s * 0.75);
+    final flag = Path()
+      ..moveTo(stemTop.dx, stemTop.dy)
+      ..quadraticBezierTo(
+        stemTop.dx + s * 0.75,
+        stemTop.dy + s * 0.3,
+        stemTop.dx + s * 0.2,
+        stemTop.dy + s * 0.95,
+      );
+
+    void oval(Paint paint) {
+      c.save();
+      c.translate(headCenter.dx, headCenter.dy);
+      c.rotate(-0.35);
+      c.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: s * 1.15, height: s * 0.85),
+        paint,
+      );
+      c.restore();
+    }
+
+    c.drawLine(stemBottom, stemTop, halo);
+    c.drawPath(flag, halo);
+    oval(halo);
+    c.drawLine(stemBottom, stemTop, stem);
+    c.drawPath(flag, stem);
+    oval(solid);
+  }
+
+  // Zzz：三個 Z 由小到大往右上斜飄。
+  void _drawZzz(Canvas c, double s, Color tint, double opacity) {
+    final specs = <({double size, Offset off})>[
+      (size: s * 1.05, off: Offset(-s * 0.6, s * 0.5)),
+      (size: s * 1.5, off: Offset(s * 0.5, -s * 0.4)),
+      (size: s * 2.0, off: Offset(s * 1.7, -s * 1.5)),
+    ];
+    for (final spec in specs) {
+      _paintGlyph(c, 'Z', spec.size, tint, opacity, spec.off);
+    }
+  }
+
+  void _paintGlyph(
+    Canvas c,
+    String text,
+    double fontSize,
+    Color tint,
+    double opacity,
+    Offset off,
+  ) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w900,
+          height: 1.0,
+          color: tint.withValues(alpha: opacity),
+          shadows: [
+            Shadow(
+              color: Colors.white.withValues(alpha: 0.95 * opacity),
+              blurRadius: 3.5,
+            ),
+            Shadow(
+              color: Colors.white.withValues(alpha: 0.95 * opacity),
+              blurRadius: 1.5,
+            ),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(c, off - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _MascotEmotionBubblePainter old) =>
+      old.progress != progress || old.bubble != bubble || old.color != color;
 }
 
 class _SpeechBubblePainter extends CustomPainter {

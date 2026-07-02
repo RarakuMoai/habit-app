@@ -44,8 +44,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
           _prefs!.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _familyEnabled = _prefs!.getBool(PrefsKeys.familyEnabled) ?? false;
       _wardrobeEnabled = _prefs!.getBool(PrefsKeys.wardrobeEnabled) ?? true;
-      _tabOrder =
-          _prefs!.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
+      _tabOrder = _prefs!.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
       _loaded = true;
     });
   }
@@ -123,7 +122,8 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
     final shown = shownOrder.toSet();
     final newOrder = <String>[
       ...shownOrder,
-      for (final id in _tabOrder) if (!shown.contains(id)) id,
+      for (final id in _tabOrder)
+        if (!shown.contains(id)) id,
     ];
     setState(() => _tabOrder = newOrder);
     await _prefs?.setStringList(PrefsKeys.tabOrder, newOrder);
@@ -155,7 +155,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -167,12 +166,12 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 // 底部分頁排序（拖曳調整順序）
                 _reorderSection(),
 
-                // 計時頁開關（專注番茄鐘 + 運動間歇）
+                // 計時頁開關（專注、運動、節拍器、遊戲）
                 _toggleTile(
                   icon: Icons.timer_outlined,
                   iconColor: Colors.red.shade400,
                   title: '計時',
-                  subtitle: '顯示底部計時頁籤（專注 + 運動）',
+                  subtitle: '顯示底部計時頁籤（專注、運動、節拍器、遊戲）',
                   value: _timerEnabled,
                   onChanged: (v) async {
                     setState(() => _timerEnabled = v);

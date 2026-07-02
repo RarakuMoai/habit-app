@@ -16,12 +16,12 @@ void main() {
     });
 
     test('正好到換日時間（4:00，hour=4）就算新的一天', () {
-      final at = DateTime(2026, 6, 27, 4, 0);
+      final at = DateTime(2026, 6, 27, 4);
       expect(LogicalDate.stringFor(at, 4), '2026-06-27');
     });
 
     test('白天（中午，hour=4）算當天', () {
-      final at = DateTime(2026, 6, 27, 12, 0);
+      final at = DateTime(2026, 6, 27, 12);
       expect(LogicalDate.stringFor(at, 4), '2026-06-27');
     });
 
@@ -31,12 +31,12 @@ void main() {
     });
 
     test('跨月：7/1 凌晨 2 點（hour=4）回退到 6/30', () {
-      final at = DateTime(2026, 7, 1, 2, 0);
+      final at = DateTime(2026, 7, 1, 2);
       expect(LogicalDate.stringFor(at, 4), '2026-06-30');
     });
 
     test('跨年：1/1 凌晨 1 點（hour=4）回退到去年 12/31', () {
-      final at = DateTime(2026, 1, 1, 1, 0);
+      final at = DateTime(2026, 1, 1, 1);
       expect(LogicalDate.stringFor(at, 4), '2025-12-31');
     });
 
@@ -53,6 +53,22 @@ void main() {
     test('回傳邏輯日的零點 DateTime', () {
       final at = DateTime(2026, 6, 27, 1, 30);
       expect(LogicalDate.dayOf(at, 4), DateTime(2026, 6, 26));
+    });
+
+    // 首頁跨日結算靠「邏輯日往前走」判斷。凌晨把換日時間調大，邏輯日會往回
+    // 跳（不是真的新的一天），結算必須略過——這裡釘住該方向不變量。
+    test('凌晨把換日時間調大，邏輯日往回跳（hour 0 → 4：今天變昨天）', () {
+      final at = DateTime(2026, 6, 27, 1); // 凌晨 1 點
+      final dayAtHour0 = LogicalDate.dayOf(at, 0);
+      final dayAtHour4 = LogicalDate.dayOf(at, 4);
+      expect(dayAtHour0, DateTime(2026, 6, 27));
+      expect(dayAtHour4, DateTime(2026, 6, 26));
+      expect(dayAtHour4.isBefore(dayAtHour0), isTrue); // 往回，不該觸發結算
+    });
+
+    test('調大換日時間在白天不影響邏輯日（不會誤觸回退）', () {
+      final at = DateTime(2026, 6, 27, 14); // 下午
+      expect(LogicalDate.dayOf(at, 0), LogicalDate.dayOf(at, 4));
     });
   });
 

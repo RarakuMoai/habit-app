@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'room_ambient_overlay.dart' show sceneHourNow, ThrottledSceneTicker;
+import 'room_metrics.dart';
 
 /// 首頁互動效果層（地板光池 / 檯燈氛圍 / 完成光暈）。
 /// 與 [WindowBackdrop]/[RoomAmbientOverlay] 同模式：30fps 節流 ticker +
@@ -68,7 +69,8 @@ class RoomSceneEffectsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final phase = time.value * (math.pi / 6.0); // 2π / 12s
-    final sceneH = size.height * 0.56;
+    // 場景高吃螢幕寬等比（與背景圖 cover-by-width 同參考系），14PM 時 == 舊 height×0.56。
+    final sceneH = roomEffectsSceneHeight(size.width);
     final floorY = sceneH * 0.82;
     final hour = sceneHourNow();
 

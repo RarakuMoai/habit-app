@@ -121,7 +121,32 @@
       "Bash(echo \"units FAIL \\(exit $?\\)\")",
       "WebFetch(domain:claudefa.st)",
       "WebFetch(domain:qcode.cc)",
-      "Bash(set -e)"
+      "Bash(set -e)",
+      "Bash(gh repo *)",
+      "Bash(grep -rniE \"情緒泡泡|emotion.?bubble|mood.?bubble|情緒.{0,4}overlay\" lib/ docs/)",
+      "Bash(tee /private/tmp/claude-501/-Users-yayoi991331-habit-app/153ed13b-1dda-4606-976b-812414863e12/scratchpad/flutter_run.log)",
+      "Bash(defaults write *)",
+      "Bash(defaults read *)",
+      "Bash(python3 -)",
+      "Bash(tee /private/tmp/claude-501/-Users-yayoi991331-habit-app/153ed13b-1dda-4606-976b-812414863e12/scratchpad/run2.log)",
+      "Bash(command -v idb)",
+      "Bash(command -v xcrun)",
+      "Bash(perl -0pi -e 's/height: MediaQuery\\\\.of\\\\\\(context\\\\\\)\\\\.size\\\\.height \\\\* 0\\\\.56,/height: sceneH,/g' lib/pages/home_page.dart)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(perl -0pi -e 's/height: sceneH,/height: MediaQuery.of\\(context\\).size.height * 0.56,/g' lib/pages/home_page.dart)",
+      "Bash(pkill -f \"flutter_tools.*run\")",
+      "Bash(pkill -f \"flutter run --flavor dev\")",
+      "Bash(pkill -9 -f \"flutter\")",
+      "Bash(pkill -9 -f \"dart\")",
+      "Bash(python3 -c \"import PIL; print\\('PIL ok', PIL.__version__\\)\")",
+      "Bash(python3 -c \"import time; time.sleep\\(4\\)\")",
+      "Bash(python3 /private/tmp/claude-501/-Users-yayoi991331-habit-app/d23bf2b8-4700-4583-b2b1-476642a18ca9/scratchpad/seed.py 727F1AB1-6D7B-4430-9074-E3844A7D76CA com.yayoi991331.habitapp.dev onboarding_done=bool:true)",
+      "Bash(python3 /private/tmp/claude-501/-Users-yayoi991331-habit-app/d23bf2b8-4700-4583-b2b1-476642a18ca9/scratchpad/seed.py 951D83A3-7363-4B2E-9E84-664E5DA93F21 com.yayoi991331.habitapp.dev onboarding_done=bool:true)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(sudo rm -rf:*)"
     ],
     "additionalDirectories": [
       "/Users/yayoi991331",

@@ -1,10 +1,159 @@
-// 育兒模式共用小元件：持續時間對話框、調整按鈕、頻率 Chip
+// 育兒模式共用小元件：空狀態邀請、持續時間對話框、調整按鈕、頻率 Chip
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../utils/app_feedback.dart';
+import '../../utils/app_style.dart';
+
+class FamilyEmptyInvite extends StatelessWidget {
+  final Color accent;
+  final VoidCallback onAdd;
+  final String title;
+  final String subtitle;
+  final String buttonLabel;
+
+  const FamilyEmptyInvite({
+    super.key,
+    required this.accent,
+    required this.onAdd,
+    this.title = '先新增一位小孩',
+    this.subtitle = '兔咪會幫你們記小任務和積分。',
+    this.buttonLabel = '新增小孩',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 390),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.96),
+              const Color(0xFFFFF3E6).withValues(alpha: 0.94),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withValues(alpha: 0.16)),
+          boxShadow: AppShadows.flat,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  _FamilyEmptyIcon(accent: accent),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: AppInk.strong,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            height: 1.35,
+                            fontWeight: FontWeight.w700,
+                            color: AppInk.soft,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                label: Text(buttonLabel),
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(44),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FamilyEmptyIcon extends StatelessWidget {
+  final Color accent;
+  const _FamilyEmptyIcon({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(Icons.child_care_rounded, size: 31, color: accent),
+            ),
+          ),
+          Positioned(
+            right: -4,
+            top: -4,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7E3),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.add_rounded,
+                  size: 14,
+                  color: const Color(0xFFE5A327),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // 持續時間（分鐘）輸入對話框
 Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {

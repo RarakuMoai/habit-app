@@ -9,6 +9,7 @@ enum SfxCue {
   success('assets/sounds/sfx_success.wav', 0.95),
   complete('assets/sounds/sfx_complete.wav', 1.0),
   cancel('assets/sounds/sfx_cancel.wav', 0.9),
+  gameTurn('assets/sounds/metronome_bell.wav', 0.9),
   tumiNeutral('assets/sounds/tumi_mi_neutral.wav', 0.52),
   tumiQuestion('assets/sounds/tumi_mi_question.wav', 0.54),
   tumiHappy('assets/sounds/tumi_mi_happy.wav', 0.56),

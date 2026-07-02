@@ -197,18 +197,7 @@ class _ChildHomePanelState extends State<ChildHomePanel> {
       child: Column(
         children: [
           _childHeader(accent),
-          TabBar(
-            labelColor: accent,
-            unselectedLabelColor: AppInk.soft,
-            indicatorColor: accent,
-            indicatorWeight: 3,
-            tabs: const [
-              Tab(text: '習慣'),
-              Tab(text: '積分紀錄'),
-              Tab(text: '獎勵'),
-            ],
-          ),
-          const Divider(height: 1, color: Color(0x14000000)),
+          _ChildSegmentedTabs(accent: accent),
           Expanded(
             child: TabBarView(
               children: [
@@ -236,95 +225,256 @@ class _ChildHomePanelState extends State<ChildHomePanel> {
 
   Widget _childHeader(Color accent) {
     final canSwitch = widget.children.length > 1;
+    final pointColor = Colors.amber.shade700;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: canSwitch ? _showChildPicker : null,
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          boxShadow: AppShadows.flat,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          clipBehavior: Clip.antiAlias,
+          child: Ink(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFFFFF), Color(0xFFFFF8F2)],
+              ),
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
               border: AppCardStyle.hairline,
-              boxShadow: AppShadows.flat,
             ),
-            child: Row(
-              children: [
-                if (widget.onBack != null) ...[
-                  _PanelBackButton(onPressed: widget.onBack!),
-                  const SizedBox(width: 8),
-                ],
-                CircleAvatar(
-                  radius: 23,
-                  backgroundColor: accent.withValues(alpha: 0.10),
-                  child: Text(
-                    _current.avatar.isNotEmpty ? _current.avatar : '🐼',
-                    style: const TextStyle(fontSize: 23),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+            child: InkWell(
+              onTap: canSwitch ? _showChildPicker : null,
+              splashColor: accent.withValues(alpha: 0.10),
+              highlightColor: accent.withValues(alpha: 0.05),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                child: Row(
+                  children: [
+                    if (widget.onBack != null) ...[
+                      _PanelBackButton(onPressed: widget.onBack!),
+                      const SizedBox(width: 9),
+                    ],
+                    _HeaderAvatar(avatar: _current.avatar, accent: accent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Flexible(
-                            child: Text(
-                              _current.name,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppInk.strong,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 180),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  child: Text(
+                                    _current.name,
+                                    key: ValueKey(_current.id),
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppInk.strong,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                              if (canSwitch) ...[
+                                const SizedBox(width: 2),
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: accent,
+                                  size: 20,
+                                ),
+                              ],
+                            ],
                           ),
-                          if (canSwitch)
-                            Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: accent,
-                              size: 20,
-                            ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 14,
+                                color: pointColor.withValues(alpha: 0.86),
+                              ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  '今天也慢慢累積',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: AppInk.soft.withValues(alpha: 0.94),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '今天也慢慢累積',
-                        style: TextStyle(
-                          color: AppInk.soft.withValues(alpha: 0.92),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${_current.points} 分',
-                    style: AppType.digits(
-                      color: accent,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    _HeaderPointBadge(
+                      points: _current.points,
+                      color: pointColor,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HeaderAvatar extends StatelessWidget {
+  final String avatar;
+  final Color accent;
+
+  const _HeaderAvatar({required this.avatar, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.92),
+          width: 3,
+        ),
+        boxShadow: AppShadows.flat,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        avatar.isNotEmpty ? avatar : '🐼',
+        style: const TextStyle(fontSize: 25),
+      ),
+    );
+  }
+}
+
+class _HeaderPointBadge extends StatelessWidget {
+  final int points;
+  final Color color;
+
+  const _HeaderPointBadge({required this.points, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 64, maxWidth: 98),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.11)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.stars_rounded, size: 15, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              '$points',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.digits(
+                color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChildSegmentedTabs extends StatelessWidget {
+  final Color accent;
+
+  const _ChildSegmentedTabs({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: 0.09)),
+        ),
+        child: TabBar(
+          dividerColor: Colors.transparent,
+          indicatorSize: TabBarIndicatorSize.tab,
+          labelColor: accent,
+          unselectedLabelColor: AppInk.soft,
+          labelPadding: EdgeInsets.zero,
+          indicator: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(13),
+            boxShadow: AppShadows.flat,
+          ),
+          tabs: const [
+            Tab(
+              height: 38,
+              child: _SegmentTab(icon: Icons.task_alt_rounded, label: '習慣'),
+            ),
+            Tab(
+              height: 38,
+              child: _SegmentTab(icon: Icons.history_rounded, label: '積分紀錄'),
+            ),
+            Tab(
+              height: 38,
+              child: _SegmentTab(
+                icon: Icons.card_giftcard_rounded,
+                label: '獎勵',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegmentTab extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _SegmentTab({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15),
+          const SizedBox(width: 4),
+          DefaultTextStyle.merge(
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ],
       ),
     );
   }

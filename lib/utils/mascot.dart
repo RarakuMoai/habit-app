@@ -75,6 +75,48 @@ enum MascotContext {
   overhydration,
 }
 
+// 頭頂情緒泡泡：疊在兔咪頭頂上方的漫畫式小符號（愛心／音符／星／汗滴／
+// Zzz／驚嘆／問號）。CG 立繪只畫純角色，泡泡一律 Flutter 端 CustomPainter
+// 畫成 overlay（同 sparkle／pet 波紋那套），可隨頁面主色上色、做浮起淡出。
+//
+// 每次情緒事件（interact / setForContext）會依情境帶一顆泡泡，冒一下後淡出；
+// 中性待機與空狀態刻意不冒，避免畫面太吵。對應只改 [forContext] 這個 switch。
+enum EmotionBubble {
+  heart, // 愛心：摸頭
+  note, // 音符：完成、進度在動
+  star, // 星閃：今日全完成、連續達成
+  sweat, // 汗滴：撤銷、失落
+  zzz, // 打瞌睡：還沒開始、夜晚
+  exclaim, // 驚嘆：喝水過量提醒
+  question; // 問號：點兔咪的疑問反應
+
+  /// 情境 → 泡泡；回 null 代表這個情境不冒泡泡（留白）。
+  static EmotionBubble? forContext(MascotContext c) {
+    switch (c) {
+      case MascotContext.headPet:
+        return EmotionBubble.heart;
+      case MascotContext.completedOne:
+      case MascotContext.halfDone:
+        return EmotionBubble.note;
+      case MascotContext.allDone:
+      case MascotContext.streak:
+        return EmotionBubble.star;
+      case MascotContext.undone:
+        return EmotionBubble.sweat;
+      case MascotContext.notStarted:
+      case MascotContext.night:
+        return EmotionBubble.zzz;
+      case MascotContext.overhydration:
+        return EmotionBubble.exclaim;
+      case MascotContext.tapReaction:
+        return EmotionBubble.question;
+      case MascotContext.openApp:
+      case MascotContext.emptyHabits:
+        return null;
+    }
+  }
+}
+
 // 各情境對應的預設情緒（呼叫端可以另外覆寫）。
 const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.openApp: MascotEmotion.neutralFront,
@@ -218,6 +260,33 @@ class MascotLines {
     return list[Random().nextInt(list.length)];
   }
 
+  /// 這個情境要不要顯示文字台詞（沒明確帶 speech 時才看這裡）。
+  ///
+  /// false = 只靠頭頂符號泡泡 + 語音 SFX。高頻、純情緒確認的互動
+  /// （點兔咪、摸頭、完成單一、過半）走這條，避免兔咪太多話、也省下翻譯量。
+  /// true = 文字承載「符號表達不出的聲音」（連勝、撤銷後的安慰、夜晚、邀請）
+  /// 或「符號講不清的資訊」（喝水過量提醒）。
+  ///
+  /// 註：呼叫端若明確帶了 speech（首頁點兔咪、登入禮、衣櫃），一律照顯示，不看這裡。
+  static bool speaksFor(MascotContext c) {
+    switch (c) {
+      case MascotContext.completedOne:
+      case MascotContext.halfDone:
+      case MascotContext.tapReaction:
+      case MascotContext.headPet:
+        return false;
+      case MascotContext.openApp:
+      case MascotContext.notStarted:
+      case MascotContext.allDone:
+      case MascotContext.streak:
+      case MascotContext.undone:
+      case MascotContext.night:
+      case MascotContext.emptyHabits:
+      case MascotContext.overhydration:
+        return true;
+    }
+  }
+
   /// 22:00 ~ 06:00 期間，呼叫端可選擇直接用 [MascotContext.night] 覆寫。
   static bool isNightHour([DateTime? now]) {
     final h = (now ?? DateTime.now()).hour;
@@ -236,18 +305,36 @@ class MascotLines {
 //   - App 冷啟動會呼叫 [MascotPersona.resetToOpening]，從 openApp 抽一句問候
 class MascotState {
   final String assetPath;
-  final String speech;
-  const MascotState(this.assetPath, this.speech);
+
+  /// 要顯示的台詞；null = 這次不講話（只靠頭頂符號泡泡 + SFX）。
+  /// 高頻、純情緒確認的情境（點兔咪、摸頭、完成單一）刻意留 null，
+  /// 把文字省給「符號表達不出的聲音」或「符號講不清的資訊」。見 [MascotLines.speaksFor]。
+  final String? speech;
+
+  /// 這次情緒事件要冒的頭頂泡泡；null = 不冒（中性待機等）。
+  final EmotionBubble? bubble;
+
+  /// 泡泡事件序號；同一種泡泡連續觸發時也用它重播動畫。
+  final int bubbleTick;
+
+  const MascotState(
+    this.assetPath,
+    this.speech, {
+    this.bubble,
+    this.bubbleTick = 0,
+  });
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MascotState &&
           assetPath == other.assetPath &&
-          speech == other.speech;
+          speech == other.speech &&
+          bubble == other.bubble &&
+          bubbleTick == other.bubbleTick;
 
   @override
-  int get hashCode => Object.hash(assetPath, speech);
+  int get hashCode => Object.hash(assetPath, speech, bubble, bubbleTick);
 }
 
 class MascotPersona {
@@ -262,6 +349,7 @@ class MascotPersona {
   static Timer? _revertTimer;
   static DateTime? _holdUntil;
   static int _activePriority = 0;
+  static int _bubbleSeq = 0;
 
   /// 互動：根據情境換情緒 + 隨機抽一句台詞。10 秒後自動回神。
   ///
@@ -271,7 +359,8 @@ class MascotPersona {
     _apply(
       MascotState(
         MascotLines.emotionFor(ctx).assetPath,
-        MascotLines.randomLineFor(ctx),
+        MascotLines.speaksFor(ctx) ? MascotLines.randomLineFor(ctx) : null,
+        bubble: EmotionBubble.forContext(ctx),
       ),
       ctx,
     );
@@ -279,13 +368,13 @@ class MascotPersona {
   }
 
   /// 直接設定（呼叫端自己決定 asset + 台詞）。10 秒後自動回神。
-  static bool set(String assetPath, String speech, {bool force = false}) {
-    return setForContext(
-      assetPath,
-      MascotContext.tapReaction,
-      speech: speech,
-      force: force,
-    );
+  static bool set(
+    String assetPath,
+    String speech, {
+    bool force = false,
+    MascotContext context = MascotContext.openApp,
+  }) {
+    return setForContext(assetPath, context, speech: speech, force: force);
   }
 
   /// 用指定情境設定自訂 asset。台詞可交給情境台詞池抽，並套用同一套停留規則。
@@ -296,8 +385,16 @@ class MascotPersona {
     bool force = false,
   }) {
     if (!_canApply(ctx, force: force)) return false;
+    // 呼叫端明確帶了 speech 就照顯示；沒帶才看情境要不要講話（[MascotLines.speaksFor]）。
     _apply(
-      MascotState(assetPath, speech ?? MascotLines.randomLineFor(ctx)),
+      MascotState(
+        assetPath,
+        speech ??
+            (MascotLines.speaksFor(ctx)
+                ? MascotLines.randomLineFor(ctx)
+                : null),
+        bubble: EmotionBubble.forContext(ctx),
+      ),
       ctx,
     );
     return true;
@@ -308,7 +405,12 @@ class MascotPersona {
   static bool voiceMuted = false;
 
   static void _apply(MascotState state, MascotContext ctx) {
-    current.value = state;
+    current.value = MascotState(
+      state.assetPath,
+      state.speech,
+      bubble: state.bubble,
+      bubbleTick: state.bubble == null ? 0 : ++_bubbleSeq,
+    );
     if (!voiceMuted) unawaited(SfxService.instance.play(_voiceCueFor(ctx)));
     _holdUntil = DateTime.now().add(_holdDuration);
     _activePriority = _priorityOf(ctx);
@@ -407,6 +509,9 @@ class MascotPanelPrefs {
   static const String _hintSeenKey = 'mascot_panel_hint_seen';
   static final ValueNotifier<double> openValue = ValueNotifier<double>(1.0);
   static final ValueNotifier<bool> hintSeenValue = ValueNotifier<bool>(false);
+  static final ValueNotifier<MascotPanelSettleRequest?> settleRequest =
+      ValueNotifier<MascotPanelSettleRequest?>(null);
+  static int _settleSeq = 0;
 
   static bool get expanded => openValue.value >= 0.5;
   static bool get hintSeen => hintSeenValue.value;
@@ -429,4 +534,20 @@ class MascotPanelPrefs {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_hintSeenKey, true);
   }
+
+  static void requestSettle(double target) {
+    settleRequest.value = MascotPanelSettleRequest(
+      _settleSeq++,
+      target.clamp(0.0, 1.0).toDouble(),
+    );
+  }
+
+  static void requestCollapsed() => requestSettle(0.0);
+}
+
+class MascotPanelSettleRequest {
+  final int id;
+  final double target;
+
+  const MascotPanelSettleRequest(this.id, this.target);
 }

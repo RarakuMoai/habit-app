@@ -21,6 +21,7 @@ import 'family/child_home_page.dart';
 import 'family/family_auth.dart';
 import 'family/family_models.dart';
 import 'family/family_store.dart';
+import 'family/family_widgets.dart';
 import 'family/parent_management_page.dart';
 import 'family/parent_pin_recovery.dart';
 import 'home/room_ambient_overlay.dart';
@@ -151,6 +152,7 @@ class _FamilyPageState extends State<FamilyPage> {
                 SafeArea(
                   child: MascotPageShell(
                     accent: Theme.of(context).colorScheme.primary,
+                    sceneRatio: _children.isEmpty ? 0.40 : 5 / 11,
                     scene: PersonaScene(
                       accent: Theme.of(context).colorScheme.primary,
                     ),
@@ -229,68 +231,22 @@ class _FamilyPageState extends State<FamilyPage> {
   // 尚無小孩時的空狀態：淡入＋上浮，視覺語言對齊習慣頁
   Widget _buildEmpty() {
     final accent = Theme.of(context).colorScheme.primary;
-    return Center(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOut,
-        builder: (_, v, child) => Opacity(
-          opacity: v,
-          child: Transform.translate(
-            offset: Offset(0, 12 * (1 - v)),
-            child: child,
-          ),
-        ),
-        // FittedBox：兔咪面板展開時卡片高度有限，等比縮小避免 overflow
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.child_care_rounded,
-                    size: 32,
-                    color: accent,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  '還沒有任何小孩',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppInk.strong,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  '新增小孩後，就能一起記小任務、累積積分',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    fontWeight: FontWeight.w500,
-                    color: AppInk.soft,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: _addChildAction,
-                  icon: const Icon(Icons.person_add_outlined),
-                  label: const Text('新增小孩'),
-                ),
-              ],
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 2, 18, 102),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOut,
+          builder: (_, v, child) => Opacity(
+            opacity: v,
+            child: Transform.translate(
+              offset: Offset(0, 10 * (1 - v)),
+              child: child,
             ),
           ),
+          child: FamilyEmptyInvite(accent: accent, onAdd: _addChildAction),
         ),
       ),
     );
@@ -326,24 +282,28 @@ class _FamilyPageState extends State<FamilyPage> {
   // 小孩卡片清單
   Widget _buildChildList() {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      itemCount: _children.length + 1,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      itemCount: _children.length + 2,
       itemBuilder: (_, i) {
-        if (i == _children.length) {
+        if (i == 0) {
+          return _FamilyRosterHeader(childCount: _children.length);
+        }
+        final childIndex = i - 1;
+        if (childIndex == _children.length) {
           return Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: 2),
             child: TextButton.icon(
               onPressed: _addChildAction,
-              icon: const Icon(Icons.person_add_outlined, size: 18),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
               label: const Text('新增小孩'),
               style: TextButton.styleFrom(foregroundColor: AppInk.soft),
             ),
           );
         }
-        final child = _children[i];
+        final child = _children[childIndex];
         return _ChildCard(
           child: child,
-          onTap: () => setState(() => _activeChildIndex = i),
+          onTap: () => setState(() => _activeChildIndex = childIndex),
         );
       },
     );
@@ -351,6 +311,103 @@ class _FamilyPageState extends State<FamilyPage> {
 }
 
 // ── 小孩選擇卡片元件 ──
+
+class _FamilyRosterHeader extends StatelessWidget {
+  final int childCount;
+
+  const _FamilyRosterHeader({required this.childCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.family_restroom_rounded, color: accent, size: 21),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '家庭任務',
+                  style: TextStyle(
+                    color: AppInk.strong,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  '今天也一起慢慢累積',
+                  style: TextStyle(
+                    color: AppInk.soft,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _RosterStatPill(
+            icon: Icons.group_rounded,
+            label: '$childCount',
+            color: accent,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RosterStatPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _RosterStatPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppType.digits(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ChildCard extends StatelessWidget {
   final ChildData child;
@@ -360,33 +417,149 @@ class _ChildCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 12,
+    final accent = Theme.of(context).colorScheme.primary;
+    final pointColor = Colors.amber.shade700;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          boxShadow: AppShadows.card,
         ),
-        leading: CircleAvatar(
-          radius: 24,
-          backgroundColor: const Color(0xFFFAF7F2),
-          child: Text(
-            child.avatar.isNotEmpty ? child.avatar : '🐼',
-            style: const TextStyle(fontSize: 24),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          clipBehavior: Clip.antiAlias,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFFFFF), Color(0xFFFFF8F1)],
+              ),
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: AppCardStyle.hairline,
+            ),
+            child: InkWell(
+              onTap: onTap,
+              splashColor: accent.withValues(alpha: 0.10),
+              highlightColor: accent.withValues(alpha: 0.05),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          width: 3,
+                        ),
+                        boxShadow: AppShadows.flat,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        child.avatar.isNotEmpty ? child.avatar : '🐼',
+                        style: const TextStyle(fontSize: 28),
+                      ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            child.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppInk.strong,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 14,
+                                color: pointColor.withValues(alpha: 0.86),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  '今天也慢慢累積',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: AppInk.soft.withValues(alpha: 0.92),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _ChildPointBadge(points: child.points, color: pointColor),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: accent.withValues(alpha: 0.55),
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-        title: Text(
-          child.name,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          '積分：${child.points}',
-          style: const TextStyle(color: AppInk.soft),
-        ),
-        trailing: const Icon(Icons.chevron_right, color: AppInk.iconFaint),
-        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _ChildPointBadge extends StatelessWidget {
+  final int points;
+  final Color color;
+
+  const _ChildPointBadge({required this.points, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.11)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.stars_rounded, size: 14, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              '$points',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.digits(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

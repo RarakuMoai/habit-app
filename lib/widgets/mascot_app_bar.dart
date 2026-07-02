@@ -69,7 +69,8 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 6),
-          // 金幣餘額兼足跡入口：足跡 icon 與金幣數並列，不互相遮擋。
+          // 金幣餘額兼足跡入口：和音量/設定一樣是白色圓鈕，
+          // 腳印內顯示短版金幣數，完整數字留給足跡頁與語意標籤。
           child: CoinPill(
             onReviewTap: showReview ? () => _openReview(context) : null,
           ),
@@ -202,7 +203,6 @@ class _CoinPillState extends State<CoinPill>
 class _CoinBalanceButton extends StatelessWidget {
   static const _reviewGold = Color(0xFFE5A327);
   static const _reviewAmber = Color(0xFFFFC44D);
-  static const _reviewCream = Color(0xFFFFF7E7);
   static const _reviewBrown = Color(0xFF7A4A17);
 
   final int coins;
@@ -214,58 +214,35 @@ class _CoinBalanceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canOpenReview = onReviewTap != null;
-    final label = canOpenReview ? '金幣 $coins，看足跡' : '金幣 $coins';
-    final button = SizedBox(
-      height: 42,
+    final label = canOpenReview ? '足跡與金幣，$coins 金幣' : '金幣 $coins';
+    final button = SizedBox.square(
+      dimension: 48,
       child: Material(
         color: Colors.transparent,
-        shape: const StadiumBorder(),
+        shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.white, _reviewCream],
-            ),
-            border: Border.all(color: _reviewAmber.withValues(alpha: 0.55)),
+            color: Colors.white.withValues(alpha: 0.88),
+            shape: BoxShape.circle,
+            border: Border.all(color: _reviewAmber.withValues(alpha: 0.24)),
             boxShadow: [
               BoxShadow(
-                color: _reviewGold.withValues(alpha: 0.20),
-                blurRadius: 13,
-                spreadRadius: 1,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.white.withValues(alpha: 0.90),
-                blurRadius: 4,
-                offset: const Offset(-1, -1),
-              ),
-              BoxShadow(
-                color: const Color(0xFF8D6E63).withValues(alpha: 0.10),
-                blurRadius: 5,
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
             ],
           ),
           child: InkWell(
-            customBorder: const StadiumBorder(),
+            customBorder: const CircleBorder(),
             onTap: onReviewTap,
             splashColor: _reviewGold.withValues(alpha: 0.14),
             highlightColor: _reviewGold.withValues(alpha: 0.07),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(5, 4, 7, 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox.square(
-                    dimension: 32,
-                    child: _ReviewFootprintIcon(),
-                  ),
-                  const SizedBox(width: 5),
-                  _CoinCountInline(coins: coins),
-                ],
+            child: Center(
+              child: SizedBox.square(
+                dimension: 38,
+                child: _PawCoinIcon(coins: coins),
               ),
             ),
           ),
@@ -282,116 +259,136 @@ class _CoinBalanceButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: Tooltip(message: '看足跡', child: button),
+      child: Tooltip(message: '足跡與金幣', child: button),
     );
   }
 }
 
-class _ReviewFootprintIcon extends StatelessWidget {
-  const _ReviewFootprintIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: _CoinBalanceButton._reviewAmber.withValues(alpha: 0.30),
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            top: 5,
-            right: 4,
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              size: 9,
-              color: _CoinBalanceButton._reviewGold.withValues(alpha: 0.70),
-            ),
-          ),
-          Positioned(
-            left: 5,
-            bottom: 7,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: _CoinBalanceButton._reviewAmber.withValues(alpha: 0.55),
-                shape: BoxShape.circle,
-              ),
-              child: const SizedBox.square(dimension: 4),
-            ),
-          ),
-          ShaderMask(
-            shaderCallback: (bounds) => const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                _CoinBalanceButton._reviewGold,
-                _CoinBalanceButton._reviewBrown,
-              ],
-            ).createShader(bounds),
-            blendMode: BlendMode.srcIn,
-            child: const Icon(Icons.pets_rounded, size: 21),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CoinCountInline extends StatelessWidget {
+class _PawCoinIcon extends StatelessWidget {
   final int coins;
 
-  const _CoinCountInline({required this.coins});
+  const _PawCoinIcon({required this.coins});
+
+  String get _label => coins > 999 ? '999+' : '$coins';
+  double get _fontSize => _label.length > 3 ? 10.2 : 12.4;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 5),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFC44D), Color(0xFFE59A1D)],
-        ),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF9D6715).withValues(alpha: 0.24),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        CustomPaint(
+          size: const Size.square(38),
+          painter: const _PawOutlinePainter(
+            color: _CoinBalanceButton._reviewBrown,
+            glowColor: _CoinBalanceButton._reviewAmber,
           ),
-        ],
-      ),
-      child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.paid_rounded, size: 9, color: Colors.white),
-            const SizedBox(width: 2),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 24),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
+        ),
+        Positioned(
+          left: 8,
+          right: 8,
+          bottom: 4.5,
+          height: 13,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Transform.translate(
+                offset: const Offset(0, 0.6),
                 child: Text(
-                  '$coins',
+                  _label,
+                  maxLines: 1,
                   style: AppType.digits(
-                    color: Colors.white,
-                    fontSize: 9.5,
+                    color: _CoinBalanceButton._reviewBrown,
+                    fontSize: _fontSize,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
+}
+
+class _PawOutlinePainter extends CustomPainter {
+  final Color color;
+  final Color glowColor;
+
+  const _PawOutlinePainter({required this.color, required this.glowColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    // 掌墊改用圓角矩形（不是純橢圓）：橢圓四角收得太快，塞不下金幣數字
+    // （長到 999+ 4 個字）就會頂到趾墊；圓角矩形中間留一塊方正安全區給
+    // 數字，看起來仍是圓潤肉墊、不會像方塊。
+    // 四顆趾墊：內側兩顆較大較高、外側兩顆較小較低，呈扇形展開，彼此與掌墊
+    // 都留白分開才會一眼認出是腳印，之前用一條連續外框描全部反而糊成一坨。
+    final palm = RRect.fromRectAndRadius(
+      Rect.fromLTRB(w * 0.16, h * 0.50, w * 0.84, h * 0.92),
+      Radius.circular(w * 0.14),
+    );
+    final toes = <Rect>[
+      Rect.fromCenter(
+        center: Offset(w * 0.165, h * 0.465),
+        width: w * 0.20,
+        height: h * 0.20,
+      ),
+      Rect.fromCenter(
+        center: Offset(w * 0.375, h * 0.255),
+        width: w * 0.225,
+        height: h * 0.265,
+      ),
+      Rect.fromCenter(
+        center: Offset(w * 0.625, h * 0.255),
+        width: w * 0.225,
+        height: h * 0.265,
+      ),
+      Rect.fromCenter(
+        center: Offset(w * 0.835, h * 0.465),
+        width: w * 0.20,
+        height: h * 0.20,
+      ),
+    ];
+    final paw = Path()..addRRect(palm);
+    for (final toe in toes) {
+      paw.addOval(toe);
+    }
+    final fill = Paint()
+      ..style = PaintingStyle.fill
+      ..shader = RadialGradient(
+        center: const Alignment(0, 0.25),
+        radius: 0.78,
+        colors: [
+          glowColor.withValues(alpha: 0.20),
+          glowColor.withValues(alpha: 0.055),
+        ],
+      ).createShader(Offset.zero & size);
+    final glow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 4.2
+      ..color = glowColor.withValues(alpha: 0.20);
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 2.35
+      ..color = color.withValues(alpha: 0.94);
+
+    canvas.drawPath(paw, fill);
+    canvas.drawPath(paw, glow);
+    canvas.drawPath(paw, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PawOutlinePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.glowColor != glowColor;
 }
 
 /// 白底圓角小膠囊（日期、連續天數等都用這個）。
