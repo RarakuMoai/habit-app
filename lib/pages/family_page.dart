@@ -186,7 +186,9 @@ class _FamilyPageState extends State<FamilyPage> {
             ),
       // 家長管理按鈕：鎖定狀態用圖示 + 色彩區分（開鎖綠 = 已解鎖 / 上鎖主色），
       // 兩態同一個 label 讓按鈕大小一致、視覺平衡。
-      floatingActionButton: _activeChildIndex == null
+      // 空狀態不顯示：唯一動作「新增小孩」本來就走 PIN 驗證，管理頁也無物可管；
+      // 小螢幕（SE）空狀態卡片較矮，FAB 會疊到邀請卡的按鈕。
+      floatingActionButton: _children.isNotEmpty && _activeChildIndex == null
           ? ValueListenableBuilder<bool>(
               valueListenable: parentSession,
               builder: (_, unlocked, _) => FloatingActionButton.extended(

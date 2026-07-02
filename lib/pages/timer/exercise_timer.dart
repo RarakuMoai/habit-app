@@ -927,6 +927,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
+        // 超矮（SE + 六分頁兩列導覽 + 面板展開）：緊湊版的圓點/種類列也
+        // 塞不下，切到只留圓盤＋主控制的超緊湊版（同專注模式）。
+        if (h < 230) return _buildUltraCompactLayout(h);
         final t = Curves.easeInOutCubic.transform(_smoothRange(390, 520, h));
         if (t <= 0) return _buildCompactLayout(h);
         if (t >= 1) return _buildFullLayout();
@@ -1036,6 +1039,36 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   // 緊湊版面：跟專注模式一樣讓圓盤與控制並排，面板展開時仍好按。
+  // 超緊湊版面（高度連緊湊版都放不下）：圓盤＋狀態＋主控制並排，
+  // 圓點與種類列讓位；把面板上拉即可回到緊湊/完整版（同專注模式）。
+  Widget _buildUltraCompactLayout(double h) {
+    final ringSize = (h - 12).clamp(80.0, 150.0);
+    return Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildRing(ringSize),
+          const SizedBox(width: 18),
+          // 高度不足時右欄等比縮小，任何高度都不溢出。
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: h),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _phaseChip(small: true),
+                  const SizedBox(height: 8),
+                  _controlsRow(compact: true),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCompactLayout(double h, {bool showRing = true}) {
     final ringSize = (h - 110).clamp(110.0, 170.0);
     return Column(

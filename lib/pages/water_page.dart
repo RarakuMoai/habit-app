@@ -668,6 +668,23 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                     // 覆蓋不增加高度 → 面板縮小動畫不會把 Column 撐爆（黃黑斜線），
                     // 而且面板展開時建議仍然看得到。
                     final suggestionBelow = box.maxHeight >= 520;
+                    // 超矮（SE + 六分頁兩列導覽 + 面板展開）連壓縮版都塞不下：
+                    // 改成可捲動的「摘要 + 控制列」精簡版（水瓶/節點列讓位），
+                    // 任何高度都不溢出；面板上拉即回完整版。
+                    // 門檻 300：14PM 六分頁時內容高 ≈326 必須維持完整版（作者
+                    // 基準），SE ≈183 才走精簡版；壓縮版固定內容 ≈298 塞得下 300+。
+                    if (box.maxHeight < 300) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(22, 8, 22, 10),
+                        child: Column(
+                          children: [
+                            _summaryCard(suggestionBelow: false),
+                            const SizedBox(height: 8),
+                            _controls(),
+                          ],
+                        ),
+                      );
+                    }
                     return Padding(
                       padding: EdgeInsets.fromLTRB(22, 8, 22, sp(10, 20)),
                       child: Column(

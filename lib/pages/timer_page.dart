@@ -746,6 +746,9 @@ class _TimerPageState extends State<TimerPage>
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
+        // 超矮（SE + 六分頁兩列導覽 + 面板展開，內容高 ~120）：緊湊版的
+        // 圓點/預設列也塞不下，切到只留圓盤＋主控制的超緊湊版。
+        if (h < 230) return _buildUltraCompactLayout(color, h);
         var t = Curves.easeInOutCubic.transform(_smoothRange(390, 520, h));
         if (_kDebugForceT >= 0) t = _kDebugForceT;
         if (t <= 0) return _buildCompactLayout(color, h);
@@ -854,6 +857,36 @@ class _TimerPageState extends State<TimerPage>
         _statsBar(),
         const SizedBox(height: 10),
       ],
+    );
+  }
+
+  // 超緊湊版面（高度連緊湊版都放不下）：圓盤＋狀態＋主控制並排，
+  // 圓點與預設列讓位；把面板上拉即可回到緊湊/完整版。
+  Widget _buildUltraCompactLayout(Color color, double h) {
+    final ringSize = (h - 12).clamp(80.0, 150.0);
+    return Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildTimerCircle(ringSize, color),
+          const SizedBox(width: 18),
+          // 高度不足時右欄（狀態＋控制）等比縮小，任何高度都不溢出。
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: h),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _phaseChip(color, small: true),
+                  const SizedBox(height: 8),
+                  _controlsRow(color, compact: true),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
