@@ -1012,11 +1012,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildMascotScene() {
     final colors = _sceneColors;
-    // 兔咪場景區高度也吃「螢幕寬」等比，讓卡片頂緣對齊地毯線、兔咪踩在地板上。
-    // 場景區在 SafeArea 內，所以扣掉 top inset。14PM 時 == 舊的 safeAreaH×5/11。
-    // 兔咪場景區高度只吃「螢幕寬」等比（與背景圖 cover-by-width 同參考系），
-    // 14PM 時 == 舊的 shellMaxH×5/11，對作者實機零位移。見 home/room_metrics.dart。
-    final sceneHeight = homeSceneRegionHeight(MediaQuery.of(context).size.width);
     final dl = _dailyHabits;
     final displayDone = dl.isNotEmpty ? dailyDoneCount : weeklyMetCount;
     final displayTotal = dl.isNotEmpty ? dl.length : _weeklyHabits.length;
@@ -1024,7 +1019,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     return MascotPageShell(
       accent: colors.accent,
-      sceneHeight: sceneHeight,
       scene: ScaleTransition(
         scale: _celebScale,
         child: PersonaScene(

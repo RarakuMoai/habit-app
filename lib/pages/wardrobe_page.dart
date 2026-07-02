@@ -20,6 +20,7 @@ import '../utils/wardrobe_store.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import 'home/room_metrics.dart';
 import 'memory_book_reader.dart';
 
 enum _WardrobeSection { outfits, music, memories }
@@ -377,7 +378,7 @@ class _WardrobePageState extends State<WardrobePage>
             top: 0,
             left: 0,
             right: 0,
-            height: MediaQuery.of(context).size.height * 0.56,
+            height: roomSceneHeight(MediaQuery.of(context).size.width),
             child: const MascotSceneBackground(
               'assets/scenes/wardrobe/wardrobe_bg.png',
             ),

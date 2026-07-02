@@ -16,6 +16,7 @@ import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import 'home/room_ambient_overlay.dart';
+import 'home/room_metrics.dart';
 
 const Color _kInk = Color(0xFF17657A);
 const Color _kInkSoft = Color(0xFF4A8BA0);
@@ -629,12 +630,13 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
         child: Stack(
           children: [
             const Positioned.fill(child: _BackdropDecor()),
-            // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
+            // 場景背景：延伸到 AppBar 後面。高度跟首頁同一套「寬度錨點」
+            // （14PM 時 == 舊的 螢幕高×0.56，零位移；見 home/room_metrics.dart）
             Positioned(
               top: 0,
               left: 0,
               right: 0,
-              height: MediaQuery.of(context).size.height * 0.56,
+              height: roomSceneHeight(MediaQuery.of(context).size.width),
               child: const MascotSceneBackground(
                 'assets/scenes/water/water_bg.png',
                 ambience: SceneAmbience(

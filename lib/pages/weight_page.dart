@@ -22,6 +22,7 @@ import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import 'home/room_metrics.dart';
 
 class WeightPage extends StatefulWidget {
   final VoidCallback? onRecordsChanged;
@@ -1091,12 +1092,12 @@ class _WeightPageState extends State<WeightPage> {
       // 跟習慣頁「新增習慣」一致，常駐明顯、不被捲動蓋掉。
       body: Stack(
         children: [
-          // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
+          // 場景背景：延伸到 AppBar 後面，高度跟首頁同一套「寬度錨點」
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: MediaQuery.of(context).size.height * 0.56,
+            height: roomSceneHeight(MediaQuery.of(context).size.width),
             child: const MascotSceneBackground(
               'assets/scenes/weight/weight_bg.png',
             ),

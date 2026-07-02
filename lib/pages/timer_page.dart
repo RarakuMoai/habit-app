@@ -19,6 +19,7 @@ import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/timer_ring_painter.dart';
 import 'home/room_ambient_overlay.dart';
+import 'home/room_metrics.dart';
 import 'timer/exercise_timer.dart';
 import 'timer/game_timer.dart';
 import 'timer/metronome_timer.dart';
@@ -596,12 +597,12 @@ class _TimerPageState extends State<TimerPage>
       appBar: MascotAppBar(accent: color),
       body: Stack(
         children: [
-          // 場景背景：延伸到 AppBar 後面，跟首頁同樣 56% 高度
+          // 場景背景：延伸到 AppBar 後面，高度跟首頁同一套「寬度錨點」
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: MediaQuery.of(context).size.height * 0.56,
+            height: roomSceneHeight(MediaQuery.of(context).size.width),
             child: const RepaintBoundary(
               // 試做：套用首頁同款時段光影（光束/塵埃/時段色罩）。
               // 翻車就把 ambience 拿掉、或關 kRoomAmbienceEnabled 總開關。

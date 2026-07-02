@@ -1,5 +1,9 @@
 // 房間場景跨機型版面度量（單一真相來源）。
 //
+// 2026-07：不只首頁——所有兔咪頁（喝水/體重/計時/衣櫃/家庭/小孩首頁）的
+// 背景高都改吃 [roomSceneHeight]，場景區高由 MascotPageShell 預設吃
+// [homeSceneRegionHeight]，整個 app 同一個寬度參考系。
+//
 // 背景圖（assets/scenes/home/home_bg*.png，1122×1402）用 BoxFit.cover +
 // topCenter 鋪滿，寬度是綁定邊 → 場景內所有東西（地板/地毯線）的螢幕 Y
 // 只取決於「螢幕寬」，跟螢幕高無關。但舊版背景高度寫 `screenH × 0.56`、
@@ -45,3 +49,10 @@ double homeSceneRegionHeight(double screenWidth) =>
 /// 特效層（RoomSceneEffectsPainter）內部用的場景高，與 [roomSceneHeight] 同義，
 /// 但 painter 拿到的是「全螢幕 size」，所以獨立提供以螢幕寬換算的版本。
 double roomEffectsSceneHeight(double screenWidth) => roomSceneHeight(screenWidth);
+
+/// 場景區佔「可用高」的安全上限（MascotPageShell 用）。寬度錨點在「寬>高」
+/// 的退化面（widget test 預設 800×600、iPad 分割視窗）會算出比可用高還高的
+/// 場景、把功能卡整張推出畫面。真機 iPhone 最極端的 SE（375 寬）也只佔
+/// ~0.55，所以 0.60 在所有真機上永遠不觸發（14PM 佔 ~0.45，零位移不變），
+/// 純粹是退化面的護欄。
+const double kSceneRegionMaxFraction = 0.60;

@@ -43,4 +43,30 @@ void main() {
       expect(homeSceneRegionHeight(seWidth), greaterThan(oldSeRegion));
     });
   });
+
+  group('kSceneRegionMaxFraction 護欄在真機永不觸發（零位移保證）', () {
+    test('14PM：寬度錨點場景區 < 護欄 → 護欄不生效、基準不動', () {
+      expect(
+        homeSceneRegionHeight(kBaseWidth),
+        lessThan(kBaseShellMaxH * kSceneRegionMaxFraction),
+      );
+    });
+
+    test('SE（真機最極端的矮胖比例）：護欄仍不生效', () {
+      const seWidth = 375.0;
+      const seShellMaxH = 519.0;
+      expect(
+        homeSceneRegionHeight(seWidth),
+        lessThan(seShellMaxH * kSceneRegionMaxFraction),
+      );
+    });
+
+    test('widget test 預設 800×600（寬>高退化面）：護欄要生效，卡片才留在畫面內', () {
+      const testSurfaceShellMaxH = 544.0; // 600 − MascotAppBar(56)
+      expect(
+        homeSceneRegionHeight(800),
+        greaterThan(testSurfaceShellMaxH * kSceneRegionMaxFraction),
+      );
+    });
+  });
 }

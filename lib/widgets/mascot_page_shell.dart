@@ -13,14 +13,18 @@
 //   - 上方場景固定高度；下方卡 top 隨 openValue 浮動
 //   - 卡片 1:1 共用同樣的圓角、陰影、MascotToggleBar 把手
 //
-// sceneRatio 預設 5/11，跟首頁原始比例一致。peekHeight 預設 20，剛好蓋住
-// 兔咪場景中的對話框（對話框 top:30）。
+// 場景區高度預設走「寬度錨點」（見 home/room_metrics.dart）：只跟螢幕寬等比，
+// 跟背景圖 cover-by-width 同參考系，任何機型地板線/卡片線才會對齊；
+// 14 Pro Max（寬 430）時與舊的 5/11×可用高逐位元相同＝零位移。
+// peekHeight 預設 20，剛好蓋住兔咪場景中的對話框（對話框 top:30）。
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../pages/home/room_ambient_overlay.dart';
+import '../pages/home/room_metrics.dart';
 
 import '../utils/mascot.dart';
 import 'mascot_panel.dart';
@@ -46,12 +50,9 @@ class MascotPageShell extends StatefulWidget {
   /// 把手 & 陰影主色，依頁面切換。
   final Color accent;
 
-  /// 兔咪場景佔總高度比例。預設 5/11。
-  final double sceneRatio;
-
-  /// 兔咪場景區固定高度（px）。傳 null（預設）時沿用 [sceneRatio] 吃可用高度的
-  /// 舊行為——其他頁面不傳就完全不受影響。首頁傳入「跟螢幕寬等比」的高度，
-  /// 讓卡片頂緣對齊地毯線、兔咪踩在地板上（見 home/room_metrics.dart）。
+  /// 兔咪場景區固定高度（px）。傳 null（預設）時用「跟螢幕寬等比」的
+  /// [homeSceneRegionHeight]，讓卡片頂緣對齊地毯線、兔咪踩在地板上
+  /// （見 home/room_metrics.dart）；所有兔咪頁共用這個預設，機型間才一致。
   final double? sceneHeight;
 
   /// 收合時保留的「偷看」高度，預設 20。
@@ -66,7 +67,6 @@ class MascotPageShell extends StatefulWidget {
     required this.scene,
     required this.child,
     required this.accent,
-    this.sceneRatio = 5 / 11,
     this.sceneHeight,
     this.peekHeight = 20,
     this.autoPauseScene = true,
@@ -130,9 +130,14 @@ class _MascotPageShellState extends State<MascotPageShell> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (ctx, constraints) {
-        // 傳了 sceneHeight 就用固定高（跟螢幕寬等比，首頁用）；否則沿用舊比例。
-        final mascotMaxH =
-            widget.sceneHeight ?? constraints.maxHeight * widget.sceneRatio;
+        // 場景高走「寬度錨點」（14PM 時 == 舊的 5/11×可用高，零位移）；
+        // 再套 kSceneRegionMaxFraction 護欄，避免「寬>高」的退化面把卡片推出畫面。
+        final anchored = widget.sceneHeight ??
+            homeSceneRegionHeight(MediaQuery.of(ctx).size.width);
+        final mascotMaxH = math.min(
+          anchored,
+          constraints.maxHeight * kSceneRegionMaxFraction,
+        );
         final dragExtent = mascotMaxH - widget.peekHeight;
         return ValueListenableBuilder<double>(
           valueListenable: MascotPanelPrefs.openValue,

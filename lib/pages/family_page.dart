@@ -25,6 +25,7 @@ import 'family/family_widgets.dart';
 import 'family/parent_management_page.dart';
 import 'family/parent_pin_recovery.dart';
 import 'home/room_ambient_overlay.dart';
+import 'home/room_metrics.dart';
 
 // ── 家庭主頁（小孩選擇畫面）──
 
@@ -133,12 +134,12 @@ class _FamilyPageState extends State<FamilyPage> {
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
-                // 場景背景：延伸到 AppBar 後面（跟首頁同樣 56% 高度）
+                // 場景背景：延伸到 AppBar 後面，高度跟首頁同一套「寬度錨點」
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: MediaQuery.of(context).size.height * 0.56,
+                  height: roomSceneHeight(MediaQuery.of(context).size.width),
                   child: const MascotSceneBackground(
                     'assets/scenes/family/family_bg.png',
                     ambience: SceneAmbience(
@@ -152,7 +153,8 @@ class _FamilyPageState extends State<FamilyPage> {
                 SafeArea(
                   child: MascotPageShell(
                     accent: Theme.of(context).colorScheme.primary,
-                    sceneRatio: _children.isEmpty ? 0.40 : 5 / 11,
+                    // 空狀態不再縮小場景（舊 0.40 特例）：所有分頁統一同一條
+                    // 卡片線，空狀態內容是可捲動的邀請卡，不需要額外高度。
                     scene: PersonaScene(
                       accent: Theme.of(context).colorScheme.primary,
                     ),

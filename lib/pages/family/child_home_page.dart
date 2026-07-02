@@ -6,6 +6,7 @@ import '../../widgets/audio_control_button.dart';
 import '../../widgets/mascot_page_shell.dart';
 import '../../widgets/mascot_scene.dart';
 import '../home/room_ambient_overlay.dart';
+import '../home/room_metrics.dart';
 import '../settings_page.dart';
 import 'family_models.dart';
 import 'habit_tab.dart';
@@ -80,7 +81,7 @@ class ChildHomePage extends StatelessWidget {
             top: 0,
             left: 0,
             right: 0,
-            height: MediaQuery.of(context).size.height * 0.56,
+            height: roomSceneHeight(MediaQuery.of(context).size.width),
             child: const MascotSceneBackground(
               'assets/scenes/family/family_bg.png',
               ambience: SceneAmbience(
