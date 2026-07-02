@@ -149,7 +149,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsTileCard(
                   icon: Icons.edit_outlined,
                   iconColor: Colors.orange,
-                  title: '基本資料',
+                  // 卡片標題與區塊標題錯開，避免同字重複兩次
+                  title: '編輯基本資料',
                   subtitle: '暱稱、吉祥物名字、身高體重…',
                   onTap: () {
                     Navigator.of(context).push(
@@ -280,7 +281,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsTileCard(
                   icon: Icons.tune_outlined,
                   iconColor: Colors.teal,
-                  title: '功能開關',
+                  title: '管理功能開關',
                   subtitle: '計時、喝水、體重、家庭模式…',
                   onTap: () {
                     Navigator.of(context).push(
