@@ -345,7 +345,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (daysSince == 7) return '第 7 天。\n我開始記得你的節奏了。';
     }
     if (now.weekday == DateTime.monday) return '新的一週。\n先從小小的一件事開始。';
-    return '早安，$_nickname。\n今天也從一點點開始？';
+    // 問候在「當天第一次打開」觸發，不一定是早上（夜貓換日線更晚）：
+    // 依實際時鐘挑時段問候，晚上開 app 不該被說早安。
+    if (now.hour >= 5 && now.hour < 11) {
+      return '早安，$_nickname。\n今天也從一點點開始？';
+    }
+    if (now.hour >= 11 && now.hour < 18) {
+      return '午安，$_nickname。\n想從哪件小事開始？';
+    }
+    return '晚安，$_nickname。\n今天回來了就好。';
   }
 
   void showGreetingBanner(String message) {
@@ -359,7 +367,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
     overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 2), () {
+    // 兩行情感文案 + 350ms 進場，2 秒讀不完；停留 4.5 秒，點擊仍可立即關。
+    Future.delayed(const Duration(milliseconds: 4500), () {
       if (entry.mounted) entry.remove();
     });
   }

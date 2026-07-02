@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/logical_date.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
@@ -322,10 +323,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     await _saveEntries();
     _notifyGoalStatus();
     unawaited(UsageStats.bump(UsageEvents.waterAdd));
-    unawaited(
-      SfxService.instance.play(
-        !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
-      ),
+    // 音效＋觸覺統一走 playFeedback（對齊習慣/體重/計時頁的回饋慣例）
+    playFeedback(
+      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
     );
     MascotPersona.interact(_mascotCtx);
     _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
@@ -336,7 +336,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _entries = _entries.sublist(0, _entries.length - 1));
     await _saveEntries();
     _notifyGoalStatus();
-    unawaited(SfxService.instance.play(SfxCue.cancel));
+    playFeedback(SfxCue.cancel);
     MascotPersona.interact(_mascotCtx);
   }
 
@@ -348,7 +348,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     });
     await _saveEntries();
     _notifyGoalStatus();
-    unawaited(SfxService.instance.play(SfxCue.cancel));
+    playFeedback(SfxCue.cancel);
     MascotPersona.interact(_mascotCtx);
   }
 
@@ -367,10 +367,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     await _saveEntries();
     _notifyGoalStatus();
     unawaited(UsageStats.bump(UsageEvents.waterAdd));
-    unawaited(
-      SfxService.instance.play(
-        !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
-      ),
+    playFeedback(
+      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
     );
     MascotPersona.interact(_mascotCtx);
     _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
@@ -1081,12 +1079,12 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   Future<void> _dismissGoalSuggestion() async {
     final baseline = _goalSuggestion?.ml ?? _goalMl;
-    unawaited(SfxService.instance.play(SfxCue.cancel));
+    playFeedback(SfxCue.cancel);
     await _setGoalSuggestionDismissed(baseline);
   }
 
   Future<void> _applySuggestedGoal(_WaterGoalSuggestion suggestion) async {
-    unawaited(SfxService.instance.play(SfxCue.tap));
+    playFeedback(SfxCue.tap);
     await _setGoalSuggestionDismissed(suggestion.ml);
     await _saveWaterSettings(cupMl: _cupMl, goalMl: suggestion.ml);
   }

@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../pages/home/room_ambient_overlay.dart';
 import '../pages/review_page.dart';
 import '../pages/settings_page.dart';
 import '../utils/app_style.dart';
@@ -43,7 +44,10 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final isNight = now.hour >= 22 || now.hour < 6;
+    // 與場景配色同一把尺（sceneHourNow 支援 debug 時段覆寫），
+    // 截圖驗證時日期 pill 的日/夜 icon 才不會和場景對不上。
+    final sceneHour = sceneHourNow();
+    final isNight = sceneHour >= 22 || sceneHour < 6;
     const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
     final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
 
