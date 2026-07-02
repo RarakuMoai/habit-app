@@ -75,10 +75,7 @@ Future<Map<String, PresetConfig>?> showHabitPresetSheet(
                   if (tempSelected.isNotEmpty)
                     Text(
                       '${tempSelected.length} 項已選',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppInk.soft,
-                      ),
+                      style: TextStyle(fontSize: 12, color: AppInk.soft),
                     ),
                 ],
               ),
@@ -372,17 +369,12 @@ Widget _presetCustomization(
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: config.minutes > 0
-                        ? AppInk.strong
-                        : AppInk.faint,
+                    color: config.minutes > 0 ? AppInk.strong : AppInk.faint,
                   ),
                 ),
               ),
             ),
-            Text(
-              '分鐘',
-              style: TextStyle(fontSize: 13, color: AppInk.soft),
-            ),
+            Text('分鐘', style: TextStyle(fontSize: 13, color: AppInk.soft)),
             const SizedBox(width: 14),
             AdjustBtn(
               icon: Icons.add,
@@ -448,10 +440,7 @@ Widget _presetCustomization(
                       ),
                     ),
                   ),
-                  Text(
-                    '次',
-                    style: TextStyle(fontSize: 13, color: AppInk.soft),
-                  ),
+                  Text('次', style: TextStyle(fontSize: 13, color: AppInk.soft)),
                   const SizedBox(width: 10),
                   AdjustBtn(
                     icon: Icons.add,
@@ -594,10 +583,7 @@ Future<void> showEditHabitSheet(
                     ),
                     Text(
                       '  次',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppInk.soft,
-                      ),
+                      style: TextStyle(fontSize: 13, color: AppInk.soft),
                     ),
                     const SizedBox(width: 8),
                     AdjustBtn(
@@ -692,9 +678,7 @@ Future<void> showEditHabitSheet(
                               '分鐘',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: minutes > 0
-                                    ? AppInk.soft
-                                    : AppInk.faint,
+                                color: minutes > 0 ? AppInk.soft : AppInk.faint,
                               ),
                             ),
                           ],
@@ -867,9 +851,7 @@ Future<void> showAddHabitSheet(
                         Icon(
                           Icons.auto_awesome,
                           size: 18,
-                          color: selected.isEmpty
-                              ? AppInk.soft
-                              : Colors.orange,
+                          color: selected.isEmpty ? AppInk.soft : Colors.orange,
                         ),
                         const SizedBox(width: 10),
                         Expanded(

@@ -802,7 +802,9 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final hasQuestion = _isCustom ? _qCtrl.text.trim().isNotEmpty : _selected != null;
+    final hasQuestion = _isCustom
+        ? _qCtrl.text.trim().isNotEmpty
+        : _selected != null;
     final ready = hasQuestion && _aCtrl.text.trim().isNotEmpty;
     return AlertDialog(
       title: const Text('設定救援問題'),
@@ -866,13 +868,10 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
         dialogCancelAction(context, label: widget.initial ? '略過' : '取消'),
         TextButton(
           onPressed: ready
-              ? () => Navigator.pop(
-                  context,
-                  (
-                    question: _isCustom ? _qCtrl.text.trim() : _selected!,
-                    answer: _aCtrl.text,
-                  ),
-                )
+              ? () => Navigator.pop(context, (
+                  question: _isCustom ? _qCtrl.text.trim() : _selected!,
+                  answer: _aCtrl.text,
+                ))
               : null,
           child: const Text('儲存'),
         ),
@@ -980,8 +979,9 @@ class _DayStartTimelineState extends State<_DayStartTimeline> {
     const dawn = _DayStartTimeline._dawn;
     const trackH = _DayStartTimeline._trackH;
     const knobR = _DayStartTimeline._knobR;
-    final duration =
-        _dragging ? Duration.zero : const Duration(milliseconds: 300);
+    final duration = _dragging
+        ? Duration.zero
+        : const Duration(milliseconds: 300);
     const curve = Curves.easeOutCubic;
 
     return LayoutBuilder(
@@ -1047,7 +1047,10 @@ class _DayStartTimelineState extends State<_DayStartTimeline> {
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
-                                    colors: [night, _DayStartTimeline._nightSoft],
+                                    colors: [
+                                      night,
+                                      _DayStartTimeline._nightSoft,
+                                    ],
                                   ),
                                 ),
                               ),
@@ -1089,8 +1092,9 @@ class _DayStartTimelineState extends State<_DayStartTimeline> {
                           textAlign: TextAlign.center,
                           style: AppType.digits(
                             fontSize: h == 0 ? 11 : 13,
-                            fontWeight:
-                                selected ? FontWeight.w800 : FontWeight.w600,
+                            fontWeight: selected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
                             color: selected ? night : AppInk.faint,
                           ),
                         ),

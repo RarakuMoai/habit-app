@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/app_feedback.dart';
+import '../../utils/app_style.dart';
 import '../../utils/sfx_service.dart';
 import '../../widgets/habit_ui.dart';
 import 'family_auth.dart';
@@ -199,7 +200,7 @@ class _HabitTabState extends State<HabitTab> {
                       width: 36,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
+                        color: AppSurfaces.dragHandle,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -294,14 +295,14 @@ class _HabitTabState extends State<HabitTab> {
                       ),
                       decoration: BoxDecoration(
                         color: selectedPresets.isEmpty
-                            ? Colors.grey.shade50
+                            ? AppSurfaces.fill
                             : (isAdd
                                   ? Colors.green.shade50
                                   : Colors.red.shade50),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: selectedPresets.isEmpty
-                              ? Colors.grey.shade300
+                              ? AppSurfaces.divider
                               : (isAdd
                                     ? Colors.green.shade300
                                     : Colors.red.shade300),
@@ -313,7 +314,7 @@ class _HabitTabState extends State<HabitTab> {
                             Icons.auto_awesome,
                             size: 18,
                             color: selectedPresets.isEmpty
-                                ? Colors.grey.shade500
+                                ? AppInk.soft
                                 : (isAdd
                                       ? Colors.green.shade600
                                       : Colors.red.shade600),
@@ -326,7 +327,7 @@ class _HabitTabState extends State<HabitTab> {
                                   : '已選 ${selectedPresets.length} 項',
                               style: TextStyle(
                                 color: selectedPresets.isEmpty
-                                    ? Colors.grey.shade600
+                                    ? AppInk.soft
                                     : (isAdd
                                           ? Colors.green.shade700
                                           : Colors.red.shade700),
@@ -340,7 +341,7 @@ class _HabitTabState extends State<HabitTab> {
                                 : Icons.check_circle,
                             size: 20,
                             color: selectedPresets.isEmpty
-                                ? Colors.grey.shade400
+                                ? AppInk.faint
                                 : (isAdd
                                       ? Colors.green.shade600
                                       : Colors.red.shade600),
@@ -358,7 +359,7 @@ class _HabitTabState extends State<HabitTab> {
                     decoration: InputDecoration(
                       hintText: isAdd ? '自訂原因...' : '自訂原因...',
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: AppSurfaces.fill,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -381,7 +382,7 @@ class _HabitTabState extends State<HabitTab> {
                       decoration: InputDecoration(
                         labelText: isAdd ? '自訂加分數' : '自訂扣分數',
                         filled: true,
-                        fillColor: Colors.grey.shade50,
+                        fillColor: AppSurfaces.fill,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -444,7 +445,7 @@ class _HabitTabState extends State<HabitTab> {
                           : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isAdd ? Colors.green : Colors.red,
-                        disabledBackgroundColor: Colors.grey.shade200,
+                        disabledBackgroundColor: AppSurfaces.divider,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -589,10 +590,7 @@ class _HabitTabState extends State<HabitTab> {
 
   Widget _emptyHint(String text) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Text(
-      text,
-      style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-    ),
+    child: Text(text, style: TextStyle(color: AppInk.faint, fontSize: 13)),
   );
 }
 
@@ -673,10 +671,10 @@ class _HabitItemState extends State<_HabitItem>
           // 整張卡都可點擊打卡（不只左邊小圓圈），ripple 回饋
           child: InkWell(
             onTap: _handleDailyTap,
-            splashColor: (done ? Colors.grey : Colors.green).withValues(
+            splashColor: (done ? AppInk.faint : Colors.green).withValues(
               alpha: 0.12,
             ),
-            highlightColor: (done ? Colors.grey : Colors.green).withValues(
+            highlightColor: (done ? AppInk.faint : Colors.green).withValues(
               alpha: 0.06,
             ),
             child: IntrinsicHeight(
@@ -715,11 +713,11 @@ class _HabitItemState extends State<_HabitItem>
                                       end: Alignment.bottomRight,
                                     )
                                   : null,
-                              color: done ? null : Colors.grey.shade50,
+                              color: done ? null : AppSurfaces.fill,
                               border: done
                                   ? null
                                   : Border.all(
-                                      color: Colors.grey.shade300,
+                                      color: AppSurfaces.divider,
                                       width: 1.8,
                                     ),
                               shape: BoxShape.circle,
@@ -752,7 +750,7 @@ class _HabitItemState extends State<_HabitItem>
                             decoration: done
                                 ? TextDecoration.lineThrough
                                 : TextDecoration.none,
-                            color: done ? Colors.grey.shade400 : Colors.black87,
+                            color: done ? AppInk.faint : AppInk.strong,
                           ),
                           child: Text(
                             habit.name,
@@ -880,7 +878,7 @@ class _HabitItemState extends State<_HabitItem>
                                   fontWeight: FontWeight.bold,
                                   color: todayCount > 0
                                       ? Colors.indigo.shade700
-                                      : Colors.grey.shade400,
+                                      : AppInk.faint,
                                 ),
                               ),
                             ),
@@ -912,7 +910,7 @@ class _HabitItemState extends State<_HabitItem>
                           decoration: done
                               ? TextDecoration.lineThrough
                               : TextDecoration.none,
-                          color: done ? Colors.grey.shade400 : Colors.black87,
+                          color: done ? AppInk.faint : AppInk.strong,
                         ),
                         child: Text(
                           habit.name,

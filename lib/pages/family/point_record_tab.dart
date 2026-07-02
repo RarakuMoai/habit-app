@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_store.dart';
 
@@ -99,11 +100,11 @@ class _PointRecordTabState extends State<PointRecordTab> {
       onSelected: (_) => setState(() => _filter = value),
       selectedColor: primary.withValues(alpha: 0.15),
       labelStyle: TextStyle(
-        color: selected ? primary : Colors.grey.shade600,
+        color: selected ? primary : AppInk.soft,
         fontWeight: selected ? FontWeight.bold : FontWeight.normal,
         fontSize: 13,
       ),
-      side: BorderSide(color: selected ? primary : Colors.grey.shade300),
+      side: BorderSide(color: selected ? primary : AppSurfaces.divider),
     );
   }
 
@@ -148,7 +149,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
             child: Center(
               child: Text(
                 _filter == 'all' ? '尚無積分紀錄' : '此期間無積分紀錄',
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+                style: TextStyle(color: AppInk.faint, fontSize: 15),
               ),
             ),
           )
@@ -178,10 +179,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
                     ),
                     subtitle: Text(
                       r.time,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
+                      style: TextStyle(fontSize: 12, color: AppInk.soft),
                     ),
                     trailing: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -197,10 +195,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
                         ),
                         Text(
                           '共 ${r.total} 分',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade400,
-                          ),
+                          style: TextStyle(fontSize: 11, color: AppInk.faint),
                         ),
                       ],
                     ),
@@ -232,7 +227,7 @@ class _CustomRangeChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: selected ? primary.withValues(alpha: 0.15) : Colors.transparent,
-        border: Border.all(color: selected ? primary : Colors.grey.shade300),
+        border: Border.all(color: selected ? primary : AppSurfaces.divider),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -241,14 +236,14 @@ class _CustomRangeChip extends StatelessWidget {
           Icon(
             Icons.date_range,
             size: 14,
-            color: selected ? primary : Colors.grey.shade600,
+            color: selected ? primary : AppInk.soft,
           ),
           const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
               fontSize: 13,
-              color: selected ? primary : Colors.grey.shade600,
+              color: selected ? primary : AppInk.soft,
               fontWeight: selected ? FontWeight.bold : FontWeight.normal,
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
@@ -68,7 +69,7 @@ Future<void> showAddDeductionSheet(
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: AppSurfaces.dragHandle,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -83,7 +84,7 @@ Future<void> showAddDeductionSheet(
                 // 套用小孩
                 Text(
                   '套用小孩',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 4),
                 Wrap(
@@ -146,12 +147,12 @@ Future<void> showAddDeductionSheet(
                       ),
                       decoration: BoxDecoration(
                         color: selectedPresets.isEmpty
-                            ? Colors.grey.shade50
+                            ? AppSurfaces.fill
                             : Colors.red.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: selectedPresets.isEmpty
-                              ? Colors.grey.shade300
+                              ? AppSurfaces.divider
                               : Colors.red.shade300,
                         ),
                       ),
@@ -161,7 +162,7 @@ Future<void> showAddDeductionSheet(
                             Icons.auto_awesome,
                             size: 18,
                             color: selectedPresets.isEmpty
-                                ? Colors.grey.shade500
+                                ? AppInk.soft
                                 : Colors.red.shade600,
                           ),
                           const SizedBox(width: 10),
@@ -172,7 +173,7 @@ Future<void> showAddDeductionSheet(
                                   : '已選 ${selectedPresets.length} 個常用項目',
                               style: TextStyle(
                                 color: selectedPresets.isEmpty
-                                    ? Colors.grey.shade600
+                                    ? AppInk.soft
                                     : Colors.red.shade700,
                                 fontSize: 14,
                               ),
@@ -184,7 +185,7 @@ Future<void> showAddDeductionSheet(
                                 : Icons.check_circle,
                             size: 20,
                             color: selectedPresets.isEmpty
-                                ? Colors.grey.shade400
+                                ? AppInk.faint
                                 : Colors.red.shade600,
                           ),
                         ],
@@ -201,7 +202,7 @@ Future<void> showAddDeductionSheet(
                   decoration: InputDecoration(
                     hintText: '自訂扣分項目名稱...',
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -224,7 +225,7 @@ Future<void> showAddDeductionSheet(
                     decoration: InputDecoration(
                       labelText: '自訂扣分數',
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: AppSurfaces.fill,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -281,7 +282,7 @@ Future<void> showAddDeductionSheet(
                         : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
-                      disabledBackgroundColor: Colors.grey.shade200,
+                      disabledBackgroundColor: AppSurfaces.divider,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -339,7 +340,7 @@ Future<void> showEditDeductionSheet(
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppSurfaces.dragHandle,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -357,7 +358,7 @@ Future<void> showEditDeductionSheet(
                 decoration: InputDecoration(
                   labelText: '扣分項目名稱',
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: AppSurfaces.fill,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
@@ -380,7 +381,7 @@ Future<void> showEditDeductionSheet(
                 decoration: InputDecoration(
                   labelText: '扣幾分',
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: AppSurfaces.fill,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
@@ -417,7 +418,7 @@ Future<void> showEditDeductionSheet(
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade600,
-                    disabledBackgroundColor: Colors.grey.shade200,
+                    disabledBackgroundColor: AppSurfaces.divider,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

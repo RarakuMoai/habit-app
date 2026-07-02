@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../utils/app_style.dart';
 import 'family_presets.dart';
 import 'family_widgets.dart';
 
@@ -59,17 +60,12 @@ Widget _buildFamilyPresetCustomization(
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: cfg.minutes > 0
-                        ? Colors.black87
-                        : Colors.grey.shade400,
+                    color: cfg.minutes > 0 ? AppInk.strong : AppInk.faint,
                   ),
                 ),
               ),
             ),
-            Text(
-              '分鐘',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-            ),
+            Text('分鐘', style: TextStyle(fontSize: 13, color: AppInk.soft)),
             const SizedBox(width: 14),
             AdjustBtn(
               icon: Icons.add,
@@ -113,7 +109,7 @@ Widget _buildFamilyPresetCustomization(
                 children: [
                   Text(
                     '每週目標',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 12, color: AppInk.soft),
                   ),
                   const SizedBox(width: 12),
                   AdjustBtn(
@@ -133,10 +129,7 @@ Widget _buildFamilyPresetCustomization(
                       ),
                     ),
                   ),
-                  Text(
-                    '次',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                  ),
+                  Text('次', style: TextStyle(fontSize: 13, color: AppInk.soft)),
                   const SizedBox(width: 10),
                   AdjustBtn(
                     icon: Icons.add,
@@ -186,7 +179,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: AppSurfaces.dragHandle,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -213,10 +206,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                   if (tempSelected.isNotEmpty)
                     Text(
                       '${tempSelected.length} 項已選',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
+                      style: TextStyle(fontSize: 12, color: AppInk.soft),
                     ),
                 ],
               ),
@@ -237,7 +227,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                     decoration: BoxDecoration(
                       color: sel ? Colors.orange.shade50 : Colors.white,
                       border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade100),
+                        bottom: BorderSide(color: AppSurfaces.fill),
                       ),
                     ),
                     child: Column(
@@ -279,7 +269,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                               : FontWeight.normal,
                                           color: sel
                                               ? Colors.orange.shade800
-                                              : Colors.black87,
+                                              : AppInk.strong,
                                         ),
                                       ),
                                       if (!sel && hasCustom)
@@ -291,7 +281,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                             '可自訂時間${p.supportsFrequency ? "・可設頻率" : ""}',
                                             style: TextStyle(
                                               fontSize: 11,
-                                              color: Colors.grey.shade500,
+                                              color: AppInk.soft,
                                             ),
                                           ),
                                         ),
@@ -351,7 +341,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                             child: Text(
                                               '取消',
                                               style: TextStyle(
-                                                color: Colors.grey.shade600,
+                                                color: AppInk.soft,
                                               ),
                                             ),
                                           ),
@@ -387,7 +377,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                     decoration: BoxDecoration(
                                       color: sel
                                           ? Colors.orange
-                                          : Colors.grey.shade100,
+                                          : AppSurfaces.fill,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Row(
@@ -398,7 +388,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                           style: TextStyle(
                                             color: sel
                                                 ? Colors.white
-                                                : Colors.grey.shade600,
+                                                : AppInk.soft,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
                                           ),
@@ -426,9 +416,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                         ? Colors.orange
                                         : Colors.transparent,
                                     border: Border.all(
-                                      color: sel
-                                          ? Colors.orange
-                                          : Colors.grey.shade300,
+                                      color: sel ? Colors.orange : AppInk.faint,
                                       width: 2,
                                     ),
                                   ),

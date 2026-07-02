@@ -1,5 +1,8 @@
 // 新增小孩 bottom sheet 與頭像選擇對話框
+
 import 'package:flutter/material.dart';
+
+import '../../utils/app_style.dart';
 
 // ── 小孩頭像選項 ──
 const List<String> _kChildAvatars = [
@@ -60,7 +63,7 @@ Future<String?> showAvatarPickerDialog(BuildContext context, String current) {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: selected ? Colors.blue.shade100 : Colors.grey.shade100,
+                  color: selected ? Colors.blue.shade100 : AppSurfaces.fill,
                   border: selected
                       ? Border.all(color: Colors.blue.shade400, width: 2)
                       : null,
@@ -76,7 +79,7 @@ Future<String?> showAvatarPickerDialog(BuildContext context, String current) {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          child: Text('取消', style: TextStyle(color: AppInk.soft)),
         ),
       ],
     ),
@@ -128,7 +131,7 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
                         height: 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.grey.shade100,
+                          color: AppSurfaces.fill,
                         ),
                         child: Center(
                           child: Text(
@@ -188,10 +191,7 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text(
-                    '取消',
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
+                  child: Text('取消', style: TextStyle(color: AppInk.soft)),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(

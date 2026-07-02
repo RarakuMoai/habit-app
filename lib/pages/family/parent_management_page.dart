@@ -113,7 +113,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('取消', style: TextStyle(color: AppInk.soft)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -177,7 +177,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('取消', style: TextStyle(color: AppInk.soft)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -242,7 +242,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 },
                 child: CircleAvatar(
                   radius: 32,
-                  backgroundColor: Colors.grey.shade100,
+                  backgroundColor: AppSurfaces.fill,
                   child: Text(
                     selectedAvatar,
                     style: const TextStyle(fontSize: 32),
@@ -252,7 +252,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               const SizedBox(height: 4),
               Text(
                 '點擊更換頭像',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11, color: AppInk.soft),
               ),
               const SizedBox(height: 14),
               TextField(
@@ -265,7 +265,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+              child: Text('取消', style: TextStyle(color: AppInk.soft)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -432,7 +432,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('取消', style: TextStyle(color: AppInk.soft)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -836,7 +836,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: Colors.grey.shade100,
+                  backgroundColor: AppSurfaces.fill,
                   child: Text(
                     child.avatar.isNotEmpty ? child.avatar : '🐼',
                     style: const TextStyle(fontSize: 20),
@@ -867,7 +867,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.edit_outlined, color: Colors.grey.shade500),
+                  icon: Icon(Icons.edit_outlined, color: AppInk.soft),
                   tooltip: '修改名稱',
                   onPressed: () => _editChildName(index),
                 ),
@@ -916,7 +916,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             '尚無習慣',
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+            style: TextStyle(color: AppInk.faint, fontSize: 13),
           ),
         ),
       ];
@@ -940,7 +940,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             child.name,
             style: TextStyle(
               fontSize: 13,
-              color: Colors.grey.shade600,
+              color: AppInk.soft,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -966,11 +966,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 style: TextStyle(fontSize: 12, color: Colors.green.shade700),
               ),
               trailing: PopupMenuButton<String>(
-                icon: Icon(
-                  Icons.more_vert,
-                  size: 20,
-                  color: Colors.grey.shade400,
-                ),
+                icon: Icon(Icons.more_vert, size: 20, color: AppInk.faint),
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'edit', child: Text('編輯')),
                   PopupMenuItem(
@@ -1006,7 +1002,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             '尚無扣分項目',
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+            style: TextStyle(color: AppInk.faint, fontSize: 13),
           ),
         ),
       ];
@@ -1029,7 +1025,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             child.name,
             style: TextStyle(
               fontSize: 13,
-              color: Colors.grey.shade600,
+              color: AppInk.soft,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1055,11 +1051,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 style: const TextStyle(fontSize: 12, color: Colors.red),
               ),
               trailing: PopupMenuButton<String>(
-                icon: Icon(
-                  Icons.more_vert,
-                  size: 20,
-                  color: Colors.grey.shade400,
-                ),
+                icon: Icon(Icons.more_vert, size: 20, color: AppInk.faint),
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'edit', child: Text('編輯')),
                   PopupMenuItem(
@@ -1095,7 +1087,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             '尚無獎勵',
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+            style: TextStyle(color: AppInk.faint, fontSize: 13),
           ),
         ),
       ];
@@ -1126,10 +1118,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               '${reward.pointsCost} 分',
               if (childNames.isNotEmpty) childNames,
             ].join(' · '),
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 11, color: AppInk.soft),
           ),
           trailing: PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, size: 20, color: Colors.grey.shade400),
+            icon: Icon(Icons.more_vert, size: 20, color: AppInk.faint),
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'edit', child: Text('編輯')),
               PopupMenuItem(

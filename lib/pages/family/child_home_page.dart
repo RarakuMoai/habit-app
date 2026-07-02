@@ -529,14 +529,14 @@ class _GlassIconButton extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
+              color: const Color(0xFF8D6E63).withValues(alpha: 0.22),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
           ],
         ),
         child: IconButton(
-          icon: Icon(icon, color: Colors.grey.shade800),
+          icon: Icon(icon, color: AppInk.strong),
           tooltip: tooltip,
           onPressed: onPressed,
         ),

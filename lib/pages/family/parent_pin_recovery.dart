@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/app_feedback.dart';
 import '../../utils/app_restart.dart';
+import '../../utils/app_style.dart';
 import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
 
@@ -122,7 +123,7 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('取消', style: TextStyle(color: AppInk.soft)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -184,13 +185,10 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          child: Text('取消', style: TextStyle(color: AppInk.soft)),
         ),
         if (hasQA)
-          FilledButton(
-            onPressed: _checkAnswer,
-            child: const Text('驗證並重設'),
-          ),
+          FilledButton(onPressed: _checkAnswer, child: const Text('驗證並重設')),
       ],
     );
   }
@@ -247,7 +245,7 @@ class _SetPinDialogState extends State<_SetPinDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          child: Text('取消', style: TextStyle(color: AppInk.soft)),
         ),
         TextButton(
           onPressed: ready ? () => Navigator.pop(context, _ctrl.text) : null,

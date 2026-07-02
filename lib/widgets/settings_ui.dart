@@ -54,7 +54,9 @@ class SettingsTileCard extends StatelessWidget {
                 subtitle!,
                 style: const TextStyle(fontSize: 12, color: AppInk.soft),
               ),
-        trailing: trailing ?? const Icon(Icons.chevron_right, color: AppInk.iconFaint),
+        trailing:
+            trailing ??
+            const Icon(Icons.chevron_right, color: AppInk.iconFaint),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_kSettingsRadius),
         ),

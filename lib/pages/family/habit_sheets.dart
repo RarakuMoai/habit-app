@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
@@ -66,7 +67,7 @@ Future<void> showAddHabitSheet(
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: AppSurfaces.dragHandle,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -81,7 +82,7 @@ Future<void> showAddHabitSheet(
                 // 套用小孩
                 Text(
                   '套用小孩',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 4),
                 Wrap(
@@ -131,12 +132,12 @@ Future<void> showAddHabitSheet(
                       ),
                       decoration: BoxDecoration(
                         color: selectedPresetCfgs.isEmpty
-                            ? Colors.grey.shade50
+                            ? AppSurfaces.fill
                             : Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: selectedPresetCfgs.isEmpty
-                              ? Colors.grey.shade300
+                              ? AppSurfaces.divider
                               : Colors.orange.shade300,
                         ),
                       ),
@@ -146,7 +147,7 @@ Future<void> showAddHabitSheet(
                             Icons.auto_awesome,
                             size: 18,
                             color: selectedPresetCfgs.isEmpty
-                                ? Colors.grey.shade500
+                                ? AppInk.soft
                                 : Colors.orange,
                           ),
                           const SizedBox(width: 10),
@@ -157,7 +158,7 @@ Future<void> showAddHabitSheet(
                                   : '已選 ${selectedPresetCfgs.length} 個常用習慣',
                               style: TextStyle(
                                 color: selectedPresetCfgs.isEmpty
-                                    ? Colors.grey.shade600
+                                    ? AppInk.soft
                                     : Colors.orange.shade700,
                                 fontSize: 14,
                               ),
@@ -169,7 +170,7 @@ Future<void> showAddHabitSheet(
                                 : Icons.check_circle,
                             size: 20,
                             color: selectedPresetCfgs.isEmpty
-                                ? Colors.grey.shade400
+                                ? AppInk.faint
                                 : Colors.orange.shade600,
                           ),
                         ],
@@ -193,15 +194,15 @@ Future<void> showAddHabitSheet(
                       color: customExpanded
                           ? (hasCustom
                                 ? Colors.deepOrange.shade50
-                                : Colors.grey.shade100)
-                          : Colors.grey.shade50,
+                                : AppSurfaces.fill)
+                          : AppSurfaces.fill,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: customExpanded
                             ? (hasCustom
                                   ? Colors.deepOrange.shade300
-                                  : Colors.grey.shade300)
-                            : Colors.grey.shade300,
+                                  : AppSurfaces.divider)
+                            : AppSurfaces.divider,
                       ),
                     ),
                     child: Row(
@@ -211,7 +212,7 @@ Future<void> showAddHabitSheet(
                           size: 18,
                           color: hasCustom
                               ? Colors.deepOrange.shade500
-                              : Colors.grey.shade500,
+                              : AppInk.soft,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -220,7 +221,7 @@ Future<void> showAddHabitSheet(
                             style: TextStyle(
                               color: hasCustom
                                   ? Colors.deepOrange.shade700
-                                  : Colors.grey.shade600,
+                                  : AppInk.soft,
                               fontSize: 14,
                             ),
                           ),
@@ -230,7 +231,7 @@ Future<void> showAddHabitSheet(
                               ? Icons.keyboard_arrow_up
                               : Icons.keyboard_arrow_down,
                           size: 20,
-                          color: Colors.grey.shade400,
+                          color: AppInk.faint,
                         ),
                       ],
                     ),
@@ -242,9 +243,9 @@ Future<void> showAddHabitSheet(
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: AppSurfaces.fill,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: AppSurfaces.divider),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,13 +261,13 @@ Future<void> showAddHabitSheet(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.grey.shade200,
+                                color: AppSurfaces.divider,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.grey.shade200,
+                                color: AppSurfaces.divider,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -297,13 +298,13 @@ Future<void> showAddHabitSheet(
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.grey.shade200,
+                                color: AppSurfaces.divider,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.grey.shade200,
+                                color: AppSurfaces.divider,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -327,7 +328,7 @@ Future<void> showAddHabitSheet(
                           '頻率',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: AppInk.soft,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -364,7 +365,7 @@ Future<void> showAddHabitSheet(
                                 '  次',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey.shade600,
+                                  color: AppInk.soft,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -381,7 +382,7 @@ Future<void> showAddHabitSheet(
                           '持續時間（選填）',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: AppInk.soft,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -393,7 +394,7 @@ Future<void> showAddHabitSheet(
                             border: Border.all(
                               color: minutes > 0
                                   ? Colors.orange.shade300
-                                  : Colors.grey.shade300,
+                                  : AppSurfaces.divider,
                               width: 1.5,
                             ),
                             color: minutes > 0
@@ -420,7 +421,7 @@ Future<void> showAddHabitSheet(
                                     size: 18,
                                     color: minutes > 0
                                         ? Colors.orange.shade700
-                                        : Colors.grey.shade300,
+                                        : AppSurfaces.divider,
                                   ),
                                 ),
                               ),
@@ -429,7 +430,7 @@ Future<void> showAddHabitSheet(
                                 height: 28,
                                 color: minutes > 0
                                     ? Colors.orange.shade200
-                                    : Colors.grey.shade200,
+                                    : AppSurfaces.divider,
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -448,8 +449,8 @@ Future<void> showAddHabitSheet(
                                         fontSize: 22,
                                         fontWeight: FontWeight.bold,
                                         color: minutes > 0
-                                            ? Colors.black87
-                                            : Colors.grey.shade400,
+                                            ? AppInk.strong
+                                            : AppInk.faint,
                                       ),
                                     ),
                                     const SizedBox(width: 4),
@@ -458,8 +459,8 @@ Future<void> showAddHabitSheet(
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: minutes > 0
-                                            ? Colors.grey.shade600
-                                            : Colors.grey.shade400,
+                                            ? AppInk.soft
+                                            : AppInk.faint,
                                       ),
                                     ),
                                   ],
@@ -470,7 +471,7 @@ Future<void> showAddHabitSheet(
                                 height: 28,
                                 color: minutes > 0
                                     ? Colors.orange.shade200
-                                    : Colors.grey.shade200,
+                                    : AppSurfaces.divider,
                               ),
                               GestureDetector(
                                 onTap: () => setS(
@@ -550,7 +551,7 @@ Future<void> showAddHabitSheet(
                         : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
-                      disabledBackgroundColor: Colors.grey.shade200,
+                      disabledBackgroundColor: AppSurfaces.divider,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -612,7 +613,7 @@ Future<void> showEditHabitSheet(
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: AppSurfaces.dragHandle,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -630,7 +631,7 @@ Future<void> showEditHabitSheet(
                   decoration: InputDecoration(
                     labelText: '習慣名稱',
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -653,7 +654,7 @@ Future<void> showEditHabitSheet(
                   decoration: InputDecoration(
                     labelText: '完成可得分數',
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -670,7 +671,7 @@ Future<void> showEditHabitSheet(
                   '頻率',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade500,
+                    color: AppInk.soft,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -705,10 +706,7 @@ Future<void> showEditHabitSheet(
                       ),
                       Text(
                         '  次',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
+                        style: TextStyle(fontSize: 13, color: AppInk.soft),
                       ),
                       const SizedBox(width: 8),
                       AdjustBtn(
@@ -724,7 +722,7 @@ Future<void> showEditHabitSheet(
                   '持續時間（選填）',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade500,
+                    color: AppInk.soft,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -736,7 +734,7 @@ Future<void> showEditHabitSheet(
                     border: Border.all(
                       color: minutes > 0
                           ? Colors.orange.shade300
-                          : Colors.grey.shade300,
+                          : AppSurfaces.divider,
                       width: 1.5,
                     ),
                     color: minutes > 0 ? Colors.orange.shade50 : Colors.white,
@@ -759,7 +757,7 @@ Future<void> showEditHabitSheet(
                             size: 18,
                             color: minutes > 0
                                 ? Colors.orange.shade700
-                                : Colors.grey.shade300,
+                                : AppSurfaces.divider,
                           ),
                         ),
                       ),
@@ -768,7 +766,7 @@ Future<void> showEditHabitSheet(
                         height: 28,
                         color: minutes > 0
                             ? Colors.orange.shade200
-                            : Colors.grey.shade200,
+                            : AppSurfaces.divider,
                       ),
                       GestureDetector(
                         onTap: () async {
@@ -794,8 +792,8 @@ Future<void> showEditHabitSheet(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
                                   color: minutes > 0
-                                      ? Colors.black87
-                                      : Colors.grey.shade400,
+                                      ? AppInk.strong
+                                      : AppInk.faint,
                                 ),
                               ),
                               const SizedBox(width: 4),
@@ -804,8 +802,8 @@ Future<void> showEditHabitSheet(
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: minutes > 0
-                                      ? Colors.grey.shade600
-                                      : Colors.grey.shade400,
+                                      ? AppInk.soft
+                                      : AppInk.faint,
                                 ),
                               ),
                             ],
@@ -817,7 +815,7 @@ Future<void> showEditHabitSheet(
                         height: 28,
                         color: minutes > 0
                             ? Colors.orange.shade200
-                            : Colors.grey.shade200,
+                            : AppSurfaces.divider,
                       ),
                       GestureDetector(
                         onTap: minutes < 999
@@ -836,7 +834,7 @@ Future<void> showEditHabitSheet(
                             size: 18,
                             color: minutes < 999
                                 ? Colors.orange.shade700
-                                : Colors.grey.shade300,
+                                : AppSurfaces.divider,
                           ),
                         ),
                       ),
@@ -873,7 +871,7 @@ Future<void> showEditHabitSheet(
                         : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
-                      disabledBackgroundColor: Colors.grey.shade200,
+                      disabledBackgroundColor: AppSurfaces.divider,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

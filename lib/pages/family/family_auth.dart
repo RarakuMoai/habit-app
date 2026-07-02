@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_style.dart';
 import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
 
@@ -51,14 +52,11 @@ Future<String?> showPinDialog(
                 Navigator.pop(dialogCtx);
                 onForgotPassword();
               },
-              child: Text(
-                '忘記密碼？',
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
+              child: Text('忘記密碼？', style: TextStyle(color: AppInk.soft)),
             ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('取消', style: TextStyle(color: AppInk.soft)),
           ),
         ],
       ),

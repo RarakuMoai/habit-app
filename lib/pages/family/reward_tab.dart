@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_style.dart';
 import 'family_auth.dart';
 import 'family_models.dart';
 import 'family_store.dart';
@@ -73,7 +74,7 @@ class _RewardTabState extends State<RewardTab> {
             children: [
               Text(
                 '每張票券需 ${r.pointsCost} 分',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 13, color: AppInk.soft),
               ),
               const SizedBox(height: 16),
               Row(
@@ -104,14 +105,14 @@ class _RewardTabState extends State<RewardTab> {
               const SizedBox(height: 8),
               Text(
                 '共需 ${r.pointsCost * qty} 分（剩餘 ${widget.child.points - r.pointsCost * qty} 分）',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 13, color: AppInk.soft),
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+              child: Text('取消', style: TextStyle(color: AppInk.soft)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -161,7 +162,7 @@ class _RewardTabState extends State<RewardTab> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+            child: Text('取消', style: TextStyle(color: AppInk.soft)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -213,7 +214,7 @@ class _RewardTabState extends State<RewardTab> {
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(
                 '目前沒有票券',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                style: TextStyle(fontSize: 13, color: AppInk.faint),
               ),
             )
           else
@@ -238,7 +239,7 @@ class _RewardTabState extends State<RewardTab> {
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(
                 '尚無獎勵，請家長至家長管理新增',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                style: TextStyle(fontSize: 13, color: AppInk.faint),
               ),
             )
           else
@@ -260,14 +261,10 @@ class _RewardTabState extends State<RewardTab> {
                 context,
               ).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                leading: Icon(
-                  Icons.history,
-                  color: Colors.grey.shade500,
-                  size: 20,
-                ),
+                leading: Icon(Icons.history, color: AppInk.soft, size: 20),
                 title: Text(
                   '兌換紀錄（${usedVouchers.length} 張）',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 14, color: AppInk.soft),
                 ),
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: EdgeInsets.zero,
@@ -286,10 +283,7 @@ class _RewardTabState extends State<RewardTab> {
                     ),
                     subtitle: Text(
                       '兌換 ${v.redeemedAt}　使用 ${v.usedAt}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade400,
-                      ),
+                      style: TextStyle(fontSize: 11, color: AppInk.faint),
                     ),
                   );
                 }).toList(),
@@ -390,7 +384,7 @@ class _VoucherCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '兌換於 ${voucher.redeemedAt}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: AppInk.soft),
                   ),
                 ],
               ),
@@ -469,10 +463,7 @@ class _RewardCard extends StatelessWidget {
                       const SizedBox(width: 2),
                       Text(
                         '${reward.pointsCost} 分',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
+                        style: TextStyle(fontSize: 12, color: AppInk.soft),
                       ),
                     ],
                   ),
@@ -484,8 +475,8 @@ class _RewardCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: primary,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.shade200,
-                disabledForegroundColor: Colors.grey.shade400,
+                disabledBackgroundColor: AppSurfaces.divider,
+                disabledForegroundColor: AppInk.faint,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 6,

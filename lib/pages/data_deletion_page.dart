@@ -181,9 +181,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
             ),
             actions: [
               TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(72, 46),
-                ),
+                style: TextButton.styleFrom(minimumSize: const Size(72, 46)),
                 onPressed: () => Navigator.pop(dialogCtx, false),
                 child: const Text('取消', style: TextStyle(color: AppInk.soft)),
               ),

@@ -187,7 +187,7 @@ Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx),
-          child: Text('取消', style: TextStyle(color: Colors.grey.shade600)),
+          child: Text('取消', style: TextStyle(color: AppInk.soft)),
         ),
         TextButton(
           onPressed: () {
@@ -221,9 +221,9 @@ class AdjustBtn extends StatelessWidget {
       height: 32,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: enabled ? Colors.white : Colors.grey.shade100,
+        color: enabled ? Colors.white : AppSurfaces.fill,
         border: Border.all(
-          color: enabled ? Colors.orange.shade300 : Colors.grey.shade200,
+          color: enabled ? Colors.orange.shade300 : AppSurfaces.divider,
           width: 1.5,
         ),
         boxShadow: enabled
@@ -247,7 +247,7 @@ class AdjustBtn extends StatelessWidget {
           child: Icon(
             icon,
             size: 16,
-            color: enabled ? Colors.orange.shade700 : Colors.grey.shade400,
+            color: enabled ? Colors.orange.shade700 : AppInk.faint,
           ),
         ),
       ),
@@ -275,7 +275,7 @@ class FreqChip extends StatelessWidget {
         color: selected ? Colors.orange : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: selected ? Colors.orange : Colors.grey.shade300,
+          color: selected ? Colors.orange : AppSurfaces.divider,
           width: 1.5,
         ),
         boxShadow: selected
@@ -306,7 +306,7 @@ class FreqChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : Colors.grey.shade600,
+                color: selected ? Colors.white : AppInk.soft,
               ),
             ),
           ),

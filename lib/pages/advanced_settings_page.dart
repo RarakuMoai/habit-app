@@ -99,7 +99,10 @@ class AdvancedSettingsPage extends StatelessWidget {
                 '清除體重、喝水、家庭資料，或重置全部',
                 style: TextStyle(fontSize: 12, color: AppInk.soft),
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppInk.iconFaint),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppInk.iconFaint,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),

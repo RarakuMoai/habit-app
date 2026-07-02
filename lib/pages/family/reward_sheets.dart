@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
@@ -61,7 +62,7 @@ Future<void> showAddRewardSheet(
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: AppSurfaces.dragHandle,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -76,7 +77,7 @@ Future<void> showAddRewardSheet(
                 // 套用小孩
                 Text(
                   '套用小孩',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 4),
                 Wrap(
@@ -126,12 +127,12 @@ Future<void> showAddRewardSheet(
                       ),
                       decoration: BoxDecoration(
                         color: selectedPresetCfgs.isEmpty
-                            ? Colors.grey.shade50
+                            ? AppSurfaces.fill
                             : Colors.purple.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: selectedPresetCfgs.isEmpty
-                              ? Colors.grey.shade300
+                              ? AppSurfaces.divider
                               : Colors.purple.shade300,
                         ),
                       ),
@@ -141,7 +142,7 @@ Future<void> showAddRewardSheet(
                             Icons.auto_awesome,
                             size: 18,
                             color: selectedPresetCfgs.isEmpty
-                                ? Colors.grey.shade500
+                                ? AppInk.soft
                                 : Colors.purple.shade600,
                           ),
                           const SizedBox(width: 10),
@@ -152,7 +153,7 @@ Future<void> showAddRewardSheet(
                                   : '已選 ${selectedPresetCfgs.length} 個常用獎勵',
                               style: TextStyle(
                                 color: selectedPresetCfgs.isEmpty
-                                    ? Colors.grey.shade600
+                                    ? AppInk.soft
                                     : Colors.purple.shade700,
                                 fontSize: 14,
                               ),
@@ -164,7 +165,7 @@ Future<void> showAddRewardSheet(
                                 : Icons.check_circle,
                             size: 20,
                             color: selectedPresetCfgs.isEmpty
-                                ? Colors.grey.shade400
+                                ? AppInk.faint
                                 : Colors.purple.shade600,
                           ),
                         ],
@@ -181,7 +182,7 @@ Future<void> showAddRewardSheet(
                   decoration: InputDecoration(
                     hintText: '自訂獎勵名稱...',
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -207,7 +208,7 @@ Future<void> showAddRewardSheet(
                     decoration: InputDecoration(
                       labelText: '所需積分',
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: AppSurfaces.fill,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -258,7 +259,7 @@ Future<void> showAddRewardSheet(
                         : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.purple,
-                      disabledBackgroundColor: Colors.grey.shade200,
+                      disabledBackgroundColor: AppSurfaces.divider,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -319,7 +320,7 @@ Future<void> showEditRewardSheet(
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: AppSurfaces.dragHandle,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -332,7 +333,7 @@ Future<void> showEditRewardSheet(
                 const SizedBox(height: 14),
                 Text(
                   '套用小孩',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 6),
                 Wrap(
@@ -363,7 +364,7 @@ Future<void> showEditRewardSheet(
                   decoration: InputDecoration(
                     labelText: '獎勵名稱',
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -390,7 +391,7 @@ Future<void> showEditRewardSheet(
                   decoration: InputDecoration(
                     labelText: '所需積分',
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -428,7 +429,7 @@ Future<void> showEditRewardSheet(
                         : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.purple,
-                      disabledBackgroundColor: Colors.grey.shade200,
+                      disabledBackgroundColor: AppSurfaces.divider,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../utils/app_style.dart';
 import 'family_presets.dart';
 
 // 常用選項子選單：可捲動清單，每項可個別調整數值
@@ -36,7 +37,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: AppSurfaces.dragHandle,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -59,10 +60,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                   if (selected.isNotEmpty)
                     Text(
                       '${selected.length} 項已選',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
+                      style: TextStyle(fontSize: 12, color: AppInk.soft),
                     ),
                 ],
               ),
@@ -95,7 +93,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                             ? accentColor.withValues(alpha: 0.08)
                             : Colors.white,
                         border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade100),
+                          bottom: BorderSide(color: AppSurfaces.fill),
                         ),
                       ),
                       child: Row(
@@ -110,7 +108,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                 fontWeight: sel
                                     ? FontWeight.w600
                                     : FontWeight.normal,
-                                color: sel ? accentColor : Colors.black87,
+                                color: sel ? accentColor : AppInk.strong,
                               ),
                             ),
                           ),
@@ -142,9 +140,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                       onPressed: () => Navigator.pop(dCtx),
                                       child: Text(
                                         '取消',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade600,
-                                        ),
+                                        style: TextStyle(color: AppInk.soft),
                                       ),
                                     ),
                                     TextButton(
@@ -168,7 +164,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: sel ? accentColor : Colors.grey.shade100,
+                                color: sel ? accentColor : AppSurfaces.fill,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -177,9 +173,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                   Text(
                                     '$badgePrefix$pts',
                                     style: TextStyle(
-                                      color: sel
-                                          ? Colors.white
-                                          : Colors.grey.shade600,
+                                      color: sel ? Colors.white : AppInk.soft,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
                                     ),
@@ -205,7 +199,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                               shape: BoxShape.circle,
                               color: sel ? accentColor : Colors.transparent,
                               border: Border.all(
-                                color: sel ? accentColor : Colors.grey.shade300,
+                                color: sel ? accentColor : AppInk.faint,
                                 width: 2,
                               ),
                             ),
