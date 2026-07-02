@@ -17,6 +17,7 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/sfx_service.dart';
 import '../utils/story_catalog.dart';
+import '../utils/usage_stats.dart';
 
 class StoryRevealPage extends StatefulWidget {
   final StoryEventSpec event;
@@ -70,6 +71,7 @@ class _StoryRevealPageState extends State<StoryRevealPage>
       duration: const Duration(seconds: 24),
     )..repeat();
     playFeedback(SfxCue.tumiHappy, haptic: HapticLevel.light);
+    unawaited(UsageStats.bump(UsageEvents.storyOpen));
     _startPage();
   }
 

@@ -10,6 +10,7 @@ import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
+import '../utils/usage_stats.dart';
 import 'home/room_ambient_overlay.dart';
 import 'story_reveal_page.dart';
 
@@ -272,6 +273,13 @@ class _DevTestPageState extends State<DevTestPage> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
+                _card(
+                  title: '使用統計（本機匿名）',
+                  icon: Icons.query_stats,
+                  description: '只記「事件 → 當日次數」、不上傳（usage_stats.dart）。'
+                      '這裡看最近 7 天的原始計數。',
+                  child: const _UsageStatsViewer(),
+                ),
                 _card(
                   title: '金幣（測試）',
                   icon: Icons.monetization_on_outlined,
@@ -660,6 +668,66 @@ class _DevTestPageState extends State<DevTestPage> {
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
         color: selected ? color : Colors.grey.shade700,
       ),
+    );
+  }
+}
+
+/// 最近 7 天的本機使用統計原始計數（純檢視，不動資料）。
+class _UsageStatsViewer extends StatefulWidget {
+  const _UsageStatsViewer();
+
+  @override
+  State<_UsageStatsViewer> createState() => _UsageStatsViewerState();
+}
+
+class _UsageStatsViewerState extends State<_UsageStatsViewer> {
+  Future<List<(String, Map<String, int>)>> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    return [
+      for (final day in UsageStats.recordedDays(prefs).take(7))
+        (day, UsageStats.dayCounts(prefs, day)),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<(String, Map<String, int>)>>(
+      future: _load(),
+      builder: (context, snapshot) {
+        final days = snapshot.data;
+        if (days == null) return const SizedBox(height: 24);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (days.isEmpty)
+              const Text('還沒有任何紀錄。', style: TextStyle(fontSize: 13)),
+            for (final (day, counts) in days) ...[
+              Text(
+                day,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              for (final e in counts.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value)))
+                Text(
+                  '  ${e.key}：${e.value}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              const SizedBox(height: 6),
+            ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => setState(() {}),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('重新整理'),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

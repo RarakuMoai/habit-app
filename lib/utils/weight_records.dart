@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'logical_date.dart';
 import 'prefs_keys.dart';
+import 'usage_stats.dart';
 
 const String kWeightHabitName = '體重紀錄';
 const List<String> kWeightHabitAliases = [kWeightHabitName, '每日量體重'];
@@ -56,6 +58,8 @@ Future<void> upsertSavedWeightRecord(
     ..add({'date': date, 'time': weightRecordTime(ts), 'weight': weightKg})
     ..sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
   await prefs.setString(PrefsKeys.weightRecords, jsonEncode(records));
+  // 匿名統計：存一筆體重（新增或覆寫同日都算；回填帶 [at] 也算使用）。
+  unawaited(UsageStats.bump(UsageEvents.weightAdd));
 }
 
 Future<void> ensureWeightHabit(SharedPreferences prefs) async {

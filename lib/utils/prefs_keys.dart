@@ -198,6 +198,11 @@ abstract final class PrefsKeys {
   // 刻意維持純日曆午夜（見 coin_service），避免靠切設定重複領獎。
   static const dayStartHour = 'day_start_hour';
 
+  // ── 匿名使用統計（本機、不上傳；見 utils/usage_stats.dart）────
+  // 每個真實日曆日一個 JSON map：{事件名: 次數}（date 格式 yyyy-MM-dd）
+  static const usageDayPrefix = 'usage_day_';
+  static String usageDay(String ymd) => '$usageDayPrefix$ymd';
+
   // ── Debug（kDevToolsEnabled 控制讀取；目前 release 也暫時開，正式版會移除）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24
   static const debugStartTab = 'debug_start_tab'; // int 啟動分頁 index

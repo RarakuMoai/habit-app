@@ -7,6 +7,7 @@
 // 純資料層：只負責「擁有/選用/清單/購買扣款」與持久化，不直接碰 BgmService。
 // 播放副作用（切歌、試聽）由呼叫端（衣櫃頁）負責，保持低耦合。
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'coin_service.dart';
 import 'prefs_keys.dart';
+import 'usage_stats.dart';
 import 'wardrobe_catalog.dart';
 
 /// 購買結果。
@@ -137,6 +139,8 @@ class WardrobeStore {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(PrefsKeys.wardrobeSelectedOutfit, id);
     selectedOutfit.value = id;
+    // 匿名統計：套用造型（衣櫃是否帶動回訪的核心指標之一）。
+    unawaited(UsageStats.bump(UsageEvents.wardrobeApply));
   }
 
   // ── 播放清單 ───────────────────────────────────────────
@@ -249,6 +253,7 @@ class WardrobeStore {
     final next = {...ownedOutfits.value, id};
     await prefs.setStringList(PrefsKeys.wardrobeOwnedOutfits, next.toList());
     ownedOutfits.value = next;
+    unawaited(UsageStats.bump(UsageEvents.wardrobeBuy));
     return PurchaseResult.success;
   }
 
@@ -265,6 +270,7 @@ class WardrobeStore {
     final next = {...ownedTracks.value, id};
     await prefs.setStringList(PrefsKeys.bgmOwnedTracks, next.toList());
     ownedTracks.value = next;
+    unawaited(UsageStats.bump(UsageEvents.wardrobeBuy));
     return PurchaseResult.success;
   }
 

@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
+import 'usage_stats.dart';
 
 // 番茄鐘 / 運動兩個計時器互斥：同一時間只允許一個「實際倒數中」。
 //
@@ -51,6 +55,8 @@ class TimerMutex {
     final other = (_active != null && _active != who) ? _active : null;
     if (other != null) _pausers[other]?.call();
     _active = who;
+    // 匿名統計：計時啟動（含 resume；當粗略 engagement 即可，不求精確）。
+    unawaited(UsageStats.bump(UsageEvents.timerStart(who.name)));
     return other;
   }
 

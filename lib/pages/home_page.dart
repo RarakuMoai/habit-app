@@ -20,6 +20,7 @@ import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/story_store.dart';
+import '../utils/usage_stats.dart';
 import '../utils/weight_records.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
@@ -634,6 +635,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       });
       // 每週習慣每次累加都是一次打卡（減少時對稱扣回，刷不了幣）
       CoinService.award(CoinSource.habitDone, note: habit['name'] as String?);
+      unawaited(UsageStats.bump(UsageEvents.habitCheck));
     } else {
       final wasDone = habit['done'] as bool;
       setState(() {
@@ -648,6 +650,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         );
       } else {
         CoinService.award(CoinSource.habitDone, note: habit['name'] as String?);
+        unawaited(UsageStats.bump(UsageEvents.habitCheck));
       }
     }
     saveHabits();

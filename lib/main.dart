@@ -32,6 +32,7 @@ import 'utils/sfx_service.dart';
 import 'utils/story_catalog.dart';
 import 'utils/story_store.dart';
 import 'utils/tab_catalog.dart';
+import 'utils/usage_stats.dart';
 import 'utils/wardrobe_store.dart';
 import 'utils/weight_records.dart';
 
@@ -527,6 +528,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         setState(() => _currentIndex = idx);
       }
     }
+    // 匿名統計：冷啟動的起始分頁也算一次開啟（之後的切換在 _onTabTapped 記）。
+    if (prevId == null && _tabs.isNotEmpty) {
+      final idx = _currentIndex < _tabs.length ? _currentIndex : 0;
+      unawaited(UsageStats.bump(UsageEvents.tab(_tabs[idx].id)));
+    }
   }
 
   Future<void> _handleWaterGoal(bool reached) async {
@@ -779,6 +785,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         _currentIndex == wardrobeIdx &&
         index != wardrobeIdx) {
       unawaited(WardrobePreviewController.restore());
+    }
+    // 匿名統計：只記真的切過去（重按同分頁不算開啟）。
+    if (index != _currentIndex) {
+      unawaited(UsageStats.bump(UsageEvents.tab(tabs[index].id)));
     }
     setState(() => _currentIndex = index);
   }

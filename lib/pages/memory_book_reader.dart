@@ -6,6 +6,7 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
+import '../utils/usage_stats.dart';
 
 /// 閱讀器的一個跨頁：某個已解鎖事件的第 [pageNo] 頁。
 class _SpreadEntry {
@@ -57,6 +58,7 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
     _index = start < 0 ? 0 : start;
     _controller = PageController(initialPage: _index);
     _markRead(_index);
+    unawaited(UsageStats.bump(UsageEvents.memoryBookOpen));
   }
 
   @override

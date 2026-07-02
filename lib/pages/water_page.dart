@@ -11,6 +11,7 @@ import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
+import '../utils/usage_stats.dart';
 import '../utils/water_entries.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -320,6 +321,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _entries = [..._entries, WaterEntry.cup(_cupMl)]);
     await _saveEntries();
     _notifyGoalStatus();
+    unawaited(UsageStats.bump(UsageEvents.waterAdd));
     unawaited(
       SfxService.instance.play(
         !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
@@ -364,6 +366,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _entries = [..._entries, WaterEntry.custom(clamped)]);
     await _saveEntries();
     _notifyGoalStatus();
+    unawaited(UsageStats.bump(UsageEvents.waterAdd));
     unawaited(
       SfxService.instance.play(
         !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
