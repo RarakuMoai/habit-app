@@ -130,6 +130,9 @@ class _TimerPageState extends State<TimerPage>
   @override
   void dispose() {
     _timer?.cancel();
+    // 進行中被移出畫面（如功能開關關掉計時分頁）＝這節已死，別讓排程好的
+    // 鎖屏通知繼續照時間發。App 遭系統砍不會走 dispose，背景提醒不受影響。
+    if (_isRunning) unawaited(_cancelAllNotifs());
     _breath.dispose();
     TimerMutex.unregister(ActiveTimer.focus);
     WidgetsBinding.instance.removeObserver(this);
