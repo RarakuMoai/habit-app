@@ -43,8 +43,13 @@ class GameSession with WidgetsBindingObserver {
   /// widget 樹）先請它退場，不留持有殭屍參照的 route。
   final List<VoidCallback> _fullscreenClosers = [];
 
-  GameSession({required TickerProvider vsync}) {
-    _ticker = vsync.createTicker(_onTick);
+  // Ticker 刻意「手建」而不用宿主 widget 的 TickerProvider：全螢幕對戰面是
+  // 不透明 route，Overlay 會把被蓋住的卡片整棵設成 TickerMode(enabled:false)，
+  // mixin 建的 ticker 會被靜音＝進全螢幕時鐘凍結、退出時又把整段時間一次
+  // 扣掉（舊版就有這個 bug）。時鐘是正確性需求，不跟隨可見性；切背景暫停
+  // 已由 didChangeAppLifecycleState 處理。
+  GameSession() {
+    _ticker = Ticker(_onTick);
     controller.onEvent = _onClockEvent;
     controller.addListener(_syncSideEffects);
     TimerMutex.register(ActiveTimer.game, pauseForOther);
