@@ -118,17 +118,25 @@ class GameSession with WidgetsBindingObserver {
     }
   }
 
-  /// 圓環／全螢幕整頁共用同一套點擊規則：進行中＝換手、決出勝負＝再來一局、
-  /// 待機或暫停＝開始/繼續（此時回傳結果給呼叫端跳提示、進全螢幕）。
-  GameStartResult? tapAnywhere() {
-    if (controller.running) {
-      pass();
+  /// 點對戰面上「第 [i] 位玩家的區」——像實體棋鐘的按鈕：
+  /// - 進行中：點自己的區＝換手；點別人的區只輕震提示（防誤觸幫人走棋）。
+  /// - 待機：點誰的區誰先走（設定先手＋立即開始）。
+  /// - 暫停：點任何區＝繼續；決出勝負：點任何區＝再來一局（回待機預覽）。
+  GameStartResult? tapZone(int i) {
+    final c = controller;
+    if (c.running) {
+      if (i == c.activeIndex) {
+        pass();
+      } else {
+        playHaptic(HapticLevel.light);
+      }
       return null;
     }
-    if (controller.finished) {
+    if (c.finished) {
       reset();
       return null;
     }
+    if (!c.started) c.pickFirstPlayer(i);
     return start();
   }
 

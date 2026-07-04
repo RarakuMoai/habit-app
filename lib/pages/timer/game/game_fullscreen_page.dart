@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import 'game_clock.dart';
 import 'game_session.dart';
+import 'game_settings_sheet.dart';
 import 'game_widgets.dart';
 
-/// 全螢幕對戰面：蓋滿整個 app（含底部分頁），把裝置放在桌上大家一起用。
+/// 環桌對戰面：遊戲計時的本體，蓋滿整個 app（含底部分頁），
+/// 手機平放桌子中央、大家一起用。
 ///
-/// - 2 人＝棋鐘式上下分半：上半旋轉 180° 面向對面玩家，**點自己那半＝換手**
-///   （不用搶同一顆鈕、也不會誤觸對方），中間一條控制列（退出/上一位/暫停）。
-/// - 3 人以上＝大舞台：目前玩家名字＋超大時間佔滿焦點，點畫面任一處換手，
-///   底下座位列看順序與剩餘時間。
+/// 2～8 人同一套版型：座位分成上下兩排，**上排整排旋轉 180° 面向對面的
+/// 玩家**，每人一格自己的區。像實體棋鐘——待機時誰先點自己的區誰先走；
+/// 進行中點自己的區＝換手（點別人的區只輕震，防誤觸）。中線控制列放
+/// 退出／設定（待機）／上一位／暫停，兩邊玩家都搆得到。
 ///
-/// 只依賴 [GameSession] 的公開 API：監聽 controller 重繪、呼叫意圖方法，
-/// 跟卡片畫面共用同一個資料來源。宿主卡片被移出 widget 樹時（session
-/// dispose）會自己退場，不留殭屍參照。
+/// 只依賴 [GameSession] 的公開 API；宿主卡片被移出 widget 樹時
+/// （session dispose）會自己退場，不留殭屍參照。
 class GameFullscreenPage extends StatefulWidget {
   final GameSession session;
 
@@ -63,22 +63,7 @@ class _GameFullscreenPageState extends State<GameFullscreenPage> {
     });
   }
 
-  // 分半模式點某一半：進行中只有「輪到的那一半」能換手（點對面＝輕震提示，
-  // 防止誤觸幫別人走棋）；暫停/待機/勝負則點哪裡都是繼續/開始/再來一局。
-  void _zoneTap(int i) {
-    if (c.running) {
-      if (i == c.activeIndex) {
-        session.pass();
-      } else {
-        playHaptic(HapticLevel.light);
-      }
-      return;
-    }
-    _showPausedOther(session.tapAnywhere());
-  }
-
-  // 大舞台（3 人以上）：點畫面任一處＝換手/繼續/再來一局。
-  void _stageTap() => _showPausedOther(session.tapAnywhere());
+  void _zoneTap(int i) => _showPausedOther(session.tapZone(i));
 
   // 搶鎖暫停了別的計時器：提示丟在這一頁（使用者看得到的畫面）上。
   void _showPausedOther(GameStartResult? result) {
@@ -91,50 +76,58 @@ class _GameFullscreenPageState extends State<GameFullscreenPage> {
 
   @override
   Widget build(BuildContext context) {
+    final n = c.playerCount;
+    // 環桌座位：下排 0..bottom-1（正向），上排其餘（整排轉 180°）。
+    // 旋轉會左右鏡射，座位順序自然變成「繞著桌子轉一圈」。
+    final bottomCount = (n + 1) ~/ 2;
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8F0),
-      body: SafeArea(child: c.playerCount == 2 ? _duel() : _stage()),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+                child: RotatedBox(
+                  quarterTurns: 2,
+                  child: _zoneRow(bottomCount, n),
+                ),
+              ),
+            ),
+            _controlBar(),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+                child: _zoneRow(0, bottomCount),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  // ── 2 人：棋鐘分半 ──
-
-  Widget _duel() {
-    return Column(
+  Widget _zoneRow(int from, int to) {
+    return Row(
       children: [
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-            // 面向對面的玩家：整半場轉 180°，傳裝置/放桌上都直接可讀。
-            child: RotatedBox(
-              quarterTurns: 2,
+        for (var i = from; i < to; i++)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               child: GamePlayerZone(
-                key: const ValueKey('game_zone_1'),
+                key: ValueKey('game_zone_$i'),
                 controller: c,
-                index: 1,
-                onTap: () => _zoneTap(1),
+                index: i,
+                onTap: () => _zoneTap(i),
               ),
             ),
           ),
-        ),
-        _duelControlBar(),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-            child: GamePlayerZone(
-              key: const ValueKey('game_zone_0'),
-              controller: c,
-              index: 0,
-              onTap: () => _zoneTap(0),
-            ),
-          ),
-        ),
       ],
     );
   }
 
-  // 中線控制列：退出／上一位／暫停。不旋轉（兩邊玩家都搆得到）。
-  Widget _duelControlBar() {
+  // 中線控制列：退出／設定（待機才有；開局後要先重設）／上一位／暫停。
+  Widget _controlBar() {
     final color = gameStateColor(c);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -146,13 +139,20 @@ class _GameFullscreenPageState extends State<GameFullscreenPage> {
             color: AppInk.soft,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-          const SizedBox(width: 20),
-          _FsRoundButton(
-            icon: Icons.skip_previous_rounded,
-            color: color,
-            onTap: c.canUndo ? session.undo : null,
-          ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 18),
+          if (!c.started)
+            _FsRoundButton(
+              icon: Icons.tune_rounded,
+              color: kGameAccent,
+              onTap: () => showGameSettingsSheet(context, c),
+            )
+          else
+            _FsRoundButton(
+              icon: Icons.skip_previous_rounded,
+              color: color,
+              onTap: c.canUndo ? session.undo : null,
+            ),
+          const SizedBox(width: 18),
           _FsRoundButton(
             icon: c.running ? Icons.pause_rounded : Icons.play_arrow_rounded,
             color: color,
@@ -166,113 +166,37 @@ class _GameFullscreenPageState extends State<GameFullscreenPage> {
       ),
     );
   }
-
-  // ── 3 人以上：大舞台＋座位列 ──
-
-  Widget _stage() {
-    return Stack(
-      children: [
-        GestureDetector(
-          key: const ValueKey('game_stage'),
-          behavior: HitTestBehavior.opaque,
-          onTap: _stageTap,
-          child: Column(
-            children: [
-              const SizedBox(height: 56), // 留給左上退出鈕
-              Expanded(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: GameStage(controller: c),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: GamePlayersStrip(controller: c),
-              ),
-              const SizedBox(height: 96), // 留給底部上一位/暫停列
-            ],
-          ),
-        ),
-        Positioned(
-          top: 4,
-          left: 12,
-          child: _FsRoundButton(
-            icon: Icons.close_rounded,
-            color: AppInk.soft,
-            onTap: () => Navigator.of(context).maybePop(),
-          ),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 20,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _FsRoundButton(
-                icon: Icons.skip_previous_rounded,
-                color: gameStateColor(c),
-                onTap: c.canUndo ? session.undo : null,
-              ),
-              const SizedBox(width: 28),
-              _FsRoundButton(
-                icon: c.running
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: gameStateColor(c),
-                big: true,
-                onTap: c.finished
-                    ? null
-                    : c.running
-                    ? session.pause
-                    : () => _showPausedOther(session.start()),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-// 全螢幕頁專用的圓形控制鈕：白底浮凸，跟卡片的側鈕/主鈕同一套視覺語言。
+// 對戰面的圓形控制鈕：白底浮凸，跟全 app 的按鈕語彙一致。
 class _FsRoundButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback? onTap;
-  final bool big;
 
   const _FsRoundButton({
     required this.icon,
     required this.color,
     required this.onTap,
-    this.big = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final on = onTap != null;
-    final size = big ? 76.0 : 52.0;
     return Opacity(
       opacity: on ? 1 : 0.35,
       child: SizedBox(
-        width: size,
-        height: size,
+        width: 52,
+        height: 52,
         child: Material(
           color: Colors.white,
           shape: const CircleBorder(),
-          elevation: big ? 3 : 1.5,
+          elevation: 1.5,
           shadowColor: Colors.black.withValues(alpha: 0.16),
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: onTap,
-            child: Icon(
-              icon,
-              size: big ? 34 : 24,
-              color: on ? color : AppInk.faint,
-            ),
+            child: Icon(icon, size: 24, color: on ? color : AppInk.faint),
           ),
         ),
       ),

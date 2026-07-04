@@ -176,6 +176,8 @@ class _GameSettingsSheetState extends State<GameSettingsSheet>
                       const SizedBox(height: 8),
                       _modeChoices(color),
                       const SizedBox(height: 12),
+                      _timePresetChips(color),
+                      const SizedBox(height: 8),
                       if (c.mode == GameClockMode.turn)
                         _stepperCard(
                           label: '每回合秒數',
@@ -562,6 +564,56 @@ class _GameSettingsSheetState extends State<GameSettingsSheet>
           onPressed: _endEdit,
         ),
       ],
+    );
+  }
+
+  // 常用時間快選：一點即套，免得狂按加減鈕（細調仍走下方步進器）。
+  Widget _timePresetChips(Color color) {
+    final turn = c.mode == GameClockMode.turn;
+    final presets = turn
+        ? const [10, 30, 60, 120, 300]
+        : const [60, 180, 300, 600, 1800];
+    final current = turn ? c.turnSeconds : c.bankSeconds;
+    Widget chip(int v) {
+      final sel = v == current;
+      return GestureDetector(
+        onTap: () {
+          playHaptic(HapticLevel.selection);
+          _apply(() => turn ? c.setTurnSeconds(v) : c.setBankSeconds(v));
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          decoration: BoxDecoration(
+            color: sel ? color : const Color(0xFFFAF7F2),
+            borderRadius: BorderRadius.circular(99),
+            border: Border.all(color: sel ? color : const Color(0xFFE8DDD4)),
+            boxShadow: sel
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            formatGameDuration(v),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: sel ? Colors.white : AppInk.soft,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [for (final v in presets) chip(v)],
     );
   }
 
