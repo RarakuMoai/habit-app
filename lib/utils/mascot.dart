@@ -77,10 +77,12 @@ enum MascotContext {
 
 // 頭頂情緒泡泡：疊在兔咪頭頂上方的漫畫式小符號（愛心／音符／星／汗滴／
 // Zzz／驚嘆／問號）。CG 立繪只畫純角色，泡泡一律 Flutter 端 CustomPainter
-// 畫成 overlay（同 sparkle／pet 波紋那套），可隨頁面主色上色、做浮起淡出。
+// 畫成 overlay（同 sparkle／pet 波紋那套），可隨頁面主色上色。
 //
-// 每次情緒事件（interact / setForContext）會依情境帶一顆泡泡，冒一下後淡出；
-// 中性待機與空狀態刻意不冒，避免畫面太吵。對應只改 [forContext] 這個 switch。
+// 每次情緒事件（interact / setForContext）會依情境帶一顆泡泡，演出一次後淡出；
+// 中性待機與空狀態刻意不冒，避免畫面太吵。
+// 這裡只管「哪個情境冒哪顆」（改 [forContext] 這個 switch）；
+// 每顆泡泡的外觀／配色／動態個性宣告在 widgets/mascot_bubbles.dart 的註冊表。
 enum EmotionBubble {
   heart, // 愛心：摸頭
   note, // 音符：完成、進度在動
