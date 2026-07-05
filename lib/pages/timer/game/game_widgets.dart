@@ -187,10 +187,14 @@ class GamePlayerZone extends StatelessWidget {
               : AppShadows.flat,
         ),
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          // 內容隨格子等比撐大（不只縮小）：2 人時半個螢幕的格子要配超大數字，
+          // 桌面隔遠可讀；8 人的窄格則自動縮到剛好。字級只是比例基準。
+          // 視覺層級：輪到的人最大、等待中縮小讓位、待機中等（每格都是開始鈕）。
+          child: FractionallySizedBox(
+            widthFactor: lit ? 0.84 : (c.started ? 0.58 : 0.72),
+            heightFactor: lit ? 0.7 : (c.started ? 0.48 : 0.6),
             child: FittedBox(
-              fit: BoxFit.scaleDown,
+              // 預設 contain：等比放大到塞滿 84%×70% 的格內空間
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
