@@ -282,17 +282,11 @@ class _PawCoinIcon extends StatelessWidget {
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        CustomPaint(
-          size: const Size.square(38),
-          painter: const _PawOutlinePainter(
-            color: _CoinBalanceButton._reviewBrown,
-            glowColor: _CoinBalanceButton._reviewAmber,
-          ),
-        ),
+        const CustomPaint(size: Size.square(38), painter: _PawPadPainter()),
         Positioned(
           left: 8,
           right: 8,
-          bottom: 4.5,
+          bottom: 5,
           height: 13,
           child: Center(
             child: FittedBox(
@@ -317,82 +311,54 @@ class _PawCoinIcon extends StatelessWidget {
   }
 }
 
-class _PawOutlinePainter extends CustomPainter {
-  final Color color;
-  final Color glowColor;
-
-  const _PawOutlinePainter({required this.color, required this.glowColor});
+/// 填色肉墊腳印（貼紙感）：豆型掌墊＋四顆胖圓趾墊，暖金填色＋細邊。
+/// 舊版是「描邊＋光暈」線稿風——線條密、光暈糊，38px 下讀起來像示意圖；
+/// 改成填色後跟全 app 的圓潤語彙一致，金幣數字也坐在明確的墊面上。
+class _PawPadPainter extends CustomPainter {
+  const _PawPadPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-    // 掌墊改用圓角矩形（不是純橢圓）：橢圓四角收得太快，塞不下金幣數字
-    // （長到 999+ 4 個字）就會頂到趾墊；圓角矩形中間留一塊方正安全區給
-    // 數字，看起來仍是圓潤肉墊、不會像方塊。
-    // 四顆趾墊：內側兩顆較大較高、外側兩顆較小較低，呈扇形展開，彼此與掌墊
-    // 都留白分開才會一眼認出是腳印，之前用一條連續外框描全部反而糊成一坨。
+    // 掌墊＝豆型（兩端全圓的膠囊微壓扁）：夠寬能放 999+ 四位數，
+    // 又不像舊版圓角矩形那樣讀成盒子。
     final palm = RRect.fromRectAndRadius(
-      Rect.fromLTRB(w * 0.16, h * 0.50, w * 0.84, h * 0.92),
-      Radius.circular(w * 0.14),
+      Rect.fromLTRB(w * 0.15, h * 0.46, w * 0.85, h * 0.94),
+      Radius.circular(w * 0.22),
     );
+    // 四顆趾墊沿弧線扇形排：內側大而高、外側小而低，
+    // 與掌墊留 1~2% 的細縫——分開才讀得出「腳印」。
     final toes = <Rect>[
-      Rect.fromCenter(
-        center: Offset(w * 0.165, h * 0.465),
-        width: w * 0.20,
-        height: h * 0.20,
-      ),
-      Rect.fromCenter(
-        center: Offset(w * 0.375, h * 0.255),
-        width: w * 0.225,
-        height: h * 0.265,
-      ),
-      Rect.fromCenter(
-        center: Offset(w * 0.625, h * 0.255),
-        width: w * 0.225,
-        height: h * 0.265,
-      ),
-      Rect.fromCenter(
-        center: Offset(w * 0.835, h * 0.465),
-        width: w * 0.20,
-        height: h * 0.20,
-      ),
+      Rect.fromCircle(center: Offset(w * 0.135, h * 0.35), radius: w * 0.10),
+      Rect.fromCircle(center: Offset(w * 0.365, h * 0.215), radius: w * 0.12),
+      Rect.fromCircle(center: Offset(w * 0.635, h * 0.215), radius: w * 0.12),
+      Rect.fromCircle(center: Offset(w * 0.865, h * 0.35), radius: w * 0.10),
     ];
     final paw = Path()..addRRect(palm);
     for (final toe in toes) {
       paw.addOval(toe);
     }
+    // 暖金填色（上亮下深的柔和光感）＋深金細邊，數字用深棕壓得住。
     final fill = Paint()
       ..style = PaintingStyle.fill
-      ..shader = RadialGradient(
-        center: const Alignment(0, 0.25),
-        radius: 0.78,
-        colors: [
-          glowColor.withValues(alpha: 0.20),
-          glowColor.withValues(alpha: 0.055),
-        ],
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFFFE3A8), Color(0xFFFFC44D)],
       ).createShader(Offset.zero & size);
-    final glow = Paint()
+    final rim = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 4.2
-      ..color = glowColor.withValues(alpha: 0.20);
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 2.35
-      ..color = color.withValues(alpha: 0.94);
+      ..strokeWidth = 1.7
+      ..color = const Color(0xFFC98A2B).withValues(alpha: 0.85);
 
     canvas.drawPath(paw, fill);
-    canvas.drawPath(paw, glow);
-    canvas.drawPath(paw, stroke);
+    canvas.drawPath(paw, rim);
   }
 
   @override
-  bool shouldRepaint(covariant _PawOutlinePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.glowColor != glowColor;
+  bool shouldRepaint(covariant _PawPadPainter oldDelegate) => false;
 }
 
 /// 白底圓角小膠囊（日期、連續天數等都用這個）。
