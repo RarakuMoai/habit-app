@@ -52,20 +52,82 @@ icon 同一家族）。主題：骰子＋沙漏（或骰子＋棋子）的組合
 
 ---
 
-## 3. 專屬音效（3 顆）
+## 3. 專屬音效（3 顆）— ElevenLabs 生成教學
 
 | 檔名 | 用途 | 感覺 | 長度 |
 |---|---|---|---|
-| `sfx_game_pass.wav` | 換人／棋鐘按下 | 實體棋鐘按鈕「喀噠」，木質、乾脆 | <200ms |
-| `sfx_game_warn.wav` | 警示開始（剩 10 秒） | 柔和木魚／木質 tick，一聲 | <300ms |
-| `sfx_game_flag.wav` | 超時／旗倒 | 低沉小鑼或沉鈴，明確但不刺耳 | <1s |
+| `sfx_game_pass` | 換人／棋鐘按下 | 實體棋鐘按鈕「喀噠」，木質、乾脆 | 0.3–0.5s |
+| `sfx_game_warn` | 警示開始（剩 10 秒） | 柔和木魚／木質 tick，一聲 | ~0.5s |
+| `sfx_game_flag` | 超時／旗倒 | 低沉小鑼或沉鈴，明確但不刺耳 | ~1s |
 
-規格：WAV 44.1kHz、單聲道即可；響度對齊 `assets/sounds/` 現有檔（整合時
-我會做音量係數校正）。落點 `assets/sounds/`。
+### 操作步驟
 
-整合時的程式對接（Claude 做）：加進 `SfxCue` enum、替換
-`table_stage_page.dart` 的事件對映（pass→advance/棋鐘換手、warn→warn、
-flag→expire/旗倒），並把入口卡與模式切換列換成新 icon。
+1. 開 <https://elevenlabs.io/sound-effects>，用 Google 帳號免費註冊登入
+   （免費方案的每月額度出這三顆綽綽有餘）。
+2. 進入 Sound Effects 生成頁，介面三個重點：
+   - **Prompt 輸入框**：貼下面的英文 prompt。
+   - **Duration**：先用 Auto；如果生出來太長，pass 手動設 0.5 秒、
+     warn 設 0.5 秒、flag 設 1 秒。
+   - **Prompt influence**：拉高到 70% 以上（越高越照字面做，
+     不會自由發揮）。
+3. 按 Generate，一次會出 3–4 個候選。**全部試聽**，用下面的
+   「驗收重點」挑；都不像就換變體 prompt 再生一次。
+4. 挑中就下載（免費方案給 MP3 沒關係，**轉 WAV 我來**）。
+5. 檔名改成 `sfx_game_pass` / `sfx_game_warn` / `sfx_game_flag`
+   （副檔名不拘），丟桌面 `00` 資料夾跟我說一聲即可。
+
+### Prompt（每顆一主二備，主 prompt 不像再換備用）
+
+**① sfx_game_pass（棋鐘喀噠）**
+
+> single mechanical chess clock button press, crisp wooden click, short
+> percussive tap, dry recording, no reverb, no background noise, isolated
+> one-shot
+
+備用 A：
+> vintage wooden chess timer lever click, snappy tactile clack, extremely
+> short, clean studio recording
+
+備用 B：
+> board game piece tapping hard wood table once, bright knock, tight and
+> dry, single hit
+
+驗收重點：夠短夠脆、**沒有尾音殘響**、不能有電子「嗶」感。
+
+**② sfx_game_warn（柔和木質 tick）**
+
+> soft wooden temple block hit, single gentle warm knock, muted
+> percussion, short decay, calm, no reverb tail
+
+備用 A：
+> single soft woodblock tick, rounded mellow tone, quiet and warm,
+> isolated one-shot
+
+備用 B：
+> gentle bamboo percussion tap, soft attack, warm low-mid tone, very short
+
+驗收重點：**溫和不嚇人**（它每局會響很多次），比 pass 更悶更圓潤。
+
+**③ sfx_game_flag（旗倒沉鑼）**
+
+> small deep gong single hit, warm low chime, soft mallet, short decay
+> under one second, solemn but not harsh, no long tail
+
+備用 A：
+> muted brass bowl strike, deep warm resonance, quick fade out, single hit
+
+備用 B：
+> low tibetan singing bowl tap, dark warm tone, short controlled decay,
+> isolated
+
+驗收重點：低沉有份量但**不刺耳不炸**，一秒內收乾淨，聽起來像
+「終局宣告」而不是警報。
+
+### 拿到檔案後的程式對接（Claude 做，不用管）
+
+轉 WAV＋響度對齊現有 `assets/sounds/`、加進 `SfxCue` enum、替換
+`table_stage_page.dart` 事件對映（pass→換人/棋鐘換手、warn→警示、
+flag→超時/旗倒），骰盤擲骰音也會順路掛 pass。
 
 ---
 
