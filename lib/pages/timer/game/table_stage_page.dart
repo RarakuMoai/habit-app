@@ -11,6 +11,7 @@ import '../../../utils/sfx_service.dart';
 import '../../../utils/wake_guard.dart';
 import '../../../widgets/app_dialogs.dart';
 import 'chess_face.dart';
+import 'dice_tray.dart';
 import 'party_face.dart';
 import 'table_summary_overlay.dart';
 import 'table_timer_engine.dart';
@@ -32,6 +33,9 @@ class _TableStagePageState extends State<TableStagePage>
 
   /// 結束確認後顯示結算面（沒真的玩就直接離開，不秀）。
   bool _showSummary = false;
+
+  /// 骰盤 overlay（擲骰時計時照跑——骰你的、算你的時間）。
+  bool _showDiceTray = false;
 
   @override
   void initState() {
@@ -118,67 +122,106 @@ class _TableStagePageState extends State<TableStagePage>
       child: Scaffold(
         backgroundColor: TableTheme.feltEdge,
         body: DecoratedBox(
+          // 後備漸層：CG 還沒解碼完成的第一幀也不會閃白
           decoration: TableTheme.feltBackground(),
-          child: ListenableBuilder(
-            listenable: _engine,
-            builder: (context, _) {
-              final chess = widget.config.mode == TableGameMode.chess;
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  // key 綁引擎：再來一局換新引擎時整張面重建，
-                  // 面板內部掛在舊引擎上的 listener 才不會殘留。
-                  if (chess)
-                    ChessFace(
-                      key: ObjectKey(_engine),
-                      engine: _engine,
-                      onPause: _engine.pause,
-                      onExit: _confirmExit,
-                    )
-                  else
-                    PartyFace(key: ObjectKey(_engine), engine: _engine),
-                  // 角落小鍵蓋在整面觸控區上方（吸收點擊，不觸發換人）。
-                  // 棋鐘的控制在中央窄帶，這裡只給多人/自由模式。
-                  // 注意 Stack 是 expand：一定要 Align 回頂部，不然 Row
-                  // 會被撐滿整頁、按鈕垂直置中。
-                  if (!chess)
-                    SafeArea(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _CornerButton(
-                                icon: Icons.close_rounded,
-                                onTap: _confirmExit,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // AI 生成絨布桌 CG＋保底暗角（光影特效照慣例 Flutter 端疊）
+              const RepaintBoundary(
+                child: Image(
+                  image: AssetImage(TableTheme.feltAsset),
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+              ),
+              DecoratedBox(decoration: TableTheme.feltVignette()),
+              ListenableBuilder(
+                listenable: _engine,
+                builder: (context, _) {
+                  final chess = widget.config.mode == TableGameMode.chess;
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // key 綁引擎：再來一局換新引擎時整張面重建，
+                      // 面板內部掛在舊引擎上的 listener 才不會殘留。
+                      if (chess)
+                        ChessFace(
+                          key: ObjectKey(_engine),
+                          engine: _engine,
+                          onPause: _engine.pause,
+                          onExit: _confirmExit,
+                          onDice: () => setState(() => _showDiceTray = true),
+                        )
+                      else
+                        PartyFace(key: ObjectKey(_engine), engine: _engine),
+                      // 角落小鍵蓋在整面觸控區上方（吸收點擊，不觸發換人）。
+                      // 棋鐘的控制在中央窄帶，這裡只給多人/自由模式。
+                      // 注意 Stack 是 expand：一定要 Align 回頂部，不然 Row
+                      // 會被撐滿整頁、按鈕垂直置中。
+                      if (!chess)
+                        SafeArea(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
                               ),
-                              _CornerButton(
-                                icon: Icons.pause_rounded,
-                                onTap: _engine.phase == TablePhase.running
-                                    ? _engine.pause
-                                    : null,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  _CornerButton(
+                                    icon: Icons.close_rounded,
+                                    onTap: _confirmExit,
+                                  ),
+                                  _CornerButton(
+                                    icon: Icons.pause_rounded,
+                                    onTap: _engine.phase == TablePhase.running
+                                        ? _engine.pause
+                                        : null,
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  if (_engine.phase == TablePhase.paused && !_showSummary)
-                    _PauseOverlay(engine: _engine, onExit: _confirmExit),
-                  if (_showSummary)
-                    TableSummaryOverlay(
-                      engine: _engine,
-                      onRematch: _rematch,
-                      onLeave: () => Navigator.of(context).pop(),
-                    ),
-                ],
-              );
-            },
+                      // 骰子鈕：party/free 放右下角（棋鐘在中央帶）
+                      if (!chess)
+                        SafeArea(
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
+                              ),
+                              child: _CornerButton(
+                                icon: Icons.casino_rounded,
+                                onTap: () =>
+                                    setState(() => _showDiceTray = true),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (_showDiceTray)
+                        DiceTrayOverlay(
+                          onClose: () => setState(() => _showDiceTray = false),
+                        ),
+                      if (_engine.phase == TablePhase.paused && !_showSummary)
+                        _PauseOverlay(engine: _engine, onExit: _confirmExit),
+                      if (_showSummary)
+                        TableSummaryOverlay(
+                          engine: _engine,
+                          onRematch: _rematch,
+                          onLeave: () => Navigator.of(context).pop(),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),

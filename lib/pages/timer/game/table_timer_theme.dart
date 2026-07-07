@@ -71,12 +71,27 @@ abstract final class TableTheme {
       TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: color);
 
   /// 絨布桌面背景漸層（radial vignette）。
+  /// CG 絨布圖（[feltAsset]）的後備：asset 載不出來也不會開天窗。
   static BoxDecoration feltBackground() => const BoxDecoration(
     gradient: RadialGradient(
       center: Alignment(0, -0.15),
       radius: 1.25,
       colors: [feltCenter, feltEdge],
       stops: [0.0, 1.0],
+    ),
+  );
+
+  /// AI 生成的絨布桌面 CG（2026-07 素材整合）。
+  static const String feltAsset = 'assets/scenes/game/game_felt_bg.png';
+
+  /// 疊在 CG 上的保底暗角：把邊緣再壓深一階，確保中央發光數字
+  /// 與角落鍵在任何縮放裁切下都有足夠對比。
+  static BoxDecoration feltVignette() => const BoxDecoration(
+    gradient: RadialGradient(
+      center: Alignment(0, -0.15),
+      radius: 1.3,
+      colors: [Color(0x00000000), Color(0x8019110B)],
+      stops: [0.55, 1.0],
     ),
   );
 }

@@ -99,6 +99,7 @@ abstract final class PrefsKeys {
   static const gameTableConfig = 'game_table_config'; // 設定快照 JSON（含玩家）
   static const gameTableRoster = 'game_table_roster'; // 常用玩家名單 JSON
   static const gameTablePresets = 'game_table_presets'; // 常用組合 JSON 清單
+  static const gameTableDiceCount = 'game_table_dice_count'; // 骰盤顆數 1–6
 
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';

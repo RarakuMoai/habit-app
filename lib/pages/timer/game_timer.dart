@@ -107,18 +107,11 @@ class _GameTimerState extends State<GameTimer> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: kGameAccent.withValues(alpha: 0.13),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.casino_rounded,
-                      color: kGameAccent,
-                      size: 24,
-                    ),
+                  // AI 生成貼紙 icon（自帶描邊，不再套底圈）
+                  Image.asset(
+                    'assets/icon/tabs/game_timer.png',
+                    width: 52,
+                    height: 52,
                   ),
                   const SizedBox(width: 12),
                   const Column(
@@ -367,18 +360,10 @@ class _GameTimerState extends State<GameTimer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: kGameAccent.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.casino_rounded,
-                  color: kGameAccent,
-                  size: 26,
-                ),
+              Image.asset(
+                'assets/icon/tabs/game_timer.png',
+                width: 56,
+                height: 56,
               ),
               const SizedBox(height: 12),
               const Text(

@@ -15,12 +15,14 @@ class ChessFace extends StatefulWidget {
   final TableTimerEngine engine;
   final VoidCallback onPause;
   final Future<void> Function() onExit;
+  final VoidCallback onDice;
 
   const ChessFace({
     super.key,
     required this.engine,
     required this.onPause,
     required this.onExit,
+    required this.onDice,
   });
 
   @override
@@ -250,6 +252,8 @@ class _ChessFaceState extends State<ChessFace>
             icon: Icons.pause_rounded,
             onTap: engine.phase == TablePhase.running ? widget.onPause : null,
           ),
+          const SizedBox(width: 26),
+          _bandButton(icon: Icons.casino_rounded, onTap: widget.onDice),
         ],
       ),
     );
