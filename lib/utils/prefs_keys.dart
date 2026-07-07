@@ -98,6 +98,7 @@ abstract final class PrefsKeys {
   // 全新 clean-room 命名空間（game_table_*），與已移除的舊版無關。
   static const gameTableConfig = 'game_table_config'; // 設定快照 JSON（含玩家）
   static const gameTableRoster = 'game_table_roster'; // 常用玩家名單 JSON
+  static const gameTablePresets = 'game_table_presets'; // 常用組合 JSON 清單
 
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';

@@ -12,6 +12,7 @@ import '../../../utils/wake_guard.dart';
 import '../../../widgets/app_dialogs.dart';
 import 'chess_face.dart';
 import 'party_face.dart';
+import 'table_summary_overlay.dart';
 import 'table_timer_engine.dart';
 import 'table_timer_models.dart';
 import 'table_timer_theme.dart';
@@ -27,7 +28,10 @@ class TableStagePage extends StatefulWidget {
 
 class _TableStagePageState extends State<TableStagePage>
     with WidgetsBindingObserver {
-  late final TableTimerEngine _engine;
+  late TableTimerEngine _engine;
+
+  /// 結束確認後顯示結算面（沒真的玩就直接離開，不秀）。
+  bool _showSummary = false;
 
   @override
   void initState() {
@@ -67,7 +71,7 @@ class _TableStagePageState extends State<TableStagePage>
   }
 
   Future<void> _confirmExit() async {
-    if (_engine.phase == TablePhase.ready) {
+    if (_engine.phase == TablePhase.ready || _showSummary) {
       Navigator.of(context).pop();
       return;
     }
@@ -75,13 +79,28 @@ class _TableStagePageState extends State<TableStagePage>
     final leave = await showAppConfirmDialog(
       context,
       title: '結束對局？',
-      message: '這局的計時不會保留。',
+      message: '結束後會顯示本局小結。',
       confirmLabel: '結束對局',
       danger: true,
     );
     if (!mounted) return;
-    if (leave) Navigator.of(context).pop();
-    // 不離開就停在暫停層，讓桌上的人自己按「繼續」。
+    if (!leave) return; // 停在暫停層，讓桌上的人自己按「繼續」
+    if (_engine.settledTurns > 0) {
+      playFeedback(SfxCue.complete, haptic: HapticLevel.medium);
+      setState(() => _showSummary = true);
+    } else {
+      Navigator.of(context).pop(); // 一手都沒走完，沒東西好結算
+    }
+  }
+
+  /// 再來一局：同一份設定換一顆全新引擎，回到 ready。
+  void _rematch() {
+    final old = _engine;
+    setState(() {
+      _showSummary = false;
+      _engine = TableTimerEngine(widget.config)..onEvent = _handleEvent;
+    });
+    old.dispose();
   }
 
   @override
@@ -102,14 +121,17 @@ class _TableStagePageState extends State<TableStagePage>
               return Stack(
                 fit: StackFit.expand,
                 children: [
+                  // key 綁引擎：再來一局換新引擎時整張面重建，
+                  // 面板內部掛在舊引擎上的 listener 才不會殘留。
                   if (chess)
                     ChessFace(
+                      key: ObjectKey(_engine),
                       engine: _engine,
                       onPause: _engine.pause,
                       onExit: _confirmExit,
                     )
                   else
-                    PartyFace(engine: _engine),
+                    PartyFace(key: ObjectKey(_engine), engine: _engine),
                   // 角落小鍵蓋在整面觸控區上方（吸收點擊，不觸發換人）。
                   // 棋鐘的控制在中央窄帶，這裡只給多人/自由模式。
                   // 注意 Stack 是 expand：一定要 Align 回頂部，不然 Row
@@ -141,10 +163,16 @@ class _TableStagePageState extends State<TableStagePage>
                         ),
                       ),
                     ),
-                  if (_engine.phase == TablePhase.paused)
+                  if (_engine.phase == TablePhase.paused && !_showSummary)
                     _PauseOverlay(
                       engine: _engine,
                       onExit: _confirmExit,
+                    ),
+                  if (_showSummary)
+                    TableSummaryOverlay(
+                      engine: _engine,
+                      onRematch: _rematch,
+                      onLeave: () => Navigator.of(context).pop(),
                     ),
                 ],
               );

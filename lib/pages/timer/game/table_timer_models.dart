@@ -153,8 +153,61 @@ class TableTimerConfig {
   }
 }
 
-/// 每位玩家的本局統計（結算頁鋪路；引擎順手累計，MVP 不展示）。
+/// 每位玩家的本局統計（結算面資料來源；引擎在每次換人時結算）。
 class TurnStats {
   int turns = 0;
   Duration totalThink = Duration.zero;
+
+  Duration get averageThink =>
+      turns == 0 ? Duration.zero : totalThink ~/ turns;
+}
+
+/// 常用組合：一份帶名字的設定快照，入口卡一鍵帶入。
+class TablePreset {
+  static const int maxCount = 6;
+
+  final String name;
+  final TableTimerConfig config;
+
+  const TablePreset({required this.name, required this.config});
+
+  /// 快照的預設命名：「多人桌遊 4 人 · 每回合 1 分」。
+  static String defaultName(TableTimerConfig c) {
+    final time = switch (c.mode) {
+      TableGameMode.free => '自由計時',
+      _ when c.turnSeconds < 60 => '每回合 ${c.turnSeconds} 秒',
+      _ when c.turnSeconds % 60 == 0 => '每回合 ${c.turnSeconds ~/ 60} 分',
+      _ => '每回合 ${c.turnSeconds ~/ 60} 分 ${c.turnSeconds % 60} 秒',
+    };
+    return '${c.mode.label} ${c.activePlayers.length} 人 · $time';
+  }
+
+  static String encodeList(List<TablePreset> presets) => jsonEncode({
+    'v': 1,
+    'items': [
+      for (final p in presets)
+        {'name': p.name, 'config': p.config.encode()},
+    ],
+  });
+
+  /// 壞資料整包回空清單；個別壞項目跳過。
+  static List<TablePreset> decodeList(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final map = jsonDecode(raw);
+      if (map is! Map) return const [];
+      final items = map['items'];
+      if (items is! List) return const [];
+      return [
+        for (final e in items)
+          if (e is Map && e['name'] is String && e['config'] is String)
+            TablePreset(
+              name: e['name'] as String,
+              config: TableTimerConfig.decode(e['config'] as String),
+            ),
+      ].take(maxCount).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
 }

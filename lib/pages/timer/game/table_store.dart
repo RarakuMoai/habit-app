@@ -37,4 +37,17 @@ abstract final class TableStore {
     SharedPreferences prefs,
     List<String> names,
   ) => prefs.setString(PrefsKeys.gameTableRoster, jsonEncode(names));
+
+  // ── 常用組合 ─────────────────────────────────────────────
+
+  static List<TablePreset> loadPresets(SharedPreferences prefs) =>
+      TablePreset.decodeList(prefs.getString(PrefsKeys.gameTablePresets));
+
+  static Future<void> savePresets(
+    SharedPreferences prefs,
+    List<TablePreset> presets,
+  ) => prefs.setString(
+    PrefsKeys.gameTablePresets,
+    TablePreset.encodeList(presets),
+  );
 }

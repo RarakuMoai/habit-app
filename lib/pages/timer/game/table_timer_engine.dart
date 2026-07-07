@@ -65,6 +65,9 @@ class TableTimerEngine extends ChangeNotifier {
   int _lastCriticalSecond = -1;
 
   bool get isFree => config.mode == TableGameMode.free;
+
+  /// 已結算的總手數（結算面用：0 = 沒真的玩，直接離開不秀小結）。
+  int get settledTurns => stats.fold(0, (sum, s) => sum + s.turns);
   TablePhase get phase => _phase;
   int get currentIndex => _currentIndex;
   int get turnCount => _turnCount;

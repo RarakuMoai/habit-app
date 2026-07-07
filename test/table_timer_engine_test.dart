@@ -180,6 +180,40 @@ void main() {
     expect(engine.stats[0].turns, 1);
     expect(engine.stats[0].totalThink, const Duration(seconds: 12));
     expect(engine.stats[1].turns, 0);
+    expect(engine.settledTurns, 1); // 進行中的半截回合不算
+
+    clock.advance(const Duration(seconds: 6));
+    engine.advance();
+    clock.advance(const Duration(seconds: 4));
+    engine.advance();
+    expect(engine.settledTurns, 3);
+    expect(engine.stats[0].totalThink, const Duration(seconds: 16));
+    expect(engine.stats[0].averageThink, const Duration(seconds: 8));
+  });
+
+  test('常用組合編解碼 round-trip，壞資料回空清單', () {
+    final presets = [
+      TablePreset(name: '家庭拉密', config: cfg(turnSeconds: 90)),
+      TablePreset(
+        name: '棋鐘',
+        config: cfg(mode: TableGameMode.chess, turnSeconds: 30),
+      ),
+    ];
+    final decoded = TablePreset.decodeList(TablePreset.encodeList(presets));
+    expect(decoded.length, 2);
+    expect(decoded[0].name, '家庭拉密');
+    expect(decoded[0].config.turnSeconds, 90);
+    expect(decoded[1].config.mode, TableGameMode.chess);
+
+    expect(TablePreset.decodeList(null), isEmpty);
+    expect(TablePreset.decodeList('oops'), isEmpty);
+    expect(TablePreset.decodeList('{"v":1,"items":"nope"}'), isEmpty);
+
+    // 超過上限截斷
+    final many = TablePreset.encodeList([
+      for (var i = 0; i < 9; i++) TablePreset(name: 'P$i', config: cfg()),
+    ]);
+    expect(TablePreset.decodeList(many).length, TablePreset.maxCount);
   });
 
   test('config 編解碼 round-trip，壞資料回 fallback', () {

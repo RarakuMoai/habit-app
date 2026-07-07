@@ -30,6 +30,7 @@ class _GameTimerState extends State<GameTimer> {
 
   SharedPreferences? _prefs;
   TableTimerConfig _config = TableTimerConfig.fallback();
+  List<TablePreset> _presets = const [];
 
   @override
   void initState() {
@@ -39,6 +40,7 @@ class _GameTimerState extends State<GameTimer> {
       setState(() {
         _prefs = p;
         _config = TableStore.loadConfig(p);
+        _presets = TableStore.loadPresets(p);
       });
     });
   }
@@ -49,7 +51,19 @@ class _GameTimerState extends State<GameTimer> {
     playFeedback(SfxCue.tap);
     final updated = await showTableSetupSheet(context, prefs: prefs);
     if (!mounted) return;
-    setState(() => _config = updated);
+    setState(() {
+      _config = updated;
+      _presets = TableStore.loadPresets(prefs); // sheet 內可能有增刪
+    });
+  }
+
+  /// 一鍵帶入常用組合（帶入後仍由使用者按「開始對局」，不自動開跑）。
+  void _applyPreset(TablePreset preset) {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    setState(() => _config = preset.config);
+    TableStore.saveConfig(prefs, preset.config);
   }
 
   Future<void> _startGame() async {
@@ -140,6 +154,10 @@ class _GameTimerState extends State<GameTimer> {
               ),
               const SizedBox(height: 16),
               _summaryCard(),
+              if (_presets.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _presetRow(),
+              ],
               const SizedBox(height: 16),
               _startButton(),
               const SizedBox(height: 8),
@@ -253,6 +271,58 @@ class _GameTimerState extends State<GameTimer> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  /// 常用組合一鍵帶入列。
+  Widget _presetRow() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final preset in _presets)
+          GestureDetector(
+            onTap: () => _applyPreset(preset),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 7,
+              ),
+              decoration: BoxDecoration(
+                color: kGameAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: kGameAccent.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.bookmark_rounded,
+                    size: 13,
+                    color: kGameAccent,
+                  ),
+                  const SizedBox(width: 5),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Text(
+                      preset.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppInk.strong,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }

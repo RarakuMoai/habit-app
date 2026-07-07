@@ -39,6 +39,7 @@ class _TableSetupSheet extends StatefulWidget {
 class _TableSetupSheetState extends State<_TableSetupSheet> {
   late TableTimerConfig _config;
   late List<String> _roster;
+  late List<TablePreset> _presets;
 
   static const _turnPresets = [30, 45, 60, 90, 120, 180, 300];
   static const _warnPresets = [5, 10, 15, 20];
@@ -48,6 +49,7 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
     super.initState();
     _config = TableStore.loadConfig(widget.prefs);
     _roster = List.of(TableStore.loadRoster(widget.prefs));
+    _presets = List.of(TableStore.loadPresets(widget.prefs));
   }
 
   void _apply(TableTimerConfig next) {
@@ -188,6 +190,51 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
       setState(() => _roster.add(name));
       _saveRoster();
     }
+  }
+
+  // ── 常用組合 ─────────────────────────────────────────────
+
+  void _savePresets() {
+    TableStore.savePresets(widget.prefs, _presets);
+  }
+
+  Future<void> _saveCurrentAsPreset() async {
+    if (_presets.length >= TablePreset.maxCount) return;
+    final controller = TextEditingController(
+      text: TablePreset.defaultName(_config),
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('儲存常用組合'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 20,
+          decoration: const InputDecoration(hintText: '組合名稱'),
+        ),
+        actions: [
+          dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('儲存'),
+          ),
+        ],
+      ),
+    );
+    final name = controller.text.trim();
+    controller.dispose();
+    if (confirmed != true || name.isEmpty) return;
+    playFeedback(SfxCue.success);
+    setState(
+      () => _presets.add(TablePreset(name: name, config: _config)),
+    );
+    _savePresets();
+  }
+
+  void _applyPreset(TablePreset preset) {
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    _apply(preset.config);
   }
 
   Future<void> _addRosterName() async {
@@ -370,8 +417,88 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
               '改玩家名字時可以一鍵帶入常用玩家',
               style: TextStyle(fontSize: 12, color: AppInk.faint),
             ),
+            const SizedBox(height: 14),
+            _sectionTitle('常用組合'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final preset in _presets) _presetChip(preset),
+                if (_presets.length < TablePreset.maxCount)
+                  _pickChip(
+                    '＋ 存目前組合',
+                    onTap: _saveCurrentAsPreset,
+                    accent: true,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '把「玩家＋模式＋時間」存成一鍵開局的快照',
+              style: TextStyle(fontSize: 12, color: AppInk.faint),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _presetChip(TablePreset preset) {
+    return Container(
+      padding: const EdgeInsets.only(left: 13, right: 6, top: 4, bottom: 4),
+      decoration: BoxDecoration(
+        color: AppSurfaces.fill,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppSurfaces.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => _applyPreset(preset),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.bookmark_rounded,
+                  size: 14,
+                  color: kGameAccent,
+                ),
+                const SizedBox(width: 5),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    preset.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 2),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+            onPressed: () {
+              playFeedback(SfxCue.cancel);
+              setState(() => _presets.remove(preset));
+              _savePresets();
+            },
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 15,
+              color: AppInk.iconFaint,
+            ),
+          ),
+        ],
       ),
     );
   }
