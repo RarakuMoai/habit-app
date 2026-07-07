@@ -44,7 +44,8 @@ class SfxService {
     _initialized = true;
   }
 
-  Future<void> play(SfxCue cue) async {
+  /// [volumeScale] 疊在 cue 預設音量上（0–1），碰撞聲隨力道縮放用。
+  Future<void> play(SfxCue cue, {double volumeScale = 1}) async {
     if (AudioSettingsService.sfxMuted.value) return;
     try {
       if (!_initialized) await init();
@@ -53,7 +54,7 @@ class SfxService {
       await AppAudioSession.activate();
       await player.stop();
       await player.seek(Duration.zero);
-      await player.setVolume(cue.volume);
+      await player.setVolume(cue.volume * volumeScale.clamp(0.0, 1.0));
       await player.play();
     } catch (e) {
       debugPrint('SFX play failed: $e');

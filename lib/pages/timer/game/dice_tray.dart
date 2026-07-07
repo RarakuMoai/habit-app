@@ -8,6 +8,7 @@
 // 背面剔除、面光照、稜線），姿態用四元數＋3D 角速度積分，移動時沿
 // 滾動軸自然翻滾。靜止時姿態 snap 到立方體 24 個軸對齊方向中最近者，
 // 「哪面朝上就是幾點」——點數完全由物理決定，不用亂數換面。
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -87,16 +88,20 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
     }
   }
 
-  // 夠力的碰撞給觸覺＋偶爾一聲喀噠（節流，免得像鞭炮）
+  // 碰撞回饋分級：音量隨撞擊力道縮放（輕碰小聲、猛撞大聲），
+  // 牆壁與骰子互撞都會響；90ms 節流避免像鞭炮。
+  // TODO: 專屬骰子碰撞聲（ElevenLabs 生成中）到位後把 gamePass 換掉。
   void _handleImpact(double strength) {
     final now = DateTime.now();
-    if (now.difference(_lastImpactFeedback).inMilliseconds < 110) return;
+    if (now.difference(_lastImpactFeedback).inMilliseconds < 90) return;
     _lastImpactFeedback = now;
-    if (strength > 900) {
-      playFeedback(SfxCue.gamePass, haptic: HapticLevel.light);
-    } else {
-      playHaptic(HapticLevel.selection);
-    }
+    unawaited(
+      SfxService.instance.play(
+        SfxCue.gamePass,
+        volumeScale: (strength / 2400).clamp(0.25, 1.0),
+      ),
+    );
+    playHaptic(strength > 1100 ? HapticLevel.medium : HapticLevel.selection);
   }
 
   void _setCount(int delta) {
@@ -131,7 +136,12 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
 
   void _pointerUp(int pointer) {
     _pointers.remove(pointer);
-    if (_pointers.isEmpty) _world.markThrown(); // 放手＝這把開始滾
+    if (_pointers.isNotEmpty) return;
+    // 最後一指離手＝甩出：出手加成，甩得夠快就給爆發回饋
+    _world.releaseBurst();
+    if (_world.anyFast) {
+      playFeedback(SfxCue.gamePass, haptic: HapticLevel.medium);
+    }
   }
 
   @override
@@ -402,6 +412,12 @@ class _Die {
   double wx = 0, wy = 0, wz = 0; // 角速度（世界系，rad/s）
   int value = 1; // 靜止結算後的朝上點數
 
+  /// 動態 3D 程度（0＝靜止平面正對、1＝全 3D 翻滾），隨能量平滑追蹤。
+  double tiltT = 0;
+
+  /// 離手/擲出的爆發 pop（1→0 衰減，畫的時候放大一下）。
+  double popT = 0;
+
   _Die(this.pos, this.q);
 
   double get speed => vel.distance;
@@ -424,11 +440,13 @@ class _DiceWorld extends ChangeNotifier {
   void Function(double strength)? onImpact;
 
   // 手感參數（實機調校入口都在這）
-  static const _springK = 34.0; // 吸力彈簧
-  static const _springDamp = 7.5; // 吸力阻尼（防彈簧震盪）
+  static const _springK = 180.0; // 吸力彈簧（吸鐵般緊跟）
+  static const _springDamp = 17.0; // 吸力阻尼（近臨界：跟手不震盪）
   static const _linDamp = 1.4; // 自由滾動線性阻尼 /s
   static const _rollCouple = 7.0; // 滾動耦合速率（貼地滾的跟隨度）
   static const _restitution = 0.72; // 牆壁恢復係數
+  static const _throwBoost = 1.85; // 離手出手速度加成（甩出去的爽度）
+  static const _maxSpeed = 3400.0; // 出手速度上限
   static const _calmSpeed = 16.0;
   static const _calmSpin = 1.1;
   static const _snapRate = 9.0; // 靜止對面收斂速率
@@ -486,11 +504,27 @@ class _DiceWorld extends ChangeNotifier {
     wake();
     for (final d in dice) {
       final a = _rng.nextDouble() * math.pi * 2;
-      final power = 900 + _rng.nextDouble() * 900;
+      final power = 1200 + _rng.nextDouble() * 1100;
       d.vel += Offset(math.cos(a), math.sin(a)) * power;
       d.wz += (_rng.nextBool() ? 1 : -1) * (6 + _rng.nextDouble() * 10);
+      d.popT = 1;
     }
   }
+
+  /// 離手爆發：最後一指放開時呼叫——出手速度加成，甩出去要夠爽。
+  void releaseBurst() {
+    hasBeenThrown = true;
+    for (final d in dice) {
+      final boosted = d.vel * _throwBoost;
+      d.vel = boosted.distance > _maxSpeed
+          ? boosted * (_maxSpeed / boosted.distance)
+          : boosted;
+      if (d.speed > 250) d.popT = 1;
+    }
+  }
+
+  /// 有骰子正被甩（離手回饋要不要播的依據）。
+  bool get anyFast => dice.any((d) => d.speed > 420);
 
   void step(double dt, List<Offset> pointers) {
     if (dice.isEmpty || dt <= 0) return;
@@ -518,11 +552,18 @@ class _DiceWorld extends ChangeNotifier {
       d.pos += d.vel * dt;
 
       // 滾動耦合：角速度貼向「沿移動方向滾」的目標值（像在地上滾），
-      // z 軸自旋只衰減——甩出去的旋轉會自然轉成翻滾
+      // z 軸自旋只衰減——甩出去的旋轉會自然轉成翻滾。
+      // gate：慢速（被吸住拿在手上）時目標歸零，不會原地無意義自轉
+      final gate = math.min(1.0, d.speed / 340);
       final k = 1 - math.exp(-_rollCouple * dt);
-      d.wx += (d.vel.dy / _radius - d.wx) * k;
-      d.wy += (-d.vel.dx / _radius - d.wy) * k;
+      d.wx += (d.vel.dy / _radius * gate - d.wx) * k;
+      d.wy += (-d.vel.dx / _radius * gate - d.wy) * k;
       d.wz *= math.exp(-1.6 * dt);
+
+      // 動態 3D 程度：有速度/翻滾就立體，靜下來回到平面正對
+      final energy = math.min(1.0, (d.speed + d.spin * 55) / 700);
+      d.tiltT += (energy - d.tiltT) * (1 - math.exp(-7.0 * dt));
+      d.popT *= math.exp(-5.5 * dt);
 
       // 四元數積分：dq = 0.5·(0,ω)·q·dt
       final o = _Quat(0, d.wx, d.wy, d.wz) * d.q;
@@ -746,10 +787,6 @@ class _WorldPainter extends CustomPainter {
 
   _WorldPainter(this.world) : super(repaint: world);
 
-  /// 全域視角：輕微前傾（像坐在桌邊看），靜止時也看得到頂面＋
-  /// 一點側面，不會塌成平面正方形。
-  static final _Quat _view = _Quat.axisAngle(1, 0, 0, -0.30);
-
   @override
   void paint(Canvas canvas, Size size) {
     for (final d in world.dice) {
@@ -758,10 +795,15 @@ class _WorldPainter extends CustomPainter {
   }
 
   void _paintDie(Canvas canvas, _Die d) {
-    final h = world.dieSize * 0.40; // 立方體半邊長
+    // 離手/擲出瞬間 pop 放大一下（出手回饋）
+    final h = world.dieSize * 0.40 * (1 + 0.14 * d.popT);
     final persp = h * 7.5; // 相機距離（弱透視）
     final energy = math.min(1.0, (d.speed + d.spin * 55) / 850);
-    final viewQ = _view * d.q; // 渲染姿態＝視角 × 物理姿態
+    // 動態視角：靜止＝0 傾角（平面正對、乾淨讀數），被吸住/甩動時
+    // 前傾展現立體——「靜止像 2D、動起來才 3D」
+    final viewQ = d.tiltT < 0.01
+        ? d.q
+        : _Quat.axisAngle(1, 0, 0, -0.34 * d.tiltT) * d.q;
 
     // 貼地陰影：滾得越兇越大越散
     canvas.drawOval(
