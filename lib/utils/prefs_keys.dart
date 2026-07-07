@@ -94,6 +94,11 @@ abstract final class PrefsKeys {
   static const metronomeAccent = 'metronome_accent'; // 第一拍重音
   static const metronomeHaptic = 'metronome_haptic'; // 觸覺跟拍
 
+  // ── 計時頁：遊戲（桌遊計時器）────────────────────────────
+  // 全新 clean-room 命名空間（game_table_*），與已移除的舊版無關。
+  static const gameTableConfig = 'game_table_config'; // 設定快照 JSON（含玩家）
+  static const gameTableRoster = 'game_table_roster'; // 常用玩家名單 JSON
+
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';
   static const waterEnabled = 'water_enabled';
