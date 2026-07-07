@@ -31,7 +31,14 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   Offset? _rippleCenter; // null = 從畫面中心（自動換人時）
   Color _rippleColor = TableTheme.inkSoft;
 
+  // 接力光點：換人時沿座位環從舊座位「傳」到新座位的彗尾光點。
+  late final AnimationController _relay;
+  double _relayFromAngle = 0;
+  double _relaySweep = 0;
+  Color _relayColor = TableTheme.inkSoft;
+
   int _lastTurnCount = 0;
+  int _lastIndex = 0;
   bool _tapHandled = false;
 
   TableTimerEngine get engine => widget.engine;
@@ -47,7 +54,12 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 520),
     );
+    _relay = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 560),
+    );
     _lastTurnCount = engine.turnCount;
+    _lastIndex = engine.currentIndex;
     engine.addListener(_onEngineChanged);
   }
 
@@ -56,13 +68,19 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
     engine.removeListener(_onEngineChanged);
     _breath.dispose();
     _ripple.dispose();
+    _relay.dispose();
     super.dispose();
   }
 
-  // 超時自動換人（不是手點的）也要有明顯回饋：從中心放一圈波。
+  // 換人回饋：光點沿座位環接力到新座位；超時自動換人（不是手點的）
+  // 再補一圈從中心擴散的波。
   void _onEngineChanged() {
-    if (engine.turnCount == _lastTurnCount) return;
+    final index = engine.currentIndex;
+    if (engine.turnCount == _lastTurnCount && index == _lastIndex) return;
+    final fromIndex = _lastIndex;
     _lastTurnCount = engine.turnCount;
+    _lastIndex = index;
+    if (index != fromIndex) _fireRelay(fromIndex, index);
     if (_tapHandled) {
       _tapHandled = false;
       return;
@@ -71,6 +89,25 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
       center: null,
       color: TableTheme.seatColor(engine.currentPlayer.colorIndex),
     );
+  }
+
+  void _fireRelay(int from, int to) {
+    if (!mounted) return;
+    final n = engine.players.length;
+    final double sweep;
+    if (to == (from + 1) % n) {
+      sweep = 2 * math.pi / n; // 前進：順時針傳一格
+    } else if (to == (from - 1 + n) % n) {
+      sweep = -2 * math.pi / n; // 回上一位：逆時針飄回去
+    } else {
+      return; // 重開之類的跳位不播
+    }
+    setState(() {
+      _relayFromAngle = -math.pi / 2 + 2 * math.pi * from / n;
+      _relaySweep = sweep;
+      _relayColor = TableTheme.seatColor(engine.players[to].colorIndex);
+    });
+    _relay.forward(from: 0);
   }
 
   void _fireRipple({required Offset? center, required Color color}) {
@@ -166,6 +203,19 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
                             ),
                             _dialContent(dial, accent, seat, ready),
                             ..._seatTokens(dial),
+                            AnimatedBuilder(
+                              animation: _relay,
+                              builder: (context, _) => CustomPaint(
+                                size: Size.square(dial + 44),
+                                painter: _RelayPainter(
+                                  t: _relay.isAnimating ? _relay.value : 1.0,
+                                  fromAngle: _relayFromAngle,
+                                  sweep: _relaySweep,
+                                  color: _relayColor,
+                                  orbitRadius: dial / 2 + 10,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       );
@@ -518,6 +568,74 @@ class _DialPainter extends CustomPainter {
       old.color != color ||
       old.glow != glow ||
       old.dimmed != dimmed;
+}
+
+/// 接力光點：沿座位環傳遞的彗尾光點（換人轉場）。
+class _RelayPainter extends CustomPainter {
+  final double t; // 0–1；1 = 播完（不畫）
+  final double fromAngle;
+  final double sweep; // 正 = 順時針一格、負 = 逆時針
+  final Color color;
+  final double orbitRadius;
+
+  const _RelayPainter({
+    required this.t,
+    required this.fromAngle,
+    required this.sweep,
+    required this.color,
+    required this.orbitRadius,
+  });
+
+  Offset _at(Offset center, double angle) =>
+      center + Offset(math.cos(angle), math.sin(angle)) * orbitRadius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0 || t >= 1 || sweep == 0) return;
+    final center = size.center(Offset.zero);
+    final eased = Curves.easeInOutCubic.transform(t);
+    // 抵達前收尾淡出，跟座位 token 的放大自然交棒
+    final fade = t > 0.8 ? (1 - t) / 0.2 : 1.0;
+
+    // 彗尾殘影：沿走過的路徑放幾顆漸小漸淡的殘點
+    for (var k = 5; k >= 1; k--) {
+      final tt = eased - k * 0.05;
+      if (tt <= 0) continue;
+      canvas.drawCircle(
+        _at(center, fromAngle + sweep * tt),
+        7.0 - k,
+        Paint()..color = color.withValues(alpha: 0.26 * fade * (1 - k / 6)),
+      );
+    }
+
+    // 光點本體：外圈光暈＋偏白亮芯
+    final head = _at(center, fromAngle + sweep * eased);
+    canvas.drawCircle(
+      head,
+      13,
+      Paint()
+        ..color = color.withValues(alpha: 0.45 * fade)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    canvas.drawCircle(
+      head,
+      6.5,
+      Paint()
+        ..color = Color.lerp(
+          color,
+          TableTheme.inkStrong,
+          0.35,
+        )!.withValues(alpha: fade),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RelayPainter old) =>
+      old.t != t ||
+      old.fromAngle != fromAngle ||
+      old.sweep != sweep ||
+      old.color != color ||
+      old.orbitRadius != orbitRadius;
 }
 
 /// 點擊波紋：從落點擴散的玩家色光圈。
