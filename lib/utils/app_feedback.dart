@@ -24,6 +24,7 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
   SfxCue.gamePass => HapticLevel.medium, // 換人/擲骰要有份量
   SfxCue.gameWarn => HapticLevel.light,
   SfxCue.gameFlag => HapticLevel.medium,
+  SfxCue.gameDice => HapticLevel.light, // 碰撞聲基準；重擊處另升級
 };
 
 // 播音效並配對觸覺回饋

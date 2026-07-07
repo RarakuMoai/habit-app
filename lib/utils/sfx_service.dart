@@ -15,9 +15,10 @@ enum SfxCue {
   tumiSad('assets/sounds/tumi_mi_sad.wav', 0.50),
   tumiSleepy('assets/sounds/tumi_mi_sleepy.wav', 0.44),
   // 桌遊計時器專屬（ElevenLabs 生成、剪裁後 peak 對齊上面同類音效）
-  gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人/擲骰
+  gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人
   gameWarn('assets/sounds/sfx_game_warn.wav', 0.85), // 木質 tick：倒數警示
-  gameFlag('assets/sounds/sfx_game_flag.wav', 1.0); // 沉鑼：超時/旗倒
+  gameFlag('assets/sounds/sfx_game_flag.wav', 1.0), // 沉鑼：超時/旗倒
+  gameDice('assets/sounds/sfx_game_dice.wav', 0.9); // 骰子喀啦：擲骰/碰撞
 
   const SfxCue(this.assetPath, this.volume);
   final String assetPath;
