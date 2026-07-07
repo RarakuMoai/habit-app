@@ -2,12 +2,12 @@
 //
 // 互動核心：手指＝彈簧吸引子——按住把骰子「吸」過來（多指時每顆骰子
 // 被最近的手指吸）、拖動跟手、放手繼承速度甩出去；螢幕邊界＝牆壁反彈、
-// 骰子彼此碰撞，阻尼衰減到靜止＝結算合計。「擲骰子」鈕給不想甩的人
-// （全部骰子隨機炸開）。
+// 骰子彼此碰撞，阻尼衰減到靜止＝結算合計。
 //
-// 視覺是偽 3D：滾動中用透視矩陣翻轉骰面（滾越快翻越兇）＋快速換面，
-// 靜止時回正平躺。點數由亂數決定，物理只決定「何時定格」——2D 物理
-// 推不出真實骰面朝向，這是刻意的取捨。
+// 視覺是「真 3D」：每顆骰子是軟體渲染的立方體（8 頂點 6 面、透視投影、
+// 背面剔除、面光照、稜線），姿態用四元數＋3D 角速度積分，移動時沿
+// 滾動軸自然翻滾。靜止時姿態 snap 到立方體 24 個軸對齊方向中最近者，
+// 「哪面朝上就是幾點」——點數完全由物理決定，不用亂數換面。
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -42,7 +42,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
 
   SharedPreferences? _prefs;
   int _count = 2;
-  bool _settled = false; // 靜止且結算完（顯示合計）
+  bool _showTotal = false;
 
   DateTime _lastImpactFeedback = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -77,14 +77,12 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
     if (_world.bounds == Rect.zero) return;
     _world.step(dt, _pointers.values.toList());
 
-    // 停止判定：沒手指、全員慢下來 → 結算
-    final calm = _pointers.isEmpty && _world.isCalm;
-    if (calm && !_settled && _world.hasBeenThrown) {
-      _settled = true;
-      playHaptic(HapticLevel.medium);
+    if (_world.settled && !_showTotal) {
+      _showTotal = true;
+      playHaptic(HapticLevel.medium); // 定格
       setState(() {});
-    } else if (!calm && _settled) {
-      _settled = false;
+    } else if (!_world.settled && _showTotal) {
+      _showTotal = false;
       setState(() {});
     }
   }
@@ -107,7 +105,6 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
     playHaptic(HapticLevel.selection);
     setState(() {
       _count = next;
-      _settled = false;
       _world.spawn(next);
     });
     _prefs?.setInt(PrefsKeys.gameTableDiceCount, next);
@@ -115,7 +112,6 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
 
   void _throwAll() {
     playFeedback(SfxCue.gamePass);
-    _settled = false;
     _world.throwAll();
   }
 
@@ -123,7 +119,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
 
   void _pointerDown(PointerDownEvent e) {
     _pointers[e.pointer] = e.localPosition;
-    _settled = false;
+    _world.wake();
     playHaptic(HapticLevel.selection); // 「吸住了」
   }
 
@@ -187,10 +183,10 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
                   // 合計：靜止結算後浮現在中央偏上
                   SafeArea(
                     child: Align(
-                      alignment: const Alignment(0, -0.55),
+                      alignment: const Alignment(0, -0.62),
                       child: IgnorePointer(
                         child: AnimatedOpacity(
-                          opacity: _settled && _count > 1 ? 1 : 0,
+                          opacity: _showTotal && _count > 1 ? 1 : 0,
                           duration: const Duration(milliseconds: 260),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
@@ -334,32 +330,96 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
   }
 }
 
+// ── 3D 數學（迷你四元數，只做需要的事）──────────────────────
+
+class _Quat {
+  double w, x, y, z;
+
+  _Quat(this.w, this.x, this.y, this.z);
+
+  _Quat.identity() : this(1, 0, 0, 0);
+
+  factory _Quat.axisAngle(double ax, double ay, double az, double angle) {
+    final s = math.sin(angle / 2);
+    return _Quat(math.cos(angle / 2), ax * s, ay * s, az * s);
+  }
+
+  _Quat operator *(_Quat o) => _Quat(
+    w * o.w - x * o.x - y * o.y - z * o.z,
+    w * o.x + x * o.w + y * o.z - z * o.y,
+    w * o.y - x * o.z + y * o.w + z * o.x,
+    w * o.z + x * o.y - y * o.x + z * o.w,
+  );
+
+  void normalizeSelf() {
+    final n = math.sqrt(w * w + x * x + y * y + z * z);
+    if (n == 0) return;
+    w /= n;
+    x /= n;
+    y /= n;
+    z /= n;
+  }
+
+  double dot(_Quat o) => w * o.w + x * o.x + y * o.y + z * o.z;
+
+  /// 旋轉向量 v（q v q⁻¹ 的展開式，零配置版）。
+  (double, double, double) rotate(double vx, double vy, double vz) {
+    final tx = 2 * (y * vz - z * vy);
+    final ty = 2 * (z * vx - x * vz);
+    final tz = 2 * (x * vy - y * vx);
+    return (
+      vx + w * tx + (y * tz - z * ty),
+      vy + w * ty + (z * tx - x * tz),
+      vz + w * tz + (x * ty - y * tx),
+    );
+  }
+
+  /// 朝 target 走一步（短弧 nlerp；snap 用，角度不大夠準）。
+  void nlerpTowards(_Quat target, double t) {
+    var tw = target.w, tx = target.x, ty = target.y, tz = target.z;
+    if (dot(target) < 0) {
+      tw = -tw;
+      tx = -tx;
+      ty = -ty;
+      tz = -tz;
+    }
+    w += (tw - w) * t;
+    x += (tx - x) * t;
+    y += (ty - y) * t;
+    z += (tz - z) * t;
+    normalizeSelf();
+  }
+
+  _Quat clone() => _Quat(w, x, y, z);
+}
+
 // ── 物理 ───────────────────────────────────────────────────
 
 class _Die {
   Offset pos;
   Offset vel = Offset.zero;
-  double angle;
-  double angVel = 0;
-  int value;
-  double rollAccum = 0; // 累積移動量，超過門檻就換面
-  double wobble; // 偽 3D 翻滾相位
+  _Quat q;
+  double wx = 0, wy = 0, wz = 0; // 角速度（世界系，rad/s）
+  int value = 1; // 靜止結算後的朝上點數
 
-  _Die(this.pos, this.angle, this.value, this.wobble);
+  _Die(this.pos, this.q);
 
   double get speed => vel.distance;
+  double get spin => math.sqrt(wx * wx + wy * wy + wz * wz);
 }
 
-/// 輕量 2D 剛體世界：彈簧吸力、牆壁反彈、等質量圓碰撞、阻尼。
-/// 60fps Ticker 驅動，repaint 走 ChangeNotifier（painter 直接聽）。
+/// 輕量剛體世界：平面運動＋3D 姿態。
+/// 彈簧吸力、牆壁反彈、等質量圓碰撞、阻尼；靜止時姿態 snap 到
+/// 立方體 24 個軸對齊方向，朝上面＝點數（物理決定結果）。
 class _DiceWorld extends ChangeNotifier {
   final _rng = math.Random();
 
-  /// 物理牆（已扣掉上下 UI 區的內縮矩形；骰子不會滾到按鈕底下）。
   Rect bounds = Rect.zero;
   double dieSize = 80;
   List<_Die> dice = [];
   bool hasBeenThrown = false;
+  bool settling = false;
+  bool settled = false;
 
   void Function(double strength)? onImpact;
 
@@ -367,17 +427,18 @@ class _DiceWorld extends ChangeNotifier {
   static const _springK = 34.0; // 吸力彈簧
   static const _springDamp = 7.5; // 吸力阻尼（防彈簧震盪）
   static const _linDamp = 1.4; // 自由滾動線性阻尼 /s
-  static const _angDamp = 1.7; // 角阻尼 /s
+  static const _rollCouple = 7.0; // 滾動耦合速率（貼地滾的跟隨度）
   static const _restitution = 0.72; // 牆壁恢復係數
-  static const _calmSpeed = 18.0;
-  static const _calmSpin = 0.9;
+  static const _calmSpeed = 16.0;
+  static const _calmSpin = 1.1;
+  static const _snapRate = 9.0; // 靜止對面收斂速率
 
-  double get _radius => dieSize * 0.52;
+  double get _radius => dieSize * 0.55;
 
   int get total => dice.fold(0, (sum, d) => sum + d.value);
 
-  bool get isCalm =>
-      dice.every((d) => d.speed < _calmSpeed && d.angVel.abs() < _calmSpin);
+  bool get _isCalm =>
+      dice.every((d) => d.speed < _calmSpeed && d.spin < _calmSpin);
 
   void setBounds(Rect rect, double die) {
     if (bounds == rect && dieSize == die) return;
@@ -391,23 +452,30 @@ class _DiceWorld extends ChangeNotifier {
 
   void spawn(int count) {
     hasBeenThrown = false;
-    final center = bounds == Rect.zero
-        ? const Offset(200, 300)
-        : bounds.center;
+    settling = false;
+    settled = false;
+    final center = bounds == Rect.zero ? const Offset(200, 300) : bounds.center;
     dice = [
       for (var i = 0; i < count; i++)
         _Die(
           center +
               Offset(
-                math.cos(i * math.pi * 2 / count) * dieSize * 1.1,
-                math.sin(i * math.pi * 2 / count) * dieSize * 0.8,
+                math.cos(i * math.pi * 2 / count) * dieSize * 1.15,
+                math.sin(i * math.pi * 2 / count) * dieSize * 0.85,
               ),
-          _rng.nextDouble() * 0.5 - 0.25,
-          1 + _rng.nextInt(6),
-          _rng.nextDouble() * math.pi * 2,
-        ),
+          _orient24[_rng.nextInt(24)].clone(),
+        )..value = 0,
     ];
+    // 初始就對齊，直接算好朝上點數
+    for (final d in dice) {
+      d.value = _topValueOf(d.q);
+    }
     notifyListeners();
+  }
+
+  void wake() {
+    settling = false;
+    settled = false;
   }
 
   void markThrown() => hasBeenThrown = true;
@@ -415,16 +483,19 @@ class _DiceWorld extends ChangeNotifier {
   /// 擲骰鈕：全員隨機炸開。
   void throwAll() {
     hasBeenThrown = true;
+    wake();
     for (final d in dice) {
       final a = _rng.nextDouble() * math.pi * 2;
       final power = 900 + _rng.nextDouble() * 900;
       d.vel += Offset(math.cos(a), math.sin(a)) * power;
-      d.angVel += (_rng.nextBool() ? 1 : -1) * (8 + _rng.nextDouble() * 14);
+      d.wz += (_rng.nextBool() ? 1 : -1) * (6 + _rng.nextDouble() * 10);
     }
   }
 
   void step(double dt, List<Offset> pointers) {
     if (dice.isEmpty || dt <= 0) return;
+
+    if (settled) return; // 靜止定格，等下一次互動
 
     for (final d in dice) {
       if (pointers.isNotEmpty) {
@@ -440,30 +511,57 @@ class _DiceWorld extends ChangeNotifier {
         }
         final force = (nearest - d.pos) * _springK - d.vel * _springDamp;
         d.vel += force * dt;
-        // 被拖著走也要滾起來
-        d.angVel += (d.vel.dx.abs() + d.vel.dy.abs()) * dt * 0.004;
       } else {
-        final lin = math.exp(-_linDamp * dt);
-        d.vel *= lin;
-        d.angVel *= math.exp(-_angDamp * dt);
+        d.vel *= math.exp(-_linDamp * dt);
       }
 
       d.pos += d.vel * dt;
-      d.angle += d.angVel * dt;
-      d.wobble += (d.speed * 0.012 + d.angVel.abs() * 0.9) * dt * 6;
 
-      // 滾動換面：移動＋旋轉都累積，快就換得快
-      d.rollAccum += d.speed * dt + d.angVel.abs() * dt * 60;
-      if (d.rollAccum > 46 &&
-          (d.speed > _calmSpeed * 2.2 || pointers.isNotEmpty)) {
-        d.rollAccum = 0;
-        d.value = 1 + _rng.nextInt(6);
-      }
+      // 滾動耦合：角速度貼向「沿移動方向滾」的目標值（像在地上滾），
+      // z 軸自旋只衰減——甩出去的旋轉會自然轉成翻滾
+      final k = 1 - math.exp(-_rollCouple * dt);
+      d.wx += (d.vel.dy / _radius - d.wx) * k;
+      d.wy += (-d.vel.dx / _radius - d.wy) * k;
+      d.wz *= math.exp(-1.6 * dt);
+
+      // 四元數積分：dq = 0.5·(0,ω)·q·dt
+      final o = _Quat(0, d.wx, d.wy, d.wz) * d.q;
+      d.q
+        ..w += o.w * 0.5 * dt
+        ..x += o.x * 0.5 * dt
+        ..y += o.y * 0.5 * dt
+        ..z += o.z * 0.5 * dt
+        ..normalizeSelf();
 
       _wallCollide(d);
     }
 
     _pairCollide();
+
+    // 靜止流程：慢下來 → 姿態 snap 到最近的軸對齊方向 → 定格
+    if (pointers.isEmpty && hasBeenThrown && _isCalm) {
+      settling = true;
+    }
+    if (settling) {
+      var allAligned = true;
+      for (final d in dice) {
+        d.vel *= math.exp(-8.0 * dt);
+        d.wx *= math.exp(-8.0 * dt);
+        d.wy *= math.exp(-8.0 * dt);
+        d.wz *= math.exp(-8.0 * dt);
+        final target = _nearestOrient(d.q);
+        d.q.nlerpTowards(target, 1 - math.exp(-_snapRate * dt));
+        if (d.q.dot(target).abs() < 0.99995) allAligned = false;
+      }
+      if (allAligned) {
+        for (final d in dice) {
+          d.value = _topValueOf(d.q);
+        }
+        settling = false;
+        settled = true;
+      }
+    }
+
     notifyListeners();
   }
 
@@ -484,27 +582,27 @@ class _DiceWorld extends ChangeNotifier {
     if (d.pos.dx < bounds.left + r && d.vel.dx < 0) {
       hit = d.vel.dx.abs();
       d.vel = Offset(-d.vel.dx * _restitution, d.vel.dy);
-      d.angVel = -d.angVel * 0.6 + d.vel.dy * 0.01;
+      d.wz += d.vel.dy * 0.01;
     } else if (d.pos.dx > bounds.right - r && d.vel.dx > 0) {
       hit = d.vel.dx.abs();
       d.vel = Offset(-d.vel.dx * _restitution, d.vel.dy);
-      d.angVel = -d.angVel * 0.6 - d.vel.dy * 0.01;
+      d.wz -= d.vel.dy * 0.01;
     }
     if (d.pos.dy < bounds.top + r && d.vel.dy < 0) {
       hit = math.max(hit, d.vel.dy.abs());
       d.vel = Offset(d.vel.dx, -d.vel.dy * _restitution);
-      d.angVel = -d.angVel * 0.6 - d.vel.dx * 0.01;
+      d.wz -= d.vel.dx * 0.01;
     } else if (d.pos.dy > bounds.bottom - r && d.vel.dy > 0) {
       hit = math.max(hit, d.vel.dy.abs());
       d.vel = Offset(d.vel.dx, -d.vel.dy * _restitution);
-      d.angVel = -d.angVel * 0.6 + d.vel.dx * 0.01;
+      d.wz += d.vel.dx * 0.01;
     }
     d.pos = _clampToBounds(d.pos);
     if (hit > 260) onImpact?.call(hit);
   }
 
   void _pairCollide() {
-    final minDist = _radius * 2 * 0.92; // 視覺上留一點咬合
+    final minDist = _radius * 2 * 0.94;
     for (var i = 0; i < dice.length; i++) {
       for (var j = i + 1; j < dice.length; j++) {
         final a = dice[i];
@@ -514,109 +612,254 @@ class _DiceWorld extends ChangeNotifier {
         if (dist >= minDist || dist == 0) continue;
 
         final n = delta / dist;
-        // 位置分離（各退一半）
         final overlap = (minDist - dist) / 2;
         a.pos -= n * overlap;
         b.pos += n * overlap;
 
-        // 等質量彈性碰撞：交換法線方向速度分量
         final rel = (b.vel - a.vel).dx * n.dx + (b.vel - a.vel).dy * n.dy;
         if (rel < 0) {
           final impulse = n * rel * _restitution;
           a.vel += impulse;
           b.vel -= impulse;
-          // 撞一下都轉一點
-          a.angVel += rel * 0.006;
-          b.angVel -= rel * 0.006;
+          a.wz += rel * 0.005;
+          b.wz -= rel * 0.005;
           if (rel.abs() > 260) onImpact?.call(rel.abs());
         }
       }
     }
   }
+
+  // ── 立方體 24 個軸對齊方向（snap 目標）──────────────────
+
+  static final List<_Quat> _orient24 = _gen24();
+
+  static List<_Quat> _gen24() {
+    final bases = <_Quat>[
+      _Quat.identity(),
+      _Quat.axisAngle(1, 0, 0, math.pi / 2),
+      _Quat.axisAngle(1, 0, 0, -math.pi / 2),
+      _Quat.axisAngle(1, 0, 0, math.pi),
+      _Quat.axisAngle(0, 1, 0, math.pi / 2),
+      _Quat.axisAngle(0, 1, 0, -math.pi / 2),
+    ];
+    return [
+      for (final b in bases)
+        for (var k = 0; k < 4; k++)
+          _Quat.axisAngle(0, 0, 1, k * math.pi / 2) * b,
+    ];
+  }
+
+  static _Quat _nearestOrient(_Quat q) {
+    var best = _orient24.first;
+    var bestDot = -1.0;
+    for (final o in _orient24) {
+      final d = q.dot(o).abs();
+      if (d > bestDot) {
+        bestDot = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+
+  /// 姿態 q 之下「朝相機（+Z）」的面點數。
+  /// 面配置照真骰子：1↔6、2↔5、3↔4（對面相加＝7）。
+  static int _topValueOf(_Quat q) {
+    var bestValue = 1;
+    var bestZ = -2.0;
+    for (final f in _DieGeometry.faces) {
+      final (_, _, nz) = q.rotate(f.nx, f.ny, f.nz);
+      if (nz > bestZ) {
+        bestZ = nz;
+        bestValue = f.value;
+      }
+    }
+    return bestValue;
+  }
 }
 
-// ── 繪製 ───────────────────────────────────────────────────
+// ── 立方體幾何與渲染 ────────────────────────────────────────
 
-/// 物理場畫家：每顆骰子帶偽 3D 翻滾（透視傾斜隨速度收斂）。
+class _Face {
+  final double nx, ny, nz; // 法線
+  final double t1x, t1y, t1z; // 面內切向量 1
+  final double t2x, t2y, t2z; // 面內切向量 2
+  final int value;
+
+  const _Face(
+    this.nx,
+    this.ny,
+    this.nz,
+    this.t1x,
+    this.t1y,
+    this.t1z,
+    this.t2x,
+    this.t2y,
+    this.t2z,
+    this.value,
+  );
+}
+
+abstract final class _DieGeometry {
+  // 面配置：+Z=1、−Z=6、+X=2、−X=5、+Y=3、−Y=4（對面相加＝7）
+  static const faces = [
+    _Face(0, 0, 1, 1, 0, 0, 0, 1, 0, 1),
+    _Face(0, 0, -1, 1, 0, 0, 0, -1, 0, 6),
+    _Face(1, 0, 0, 0, 0, -1, 0, 1, 0, 2),
+    _Face(-1, 0, 0, 0, 0, 1, 0, 1, 0, 5),
+    _Face(0, 1, 0, 1, 0, 0, 0, 0, -1, 3),
+    _Face(0, -1, 0, 1, 0, 0, 0, 0, 1, 4),
+  ];
+
+  /// 各點數的 pip 位置（面局部座標，單位＝半邊長）。
+  static const Map<int, List<Offset>> pips = {
+    1: [Offset.zero],
+    2: [Offset(-0.5, -0.5), Offset(0.5, 0.5)],
+    3: [Offset(-0.5, -0.5), Offset.zero, Offset(0.5, 0.5)],
+    4: [
+      Offset(-0.5, -0.5),
+      Offset(0.5, -0.5),
+      Offset(-0.5, 0.5),
+      Offset(0.5, 0.5),
+    ],
+    5: [
+      Offset(-0.5, -0.5),
+      Offset(0.5, -0.5),
+      Offset.zero,
+      Offset(-0.5, 0.5),
+      Offset(0.5, 0.5),
+    ],
+    6: [
+      Offset(-0.55, -0.55),
+      Offset(-0.55, 0),
+      Offset(-0.55, 0.55),
+      Offset(0.55, -0.55),
+      Offset(0.55, 0),
+      Offset(0.55, 0.55),
+    ],
+  };
+}
+
+/// 物理場畫家：軟體渲染立方體（透視投影＋背面剔除＋面光照＋稜線）。
 class _WorldPainter extends CustomPainter {
   final _DiceWorld world;
 
   _WorldPainter(this.world) : super(repaint: world);
 
+  /// 全域視角：輕微前傾（像坐在桌邊看），靜止時也看得到頂面＋
+  /// 一點側面，不會塌成平面正方形。
+  static final _Quat _view = _Quat.axisAngle(1, 0, 0, -0.30);
+
   @override
   void paint(Canvas canvas, Size size) {
     for (final d in world.dice) {
-      final tilt = math.min(1.0, (d.speed + d.angVel.abs() * 60) / 900);
-      canvas.save();
-      canvas.translate(d.pos.dx, d.pos.dy);
-      if (tilt > 0.01) {
-        final m = Matrix4.identity()
-          ..setEntry(3, 2, 0.0016)
-          ..rotateX(math.sin(d.wobble) * 1.05 * tilt)
-          ..rotateY(math.cos(d.wobble * 1.31) * 1.05 * tilt);
-        canvas.transform(m.storage);
-      }
-      canvas.rotate(d.angle);
-      _paintDie(canvas, world.dieSize, d.value, tilt);
-      canvas.restore();
+      _paintDie(canvas, d);
     }
   }
 
-  void _paintDie(Canvas canvas, double size, int value, double tilt) {
-    final rect = Rect.fromCenter(
-      center: Offset.zero,
-      width: size,
-      height: size,
-    );
-    final rrect = RRect.fromRectAndRadius(
-      rect.deflate(size * 0.04),
-      Radius.circular(size * 0.22),
-    );
+  void _paintDie(Canvas canvas, _Die d) {
+    final h = world.dieSize * 0.40; // 立方體半邊長
+    final persp = h * 7.5; // 相機距離（弱透視）
+    final energy = math.min(1.0, (d.speed + d.spin * 55) / 850);
+    final viewQ = _view * d.q; // 渲染姿態＝視角 × 物理姿態
 
-    // 貼地陰影：飛得越兇影子越散（一點高度感）
-    canvas.drawRRect(
-      rrect.shift(Offset(0, size * (0.05 + tilt * 0.06))),
+    // 貼地陰影：滾得越兇越大越散
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: d.pos + Offset(0, h * (0.85 + energy * 0.25)),
+        width: h * (2.5 + energy * 0.7),
+        height: h * (1.05 + energy * 0.3),
+      ),
       Paint()
-        ..color = Color.fromARGB((89 * (1 - tilt * 0.4)).round(), 18, 11, 7)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + tilt * 10),
+        ..color = Color.fromARGB((70 * (1 - energy * 0.35)).round(), 12, 7, 4)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 7 + energy * 8),
     );
 
-    // 骰身
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF8EC), Color(0xFFE9DAC4)],
-        ).createShader(rect),
-    );
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = size * 0.02
-        ..color = const Color(0x33513A28),
-    );
-
-    // 點數
-    final pip = Paint()..color = const Color(0xFF3C2D21);
-    final o = size * 0.24;
-    final r = size * 0.085;
-    void dot(double dx, double dy) => canvas.drawCircle(Offset(dx, dy), r, pip);
-
-    if (value.isOdd) dot(0, 0);
-    if (value >= 2) {
-      dot(-o, -o);
-      dot(o, o);
+    Offset project(double x, double y, double z) {
+      final s = persp / (persp - z);
+      return d.pos + Offset(x * s, y * s);
     }
-    if (value >= 4) {
-      dot(o, -o);
-      dot(-o, o);
-    }
-    if (value == 6) {
-      dot(-o, 0);
-      dot(o, 0);
+
+    // 光源：左上偏前
+    const lx = -0.38, ly = -0.53, lz = 0.76;
+
+    // 只畫朝向相機的面（凸體不互遮，免排序）
+    for (final f in _DieGeometry.faces) {
+      final (nx, ny, nz) = viewQ.rotate(f.nx, f.ny, f.nz);
+      if (nz <= 0.02) continue;
+
+      final (t1x, t1y, t1z) = viewQ.rotate(f.t1x, f.t1y, f.t1z);
+      final (t2x, t2y, t2z) = viewQ.rotate(f.t2x, f.t2y, f.t2z);
+
+      // 面中心與四角（world 座標，中心在原點）
+      final cx = nx * h, cy = ny * h, cz = nz * h;
+      Offset corner(double su, double sv) => project(
+        cx + (t1x * su + t2x * sv) * h,
+        cy + (t1y * su + t2y * sv) * h,
+        cz + (t1z * su + t2z * sv) * h,
+      );
+
+      final p1 = corner(-1, -1);
+      final p2 = corner(1, -1);
+      final p3 = corner(1, 1);
+      final p4 = corner(-1, 1);
+      final path = Path()
+        ..moveTo(p1.dx, p1.dy)
+        ..lineTo(p2.dx, p2.dy)
+        ..lineTo(p3.dx, p3.dy)
+        ..lineTo(p4.dx, p4.dy)
+        ..close();
+
+      // 面光照：法線對光源
+      final lambert = math.max(0.0, nx * lx + ny * ly + nz * lz);
+      final bright = 0.58 + 0.42 * lambert;
+      final faceColor = Color.lerp(
+        const Color(0xFFB99F82),
+        const Color(0xFFFFFAEF),
+        bright,
+      )!;
+
+      canvas.drawPath(path, Paint()..color = faceColor);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.0, h * 0.045)
+          ..strokeJoin = StrokeJoin.round
+          ..color = const Color(0x40513A28),
+      );
+
+      // pip：畫「面上的圓盤」——以面切向量的螢幕投影當基底做
+      // 仿射變換，斜視角下自然壓成橢圓、貼面不會凸出稜線
+      final pipPaint = Paint()
+        ..color = Color.lerp(
+          const Color(0xFF241A12),
+          const Color(0xFF4A382A),
+          1 - bright,
+        )!;
+      final pipR = h * 0.19;
+      final e1 = Offset(t1x, t1y) * pipR; // 螢幕空間基向量（弱透視近似）
+      final e2 = Offset(t2x, t2y) * pipR;
+      for (final p in _DieGeometry.pips[f.value]!) {
+        final u = p.dx * 0.9, v = p.dy * 0.9;
+        final pos = project(
+          cx + (t1x * u + t2x * v) * h,
+          cy + (t1y * u + t2y * v) * h,
+          cz + (t1z * u + t2z * v) * h,
+        );
+        canvas.save();
+        canvas.translate(pos.dx, pos.dy);
+        canvas.transform(
+          (Matrix4.identity()
+                ..setEntry(0, 0, e1.dx)
+                ..setEntry(1, 0, e1.dy)
+                ..setEntry(0, 1, e2.dx)
+                ..setEntry(1, 1, e2.dy))
+              .storage,
+        );
+        canvas.drawCircle(Offset.zero, 1, pipPaint);
+        canvas.restore();
+      }
     }
   }
 
