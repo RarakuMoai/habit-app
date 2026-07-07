@@ -94,16 +94,6 @@ abstract final class PrefsKeys {
   static const metronomeAccent = 'metronome_accent'; // 第一拍重音
   static const metronomeHaptic = 'metronome_haptic'; // 觸覺跟拍
 
-  // ── 計時頁：遊戲計時器（桌遊／下棋輪流計時）──────────────────
-  static const gameTimerPlayerCount = 'game_timer_player_count'; // 人數 2–8
-  static const gameTimerNames = 'game_timer_names'; // List<String> 玩家標籤
-  static const gameTimerMode = 'game_timer_mode'; // 'turn'（每回合）| 'bank'（棋鐘累計）
-  static const gameTimerTurnSeconds = 'game_timer_turn_seconds'; // 每回合秒數
-  static const gameTimerBankSeconds = 'game_timer_bank_seconds'; // 棋鐘起始總秒數
-  static const gameTimerIncrement = 'game_timer_increment'; // Fischer 每手增秒（棋鐘）
-  static const gameTimerWarnEnabled = 'game_timer_warn_enabled'; // 倒數提示音開關
-  static const gameTimerWarnSeconds = 'game_timer_warn_seconds'; // 最後幾秒開始提示
-
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';
   static const waterEnabled = 'water_enabled';

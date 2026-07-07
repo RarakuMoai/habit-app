@@ -16,7 +16,6 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
   SfxCue.success => HapticLevel.light,
   SfxCue.tap => HapticLevel.light,
   SfxCue.cancel => HapticLevel.selection,
-  SfxCue.gameTurn => HapticLevel.medium,
   SfxCue.tumiNeutral => HapticLevel.none,
   SfxCue.tumiQuestion => HapticLevel.none,
   SfxCue.tumiHappy => HapticLevel.none,

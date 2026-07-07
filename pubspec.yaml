@@ -46,7 +46,7 @@ dependencies:
   audio_session: ^0.2.3
   url_launcher: ^6.3.1
   flutter_slidable: ^4.0.3
-  wakelock_plus: ^1.2.0 # 計時時防螢幕自動鎖定（遊戲/節拍器/運動）
+  wakelock_plus: ^1.2.0 # 計時時防螢幕自動鎖定（節拍器/運動）
 
 # path_provider_foundation 2.6.0 改用 FFI（package:objective_c），其
 # objective_c.framework 走 native assets 簽名管線，實機安裝常出現

@@ -549,11 +549,11 @@ class _TimerPageState extends State<TimerPage>
     _TimerMode.game => kGameAccent,
   };
 
-  ActiveTimer _activeTimerFor(_TimerMode mode) => switch (mode) {
+  ActiveTimer? _activeTimerFor(_TimerMode mode) => switch (mode) {
     _TimerMode.focus => ActiveTimer.focus,
     _TimerMode.exercise => ActiveTimer.exercise,
     _TimerMode.metronome => ActiveTimer.metronome,
-    _TimerMode.game => ActiveTimer.game,
+    _TimerMode.game => null,
   };
 
   // 切換列每個模式的圖示與標籤。
@@ -568,7 +568,8 @@ class _TimerPageState extends State<TimerPage>
     if (mode == _topMode) return;
     // 目前這顆正在倒數時鎖住切換（與方案切換一致）：要先按重設歸零。
     // 暫停中不鎖——切到別頁進度仍保留在各自的 widget 裡，不會遺失。
-    if (TimerMutex.active == _activeTimerFor(_topMode)) {
+    final activeTimer = _activeTimerFor(_topMode);
+    if (activeTimer != null && TimerMutex.active == activeTimer) {
       playHaptic(HapticLevel.light);
       // 節拍器的按鈕是「停止」、番茄/運動才是「重設」，提示要對應目前模式
       final verb = _topMode == _TimerMode.metronome ? '停止' : '重設';
