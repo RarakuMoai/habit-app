@@ -43,6 +43,8 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
 
   static const _turnPresets = [30, 45, 60, 90, 120, 180, 300];
   static const _warnPresets = [5, 10, 15, 20];
+  static const _bankPresets = [60, 180, 300, 600, 900, 1800];
+  static const _incrementPresets = [0, 2, 5, 10];
 
   @override
   void initState() {
@@ -226,9 +228,7 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
     controller.dispose();
     if (confirmed != true || name.isEmpty) return;
     playFeedback(SfxCue.success);
-    setState(
-      () => _presets.add(TablePreset(name: name, config: _config)),
-    );
+    setState(() => _presets.add(TablePreset(name: name, config: _config)));
     _savePresets();
   }
 
@@ -323,7 +323,13 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
                   ),
                 ),
               ),
-            if (!free) ...[
+            if (chess) ...[
+              const SizedBox(height: 14),
+              _sectionTitle('計時制'),
+              const SizedBox(height: 8),
+              _timingSwitch(),
+            ],
+            if (!free && !_config.usesBank) ...[
               const SizedBox(height: 14),
               _sectionTitle('每回合時間'),
               const SizedBox(height: 8),
@@ -341,6 +347,48 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
               ),
               const SizedBox(height: 10),
               _stepperRow(),
+            ],
+            if (_config.usesBank) ...[
+              const SizedBox(height: 14),
+              _sectionTitle('每人總時間'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in _bankPresets)
+                    _valueChip(
+                      _turnLabel(s),
+                      selected: _config.bankSeconds == s,
+                      onTap: () => _apply(_config.copyWith(bankSeconds: s)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _bankStepperRow(),
+              const SizedBox(height: 14),
+              _sectionTitle('每手加秒（Fischer）'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in _incrementPresets)
+                    _valueChip(
+                      s == 0 ? '不加秒' : '＋$s 秒',
+                      selected: _config.incrementSeconds == s,
+                      onTap: () =>
+                          _apply(_config.copyWith(incrementSeconds: s)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '時間用盡＝旗倒直接分勝負；走完一手可加回幾秒',
+                style: TextStyle(fontSize: 12, color: AppInk.faint),
+              ),
+            ],
+            if (!free) ...[
               const SizedBox(height: 14),
               _sectionTitle('倒數提醒'),
               const SizedBox(height: 8),
@@ -357,48 +405,49 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => _apply(
-                  _config.copyWith(autoAdvance: !_config.autoAdvance),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '超時自動換下一位',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppInk.strong,
+              if (!_config.usesBank)
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _apply(
+                    _config.copyWith(autoAdvance: !_config.autoAdvance),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '超時自動換下一位',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppInk.strong,
+                                ),
                               ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              '關閉時超時會亮紅等待，點一下才換人',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: AppInk.soft,
+                              SizedBox(height: 2),
+                              Text(
+                                '關閉時超時會亮紅等待，點一下才換人',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: AppInk.soft,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Switch(
-                        value: _config.autoAdvance,
-                        activeTrackColor: kGameAccent,
-                        onChanged: (v) =>
-                            _apply(_config.copyWith(autoAdvance: v)),
-                      ),
-                    ],
+                        Switch(
+                          value: _config.autoAdvance,
+                          activeTrackColor: kGameAccent,
+                          onChanged: (v) =>
+                              _apply(_config.copyWith(autoAdvance: v)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
             const SizedBox(height: 14),
             _sectionTitle('常用玩家'),
@@ -407,8 +456,7 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final name in _roster)
-                  _rosterChip(name),
+                for (final name in _roster) _rosterChip(name),
                 _pickChip('＋ 新增', onTap: _addRosterName, accent: true),
               ],
             ),
@@ -524,11 +572,7 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
             ),
             child: Column(
               children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: sel ? Colors.white : AppInk.soft,
-                ),
+                Icon(icon, size: 20, color: sel ? Colors.white : AppInk.soft),
                 const SizedBox(height: 3),
                 Text(
                   mode.label,
@@ -559,6 +603,103 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
           seg(TableGameMode.free, Icons.all_inclusive_rounded),
         ],
       ),
+    );
+  }
+
+  /// 棋鐘計時制：每回合制 / 總時間制（時間庫＋Fischer）。
+  Widget _timingSwitch() {
+    Widget seg({
+      required bool bank,
+      required IconData icon,
+      required String label,
+    }) {
+      final sel = _config.chessUseBank == bank;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () {
+            if (sel) return;
+            playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+            _apply(_config.copyWith(chessUseBank: bank));
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: sel ? kGameAccent : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 17, color: sel ? Colors.white : AppInk.soft),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: sel ? Colors.white : AppInk.soft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppSurfaces.fill,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppSurfaces.divider),
+      ),
+      child: Row(
+        children: [
+          seg(bank: false, icon: Icons.timelapse_rounded, label: '每回合制'),
+          seg(bank: true, icon: Icons.hourglass_bottom_rounded, label: '總時間制'),
+        ],
+      ),
+    );
+  }
+
+  Widget _bankStepperRow() {
+    return Row(
+      children: [
+        const Text(
+          '自訂',
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+            color: AppInk.soft,
+          ),
+        ),
+        const Spacer(),
+        _stepBtn(Icons.remove_rounded, () {
+          final v = (_config.bankSeconds - 30).clamp(
+            TableTimerConfig.minBankSeconds,
+            TableTimerConfig.maxBankSeconds,
+          );
+          _apply(_config.copyWith(bankSeconds: v));
+        }),
+        SizedBox(
+          width: 96,
+          child: Center(
+            child: Text(
+              _secondsText(_config.bankSeconds),
+              style: AppType.digits(fontSize: 17, color: AppInk.strong),
+            ),
+          ),
+        ),
+        _stepBtn(Icons.add_rounded, () {
+          final v = (_config.bankSeconds + 30).clamp(
+            TableTimerConfig.minBankSeconds,
+            TableTimerConfig.maxBankSeconds,
+          );
+          _apply(_config.copyWith(bankSeconds: v));
+        }),
+      ],
     );
   }
 
@@ -692,7 +833,7 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
           width: 86,
           child: Center(
             child: Text(
-              _turnSecondsText(),
+              _secondsText(_config.turnSeconds),
               style: AppType.digits(fontSize: 17, color: AppInk.strong),
             ),
           ),
@@ -708,8 +849,7 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
     );
   }
 
-  String _turnSecondsText() {
-    final s = _config.turnSeconds;
+  String _secondsText(int s) {
     if (s < 60) return '$s 秒';
     final m = s ~/ 60;
     final r = s % 60;
@@ -775,13 +915,19 @@ class _TableSetupSheetState extends State<_TableSetupSheet> {
     );
   }
 
-  Widget _pickChip(String label, {required VoidCallback onTap, bool accent = false}) {
+  Widget _pickChip(
+    String label, {
+    required VoidCallback onTap,
+    bool accent = false,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
         decoration: BoxDecoration(
-          color: accent ? kGameAccent.withValues(alpha: 0.10) : AppSurfaces.fill,
+          color: accent
+              ? kGameAccent.withValues(alpha: 0.10)
+              : AppSurfaces.fill,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: accent

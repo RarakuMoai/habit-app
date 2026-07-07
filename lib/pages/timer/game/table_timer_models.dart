@@ -54,6 +54,9 @@ class TableTimerConfig {
   static const int maxPlayers = 6;
   static const int minTurnSeconds = 10;
   static const int maxTurnSeconds = 30 * 60;
+  static const int minBankSeconds = 30;
+  static const int maxBankSeconds = 60 * 60;
+  static const int maxIncrementSeconds = 60;
 
   final TableGameMode mode;
   final List<TablePlayer> players;
@@ -66,7 +69,18 @@ class TableTimerConfig {
   final int warnSeconds;
 
   /// 超時後自動換下一位；false = 進入超時狀態等人點。
+  /// （棋鐘總時間制不適用：時間用盡＝旗倒終局。）
   final bool autoAdvance;
+
+  /// 二人棋鐘的計時制：false = 每回合制（沿用 turnSeconds）、
+  /// true = 總時間制（每人一個時間庫 [bankSeconds]，可 Fischer 加秒）。
+  final bool chessUseBank;
+
+  /// 總時間制：每人總時間。
+  final int bankSeconds;
+
+  /// 總時間制：走完一手加回幾秒（Fischer；0 = 不加）。
+  final int incrementSeconds;
 
   const TableTimerConfig({
     required this.mode,
@@ -74,6 +88,9 @@ class TableTimerConfig {
     required this.turnSeconds,
     required this.warnSeconds,
     required this.autoAdvance,
+    this.chessUseBank = false,
+    this.bankSeconds = 300,
+    this.incrementSeconds = 0,
   });
 
   /// 出廠預設：多人 4 人、每回合 60 秒、剩 10 秒警示、手動換人。
@@ -95,29 +112,58 @@ class TableTimerConfig {
   List<TablePlayer> get activePlayers =>
       mode == TableGameMode.chess ? players.take(2).toList() : players;
 
+  /// 是否走棋鐘總時間制（時間庫）。
+  bool get usesBank => mode == TableGameMode.chess && chessUseBank;
+
+  /// 時間設定的一句話摘要（入口卡、preset 預設名共用）。
+  String get timeSummary {
+    if (mode == TableGameMode.free) return '自由計時';
+    if (usesBank) {
+      final bank = _fmtSeconds(bankSeconds);
+      return incrementSeconds > 0
+          ? '每人 $bank ＋$incrementSeconds 秒'
+          : '每人 $bank';
+    }
+    return '每回合 ${_fmtSeconds(turnSeconds)}';
+  }
+
+  static String _fmtSeconds(int s) {
+    if (s < 60) return '$s 秒';
+    final m = s ~/ 60;
+    final r = s % 60;
+    return r == 0 ? '$m 分' : '$m 分 $r 秒';
+  }
+
   TableTimerConfig copyWith({
     TableGameMode? mode,
     List<TablePlayer>? players,
     int? turnSeconds,
     int? warnSeconds,
     bool? autoAdvance,
+    bool? chessUseBank,
+    int? bankSeconds,
+    int? incrementSeconds,
   }) => TableTimerConfig(
     mode: mode ?? this.mode,
     players: players ?? this.players,
     turnSeconds: turnSeconds ?? this.turnSeconds,
     warnSeconds: warnSeconds ?? this.warnSeconds,
     autoAdvance: autoAdvance ?? this.autoAdvance,
+    chessUseBank: chessUseBank ?? this.chessUseBank,
+    bankSeconds: bankSeconds ?? this.bankSeconds,
+    incrementSeconds: incrementSeconds ?? this.incrementSeconds,
   );
 
   String encode() => jsonEncode({
     'v': 1,
     'mode': mode.name,
-    'players': [
-      for (final p in players) p.toJson(),
-    ],
+    'players': [for (final p in players) p.toJson()], // units-ok
     'turnSeconds': turnSeconds,
     'warnSeconds': warnSeconds,
     'autoAdvance': autoAdvance,
+    'chessUseBank': chessUseBank,
+    'bankSeconds': bankSeconds,
+    'incrementSeconds': incrementSeconds,
   });
 
   /// 解析失敗（壞 JSON、玩家不足）一律回 fallback，不讓入口卡開天窗。
@@ -137,6 +183,9 @@ class TableTimerConfig {
       }
       final turn = map['turnSeconds'];
       final warn = map['warnSeconds'];
+      final bank = map['bankSeconds'];
+      final inc = map['incrementSeconds'];
+      // 舊版 JSON 沒有棋鐘總時間制欄位 → 預設每回合制，向後相容
       return TableTimerConfig(
         mode: mode,
         players: players.take(maxPlayers).toList(),
@@ -146,6 +195,12 @@ class TableTimerConfig {
         ),
         warnSeconds: (warn is int ? warn : 10).clamp(3, 60),
         autoAdvance: map['autoAdvance'] == true,
+        chessUseBank: map['chessUseBank'] == true,
+        bankSeconds: (bank is int ? bank : 300).clamp(
+          minBankSeconds,
+          maxBankSeconds,
+        ),
+        incrementSeconds: (inc is int ? inc : 0).clamp(0, maxIncrementSeconds),
       );
     } catch (_) {
       return TableTimerConfig.fallback();
@@ -158,8 +213,7 @@ class TurnStats {
   int turns = 0;
   Duration totalThink = Duration.zero;
 
-  Duration get averageThink =>
-      turns == 0 ? Duration.zero : totalThink ~/ turns;
+  Duration get averageThink => turns == 0 ? Duration.zero : totalThink ~/ turns;
 }
 
 /// 常用組合：一份帶名字的設定快照，入口卡一鍵帶入。
@@ -172,21 +226,14 @@ class TablePreset {
   const TablePreset({required this.name, required this.config});
 
   /// 快照的預設命名：「多人桌遊 4 人 · 每回合 1 分」。
-  static String defaultName(TableTimerConfig c) {
-    final time = switch (c.mode) {
-      TableGameMode.free => '自由計時',
-      _ when c.turnSeconds < 60 => '每回合 ${c.turnSeconds} 秒',
-      _ when c.turnSeconds % 60 == 0 => '每回合 ${c.turnSeconds ~/ 60} 分',
-      _ => '每回合 ${c.turnSeconds ~/ 60} 分 ${c.turnSeconds % 60} 秒',
-    };
-    return '${c.mode.label} ${c.activePlayers.length} 人 · $time';
-  }
+  static String defaultName(TableTimerConfig c) =>
+      '${c.mode.label} ${c.activePlayers.length} 人 · ${c.timeSummary}';
 
   static String encodeList(List<TablePreset> presets) => jsonEncode({
     'v': 1,
     'items': [
       for (final p in presets)
-        {'name': p.name, 'config': p.config.encode()},
+        {'name': p.name, 'config': p.config.encode()}, // units-ok
     ],
   });
 

@@ -57,7 +57,8 @@ class _ChessFaceState extends State<ChessFace>
         if (engine.currentIndex != side) return; // 對方按了不算
         engine.advance();
       case TablePhase.paused:
-        return;
+      case TablePhase.finished:
+        return; // 旗倒後鐘停了，點側邊沒有意義
     }
     playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
   }
@@ -68,12 +69,7 @@ class _ChessFaceState extends State<ChessFace>
     return SafeArea(
       child: Column(
         children: [
-          Expanded(
-            child: RotatedBox(
-              quarterTurns: 2,
-              child: _half(1, ready),
-            ),
-          ),
+          Expanded(child: RotatedBox(quarterTurns: 2, child: _half(1, ready))),
           _middleBand(ready),
           Expanded(child: _half(0, ready)),
         ],
@@ -85,12 +81,22 @@ class _ChessFaceState extends State<ChessFace>
   Widget _half(int side, bool ready) {
     final player = engine.players[side];
     final seat = TableTheme.seatColor(player.colorIndex);
-    final active = !ready && engine.currentIndex == side;
-    final urgency = active ? engine.urgency : 0;
-    final accent = TableTheme.urgencyColor(urgency, seat);
+    // 旗倒側：終局後亮紅停在 0:00
+    final flagged =
+        engine.phase == TablePhase.finished && engine.flagFallIndex == side;
+    final active = (!ready && engine.currentIndex == side) || flagged;
+    final urgency = active && !flagged ? engine.urgency : 0;
+    final accent = flagged
+        ? TableTheme.overtime
+        : TableTheme.urgencyColor(urgency, seat);
 
     final String timeText;
-    if (active && engine.inOvertime) {
+    if (engine.isBank) {
+      // 總時間制：兩側各自顯示自己的時間庫（m:ss）
+      timeText = formatTableElapsed(
+        Duration(seconds: engine.bankDisplaySeconds(side)),
+      );
+    } else if (active && engine.inOvertime) {
       timeText =
           '+${formatTableElapsed(Duration(seconds: engine.overtimeSeconds))}';
     } else if (active) {
@@ -176,9 +182,9 @@ class _ChessFaceState extends State<ChessFace>
                     ),
                     SizedBox(
                       height: 20,
-                      child: active && engine.inOvertime
+                      child: flagged || (active && engine.inOvertime)
                           ? Text(
-                              '超時',
+                              flagged ? '時間到' : '超時',
                               style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
@@ -187,9 +193,9 @@ class _ChessFaceState extends State<ChessFace>
                               ),
                             )
                           : (active
-                                ? Text(
+                                ? const Text(
                                     '輪到你 · 走完點這裡',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w700,
                                       color: TableTheme.inkFaint,
@@ -214,10 +220,7 @@ class _ChessFaceState extends State<ChessFace>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _bandButton(
-            icon: Icons.close_rounded,
-            onTap: () => widget.onExit(),
-          ),
+          _bandButton(icon: Icons.close_rounded, onTap: () => widget.onExit()),
           const SizedBox(width: 26),
           if (ready)
             const Text(
@@ -228,20 +231,24 @@ class _ChessFaceState extends State<ChessFace>
                 color: TableTheme.inkFaint,
               ),
             )
+          else if (engine.phase == TablePhase.finished)
+            Text(
+              '${engine.players[engine.flagFallIndex!].name} 時間到',
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: TableTheme.overtime,
+              ),
+            )
           else
             Text(
               '第 ${engine.turnCount} 手',
-              style: AppType.digits(
-                fontSize: 14,
-                color: TableTheme.inkSoft,
-              ),
+              style: AppType.digits(fontSize: 14, color: TableTheme.inkSoft),
             ),
           const SizedBox(width: 26),
           _bandButton(
             icon: Icons.pause_rounded,
-            onTap: engine.phase == TablePhase.running
-                ? widget.onPause
-                : null,
+            onTap: engine.phase == TablePhase.running ? widget.onPause : null,
           ),
         ],
       ),

@@ -22,8 +22,7 @@ class PartyFace extends StatefulWidget {
   State<PartyFace> createState() => _PartyFaceState();
 }
 
-class _PartyFaceState extends State<PartyFace>
-    with TickerProviderStateMixin {
+class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   // 呼吸光暈（目前玩家）：慢速來回。
   late final AnimationController _breath;
 
@@ -92,6 +91,7 @@ class _PartyFaceState extends State<PartyFace>
         _tapHandled = true;
         engine.advance();
       case TablePhase.paused:
+      case TablePhase.finished: // 旗倒只在棋鐘，這面到不了
         return; // 暫停層在上面，理論上到不了這裡
     }
     playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
@@ -209,7 +209,8 @@ class _PartyFaceState extends State<PartyFace>
       timeText = formatTableElapsed(engine.elapsedInTurn);
       statusText = ready ? null : '自由計時';
     } else if (engine.inOvertime) {
-      timeText = '+${formatTableElapsed(Duration(seconds: engine.overtimeSeconds))}';
+      timeText =
+          '+${formatTableElapsed(Duration(seconds: engine.overtimeSeconds))}';
       statusText = '超時';
     } else {
       timeText = formatTableSeconds(
@@ -466,10 +467,7 @@ class _DialPainter extends CustomPainter {
         ..shader = RadialGradient(
           center: const Alignment(-0.2, -0.3),
           radius: 1.0,
-          colors: [
-            const Color(0xFF413023),
-            const Color(0xFF2B1F16),
-          ],
+          colors: [const Color(0xFF413023), const Color(0xFF2B1F16)],
         ).createShader(discRect),
     );
 

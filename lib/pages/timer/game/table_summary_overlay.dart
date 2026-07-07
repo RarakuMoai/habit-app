@@ -152,6 +152,17 @@ class TableSummaryOverlay extends StatelessWidget {
                   const SizedBox(width: 6),
                   const Text('⚡', style: TextStyle(fontSize: 13)),
                 ],
+                if (engine.flagFallIndex == i) ...[
+                  const SizedBox(width: 6),
+                  const Text(
+                    '時間到',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: TableTheme.overtime,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

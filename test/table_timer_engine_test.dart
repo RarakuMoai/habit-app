@@ -14,6 +14,9 @@ TableTimerConfig cfg({
   int turnSeconds = 60,
   int warnSeconds = 10,
   bool autoAdvance = false,
+  bool chessUseBank = false,
+  int bankSeconds = 300,
+  int incrementSeconds = 0,
 }) => TableTimerConfig(
   mode: mode,
   players: [
@@ -23,6 +26,9 @@ TableTimerConfig cfg({
   turnSeconds: turnSeconds,
   warnSeconds: warnSeconds,
   autoAdvance: autoAdvance,
+  chessUseBank: chessUseBank,
+  bankSeconds: bankSeconds,
+  incrementSeconds: incrementSeconds,
 );
 
 (TableTimerEngine, FakeClock, List<TableTimerEvent>) build(
@@ -216,6 +222,123 @@ void main() {
     expect(TablePreset.decodeList(many).length, TablePreset.maxCount);
   });
 
+  group('棋鐘總時間制（時間庫）', () {
+    TableTimerConfig bankCfg({int bank = 60, int inc = 0}) => cfg(
+      mode: TableGameMode.chess,
+      chessUseBank: true,
+      bankSeconds: bank,
+      incrementSeconds: inc,
+    );
+
+    test('各自扣自己的庫存，走完一手 Fischer 加秒', () {
+      final (engine, clock, _) = build(bankCfg(inc: 2));
+      engine.start();
+      expect(engine.remainingSeconds, 60);
+
+      clock.advance(const Duration(seconds: 10));
+      engine.advance(); // P1 用 10 秒、加回 2 秒 → 庫存 52
+
+      expect(engine.currentPlayer.name, 'P2');
+      expect(engine.remainingSeconds, 60); // P2 自己的庫存沒動過
+      expect(engine.bankDisplaySeconds(0), 52);
+
+      clock.advance(const Duration(seconds: 5));
+      engine.advance(); // P2 用 5 秒＋2 → 57
+      expect(engine.bankDisplaySeconds(1), 57);
+      expect(engine.remainingSeconds, 52); // 回到 P1，從 52 繼續倒
+    });
+
+    test('暫停中對方庫存不動，自己也凍結', () {
+      final (engine, clock, _) = build(bankCfg());
+      engine.start();
+      clock.advance(const Duration(seconds: 10));
+      engine.pause();
+      clock.advance(const Duration(minutes: 3));
+      expect(engine.remainingSeconds, 50);
+      expect(engine.bankDisplaySeconds(1), 60);
+    });
+
+    test('時間用盡＝旗倒終局，不理 autoAdvance', () {
+      final (engine, clock, events) = build(
+        cfg(
+          mode: TableGameMode.chess,
+          chessUseBank: true,
+          bankSeconds: 30,
+          autoAdvance: true, // 總時間制應忽略
+        ),
+      );
+      engine.start();
+      clock.advance(const Duration(seconds: 30, milliseconds: 300));
+      engine.tick();
+
+      expect(engine.phase, TablePhase.finished);
+      expect(engine.flagFallIndex, 0);
+      expect(events, contains(TableTimerEvent.expire));
+      expect(events, isNot(contains(TableTimerEvent.autoAdvance)));
+      expect(engine.bankDisplaySeconds(0), 0);
+      expect(engine.stats[0].turns, 1); // 花完時間的這手計入統計
+
+      // 終局後點擊/暫停都不動
+      engine.advance();
+      engine.pause();
+      expect(engine.phase, TablePhase.finished);
+    });
+
+    test('庫存見底時搶點 advance 也走旗倒，不換人', () {
+      final (engine, clock, _) = build(bankCfg(bank: 20));
+      engine.start();
+      clock.advance(const Duration(seconds: 21)); // tick 還沒跑
+      engine.advance();
+      expect(engine.phase, TablePhase.finished);
+      expect(engine.flagFallIndex, 0);
+    });
+
+    test('undo 快照精確還原時間庫與統計', () {
+      final (engine, clock, _) = build(bankCfg(inc: 2));
+      engine.start();
+      clock.advance(const Duration(seconds: 10));
+      engine.advance(); // P1 52
+      clock.advance(const Duration(seconds: 3));
+      engine.undo(); // 回到 P1 換人前
+
+      expect(engine.currentPlayer.name, 'P1');
+      expect(engine.turnCount, 1);
+      expect(engine.remainingSeconds, 60); // 那手整段重來（10 秒退回）
+      expect(engine.stats[0].turns, 0);
+      expect(engine.canUndo, isFalse); // 單步：不能連退
+    });
+
+    test('低庫存照樣觸發 warn / criticalTick', () {
+      final (engine, clock, events) = build(bankCfg(bank: 30));
+      engine.start();
+      clock.advance(const Duration(seconds: 21));
+      engine.tick();
+      expect(events, [TableTimerEvent.warn]);
+      clock.advance(const Duration(seconds: 5));
+      engine.tick();
+      expect(events.last, TableTimerEvent.criticalTick);
+    });
+  });
+
+  test('timeSummary 摘要字串', () {
+    expect(cfg(turnSeconds: 90).timeSummary, '每回合 1 分 30 秒');
+    expect(cfg(mode: TableGameMode.free).timeSummary, '自由計時');
+    expect(
+      cfg(mode: TableGameMode.chess, chessUseBank: true).timeSummary,
+      '每人 5 分',
+    );
+    expect(
+      cfg(
+        mode: TableGameMode.chess,
+        chessUseBank: true,
+        incrementSeconds: 2,
+      ).timeSummary,
+      '每人 5 分 ＋2 秒',
+    );
+    // 非棋鐘模式即使帶 bank 欄位也走每回合制摘要
+    expect(cfg(chessUseBank: true).timeSummary, '每回合 1 分');
+  });
+
   test('config 編解碼 round-trip，壞資料回 fallback', () {
     final original = cfg(mode: TableGameMode.chess, turnSeconds: 90);
     final decoded = TableTimerConfig.decode(original.encode());
@@ -224,15 +347,38 @@ void main() {
     expect(decoded.players.length, 4);
     expect(decoded.players.first.name, 'P1');
 
+    // 新欄位 round-trip
+    final bankRt = TableTimerConfig.decode(
+      cfg(
+        mode: TableGameMode.chess,
+        chessUseBank: true,
+        bankSeconds: 600,
+        incrementSeconds: 5,
+      ).encode(),
+    );
+    expect(bankRt.chessUseBank, isTrue);
+    expect(bankRt.bankSeconds, 600);
+    expect(bankRt.incrementSeconds, 5);
+
+    // 舊版 JSON（沒有總時間制欄位）→ 預設每回合制
+    final legacy = TableTimerConfig.decode(
+      '{"v":1,"mode":"chess","players":[{"name":"A","color":0},'
+      '{"name":"B","color":1}],"turnSeconds":60,"warnSeconds":10,'
+      '"autoAdvance":false}',
+    );
+    expect(legacy.chessUseBank, isFalse);
+    expect(legacy.bankSeconds, 300);
+    expect(legacy.incrementSeconds, 0);
+
     expect(
       TableTimerConfig.decode('not json').mode,
       TableTimerConfig.fallback().mode,
     );
     expect(TableTimerConfig.decode(null).players.length, 4);
     expect(
-      TableTimerConfig.decode('{"v":1,"mode":"party","players":[]}')
-          .players
-          .length,
+      TableTimerConfig.decode(
+        '{"v":1,"mode":"party","players":[]}',
+      ).players.length,
       4, // 玩家不足 → fallback
     );
   });

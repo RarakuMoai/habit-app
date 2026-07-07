@@ -11,7 +11,8 @@ import 'table_timer_models.dart';
 
 /// 對局階段。超時不是獨立階段（見 [TableTimerEngine.inOvertime]）：
 /// 超時仍在 running，只是剩餘時間為負。
-enum TablePhase { ready, running, paused }
+/// [finished] 只在棋鐘總時間制出現：有人時間用盡＝旗倒終局。
+enum TablePhase { ready, running, paused, finished }
 
 /// 引擎對外的時間驅動事件（點擊換人是 UI 主動呼叫，不在此列）。
 enum TableTimerEvent {
@@ -36,6 +37,7 @@ class TableTimerEngine extends ChangeNotifier {
   }) : _now = clock ?? DateTime.now {
     players = config.activePlayers;
     stats = [for (final _ in players) TurnStats()];
+    _banks = [for (final _ in players) Duration(seconds: config.bankSeconds)];
   }
 
   final TableTimerConfig config;
@@ -59,6 +61,13 @@ class TableTimerEngine extends ChangeNotifier {
   DateTime? _turnStartedAt; // 本回合最近一次「開始跑」的時刻
   Duration _turnCarry = Duration.zero; // 暫停累計的已消耗時間
 
+  // 棋鐘總時間制：每人的時間庫（每回合制不看它）
+  late final List<Duration> _banks;
+  int? _flagFallIndex; // 旗倒的人（總時間制終局）
+
+  // 誤觸救援：最近一次換人前的完整快照（單步）
+  _TurnSnapshot? _undoSnapshot;
+
   // 事件去重：warn/expire 每回合只發一次；criticalTick 記上次發過的秒數
   bool _warned = false;
   bool _expired = false;
@@ -66,14 +75,24 @@ class TableTimerEngine extends ChangeNotifier {
 
   bool get isFree => config.mode == TableGameMode.free;
 
+  /// 棋鐘總時間制（時間庫）。
+  bool get isBank => config.usesBank;
+
+  /// 旗倒的人（只在 [TablePhase.finished] 非 null）。
+  int? get flagFallIndex => _flagFallIndex;
+
+  /// 有上一步可回（快照式單步救援）。
+  bool get canUndo =>
+      _undoSnapshot != null &&
+      (_phase == TablePhase.running || _phase == TablePhase.paused);
+
   /// 已結算的總手數（結算面用：0 = 沒真的玩，直接離開不秀小結）。
   int get settledTurns => stats.fold(0, (sum, s) => sum + s.turns);
   TablePhase get phase => _phase;
   int get currentIndex => _currentIndex;
   int get turnCount => _turnCount;
   TablePlayer get currentPlayer => players[_currentIndex];
-  TablePlayer get nextPlayer =>
-      players[(_currentIndex + 1) % players.length];
+  TablePlayer get nextPlayer => players[(_currentIndex + 1) % players.length];
 
   /// 本回合已消耗時間（free 模式的主顯示）。
   Duration get elapsedInTurn {
@@ -85,9 +104,14 @@ class TableTimerEngine extends ChangeNotifier {
   }
 
   /// 剩餘時間（可為負 = 超時中）。free 模式無意義，回 zero。
-  Duration get remaining => isFree
-      ? Duration.zero
-      : Duration(seconds: config.turnSeconds) - elapsedInTurn;
+  /// 總時間制看目前玩家的時間庫，每回合制看 turnSeconds。
+  Duration get remaining {
+    if (isFree) return Duration.zero;
+    final total = isBank
+        ? _banks[_currentIndex]
+        : Duration(seconds: config.turnSeconds);
+    return total - elapsedInTurn;
+  }
 
   /// 顯示用剩餘整秒（無條件進位：59.2 秒顯示 60，歸零瞬間才顯示 0）。
   int get remainingSeconds {
@@ -103,6 +127,13 @@ class TableTimerEngine extends ChangeNotifier {
 
   bool get inOvertime =>
       !isFree && _phase == TablePhase.running && remaining < Duration.zero;
+
+  /// 顯示用：某位玩家的時間庫剩餘整秒（總時間制）。輪到的人算上
+  /// 進行中的消耗，其他人就是庫存。
+  int bankDisplaySeconds(int i) {
+    final ms = (i == _currentIndex ? remaining : _banks[i]).inMilliseconds;
+    return ms <= 0 ? 0 : (ms / 1000).ceil();
+  }
 
   /// 0.0–1.0 倒數環進度（剩餘比例）。
   double get ringProgress {
@@ -136,22 +167,31 @@ class TableTimerEngine extends ChangeNotifier {
   /// 換下一位（點擊主畫面 / 棋鐘按自己那半 / 超時自動）。
   void advance() {
     if (_phase != TablePhase.running) return;
-    _settleStats();
+    // 總時間制：庫存其實已用盡（tick 還沒跑到）→ 走旗倒，不是換人
+    if (isBank && remaining <= Duration.zero) {
+      tick();
+      return;
+    }
+    _undoSnapshot = _TurnSnapshot.capture(this);
+    final spent = elapsedInTurn;
+    _settleStats(spent);
+    if (isBank) {
+      _banks[_currentIndex] +=
+          Duration(seconds: config.incrementSeconds) - spent;
+    }
     _currentIndex = (_currentIndex + 1) % players.length;
     _turnCount += 1;
     _beginTurnClock();
     notifyListeners();
   }
 
-  /// 誤觸救援：回到上一位，該回合整段重來（不試圖還原剩餘秒數，
-  /// 桌遊情境「重想」比「接續半截時間」直覺）。
+  /// 誤觸救援：整包回到「上一次換人前」的狀態（單步快照）。
+  /// 時間庫、統計都精確還原，被打斷的那一手時間整段重來。
   void undo() {
-    // 第一手沒有「上一位」可回
-    if (_phase == TablePhase.ready || _turnCount <= 1) return;
-    _currentIndex = (_currentIndex - 1 + players.length) % players.length;
-    if (_turnCount > 1) _turnCount -= 1;
-    final st = stats[_currentIndex];
-    if (st.turns > 0) st.turns -= 1;
+    final snap = _undoSnapshot;
+    if (!canUndo || snap == null) return;
+    snap.restore(this);
+    _undoSnapshot = null;
     _beginTurnClock();
     if (_phase == TablePhase.paused) _phase = TablePhase.running;
     notifyListeners();
@@ -203,6 +243,17 @@ class TableTimerEngine extends ChangeNotifier {
     if (!_expired && ms <= 0) {
       _expired = true;
       onEvent?.call(TableTimerEvent.expire);
+      if (isBank) {
+        // 旗倒終局：時間花完的這手也計入統計，鐘停在 0:00
+        _settleStats(elapsedInTurn);
+        _banks[_currentIndex] = Duration.zero;
+        _turnCarry = Duration.zero;
+        _turnStartedAt = null;
+        _flagFallIndex = _currentIndex;
+        _phase = TablePhase.finished;
+        notifyListeners();
+        return;
+      }
       if (config.autoAdvance) {
         advance();
         onEvent?.call(TableTimerEvent.autoAdvance);
@@ -220,11 +271,11 @@ class TableTimerEngine extends ChangeNotifier {
     _lastCriticalSecond = -1;
   }
 
-  /// 結算目前玩家這一手的統計（換人前呼叫）。
-  void _settleStats() {
+  /// 結算目前玩家這一手的統計（換人／旗倒前呼叫）。
+  void _settleStats(Duration spent) {
     final st = stats[_currentIndex];
     st.turns += 1;
-    st.totalThink += elapsedInTurn;
+    st.totalThink += spent;
   }
 
   void _ensureTimer() {
@@ -237,5 +288,43 @@ class TableTimerEngine extends ChangeNotifier {
     _timer?.cancel();
     _timer = null;
     super.dispose();
+  }
+}
+
+/// 換人前的完整快照（單步 undo 用）：輪到誰、手數、時間庫、統計。
+class _TurnSnapshot {
+  final int index;
+  final int turnCount;
+  final List<Duration> banks;
+  final List<int> statTurns;
+  final List<Duration> statThink;
+
+  _TurnSnapshot._({
+    required this.index,
+    required this.turnCount,
+    required this.banks,
+    required this.statTurns,
+    required this.statThink,
+  });
+
+  factory _TurnSnapshot.capture(TableTimerEngine e) => _TurnSnapshot._(
+    index: e._currentIndex,
+    turnCount: e._turnCount,
+    banks: List.of(e._banks),
+    statTurns: [for (final s in e.stats) s.turns],
+    statThink: [for (final s in e.stats) s.totalThink],
+  );
+
+  void restore(TableTimerEngine e) {
+    e._currentIndex = index;
+    e._turnCount = turnCount;
+    for (var i = 0; i < e._banks.length; i++) {
+      e._banks[i] = banks[i];
+    }
+    for (var i = 0; i < e.stats.length; i++) {
+      e.stats[i]
+        ..turns = statTurns[i]
+        ..totalThink = statThink[i];
+    }
   }
 }

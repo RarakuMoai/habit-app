@@ -78,14 +78,7 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
-  String get _timeSummary {
-    if (_config.mode == TableGameMode.free) return '自由計時';
-    final s = _config.turnSeconds;
-    if (s < 60) return '每回合 $s 秒';
-    final m = s ~/ 60;
-    final r = s % 60;
-    return r == 0 ? '每回合 $m 分' : '每回合 $m 分 $r 秒';
-  }
+  String get _timeSummary => _config.timeSummary;
 
   String get _oneLineSummary =>
       '${_config.mode.label} · ${_config.activePlayers.length} 人 · $_timeSummary';
@@ -201,19 +194,14 @@ class _GameTimerState extends State<GameTimer> {
                 label: _config.mode.label,
               ),
               const SizedBox(width: 8),
-              _summaryChip(
-                icon: Icons.timer_outlined,
-                label: _timeSummary,
-              ),
+              _summaryChip(icon: Icons.timer_outlined, label: _timeSummary),
             ],
           ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 6,
-            children: [
-              for (final p in _config.activePlayers) _playerTag(p),
-            ],
+            children: [for (final p in _config.activePlayers) _playerTag(p)],
           ),
         ],
       ),
@@ -286,16 +274,11 @@ class _GameTimerState extends State<GameTimer> {
           GestureDetector(
             onTap: () => _applyPreset(preset),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 7,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 color: kGameAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: kGameAccent.withValues(alpha: 0.25),
-                ),
+                border: Border.all(color: kGameAccent.withValues(alpha: 0.25)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,

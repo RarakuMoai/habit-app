@@ -42,8 +42,7 @@ abstract final class TableTheme {
     Color(0xFFCE8FDC), // 莓紫
   ];
 
-  static Color seatColor(int index) =>
-      seatColors[index % seatColors.length];
+  static Color seatColor(int index) => seatColors[index % seatColors.length];
 
   // ── 警示色階（正常時用玩家座位色）────────────────────────────
   /// 剩 warnSeconds 秒：明顯提醒。
@@ -65,20 +64,11 @@ abstract final class TableTheme {
 
   // ── 文字樣式 ─────────────────────────────────────────────
   /// 巨大倒數數字（實際尺寸由外層 FittedBox 決定，這裡給大基準）。
-  static TextStyle bigDigits({Color color = inkStrong}) => AppType.digits(
-    fontSize: 120,
-    fontWeight: FontWeight.w800,
-    color: color,
-  );
+  static TextStyle bigDigits({Color color = inkStrong}) =>
+      AppType.digits(fontSize: 120, fontWeight: FontWeight.w800, color: color);
 
-  static TextStyle nameStyle({
-    double fontSize = 26,
-    Color color = inkStrong,
-  }) => TextStyle(
-    fontSize: fontSize,
-    fontWeight: FontWeight.w900,
-    color: color,
-  );
+  static TextStyle nameStyle({double fontSize = 26, Color color = inkStrong}) =>
+      TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: color);
 
   /// 絨布桌面背景漸層（radial vignette）。
   static BoxDecoration feltBackground() => const BoxDecoration(

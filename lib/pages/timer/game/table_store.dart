@@ -33,10 +33,8 @@ abstract final class TableStore {
     }
   }
 
-  static Future<void> saveRoster(
-    SharedPreferences prefs,
-    List<String> names,
-  ) => prefs.setString(PrefsKeys.gameTableRoster, jsonEncode(names));
+  static Future<void> saveRoster(SharedPreferences prefs, List<String> names) =>
+      prefs.setString(PrefsKeys.gameTableRoster, jsonEncode(names));
 
   // ── 常用組合 ─────────────────────────────────────────────
 

@@ -75,6 +75,11 @@ class _TableStagePageState extends State<TableStagePage>
       Navigator.of(context).pop();
       return;
     }
+    // 旗倒終局：勝負已定，不再問「要不要結束」，直接進結算
+    if (_engine.phase == TablePhase.finished) {
+      setState(() => _showSummary = true);
+      return;
+    }
     _engine.pause();
     final leave = await showAppConfirmDialog(
       context,
@@ -164,10 +169,7 @@ class _TableStagePageState extends State<TableStagePage>
                       ),
                     ),
                   if (_engine.phase == TablePhase.paused && !_showSummary)
-                    _PauseOverlay(
-                      engine: _engine,
-                      onExit: _confirmExit,
-                    ),
+                    _PauseOverlay(engine: _engine, onExit: _confirmExit),
                   if (_showSummary)
                     TableSummaryOverlay(
                       engine: _engine,
@@ -209,9 +211,7 @@ class _CornerButton extends StatelessWidget {
           child: Icon(
             icon,
             size: 22,
-            color: onTap == null
-                ? TableTheme.inkFaint
-                : TableTheme.inkStrong,
+            color: onTap == null ? TableTheme.inkFaint : TableTheme.inkStrong,
           ),
         ),
       ),
@@ -274,7 +274,7 @@ class _PauseOverlay extends StatelessWidget {
                   _OverlayButton(
                     label: '回上一位',
                     icon: Icons.undo_rounded,
-                    onTap: engine.turnCount > 1 ? engine.undo : null,
+                    onTap: engine.canUndo ? engine.undo : null,
                   ),
                   const SizedBox(height: 12),
                   _OverlayButton(
