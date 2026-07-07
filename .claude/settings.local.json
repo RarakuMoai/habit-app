@@ -141,7 +141,13 @@
       "Bash(python3 -c \"import PIL; print\\('PIL ok', PIL.__version__\\)\")",
       "Bash(python3 -c \"import time; time.sleep\\(4\\)\")",
       "Bash(python3 /private/tmp/claude-501/-Users-yayoi991331-habit-app/d23bf2b8-4700-4583-b2b1-476642a18ca9/scratchpad/seed.py 727F1AB1-6D7B-4430-9074-E3844A7D76CA com.yayoi991331.habitapp.dev onboarding_done=bool:true)",
-      "Bash(python3 /private/tmp/claude-501/-Users-yayoi991331-habit-app/d23bf2b8-4700-4583-b2b1-476642a18ca9/scratchpad/seed.py 951D83A3-7363-4B2E-9E84-664E5DA93F21 com.yayoi991331.habitapp.dev onboarding_done=bool:true)"
+      "Bash(python3 /private/tmp/claude-501/-Users-yayoi991331-habit-app/d23bf2b8-4700-4583-b2b1-476642a18ca9/scratchpad/seed.py 951D83A3-7363-4B2E-9E84-664E5DA93F21 com.yayoi991331.habitapp.dev onboarding_done=bool:true)",
+      "Bash(bash /Users/yayoi991331/habit-app/scripts/check_units.sh)",
+      "Bash(echo \"check_units exit=$?\")",
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "Bash(echo \"---exit $?\")",
+      "Bash(grep -rn \"openValue\\\\|MascotPanelPrefs\\\\|settleRequest\" lib --include-dir=. -l)"
     ],
     "deny": [
       "Bash(git push --force:*)",

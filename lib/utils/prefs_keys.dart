@@ -109,7 +109,7 @@ abstract final class PrefsKeys {
   static const waterEnabled = 'water_enabled';
   static const weightTrackingEnabled = 'weight_tracking_enabled';
   static const familyEnabled = 'family_enabled';
-  static const wardrobeEnabled = 'wardrobe_enabled';
+  // 衣櫃為固定分頁（不可停用），故無對應開關 key。
   // 底部分頁的使用者自訂排序（存 TabIds 字串清單，非 index）
   static const tabOrder = 'tab_order';
 
@@ -206,8 +206,6 @@ abstract final class PrefsKeys {
   // ── Debug（kDevToolsEnabled 控制讀取；目前 release 也暫時開，正式版會移除）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24
   static const debugStartTab = 'debug_start_tab'; // int 啟動分頁 index
-  static const debugFakeTabCount = 'debug_fake_tab_count'; // 舊版 int 假分頁數，保留供清除
-  static const debugFakeTabs = 'debug_fake_tabs'; // List<String> 開啟的模擬分頁 id
   static const debugDayShift = 'debug_day_shift'; // int 已快轉天數（顯示用）
   static const debugDaySnapshot = 'debug_day_snapshot'; // 快轉前整包快照(JSON)，供還原
 }

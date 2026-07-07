@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_restart.dart';
 import '../utils/coin_service.dart';
-import '../utils/debug_fake_tabs.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/story_catalog.dart';
@@ -19,9 +18,8 @@ import 'story_reveal_page.dart';
 /// 由 `kDevToolsEnabled` 控制是否從設定頁進得來（目前 release 也暫時開，
 /// 正式版改回 `kDebugMode` 就會只在 debug build 顯示、release 不讀這些 key）。
 /// 目前提供：
-///  - 模擬分頁開關：像正式功能開關一樣加減 debug 分頁，預覽底部列版面。
-///  - 場景時段：覆寫 `sceneHourNow()`，讓首頁場景 / 底部裝飾條切到早中晚。
-///  - 恢復正常：清掉上面兩個覆寫（不動真實進度資料）。
+///  - 場景時段：覆寫 `sceneHourNow()`，讓首頁場景切到早中晚。
+///  - 恢復正常：清掉場景時段覆寫（不動真實進度資料）。
 class DevTestPage extends StatefulWidget {
   const DevTestPage({super.key});
 
@@ -31,7 +29,6 @@ class DevTestPage extends StatefulWidget {
 
 class _DevTestPageState extends State<DevTestPage> {
   SharedPreferences? _prefs;
-  Set<String> _fakeTabIds = {};
   double? _sceneHour; // null = 真實時間
   int _dayShift = 0; // 已快轉天數
 
@@ -60,9 +57,6 @@ class _DevTestPageState extends State<DevTestPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _prefs = prefs;
-      _fakeTabIds =
-          (prefs.getStringList(PrefsKeys.debugFakeTabs) ?? const <String>[])
-              .toSet();
       _sceneHour = prefs.getDouble(PrefsKeys.debugSceneHour);
       _dayShift = prefs.getInt(PrefsKeys.debugDayShift) ?? 0;
     });
@@ -157,29 +151,6 @@ class _DevTestPageState extends State<DevTestPage> {
     RootRestart.restart(context);
   }
 
-  Future<void> _setFakeTab(String id, bool enabled) async {
-    final prefs = _prefs;
-    if (prefs == null) return;
-    final next = {..._fakeTabIds};
-    if (enabled) {
-      next.add(id);
-    } else {
-      next.remove(id);
-    }
-    final ordered = [
-      for (final spec in debugFakeTabSpecs)
-        if (next.contains(spec.id)) spec.id,
-    ];
-    if (ordered.isEmpty) {
-      await prefs.remove(PrefsKeys.debugFakeTabs);
-    } else {
-      await prefs.setStringList(PrefsKeys.debugFakeTabs, ordered);
-    }
-    await prefs.remove(PrefsKeys.debugFakeTabCount);
-    bumpFeatureFlags(); // 讓常駐的 MainPage 立刻重組底部列
-    setState(() => _fakeTabIds = ordered.toSet());
-  }
-
   Future<void> _setSceneHour(double? hour) async {
     final prefs = _prefs;
     if (prefs == null) return;
@@ -250,13 +221,6 @@ class _DevTestPageState extends State<DevTestPage> {
   );
 
   Future<void> _reset() async {
-    final prefs = _prefs;
-    if (prefs != null) {
-      await prefs.remove(PrefsKeys.debugFakeTabs);
-      await prefs.remove(PrefsKeys.debugFakeTabCount);
-      bumpFeatureFlags();
-      setState(() => _fakeTabIds = {});
-    }
     await _setSceneHour(null);
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -438,19 +402,6 @@ class _DevTestPageState extends State<DevTestPage> {
                   ),
                 ),
                 _card(
-                  title: '模擬分頁開關',
-                  icon: Icons.dashboard_customize_outlined,
-                  description:
-                      '像設定裡的正式功能開關一樣，打開哪個就真的多哪個分頁。'
-                      '可搭配關閉喝水、體重、家庭等正式頁來測底部列排版。',
-                  child: Column(
-                    children: [
-                      for (final spec in debugFakeTabSpecs)
-                        _fakeTabSwitch(spec),
-                    ],
-                  ),
-                ),
-                _card(
                   title: '場景時段',
                   icon: Icons.wb_twilight_outlined,
                   description: '覆寫場景時間，首頁場景與底部裝飾條會切到對應時段。',
@@ -601,55 +552,6 @@ class _DevTestPageState extends State<DevTestPage> {
           ],
           const SizedBox(height: 12),
           child,
-        ],
-      ),
-    );
-  }
-
-  Widget _fakeTabSwitch(DebugFakeTabSpec spec) {
-    final on = _fakeTabIds.contains(spec.id);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: spec.color.withValues(alpha: on ? 0.16 : 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              spec.icon,
-              size: 19,
-              color: on ? spec.color : Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  spec.label,
-                  style: const TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  spec.subtitle,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: on,
-            activeThumbColor: spec.color,
-            onChanged: (v) => _setFakeTab(spec.id, v),
-          ),
         ],
       ),
     );

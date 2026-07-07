@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +9,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'pages/family_page.dart';
-import 'pages/home/room_ambient_overlay.dart';
 import 'pages/home_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/story_reveal_page.dart';
@@ -23,7 +23,6 @@ import 'utils/bgm_playlist.dart';
 import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
-import 'utils/debug_fake_tabs.dart';
 import 'utils/feature_flags.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
@@ -396,13 +395,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   bool _timerEnabled = true;
   bool _weightTrackingEnabled = false;
   bool _familyEnabled = false;
-  bool _wardrobeEnabled = true;
   bool _waterGoalReached = false;
   bool _weightHabitAutoComplete = false;
   bool _loaded = false;
   int _waterReloadTrigger = 0;
   List<String> _tabOrder = const []; // 使用者自訂的底部分頁順序（TabIds 字串）
-  Set<String> _debugFakeTabIds = const {}; // debug：模擬功能分頁開關（release 不讀）
 
   @override
   void initState() {
@@ -537,17 +534,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       _weightTrackingEnabled =
           prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _familyEnabled = prefs.getBool(PrefsKeys.familyEnabled) ?? false;
-      _wardrobeEnabled = prefs.getBool(PrefsKeys.wardrobeEnabled) ?? true;
       _tabOrder = prefs.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
       _waterGoalReached = prefs.getString(PrefsKeys.waterGoalDate) == today;
       _weightHabitAutoComplete = weightRecordedToday;
-      // 開發者工具：指定啟動分頁 / 模擬分頁（kDevToolsEnabled 控制）
+      // 開發者工具：指定啟動分頁（kDevToolsEnabled 控制）
       if (kDevToolsEnabled) {
         final tab = prefs.getInt(PrefsKeys.debugStartTab);
         if (tab != null) _currentIndex = tab;
-        _debugFakeTabIds =
-            (prefs.getStringList(PrefsKeys.debugFakeTabs) ?? const <String>[])
-                .toSet();
       }
       _loaded = true;
     });
@@ -767,14 +760,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         label: '家庭',
       );
     }
-    if (_wardrobeEnabled) {
-      enabled[TabIds.wardrobe] = const _TabItem(
-        id: TabIds.wardrobe,
-        page: WardrobePage(),
-        icon: Icons.checkroom_rounded,
-        label: '衣櫃',
-      );
-    }
+    // 衣櫃固定分頁：造型/金幣消耗是核心留存迴圈，比照習慣不可停用（roadmap §4）。
+    enabled[TabIds.wardrobe] = const _TabItem(
+      id: TabIds.wardrobe,
+      page: WardrobePage(),
+      icon: Icons.checkroom_rounded,
+      label: '衣櫃',
+    );
 
     // 依使用者自訂排序排好（未排過的新分頁照預設順序補在後面）。
     final list = [
@@ -782,25 +774,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         enabled[id]!,
     ];
 
-    // 開發者工具：像正式功能開關一樣，開哪個模擬功能就真的多哪個分頁。
-    // 模擬分頁不參與使用者排序，固定附加在尾端。
-    if (kDevToolsEnabled && _debugFakeTabIds.isNotEmpty) {
-      for (final spec in debugFakeTabSpecs) {
-        if (_debugFakeTabIds.contains(spec.id)) {
-          list.add(_debugFeatureTab(spec));
-        }
-      }
-    }
     return list;
-  }
-
-  _TabItem _debugFeatureTab(DebugFakeTabSpec spec) {
-    return _TabItem(
-      id: 'debug_${spec.id}',
-      page: _DebugFeaturePage(spec: spec),
-      icon: spec.icon,
-      label: spec.label,
-    );
   }
 
   // 底部列點擊：單排/兩排共用。
@@ -834,6 +808,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     if (_currentIndex >= tabs.length) _currentIndex = 0;
 
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: List.generate(tabs.length, (i) {
@@ -844,15 +819,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           );
         }),
       ),
-      bottomNavigationBar: tabs.length == 1
-          // 只有習慣頁時，用裝飾條取代 bottom nav，
-          // 確保版面高度跟「有開其他功能」時一致，兔咪/對話框位置不會跑掉
-          ? const _DecorativeFloor()
-          : _AdaptiveBottomNav(
-              tabs: tabs,
-              currentIndex: _currentIndex,
-              onTap: (index) => _onTabTapped(tabs, index),
-            ),
+      bottomNavigationBar: _AdaptiveBottomNav(
+        tabs: tabs,
+        currentIndex: _currentIndex,
+        onTap: (index) => _onTabTapped(tabs, index),
+      ),
     );
   }
 }
@@ -871,229 +842,12 @@ class _TabItem {
   });
 }
 
-class _DebugFeaturePage extends StatelessWidget {
-  final DebugFakeTabSpec spec;
-  const _DebugFeaturePage({required this.spec});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = spec.color;
-    return ColoredBox(
-      color: Color.alphaBlend(color.withValues(alpha: 0.06), Colors.white),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(spec.icon, color: color, size: 28),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        spec.label,
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF3E3029),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        spec.subtitle,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF8C7A70),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            _DebugFeatureCard(
-              color: color,
-              icon: Icons.dashboard_customize_rounded,
-              title: '${spec.label}首頁',
-              body: '這裡會放${spec.label}的主要內容、狀態摘要與常用操作。',
-            ),
-            const SizedBox(height: 10),
-            _DebugFeatureCard(
-              color: color,
-              icon: Icons.tune_rounded,
-              title: '功能面板',
-              body: '這個頁面會跟正式功能一樣進入底部列，可用來檢查關閉其他功能後的排版。',
-            ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _DebugFeatureChip(color: color, text: spec.label),
-                _DebugFeatureChip(color: color, text: '功能頁'),
-                _DebugFeatureChip(color: color, text: '版面預覽'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DebugFeatureCard extends StatelessWidget {
-  final Color color;
-  final IconData icon;
-  final String title;
-  final String body;
-  const _DebugFeatureCard({
-    required this.color,
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.14)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 21),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF3E3029),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  body,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    height: 1.45,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF8C7A70),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DebugFeatureChip extends StatelessWidget {
-  final Color color;
-  final String text;
-  const _DebugFeatureChip({required this.color, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
-
-// 底部列「單排」高度（1~5 個 tab 共用，含只有習慣頁的裝飾條）。
-// 從 kBottomNavigationBarHeight(56) 加厚到 72，讓底部更穩重，也縮小與
-// 兩排(96)的落差——5↔6 個 tab 切換時的跳動從 40 降到 24。
+// 底部列「單排」高度。從 kBottomNavigationBarHeight(56) 加厚到 72，讓底部
+// 更穩重，也縮小與兩排(96)的落差——tab 數增減換排時的跳動較小。
 const double _kSingleRowNavHeight = 72;
 
-// 「只有習慣頁」時的底部裝飾條。
-// 高度跟單排底部列一致，避免功能開關後版面跳動。
-// 視覺：warm 漸層 + 中央三顆淡色小裝飾，跟兔咪場景配色呼應。
-class _DecorativeFloor extends StatelessWidget {
-  const _DecorativeFloor();
-
-  @override
-  Widget build(BuildContext context) {
-    // 跟首頁場景共用時段（debug 覆寫時「早中晚」連裝飾條一起變）
-    final hour = sceneHourNow().floor();
-    final isNight = hour >= 22 || hour < 6;
-    final bottomPad = MediaQuery.of(context).padding.bottom;
-    return Container(
-      height: _kSingleRowNavHeight + bottomPad,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isNight
-              ? const [Color(0xFFD8DCEE), Color(0xFFB6BFE0)]
-              : const [Color(0xFFFFEDD3), Color(0xFFFFD9A8)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottomPad),
-        child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(3, (i) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(
-                  isNight ? Icons.nightlight_round : Icons.favorite,
-                  size: 11,
-                  color: Colors.white.withValues(alpha: 0.65),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// 自訂底部導航：2~5 個維持單排，6~10 個自動換兩排。
-// 按壓回饋改為低調膠囊底色，避免 Ink ripple 在格線邊界被裁切。
+// 自訂底部導航：寬度夠就單排（含 6 格），窄到每格 < 54 才換兩排。
+// 底欄用淡暖毛玻璃收邊；選中態靠低調膠囊承接彩色貼紙 icon。
 class _AdaptiveBottomNav extends StatefulWidget {
   const _AdaptiveBottomNav({
     required this.tabs,
@@ -1131,112 +885,226 @@ class _AdaptiveBottomNavState extends State<_AdaptiveBottomNav> {
     final theme = Theme.of(context);
     final selectedColor = theme.colorScheme.primary;
     const unselectedColor = AppInk.soft;
+    final backgroundColor =
+        theme.bottomNavigationBarTheme.backgroundColor ?? theme.canvasColor;
+    final surfaceTop = Color.alphaBlend(
+      selectedColor.withValues(alpha: 0.045),
+      Colors.white,
+    );
+    final surfaceBottom = Color.alphaBlend(
+      selectedColor.withValues(alpha: 0.070),
+      backgroundColor,
+    );
 
     final n = widget.tabs.length;
-    final isTwoRow = n > 5;
-    final columnCount = isTwoRow ? (n / 2).ceil() : n;
-    final rowHeight = isTwoRow ? _twoRowHeight : _kSingleRowNavHeight;
-    final bottomIdx = [
-      for (var i = 0; i < (isTwoRow ? columnCount : n); i++) i,
-    ];
-    final topIdx = [
-      if (isTwoRow)
-        for (var i = columnCount; i < n; i++) i,
-    ];
-    final rows = isTwoRow ? [topIdx, bottomIdx] : [bottomIdx];
 
-    return Material(
-      elevation: 8,
-      color:
-          theme.bottomNavigationBarTheme.backgroundColor ?? theme.canvasColor,
-      child: SafeArea(
-        top: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final cellW = constraints.maxWidth / columnCount;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: backgroundColor.withValues(alpha: 0.54),
+            gradient: LinearGradient(
+              colors: [
+                surfaceTop.withValues(alpha: 0.76),
+                surfaceBottom.withValues(alpha: 0.58),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            border: Border(
+              top: BorderSide(
+                color: AppSurfaces.divider.withValues(alpha: 0.72),
+                width: 0.7,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF8D6E63).withValues(alpha: 0.08),
+                blurRadius: 22,
+                offset: const Offset(0, -6),
+              ),
+              BoxShadow(
+                color: selectedColor.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, -3),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: SafeArea(
+              top: false,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // 單排塞得下就維持單排：6 格在一般手機寬度都放得下，也比兩排飽滿；
+                  // 只有窄到每格 < 54 才退成兩排，避免小螢幕擠壓。
+                  final width = constraints.maxWidth;
+                  final isTwoRow = n > 5 && width / n < 54;
+                  final columnCount = isTwoRow ? (n / 2).ceil() : n;
+                  final rowHeight = isTwoRow
+                      ? _twoRowHeight
+                      : _kSingleRowNavHeight;
+                  final bottomIdx = [
+                    for (var i = 0; i < (isTwoRow ? columnCount : n); i++) i,
+                  ];
+                  final topIdx = [
+                    if (isTwoRow)
+                      for (var i = columnCount; i < n; i++) i,
+                  ];
+                  final rows = isTwoRow ? [topIdx, bottomIdx] : [bottomIdx];
+                  final cellW = width / columnCount;
 
-            Widget cell(int index) {
-              final t = widget.tabs[index];
-              final isSel = index == widget.currentIndex;
-              final isPressed = index == _pressedIndex;
-              final color = isSel ? selectedColor : unselectedColor;
-              final indicatorAlpha = isPressed ? 0.14 : (isSel ? 0.09 : 0.0);
-              final indicatorMaxWidth = isTwoRow ? 64.0 : 76.0;
-              final indicatorWidth = (cellW - 8)
-                  .clamp(48.0, indicatorMaxWidth)
-                  .toDouble();
-              final indicatorHeight = isTwoRow ? 42.0 : 48.0;
-              final iconSize = isTwoRow ? 20.0 : 22.0;
-              final fontSize = isTwoRow ? 10.5 : 11.5;
+                  Widget cell(int index) {
+                    final t = widget.tabs[index];
+                    final isSel = index == widget.currentIndex;
+                    final isPressed = index == _pressedIndex;
+                    final color = isSel ? selectedColor : unselectedColor;
+                    // 貼紙圖示是彩色的，沒法像線稿那樣靠變色標示選中；選中態
+                    // 用暖色膠囊、細邊與一點浮起感提示所在位置，避免底欄視覺過重。
+                    final indicatorAlpha = isPressed
+                        ? 0.24
+                        : (isSel ? 0.16 : 0.0);
+                    final indicatorMaxWidth = isTwoRow ? 64.0 : 76.0;
+                    final indicatorWidth = (cellW - (isSel ? 8 : 14))
+                        .clamp(isSel ? 56.0 : 50.0, indicatorMaxWidth)
+                        .toDouble();
+                    final indicatorHeight = isTwoRow
+                        ? (isSel ? 44.0 : 40.0)
+                        : (isSel ? 54.0 : 48.0);
+                    final iconSize = isTwoRow
+                        ? (isSel ? 25.5 : 23.5)
+                        : (isSel ? 29.0 : 25.5);
+                    final fontSize = isTwoRow
+                        ? (isSel ? 11.0 : 10.5)
+                        : (isSel ? 12.0 : 11.2);
+                    final labelColor = isSel
+                        ? Color.lerp(selectedColor, AppInk.strong, 0.10)!
+                        : unselectedColor.withValues(alpha: 0.82);
+                    final indicatorTopAlpha = (indicatorAlpha + 0.035)
+                        .clamp(0.0, 0.30)
+                        .toDouble();
+                    final indicatorBottomAlpha = (indicatorAlpha * 0.48)
+                        .clamp(0.0, 0.16)
+                        .toDouble();
+                    final showIndicator = isSel || isPressed;
 
-              return SizedBox(
-                width: cellW,
-                height: rowHeight,
-                child: InkWell(
-                  onTap: () => widget.onTap(index),
-                  onTapDown: (_) => _setPressed(index),
-                  onTapUp: (_) => _setPressed(null),
-                  onTapCancel: () => _setPressed(null),
-                  splashFactory: NoSplash.splashFactory,
-                  highlightColor: Colors.transparent,
-                  hoverColor: Colors.transparent,
-                  focusColor: selectedColor.withValues(alpha: 0.08),
-                  child: Center(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 120),
-                      curve: Curves.easeOutCubic,
-                      width: indicatorWidth,
-                      height: indicatorHeight,
-                      padding: const EdgeInsets.symmetric(horizontal: 5),
-                      decoration: BoxDecoration(
-                        color: selectedColor.withValues(alpha: indicatorAlpha),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(t.icon, size: iconSize, color: color),
-                          const SizedBox(height: 2),
-                          SizedBox(
-                            width: double.infinity,
-                            child: Center(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  t.label,
-                                  maxLines: 1,
-                                  style: TextStyle(
-                                    fontSize: fontSize,
-                                    height: 1.0,
-                                    color: color,
-                                    fontWeight: isSel
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
+                    return SizedBox(
+                      width: cellW,
+                      height: rowHeight,
+                      child: InkWell(
+                        onTap: () => widget.onTap(index),
+                        onTapDown: (_) => _setPressed(index),
+                        onTapUp: (_) => _setPressed(null),
+                        onTapCancel: () => _setPressed(null),
+                        splashFactory: NoSplash.splashFactory,
+                        highlightColor: Colors.transparent,
+                        hoverColor: Colors.transparent,
+                        focusColor: selectedColor.withValues(alpha: 0.08),
+                        child: Center(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            curve: Curves.easeOutCubic,
+                            width: indicatorWidth,
+                            height: indicatorHeight,
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: selectedColor.withValues(
+                                alpha: indicatorAlpha,
+                              ),
+                              gradient: showIndicator
+                                  ? LinearGradient(
+                                      colors: [
+                                        selectedColor.withValues(
+                                          alpha: indicatorTopAlpha,
+                                        ),
+                                        selectedColor.withValues(
+                                          alpha: indicatorBottomAlpha,
+                                        ),
+                                      ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    )
+                                  : null,
+                              borderRadius: BorderRadius.circular(18),
+                              border: isSel
+                                  ? Border.all(
+                                      color: selectedColor.withValues(
+                                        alpha: 0.30,
+                                      ),
+                                    )
+                                  : null,
+                              boxShadow: isSel
+                                  ? [
+                                      BoxShadow(
+                                        color: selectedColor.withValues(
+                                          alpha: 0.13,
+                                        ),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 5),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: AnimatedSlide(
+                              duration: const Duration(milliseconds: 140),
+                              curve: Curves.easeOutCubic,
+                              offset: Offset(0, isSel ? -0.025 : 0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TabGlyph(
+                                    tabId: t.id,
+                                    fallbackIcon: t.icon,
+                                    fallbackColor: color,
+                                    size: iconSize,
+                                    selected: isSel,
                                   ),
-                                ),
+                                  const SizedBox(height: 3),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: Center(
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          t.label,
+                                          maxLines: 1,
+                                          style: TextStyle(
+                                            fontSize: fontSize,
+                                            height: 1.0,
+                                            color: labelColor,
+                                            fontWeight: isSel
+                                                ? FontWeight.w800
+                                                : FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-              );
-            }
+                    );
+                  }
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final row in rows)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: row.map(cell).toList(),
-                  ),
-              ],
-            );
-          },
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final row in rows)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: row.map(cell).toList(),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
         ),
       ),
     );

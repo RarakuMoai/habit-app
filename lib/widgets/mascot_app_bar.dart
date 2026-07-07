@@ -274,7 +274,8 @@ class _PawCoinIcon extends StatelessWidget {
   const _PawCoinIcon({required this.coins});
 
   String get _label => coins > 999 ? '999+' : '$coins';
-  double get _fontSize => _label.length > 3 ? 10.2 : 12.4;
+  // 實際字級交給下方 FittedBox(contain) 依掌墊框放大填滿，這裡只給基準。
+  double get _fontSize => 12.0;
 
   @override
   Widget build(BuildContext context) {
@@ -282,15 +283,22 @@ class _PawCoinIcon extends StatelessWidget {
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        const CustomPaint(size: Size.square(38), painter: _PawPadPainter()),
+        Image.asset(
+          'assets/icon/ui/paw_coin.png',
+          width: 38,
+          height: 38,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        // 數字填滿掌墊：框對準量出來的掌墊內接矩形（中心 y≈0.68，偏下），
+        // 用 contain 讓字放大填滿又不頂到肉墊邊線。
         Positioned(
-          left: 8,
-          right: 8,
-          bottom: 5,
-          height: 13,
+          left: 10,
+          right: 10,
+          top: 20,
+          bottom: 7,
           child: Center(
             child: FittedBox(
-              fit: BoxFit.scaleDown,
               child: Transform.translate(
                 offset: const Offset(0, 0.6),
                 child: Text(
@@ -309,56 +317,6 @@ class _PawCoinIcon extends StatelessWidget {
       ],
     );
   }
-}
-
-/// 填色肉墊腳印（貼紙感）：豆型掌墊＋四顆胖圓趾墊，暖金填色＋細邊。
-/// 舊版是「描邊＋光暈」線稿風——線條密、光暈糊，38px 下讀起來像示意圖；
-/// 改成填色後跟全 app 的圓潤語彙一致，金幣數字也坐在明確的墊面上。
-class _PawPadPainter extends CustomPainter {
-  const _PawPadPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    // 掌墊＝豆型（兩端全圓的膠囊微壓扁）：夠寬能放 999+ 四位數，
-    // 又不像舊版圓角矩形那樣讀成盒子。
-    final palm = RRect.fromRectAndRadius(
-      Rect.fromLTRB(w * 0.15, h * 0.46, w * 0.85, h * 0.94),
-      Radius.circular(w * 0.22),
-    );
-    // 四顆趾墊沿弧線扇形排：內側大而高、外側小而低，
-    // 與掌墊留 1~2% 的細縫——分開才讀得出「腳印」。
-    final toes = <Rect>[
-      Rect.fromCircle(center: Offset(w * 0.135, h * 0.35), radius: w * 0.10),
-      Rect.fromCircle(center: Offset(w * 0.365, h * 0.215), radius: w * 0.12),
-      Rect.fromCircle(center: Offset(w * 0.635, h * 0.215), radius: w * 0.12),
-      Rect.fromCircle(center: Offset(w * 0.865, h * 0.35), radius: w * 0.10),
-    ];
-    final paw = Path()..addRRect(palm);
-    for (final toe in toes) {
-      paw.addOval(toe);
-    }
-    // 暖金填色（上亮下深的柔和光感）＋深金細邊，數字用深棕壓得住。
-    final fill = Paint()
-      ..style = PaintingStyle.fill
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFFFFE3A8), Color(0xFFFFC44D)],
-      ).createShader(Offset.zero & size);
-    final rim = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 1.7
-      ..color = const Color(0xFFC98A2B).withValues(alpha: 0.85);
-
-    canvas.drawPath(paw, fill);
-    canvas.drawPath(paw, rim);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PawPadPainter oldDelegate) => false;
 }
 
 /// 白底圓角小膠囊（日期、連續天數等都用這個）。

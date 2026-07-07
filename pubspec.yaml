@@ -105,6 +105,8 @@ flutter:
     - assets/scenes/family/
     - assets/scenes/onboarding/
     - assets/scenes/wardrobe/
+    - assets/icon/tabs/
+    - assets/icon/ui/
     # 字型授權文字（LicenseRegistry 註冊用；ttf 本體走下方 fonts: 不重複打包）
     - assets/fonts/Nunito-OFL.txt
     - assets/fonts/Baloo2-OFL.txt

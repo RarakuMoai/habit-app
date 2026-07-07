@@ -1185,13 +1185,6 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: colors.last.withValues(alpha: 0.28),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
         child: Material(
           color: Colors.transparent,

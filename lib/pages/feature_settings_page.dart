@@ -23,7 +23,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
   bool _waterEnabled = false;
   bool _weightTrackingEnabled = false;
   bool _familyEnabled = false;
-  bool _wardrobeEnabled = true;
   List<String> _tabOrder = const [];
   bool _loaded = false;
 
@@ -43,7 +42,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
       _weightTrackingEnabled =
           _prefs!.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
       _familyEnabled = _prefs!.getBool(PrefsKeys.familyEnabled) ?? false;
-      _wardrobeEnabled = _prefs!.getBool(PrefsKeys.wardrobeEnabled) ?? true;
       _tabOrder = _prefs!.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
       _loaded = true;
     });
@@ -114,7 +112,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
       if (_waterEnabled) TabIds.water,
       if (_weightTrackingEnabled) TabIds.weight,
       if (_familyEnabled) TabIds.family,
-      if (_wardrobeEnabled) TabIds.wardrobe,
+      TabIds.wardrobe, // 固定分頁，永遠在
     };
     final ids = orderedTabIds(_tabOrder, enabled);
     return [for (final id in ids) kTabCatalog.firstWhere((m) => m.id == id)];
@@ -211,19 +209,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                       await ensureWeightHabit(_prefs!);
                       await syncWeightHabitForDate(_prefs!);
                     }
-                  },
-                ),
-
-                // 衣櫃頁開關（正式功能，預設開啟）
-                _toggleTile(
-                  icon: Icons.checkroom_rounded,
-                  iconColor: const Color(0xFFB56CC7),
-                  title: '衣櫃',
-                  subtitle: '顯示底部衣櫃頁籤（造型 + 音樂盒）',
-                  value: _wardrobeEnabled,
-                  onChanged: (v) async {
-                    setState(() => _wardrobeEnabled = v);
-                    await _saveBool(PrefsKeys.wardrobeEnabled, v);
                   },
                 ),
 
@@ -549,7 +534,12 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(meta.icon, size: iconSize, color: _accent),
+          TabGlyph(
+            tabId: meta.id,
+            fallbackIcon: meta.icon,
+            fallbackColor: _accent,
+            size: iconSize,
+          ),
           const SizedBox(height: 3),
           Text(
             meta.label,

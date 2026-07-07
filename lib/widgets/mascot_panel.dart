@@ -91,6 +91,12 @@ class _MascotToggleBarState extends State<MascotToggleBar>
   void _handleSettleRequest() {
     final request = MascotPanelPrefs.settleRequest.value;
     if (request == null) return;
+    // 只有目前前景（ticking）的頁面負責跑 spring 並驅動共用的 openValue。
+    // 背景頁若也 animateWith，會因 TickerMode 靜音把 sim 凍在半途，等被切回
+    // 前景才解凍重播「收合→展開」——連點別的分頁時每頁各殘留一顆凍結 sim、
+    // 每次切過去就重播一次。背景頁不用動：openValue 是全 app 共用真相，前景頁
+    // 會把它帶到定位，這頁回前景時在 didChangeDependencies 直接同步即可。
+    if (!_ticking) return;
     unawaited(_settleTo(request.target, markHintSeen: true, feedback: false));
   }
 
@@ -181,6 +187,12 @@ class _MascotToggleBarState extends State<MascotToggleBar>
         _animTarget = null;
         unawaited(_persist());
       });
+    } else if (!_ticking && ticking) {
+      // 背景 → 前景：對齊共用真相並丟棄任何殘留 sim，避免被凍住的 spring
+      // 一解凍就重播動畫（見 _handleSettleRequest）。設成相等值不會回寫 openValue。
+      _ctl.stop();
+      _animTarget = null;
+      _ctl.value = MascotPanelPrefs.openValue.value;
     }
     _ticking = ticking;
   }
