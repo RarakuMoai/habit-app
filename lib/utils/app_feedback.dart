@@ -21,6 +21,9 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
   SfxCue.tumiHappy => HapticLevel.none,
   SfxCue.tumiSad => HapticLevel.none,
   SfxCue.tumiSleepy => HapticLevel.none,
+  SfxCue.gamePass => HapticLevel.medium, // 換人/擲骰要有份量
+  SfxCue.gameWarn => HapticLevel.light,
+  SfxCue.gameFlag => HapticLevel.medium,
 };
 
 // 播音效並配對觸覺回饋

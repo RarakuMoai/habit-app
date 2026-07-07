@@ -131,7 +131,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
       case TablePhase.finished: // 旗倒只在棋鐘，這面到不了
         return; // 暫停層在上面，理論上到不了這裡
     }
-    playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
+    playFeedback(SfxCue.gamePass); // 棋鐘喀噠（預設就是中震）
     _fireRipple(
       center: details.localPosition,
       color: TableTheme.seatColor(engine.currentPlayer.colorIndex),

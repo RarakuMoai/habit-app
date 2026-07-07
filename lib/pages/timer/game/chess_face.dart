@@ -62,7 +62,7 @@ class _ChessFaceState extends State<ChessFace>
       case TablePhase.finished:
         return; // 旗倒後鐘停了，點側邊沒有意義
     }
-    playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
+    playFeedback(SfxCue.gamePass); // 棋鐘喀噠
   }
 
   @override

@@ -60,15 +60,15 @@ class _TableStagePageState extends State<TableStagePage>
     if (state == AppLifecycleState.paused) _engine.pause();
   }
 
-  // 時間驅動的提醒：MVP 先掛既有音效資產，專屬音效等美術階段換。
+  // 時間驅動的提醒：桌遊專屬音效（木質 tick／沉鑼，2026-07 生成）。
   void _handleEvent(TableTimerEvent event) {
     switch (event) {
       case TableTimerEvent.warn:
-        playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
+        playFeedback(SfxCue.gameWarn, haptic: HapticLevel.light);
       case TableTimerEvent.criticalTick:
-        playHaptic(HapticLevel.medium);
+        playFeedback(SfxCue.gameWarn, haptic: HapticLevel.medium);
       case TableTimerEvent.expire:
-        playFeedback(SfxCue.complete, haptic: HapticLevel.medium);
+        playFeedback(SfxCue.gameFlag, haptic: HapticLevel.medium);
       case TableTimerEvent.autoAdvance:
         break; // expire 已給回饋，自動換人不再疊加
     }

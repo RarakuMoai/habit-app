@@ -103,7 +103,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
     _roll.duration = Duration(
       milliseconds: (750 + 650 * power.clamp(0.0, 1.0)).round(),
     );
-    playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
+    playFeedback(SfxCue.gamePass); // 擲出的「嗒」
     _roll.forward(from: 0);
   }
 
