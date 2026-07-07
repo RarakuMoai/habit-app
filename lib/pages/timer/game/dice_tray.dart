@@ -6,8 +6,9 @@
 //
 // 視覺是「真 3D」：每顆骰子是軟體渲染的圓角立方體（8 頂點 6 面、透視
 // 投影、背面剔除、面光照），姿態用四元數＋3D 角速度積分，移動時沿
-// 滾動軸自然翻滾。靜止時姿態 snap 到立方體 24 個軸對齊方向中最近者，
-// 「哪面朝上就是幾點」——點數完全由物理決定，不用亂數換面。
+// 滾動軸自然翻滾。減速時「復位力矩」把骰子物理性地轉倒在最近的面上
+//（立方體 24 個軸對齊方向），「哪面朝上就是幾點」——點數完全由物理
+// 決定，不用亂數換面。
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
@@ -383,20 +384,23 @@ class _Quat {
     );
   }
 
-  /// 朝 target 走一步（短弧 nlerp；snap 用，角度不大夠準）。
-  void nlerpTowards(_Quat target, double t) {
-    var tw = target.w, tx = target.x, ty = target.y, tz = target.z;
-    if (dot(target) < 0) {
-      tw = -tw;
-      tx = -tx;
-      ty = -ty;
-      tz = -tz;
+  _Quat conjugated() => _Quat(w, -x, -y, -z);
+
+  /// 到 target 的最短旋轉誤差：回傳旋轉向量（單位軸×角，世界系）
+  /// 與誤差角。復位力矩用——對誤差施力矩而不是直接插值姿態。
+  (double, double, double, double) errorAxisTo(_Quat target) {
+    final e = target * conjugated();
+    var ew = e.w, ex = e.x, ey = e.y, ez = e.z;
+    if (ew < 0) {
+      ew = -ew;
+      ex = -ex;
+      ey = -ey;
+      ez = -ez;
     }
-    w += (tw - w) * t;
-    x += (tx - x) * t;
-    y += (ty - y) * t;
-    z += (tz - z) * t;
-    normalizeSelf();
+    final s = math.sqrt(math.max(0.0, 1 - ew * ew));
+    if (s < 1e-6) return (0, 0, 0, 0);
+    final angle = 2 * math.acos(math.min(1.0, ew));
+    return (ex / s * angle, ey / s * angle, ez / s * angle, angle);
   }
 
   _Quat clone() => _Quat(w, x, y, z);
@@ -433,8 +437,8 @@ class _DiceWorld extends ChangeNotifier {
   double dieSize = 80;
   List<_Die> dice = [];
   bool hasBeenThrown = false;
-  bool settling = false;
   bool settled = false;
+  bool _grabbed = false;
 
   void Function(double strength)? onImpact;
 
@@ -447,9 +451,10 @@ class _DiceWorld extends ChangeNotifier {
   static const _throwBoost = 1.85; // 離手出手速度加成（甩出去的爽度）
   static const _maxSpeed = 3400.0; // 出手速度上限
   static const _heldMaxSpin = 2.4; // 拿在手上的翻滾上限 rad/s（捏著＝慢轉）
+  static const _dryFriction = 90.0; // 乾摩擦等減速 px/s²（絨布滾阻，真的滾停）
+  static const _rightK = 170.0; // 落地復位力矩強度（重力把骰子轉倒在面上）
   static const _calmSpeed = 16.0;
   static const _calmSpin = 1.1;
-  static const _snapRate = 26.0; // 定格收尾速率（落地收面做完後只剩殘差）
 
   double get _radius => dieSize * 0.55;
 
@@ -470,7 +475,6 @@ class _DiceWorld extends ChangeNotifier {
 
   void spawn(int count) {
     hasBeenThrown = false;
-    settling = false;
     settled = false;
     final center = bounds == Rect.zero ? const Offset(200, 300) : bounds.center;
     dice = [
@@ -492,7 +496,6 @@ class _DiceWorld extends ChangeNotifier {
   }
 
   void wake() {
-    settling = false;
     settled = false;
   }
 
@@ -532,22 +535,61 @@ class _DiceWorld extends ChangeNotifier {
     if (settled) return; // 靜止定格，等下一次互動
 
     final grabbed = pointers.isNotEmpty;
-    for (final d in dice) {
-      if (grabbed) {
-        // 被最近的手指吸：彈簧-阻尼，拖動跟手、放手自然有出手速度
-        var nearest = pointers.first;
-        var best = (nearest - d.pos).distanceSquared;
-        for (final p in pointers.skip(1)) {
-          final dist = (p - d.pos).distanceSquared;
-          if (dist < best) {
-            best = dist;
-            nearest = p;
+    _grabbed = grabbed;
+
+    // 吸附目標：多顆吸向同一指時排成小隊形（像抓一把骰子在掌心，
+    // 每顆有自己的位置）。全部擠向同一點會擠不進去→被撞開→又被
+    // 拉回來永遠互撞，每次碰撞都把自旋打進骰子——「按住時有幾顆
+    // 高速亂轉、顆數越多越嚴重」的根源就是這個
+    List<Offset>? holdTargets;
+    if (grabbed) {
+      final targets = List<Offset>.filled(dice.length, Offset.zero);
+      final groups = <int, List<int>>{};
+      for (var i = 0; i < dice.length; i++) {
+        var pi = 0;
+        var best = double.infinity;
+        for (var j = 0; j < pointers.length; j++) {
+          final dd = (pointers[j] - dice[i].pos).distanceSquared;
+          if (dd < best) {
+            best = dd;
+            pi = j;
           }
         }
-        final force = (nearest - d.pos) * _springK - d.vel * _springDamp;
+        (groups[pi] ??= []).add(i);
+      }
+      groups.forEach((pi, members) {
+        final n = members.length;
+        if (n == 1) {
+          targets[members[0]] = pointers[pi];
+          return;
+        }
+        // 正 n 邊形隊形：相鄰骰心距 ≈ 1.97r（碰撞距外留一絲縫）
+        final ringR = _radius * 1.97 / (2 * math.sin(math.pi / n));
+        for (var k = 0; k < n; k++) {
+          final ang = math.pi * 2 * k / n - math.pi / 2;
+          targets[members[k]] =
+              pointers[pi] + Offset(math.cos(ang), math.sin(ang)) * ringR;
+        }
+      });
+      holdTargets = targets;
+    }
+
+    for (var i = 0; i < dice.length; i++) {
+      final d = dice[i];
+      if (grabbed) {
+        // 被吸向自己的隊形位：彈簧-阻尼，拖動跟手、放手自然有出手速度
+        final force =
+            (holdTargets![i] - d.pos) * _springK - d.vel * _springDamp;
         d.vel += force * dt;
       } else {
         d.vel *= math.exp(-_linDamp * dt);
+        // 乾摩擦（絨布滾阻）：等減速收尾——骰子會物理性地「滾停」，
+        // 不是指數漸近的無限漂移再突然凍結
+        final sp = d.vel.distance;
+        if (sp > 0) {
+          final drop = _dryFriction * dt;
+          d.vel = sp <= drop ? Offset.zero : d.vel * ((sp - drop) / sp);
+        }
       }
 
       d.pos += d.vel * dt;
@@ -572,24 +614,45 @@ class _DiceWorld extends ChangeNotifier {
       d.wy += (targetWy - d.wy) * k;
       d.wz *= math.exp(-(grabbed ? 6.0 : 1.6) * dt);
 
-      if (!grabbed) {
-        // 落地收面：減速的滾動「途中」就把姿態貼向最近的正面——
-        // 手機畫面是平面，骰子停下那一刻就該正面朝上，
-        // 不能停穩了才慢慢翻正（越慢貼越強，快滾時完全不干涉）
-        final landing = 1 - math.min(1.0, (d.speed + d.spin * 40) / 520);
-        if (landing > 0) {
-          d.q.nlerpTowards(
-            _nearestOrient(d.q),
-            1 - math.exp(-16.0 * landing * landing * dt),
-          );
+      // 拿在手上的「絕對」轉速上限：不管自旋從哪打進來（互撞、
+      // 牆彈、放手前殘留），捏著的骰子就是不准高速轉
+      if (grabbed) {
+        final s = d.spin;
+        if (s > _heldMaxSpin) {
+          final f = _heldMaxSpin / s;
+          d.wx *= f;
+          d.wy *= f;
+          d.wz *= f;
         }
       }
 
-      // 動態 3D 程度：有速度/翻滾就立體，靜下來回到平面正對
-      // （回落比爬升快：落定瞬間要馬上讀得到正面）
+      var errT = 0.0;
+      if (!grabbed) {
+        // 落地復位「力矩」：越慢重力越佔上風，把骰子物理性地轉倒在
+        // 最近的一面上（近臨界阻尼的旋轉彈簧——對誤差施力矩，不是
+        // 直接插值姿態，停下的全程都是物理，不會有被拽正的感覺）
+        final landing = 1 - math.min(1.0, (d.speed + d.spin * 40) / 520);
+        if (landing > 0) {
+          final target = _nearestOrient(d.q);
+          final (ex, ey, ez, errAngle) = d.q.errorAxisTo(target);
+          final kR = _rightK * landing * landing;
+          final cR = 2 * math.sqrt(kR); // 臨界阻尼：倒下不彈跳、不震盪
+          d.wx += (ex * kR - d.wx * cR) * dt;
+          d.wy += (ey * kR - d.wy * cR) * dt;
+          d.wz += (ez * kR - d.wz * cR) * dt;
+          errT = math.min(1.0, errAngle * 1.4);
+        }
+      }
+
+      // 動態 3D 程度：被拿住＝微微立起、甩動＝全 3D；落地過程視角
+      // 跟著「還沒躺平的程度」走——躺平的那一刻才回到平面正對，
+      // 不會出現視角已壓平、姿態卻還斜著的邊緣破圖
       final energy = math.min(1.0, (d.speed + d.spin * 55) / 700);
-      final tk = energy > d.tiltT ? 7.0 : 12.0;
-      d.tiltT += (energy - d.tiltT) * (1 - math.exp(-tk * dt));
+      final tiltTarget = grabbed
+          ? math.max(energy, 0.55)
+          : math.max(energy, errT);
+      final tk = tiltTarget > d.tiltT ? 7.0 : 12.0;
+      d.tiltT += (tiltTarget - d.tiltT) * (1 - math.exp(-tk * dt));
       d.popT *= math.exp(-5.5 * dt);
 
       // 四元數積分：dq = 0.5·(0,ω)·q·dt
@@ -606,28 +669,27 @@ class _DiceWorld extends ChangeNotifier {
 
     _pairCollide();
 
-    // 靜止流程：慢下來 → 姿態 snap 到最近的軸對齊方向 → 定格
-    if (pointers.isEmpty && hasBeenThrown && _isCalm) {
-      settling = true;
-    }
-    if (settling) {
+    // 靜止結算：物理自己停穩（夠慢＋已躺平）才鎖定點數——
+    // 沒有任何強制煞車，停下來的樣子就是滾出來的樣子
+    if (!grabbed && hasBeenThrown && _isCalm) {
       var allAligned = true;
       for (final d in dice) {
-        d.vel *= math.exp(-8.0 * dt);
-        d.wx *= math.exp(-8.0 * dt);
-        d.wy *= math.exp(-8.0 * dt);
-        d.wz *= math.exp(-8.0 * dt);
-        final target = _nearestOrient(d.q);
-        d.q.nlerpTowards(target, 1 - math.exp(-_snapRate * dt));
-        if (d.q.dot(target).abs() < 0.99995) allAligned = false;
+        if (d.q.dot(_nearestOrient(d.q)).abs() < 0.9999) {
+          allAligned = false;
+          break;
+        }
       }
       if (allAligned) {
         for (final d in dice) {
+          d.q = _nearestOrient(d.q).clone(); // 殘差 <1.6°，肉眼看不出跳動
           d.value = _topValueOf(d.q);
+          d.vel = Offset.zero;
+          d.wx = 0;
+          d.wy = 0;
+          d.wz = 0;
           d.tiltT = 0; // 定格＝絕對平面正對（step 提前 return，殘值會凍住）
           d.popT = 0;
         }
-        settling = false;
         settled = true;
       }
     }
@@ -648,24 +710,26 @@ class _DiceWorld extends ChangeNotifier {
 
   void _wallCollide(_Die d) {
     final r = _radius;
+    // 捏著時碰撞不打自旋進骰子（打了也會被限速，乾脆不打）
+    final spinPump = _grabbed ? 0.0 : 0.01;
     var hit = 0.0;
     if (d.pos.dx < bounds.left + r && d.vel.dx < 0) {
       hit = d.vel.dx.abs();
       d.vel = Offset(-d.vel.dx * _restitution, d.vel.dy);
-      d.wz += d.vel.dy * 0.01;
+      d.wz += d.vel.dy * spinPump;
     } else if (d.pos.dx > bounds.right - r && d.vel.dx > 0) {
       hit = d.vel.dx.abs();
       d.vel = Offset(-d.vel.dx * _restitution, d.vel.dy);
-      d.wz -= d.vel.dy * 0.01;
+      d.wz -= d.vel.dy * spinPump;
     }
     if (d.pos.dy < bounds.top + r && d.vel.dy < 0) {
       hit = math.max(hit, d.vel.dy.abs());
       d.vel = Offset(d.vel.dx, -d.vel.dy * _restitution);
-      d.wz -= d.vel.dx * 0.01;
+      d.wz -= d.vel.dx * spinPump;
     } else if (d.pos.dy > bounds.bottom - r && d.vel.dy > 0) {
       hit = math.max(hit, d.vel.dy.abs());
       d.vel = Offset(d.vel.dx, -d.vel.dy * _restitution);
-      d.wz += d.vel.dx * 0.01;
+      d.wz += d.vel.dx * spinPump;
     }
     d.pos = _clampToBounds(d.pos);
     if (hit > 260) onImpact?.call(hit);
@@ -691,8 +755,11 @@ class _DiceWorld extends ChangeNotifier {
           final impulse = n * rel * _restitution;
           a.vel += impulse;
           b.vel -= impulse;
-          a.wz += rel * 0.005;
-          b.wz -= rel * 0.005;
+          if (!_grabbed) {
+            // 捏著時互撞不打自旋（持續互撞會把轉速越疊越高）
+            a.wz += rel * 0.005;
+            b.wz -= rel * 0.005;
+          }
           if (rel.abs() > 260) onImpact?.call(rel.abs());
         }
       }
@@ -891,10 +958,11 @@ class _WorldPainter extends CustomPainter {
     // 光源：左上偏前
     const lx = -0.38, ly = -0.53, lz = 0.76;
 
-    // 只畫朝向相機的面（凸體不互遮，免排序）
+    // 只畫朝向相機的面（凸體不互遮，免排序）。剔除門檻抬高：
+    // 幾乎側對的面只剩一條細縫，畫了反而是落定前的邊緣破圖
     for (final f in _DieGeometry.faces) {
       final (nx, ny, nz) = viewQ.rotate(f.nx, f.ny, f.nz);
-      if (nz <= 0.02) continue;
+      if (nz <= 0.06) continue;
 
       final (t1x, t1y, t1z) = viewQ.rotate(f.t1x, f.t1y, f.t1z);
       final (t2x, t2y, t2z) = viewQ.rotate(f.t2x, f.t2y, f.t2z);
@@ -930,12 +998,13 @@ class _WorldPainter extends CustomPainter {
 
       final facePaint = Paint()..color = faceColor;
       canvas.drawPath(path, facePaint);
-      // 圓 join 描邊把面的四角磨圓，面與圓稜的接縫柔化不見稜線
+      // 圓 join 描邊把面的四角磨圓，面與圓稜的接縫柔化不見稜線；
+      // 側得越厲害描邊越細，避免斜面被描邊撐出鼓包
       canvas.drawPath(
         path,
         facePaint
           ..style = PaintingStyle.stroke
-          ..strokeWidth = h * 0.10
+          ..strokeWidth = h * 0.10 * math.min(1.0, nz * 2.2)
           ..strokeJoin = StrokeJoin.round,
       );
 
