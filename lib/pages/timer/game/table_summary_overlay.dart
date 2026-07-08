@@ -1,7 +1,8 @@
-// 對局結算面：結束對局後蓋在絨布桌上的小結。
+// 對局結算面：結束對局後蓋在絨布桌上的暖紙小結卡。
 //
-// 每人一列：回合數、總思考、平均；平均最快的玩家給 ⚡（正向、不點名
-// 最慢的）。資料吃引擎的 TurnStats，進行中沒結算的半截回合不計。
+// 每人一列：回合數、總思考、平均；平均最快的玩家給「⚡ 最快」（正向、
+// 不點名最慢的）。資料吃引擎的 TurnStats，進行中沒結算的半截回合不計。
+// 卡片走 app 本體的暖紙質感（同暫停層），是深色桌面上的「回家」時刻。
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -39,6 +40,9 @@ class TableSummaryOverlay extends StatelessWidget {
     return best;
   }
 
+  static const Color _amber = Color(0xFFE9A94E);
+  static const Color _amberInk = Color(0xFFA8741F);
+
   @override
   Widget build(BuildContext context) {
     final fastest = _fastestIndex;
@@ -46,7 +50,7 @@ class TableSummaryOverlay extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
         child: ColoredBox(
-          color: const Color(0xB31A120C),
+          color: const Color(0x8C1A120C),
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -54,34 +58,60 @@ class TableSummaryOverlay extends StatelessWidget {
                   horizontal: 28,
                   vertical: 20,
                 ),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 340),
+                  padding: const EdgeInsets.fromLTRB(20, 26, 20, 18),
+                  decoration: BoxDecoration(
+                    color: AppSurfaces.card,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x59120B06),
+                        blurRadius: 30,
+                        offset: Offset(0, 12),
+                      ),
+                    ],
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.emoji_events_rounded,
-                        size: 42,
-                        color: TableTheme.warn,
-                      ),
-                      const SizedBox(height: 10),
-                      Text('對局結束', style: TableTheme.nameStyle(fontSize: 24)),
-                      const SizedBox(height: 4),
-                      Text(
-                        '共 ${engine.settledTurns} 手',
-                        style: AppType.digits(
-                          fontSize: 14,
-                          color: TableTheme.inkSoft,
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: _amber.withValues(alpha: 0.16),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.emoji_events_rounded,
+                          size: 30,
+                          color: _amberInk,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '對局結束',
+                        style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '一起玩了 ${engine.settledTurns} 手',
+                        style: AppType.digits(
+                          fontSize: 13.5,
+                          color: AppInk.soft,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Container(
                         decoration: BoxDecoration(
-                          color: TableTheme.panel.withValues(alpha: 0.72),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: TableTheme.hairline),
+                          color: AppSurfaces.fill,
+                          borderRadius: BorderRadius.circular(18),
                         ),
-                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
                         child: Column(
                           children: [
                             for (var i = 0; i < engine.players.length; i++)
@@ -89,14 +119,14 @@ class TableSummaryOverlay extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 18),
                       _button(
                         label: '再來一局',
                         icon: Icons.replay_rounded,
                         filled: true,
                         onTap: onRematch,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       _button(
                         label: '離開',
                         icon: Icons.logout_rounded,
@@ -124,13 +154,7 @@ class TableSummaryOverlay extends StatelessWidget {
           Container(
             width: 12,
             height: 12,
-            decoration: BoxDecoration(
-              color: seat,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: seat.withValues(alpha: 0.5), blurRadius: 6),
-              ],
-            ),
+            decoration: BoxDecoration(color: seat, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -142,25 +166,22 @@ class TableSummaryOverlay extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w900,
-                      color: TableTheme.inkStrong,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppInk.strong,
                     ),
                   ),
                 ),
                 if (isFastest) ...[
                   const SizedBox(width: 6),
-                  const Text('⚡', style: TextStyle(fontSize: 13)),
+                  _miniBadge('⚡ 最快', _amberInk, _amber.withValues(alpha: 0.16)),
                 ],
                 if (engine.flagFallIndex == i) ...[
                   const SizedBox(width: 6),
-                  const Text(
+                  _miniBadge(
                     '時間到',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: TableTheme.overtime,
-                    ),
+                    AppInk.danger,
+                    AppInk.danger.withValues(alpha: 0.10),
                   ),
                 ],
               ],
@@ -174,24 +195,36 @@ class TableSummaryOverlay extends StatelessWidget {
                 stats.turns == 0
                     ? '－'
                     : '${stats.turns} 手 · ${formatTableElapsed(stats.totalThink)}',
-                style: AppType.digits(
-                  fontSize: 14.5,
-                  color: TableTheme.inkStrong,
-                ),
+                style: AppType.digits(fontSize: 14, color: AppInk.strong),
               ),
               const SizedBox(height: 1),
               Text(
                 stats.turns == 0
                     ? '沒輪到'
                     : '平均 ${formatTableElapsed(stats.averageThink)}',
-                style: AppType.digits(
-                  fontSize: 11.5,
-                  color: TableTheme.inkFaint,
-                ),
+                style: AppType.digits(fontSize: 11.5, color: AppInk.faint),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _miniBadge(String text, Color fg, Color bg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          color: fg,
+        ),
       ),
     );
   }
@@ -202,13 +235,13 @@ class TableSummaryOverlay extends StatelessWidget {
     bool filled = false,
     required VoidCallback onTap,
   }) {
-    final fg = filled ? const Color(0xFF241A12) : TableTheme.inkSoft;
+    final fg = filled ? Colors.white : AppInk.strong;
     return Material(
-      color: filled ? TableTheme.warn : const Color(0x1AF6ECDD),
+      color: filled ? kGameAccent : AppSurfaces.fill,
       shape: StadiumBorder(
         side: filled
             ? BorderSide.none
-            : const BorderSide(color: TableTheme.hairline),
+            : const BorderSide(color: AppSurfaces.divider),
       ),
       child: InkWell(
         customBorder: const StadiumBorder(),
@@ -217,17 +250,17 @@ class TableSummaryOverlay extends StatelessWidget {
           onTap();
         },
         child: SizedBox(
-          width: 230,
-          height: filled ? 56 : 48,
+          width: double.infinity,
+          height: filled ? 52 : 46,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: filled ? 24 : 20, color: fg),
+              Icon(icon, size: filled ? 22 : 19, color: fg),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: filled ? 17 : 15.5,
+                  fontSize: filled ? 16.5 : 15,
                   fontWeight: FontWeight.w900,
                   color: fg,
                 ),

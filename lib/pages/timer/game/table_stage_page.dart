@@ -7,6 +7,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../../../utils/app_feedback.dart';
+import '../../../utils/app_style.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../utils/wake_guard.dart';
 import '../../../widgets/app_dialogs.dart';
@@ -262,7 +263,8 @@ class _CornerButton extends StatelessWidget {
   }
 }
 
-/// 暫停霧面層：模糊桌面 + 大顆繼續 + 次要操作。
+/// 暫停霧面層：模糊桌面上蓋一張 app 本體的暖紙卡片——
+/// 對局中的「休息角落」，把兔咪世界的溫度帶進深色桌面。
 class _PauseOverlay extends StatelessWidget {
   final TableTimerEngine engine;
   final Future<void> Function() onExit;
@@ -276,63 +278,122 @@ class _PauseOverlay extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
         child: ColoredBox(
-          color: const Color(0xB31A120C),
+          color: const Color(0x8C1A120C),
           child: SafeArea(
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.pause_circle_rounded,
-                    size: 46,
-                    color: TableTheme.inkSoft,
-                  ),
-                  const SizedBox(height: 12),
-                  Text('暫停中', style: TableTheme.nameStyle(fontSize: 24)),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _SeatDot(color: seat, size: 11),
-                      const SizedBox(width: 7),
-                      Text(
-                        '輪到 ${engine.currentPlayer.name}',
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w700,
-                          color: TableTheme.inkSoft,
-                        ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 20,
+                ),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 330),
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+                  decoration: BoxDecoration(
+                    color: AppSurfaces.card,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x59120B06),
+                        blurRadius: 30,
+                        offset: Offset(0, 12),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 30),
-                  _OverlayButton(
-                    label: '繼續',
-                    icon: Icons.play_arrow_rounded,
-                    color: seat,
-                    filled: true,
-                    onTap: engine.resume,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: seat.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.pause_rounded, size: 30, color: seat),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '暫停中',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: seat,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '輪到 ${engine.currentPlayer.name}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppInk.strong,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        '喝口水休息一下，回來再繼續',
+                        style: TextStyle(fontSize: 12.5, color: AppInk.soft),
+                      ),
+                      const SizedBox(height: 18),
+                      _cardButton(
+                        label: '繼續',
+                        icon: Icons.play_arrow_rounded,
+                        background: seat,
+                        foreground: Colors.white,
+                        height: 54,
+                        fontSize: 17,
+                        onTap: engine.resume,
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _cardButton(
+                              label: '回上一位',
+                              icon: Icons.undo_rounded,
+                              onTap: engine.canUndo ? engine.undo : null,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _cardButton(
+                              label: '重開回合',
+                              icon: Icons.replay_rounded,
+                              onTap: engine.restartTurn,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      _cardButton(
+                        label: '結束對局',
+                        icon: Icons.stop_rounded,
+                        foreground: AppInk.danger,
+                        flat: true,
+                        onTap: onExit,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  _OverlayButton(
-                    label: '回上一位',
-                    icon: Icons.undo_rounded,
-                    onTap: engine.canUndo ? engine.undo : null,
-                  ),
-                  const SizedBox(height: 12),
-                  _OverlayButton(
-                    label: '重開本回合',
-                    icon: Icons.replay_rounded,
-                    onTap: engine.restartTurn,
-                  ),
-                  const SizedBox(height: 12),
-                  _OverlayButton(
-                    label: '結束對局',
-                    icon: Icons.stop_rounded,
-                    color: TableTheme.overtime,
-                    onTap: onExit,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -340,57 +401,47 @@ class _PauseOverlay extends StatelessWidget {
       ),
     );
   }
-}
 
-class _OverlayButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color? color;
-  final bool filled;
-  final VoidCallback? onTap;
-
-  const _OverlayButton({
-    required this.label,
-    required this.icon,
-    this.color,
-    this.filled = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  /// 暖紙卡上的按鈕：filled（background 有值）／tonal／flat 三態共用。
+  Widget _cardButton({
+    required String label,
+    required IconData icon,
+    VoidCallback? onTap,
+    Color? background,
+    Color? foreground,
+    bool flat = false,
+    double height = 46,
+    double fontSize = 14.5,
+  }) {
     final enabled = onTap != null;
-    final accent = color ?? TableTheme.inkSoft;
-    final fg = filled
-        ? const Color(0xFF241A12)
-        : (enabled ? accent : TableTheme.inkFaint);
+    final fg = !enabled ? AppInk.iconFaint : (foreground ?? AppInk.strong);
     return Material(
-      color: filled ? accent : const Color(0x1AF6ECDD),
+      color: background ?? (flat ? Colors.transparent : AppSurfaces.fill),
       shape: StadiumBorder(
-        side: filled
+        side: background != null || flat
             ? BorderSide.none
-            : const BorderSide(color: TableTheme.hairline),
+            : const BorderSide(color: AppSurfaces.divider),
       ),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: enabled
             ? () {
                 playHaptic(HapticLevel.selection);
-                onTap!();
+                onTap();
               }
             : null,
         child: SizedBox(
-          width: 230,
-          height: filled ? 58 : 48,
+          height: height,
+          width: double.infinity,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: filled ? 26 : 20, color: fg),
-              const SizedBox(width: 8),
+              Icon(icon, size: fontSize + 4, color: fg),
+              const SizedBox(width: 7),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: filled ? 18 : 15.5,
+                  fontSize: fontSize,
                   fontWeight: FontWeight.w900,
                   color: fg,
                 ),
@@ -398,32 +449,6 @@ class _OverlayButton extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// 玩家座位色點（多處共用的最小元件）。
-class _SeatDot extends StatelessWidget {
-  final Color color;
-  final double size;
-
-  const _SeatDot({required this.color, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.55),
-            blurRadius: size * 0.6,
-          ),
-        ],
       ),
     );
   }

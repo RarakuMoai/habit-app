@@ -382,4 +382,29 @@ void main() {
       4, // 玩家不足 → fallback
     );
   });
+
+  test('倒數提醒不變量：warn 必須嚴格小於每回合時間', () {
+    // warnCap：每回合制看 turnSeconds、總時間制看 bankSeconds，上限 60
+    expect(cfg(turnSeconds: 30).warnCap, 29);
+    expect(cfg(turnSeconds: 300).warnCap, 60);
+    expect(cfg(turnSeconds: 10).warnCap, 9);
+    expect(
+      cfg(
+        mode: TableGameMode.chess,
+        chessUseBank: true,
+        bankSeconds: 30,
+      ).warnCap,
+      29,
+    );
+
+    // clampWarn：超標夾回、合法不動
+    expect(cfg(turnSeconds: 30, warnSeconds: 45).clampWarn().warnSeconds, 29);
+    expect(cfg(turnSeconds: 90, warnSeconds: 15).clampWarn().warnSeconds, 15);
+
+    // decode 也會套同一個夾限（舊資料 warn >= turn 進不來）
+    final decoded = TableTimerConfig.decode(
+      cfg(turnSeconds: 30, warnSeconds: 45).encode(),
+    );
+    expect(decoded.warnSeconds, 29);
+  });
 }

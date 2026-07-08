@@ -545,6 +545,9 @@ class MascotPanelPrefs {
   }
 
   static void requestCollapsed() => requestSettle(0.0);
+
+  /// 展開兔咪面板＝把功能卡收回縮小狀態（設定頁「完成」鈕用）。
+  static void requestExpanded() => requestSettle(1.0);
 }
 
 class MascotPanelSettleRequest {

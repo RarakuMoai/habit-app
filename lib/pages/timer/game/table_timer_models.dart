@@ -57,6 +57,8 @@ class TableTimerConfig {
   static const int minBankSeconds = 30;
   static const int maxBankSeconds = 60 * 60;
   static const int maxIncrementSeconds = 60;
+  static const int minWarnSeconds = 3;
+  static const int maxWarnSeconds = 60;
 
   final TableGameMode mode;
   final List<TablePlayer> players;
@@ -107,6 +109,18 @@ class TableTimerConfig {
 
   /// 加強提醒門檻（每秒脈動）。
   int get criticalSeconds => warnSeconds < 5 ? warnSeconds : 5;
+
+  /// 倒數提醒的合法上限：必須嚴格小於每回合時間（總時間制看每人總時間），
+  /// 且不超過 [maxWarnSeconds]。
+  int get warnCap {
+    final base = (usesBank ? bankSeconds : turnSeconds) - 1;
+    final cap = base < maxWarnSeconds ? base : maxWarnSeconds;
+    return cap < minWarnSeconds ? minWarnSeconds : cap;
+  }
+
+  /// 把倒數提醒夾回合法範圍（每回合時間變短時維持 warn < turn 不變量）。
+  TableTimerConfig clampWarn() =>
+      warnSeconds > warnCap ? copyWith(warnSeconds: warnCap) : this;
 
   /// 本局實際上場的玩家：棋鐘固定取前兩位，其他模式全上。
   List<TablePlayer> get activePlayers =>
@@ -193,7 +207,10 @@ class TableTimerConfig {
           minTurnSeconds,
           maxTurnSeconds,
         ),
-        warnSeconds: (warn is int ? warn : 10).clamp(3, 60),
+        warnSeconds: (warn is int ? warn : 10).clamp(
+          minWarnSeconds,
+          maxWarnSeconds,
+        ),
         autoAdvance: map['autoAdvance'] == true,
         chessUseBank: map['chessUseBank'] == true,
         bankSeconds: (bank is int ? bank : 300).clamp(
@@ -201,7 +218,7 @@ class TableTimerConfig {
           maxBankSeconds,
         ),
         incrementSeconds: (inc is int ? inc : 0).clamp(0, maxIncrementSeconds),
-      );
+      ).clampWarn();
     } catch (_) {
       return TableTimerConfig.fallback();
     }

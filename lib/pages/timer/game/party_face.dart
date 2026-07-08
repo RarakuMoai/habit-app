@@ -443,24 +443,38 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   }
 
   Widget _footer(bool ready) {
-    final hint = ready ? '點任意處開始' : '點任意處換下一位';
+    // 待機：貼紙 icon 陪等開局（開局後讓位給資訊，不干擾遊戲）。
+    if (ready) {
+      return Column(
+        children: [
+          Image.asset('assets/icon/tabs/game_timer.png', width: 54, height: 54),
+          const SizedBox(height: 8),
+          const Text(
+            '準備好了就點桌面開始',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: TableTheme.inkSoft,
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       children: [
-        Text(
-          hint,
-          style: const TextStyle(
+        const Text(
+          '走完了就點桌面，換下一位',
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
             color: TableTheme.inkFaint,
           ),
         ),
-        if (!ready) ...[
-          const SizedBox(height: 4),
-          Text(
-            '第 ${engine.turnCount} 手',
-            style: AppType.digits(fontSize: 12.5, color: TableTheme.inkFaint),
-          ),
-        ],
+        const SizedBox(height: 4),
+        Text(
+          '第 ${engine.turnCount} 手',
+          style: AppType.digits(fontSize: 12.5, color: TableTheme.inkFaint),
+        ),
       ],
     );
   }
