@@ -385,240 +385,255 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     final chess = _config.mode == TableGameMode.chess;
     final free = _config.mode == TableGameMode.free;
 
+    // 水平留白由各區自己包（_padded）：常用組合列要「全出血」，
+    // 卡片才能自然滑出頁緣、不會在頁邊被硬切（SE 撞邊問題）。
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 14),
       children: [
-        _header(),
-        const SizedBox(height: 14),
-        _sectionTitle('常用組合', caption: '把玩家＋模式＋時間存成一組，下次一鍵套用'),
-        const SizedBox(height: 8),
+        _padded([
+          _header(),
+          const SizedBox(height: 14),
+          _sectionTitle('常用組合', caption: '把玩家＋模式＋時間存成一組，下次一鍵套用'),
+          const SizedBox(height: 8),
+        ]),
         _presetStrip(),
-        const SizedBox(height: 16),
-        _sectionTitle('玩法'),
-        const SizedBox(height: 8),
-        _modeSwitch(),
-        const SizedBox(height: 6),
-        Text(switch (_config.mode) {
-          TableGameMode.party => '放桌子中央，輪到誰就點一下換下一位',
-          TableGameMode.chess => '兩人對坐，點自己那側交棒給對方',
-          TableGameMode.free => '不倒數沒壓力，只記錄輪到誰、想了多久',
-        }, style: const TextStyle(fontSize: 12, color: AppInk.faint)),
-        const SizedBox(height: 16),
-        _sectionTitle(
-          '出場順位',
-          caption: chess ? '由上到下排序，棋鐘由前兩位上場' : '由上到下輪流出場，按住 ≡ 拖曳調整',
-        ),
-        const SizedBox(height: 8),
-        _playerList(chess: chess),
-        if (!chess && _config.players.length < TableTimerConfig.maxPlayers)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _addPlayer,
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text(
-                '新增玩家',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ),
-          ),
-        if (chess) ...[
-          const SizedBox(height: 12),
-          _sectionTitle('計時制'),
+        _padded([
+          const SizedBox(height: 20),
+          _sectionTitle('玩法'),
           const SizedBox(height: 8),
-          _timingSwitch(),
-        ],
-        if (!free && !_config.usesBank) ...[
-          const SizedBox(height: 16),
-          _sectionTitle('每回合時間'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final s in _turnPresets)
-                _valueChip(
-                  _secondsText(s),
-                  selected: _config.turnSeconds == s,
-                  onTap: () => _apply(_config.copyWith(turnSeconds: s)),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _stepperRow(
-            text: _secondsText(_config.turnSeconds),
-            onMinus: _config.turnSeconds > TableTimerConfig.minTurnSeconds
-                ? () => _apply(
-                    _config.copyWith(
-                      turnSeconds: (_config.turnSeconds - 5).clamp(
-                        TableTimerConfig.minTurnSeconds,
-                        TableTimerConfig.maxTurnSeconds,
-                      ),
-                    ),
-                  )
-                : null,
-            onPlus: _config.turnSeconds < TableTimerConfig.maxTurnSeconds
-                ? () => _apply(
-                    _config.copyWith(
-                      turnSeconds: (_config.turnSeconds + 5).clamp(
-                        TableTimerConfig.minTurnSeconds,
-                        TableTimerConfig.maxTurnSeconds,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-        ],
-        if (_config.usesBank) ...[
-          const SizedBox(height: 16),
-          _sectionTitle('每人總時間'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final s in _bankPresets)
-                _valueChip(
-                  _secondsText(s),
-                  selected: _config.bankSeconds == s,
-                  onTap: () => _apply(_config.copyWith(bankSeconds: s)),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _stepperRow(
-            text: _secondsText(_config.bankSeconds),
-            onMinus: _config.bankSeconds > TableTimerConfig.minBankSeconds
-                ? () => _apply(
-                    _config.copyWith(
-                      bankSeconds: (_config.bankSeconds - 30).clamp(
-                        TableTimerConfig.minBankSeconds,
-                        TableTimerConfig.maxBankSeconds,
-                      ),
-                    ),
-                  )
-                : null,
-            onPlus: _config.bankSeconds < TableTimerConfig.maxBankSeconds
-                ? () => _apply(
-                    _config.copyWith(
-                      bankSeconds: (_config.bankSeconds + 30).clamp(
-                        TableTimerConfig.minBankSeconds,
-                        TableTimerConfig.maxBankSeconds,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(height: 16),
-          _sectionTitle('每手加秒（Fischer）', caption: '時間用盡＝旗倒直接分勝負；走完一手可加回幾秒'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final s in _incrementPresets)
-                _valueChip(
-                  s == 0 ? '不加秒' : '＋$s 秒',
-                  selected: _config.incrementSeconds == s,
-                  onTap: () => _apply(_config.copyWith(incrementSeconds: s)),
-                ),
-            ],
-          ),
-        ],
-        if (!free) ...[
-          const SizedBox(height: 16),
+          _modeSwitch(),
+          const SizedBox(height: 6),
+          Text(switch (_config.mode) {
+            TableGameMode.party => '放桌子中央，輪到誰就點一下換下一位',
+            TableGameMode.chess => '兩人對坐，點自己那側交棒給對方',
+            TableGameMode.free => '不倒數沒壓力，只記錄輪到誰、想了多久',
+          }, style: const TextStyle(fontSize: 12, color: AppInk.soft)),
+          const SizedBox(height: 20),
           _sectionTitle(
-            '倒數提醒',
-            caption: _config.usesBank
-                ? '剩幾秒開始提醒（要比每人總時間短）'
-                : '剩幾秒開始提醒（要比每回合時間短）',
+            '出場順位',
+            caption: chess ? '由上到下排序，棋鐘由前兩位上場' : '由上到下輪流出場，按住 ≡ 拖曳調整',
           ),
+          const SizedBox(height: 8),
+          _playerList(chess: chess),
+          if (!chess && _config.players.length < TableTimerConfig.maxPlayers)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addPlayer,
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text(
+                  '新增玩家',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          if (chess) ...[
+            const SizedBox(height: 12),
+            _sectionTitle('計時制'),
+            const SizedBox(height: 8),
+            _timingSwitch(),
+          ],
+          if (!free && !_config.usesBank) ...[
+            const SizedBox(height: 20),
+            _sectionTitle('每回合時間'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in _turnPresets)
+                  _valueChip(
+                    _secondsText(s),
+                    selected: _config.turnSeconds == s,
+                    onTap: () => _apply(_config.copyWith(turnSeconds: s)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _stepperRow(
+              text: _secondsText(_config.turnSeconds),
+              onMinus: _config.turnSeconds > TableTimerConfig.minTurnSeconds
+                  ? () => _apply(
+                      _config.copyWith(
+                        turnSeconds: (_config.turnSeconds - 5).clamp(
+                          TableTimerConfig.minTurnSeconds,
+                          TableTimerConfig.maxTurnSeconds,
+                        ),
+                      ),
+                    )
+                  : null,
+              onPlus: _config.turnSeconds < TableTimerConfig.maxTurnSeconds
+                  ? () => _apply(
+                      _config.copyWith(
+                        turnSeconds: (_config.turnSeconds + 5).clamp(
+                          TableTimerConfig.minTurnSeconds,
+                          TableTimerConfig.maxTurnSeconds,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+          ],
+          if (_config.usesBank) ...[
+            const SizedBox(height: 20),
+            _sectionTitle('每人總時間'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in _bankPresets)
+                  _valueChip(
+                    _secondsText(s),
+                    selected: _config.bankSeconds == s,
+                    onTap: () => _apply(_config.copyWith(bankSeconds: s)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _stepperRow(
+              text: _secondsText(_config.bankSeconds),
+              onMinus: _config.bankSeconds > TableTimerConfig.minBankSeconds
+                  ? () => _apply(
+                      _config.copyWith(
+                        bankSeconds: (_config.bankSeconds - 30).clamp(
+                          TableTimerConfig.minBankSeconds,
+                          TableTimerConfig.maxBankSeconds,
+                        ),
+                      ),
+                    )
+                  : null,
+              onPlus: _config.bankSeconds < TableTimerConfig.maxBankSeconds
+                  ? () => _apply(
+                      _config.copyWith(
+                        bankSeconds: (_config.bankSeconds + 30).clamp(
+                          TableTimerConfig.minBankSeconds,
+                          TableTimerConfig.maxBankSeconds,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 20),
+            _sectionTitle('每手加秒（Fischer）', caption: '時間用盡＝旗倒直接分勝負；走完一手可加回幾秒'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in _incrementPresets)
+                  _valueChip(
+                    s == 0 ? '不加秒' : '＋$s 秒',
+                    selected: _config.incrementSeconds == s,
+                    onTap: () => _apply(_config.copyWith(incrementSeconds: s)),
+                  ),
+              ],
+            ),
+          ],
+          if (!free) ...[
+            const SizedBox(height: 20),
+            _sectionTitle(
+              '倒數提醒',
+              caption: _config.usesBank
+                  ? '剩幾秒開始提醒（要比每人總時間短）'
+                  : '剩幾秒開始提醒（要比每回合時間短）',
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in _warnPresets)
+                  if (s <= _config.warnCap)
+                    _valueChip(
+                      '剩 $s 秒',
+                      selected: _config.warnSeconds == s,
+                      onTap: () => _apply(_config.copyWith(warnSeconds: s)),
+                    ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _stepperRow(
+              text: '剩 ${_config.warnSeconds} 秒',
+              onMinus: _config.warnSeconds > TableTimerConfig.minWarnSeconds
+                  ? () => _apply(
+                      _config.copyWith(warnSeconds: _config.warnSeconds - 1),
+                    )
+                  : null,
+              onPlus: _config.warnSeconds < _config.warnCap
+                  ? () => _apply(
+                      _config.copyWith(warnSeconds: _config.warnSeconds + 1),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            if (!_config.usesBank)
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () =>
+                    _apply(_config.copyWith(autoAdvance: !_config.autoAdvance)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '超時自動換下一位',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: AppInk.strong,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              '關閉時超時會亮紅等待，點一下才換人',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: AppInk.soft,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _config.autoAdvance,
+                        activeTrackColor: kGameAccent,
+                        onChanged: (v) =>
+                            _apply(_config.copyWith(autoAdvance: v)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+          const SizedBox(height: 20),
+          _sectionTitle('常用玩家', caption: '改玩家名字時可以一鍵帶入'),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final s in _warnPresets)
-                if (s <= _config.warnCap)
-                  _valueChip(
-                    '剩 $s 秒',
-                    selected: _config.warnSeconds == s,
-                    onTap: () => _apply(_config.copyWith(warnSeconds: s)),
-                  ),
+              for (final name in _roster) _rosterChip(name),
+              _pickChip('＋ 新增', onTap: _addRosterName, accent: true),
             ],
           ),
-          const SizedBox(height: 8),
-          _stepperRow(
-            text: '剩 ${_config.warnSeconds} 秒',
-            onMinus: _config.warnSeconds > TableTimerConfig.minWarnSeconds
-                ? () => _apply(
-                    _config.copyWith(warnSeconds: _config.warnSeconds - 1),
-                  )
-                : null,
-            onPlus: _config.warnSeconds < _config.warnCap
-                ? () => _apply(
-                    _config.copyWith(warnSeconds: _config.warnSeconds + 1),
-                  )
-                : null,
-          ),
-          const SizedBox(height: 10),
-          if (!_config.usesBank)
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () =>
-                  _apply(_config.copyWith(autoAdvance: !_config.autoAdvance)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '超時自動換下一位',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: AppInk.strong,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            '關閉時超時會亮紅等待，點一下才換人',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: AppInk.soft,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch(
-                      value: _config.autoAdvance,
-                      activeTrackColor: kGameAccent,
-                      onChanged: (v) =>
-                          _apply(_config.copyWith(autoAdvance: v)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-        const SizedBox(height: 16),
-        _sectionTitle('常用玩家', caption: '改玩家名字時可以一鍵帶入'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final name in _roster) _rosterChip(name),
-            _pickChip('＋ 新增', onTap: _addRosterName, accent: true),
-          ],
-        ),
+        ]),
       ],
     );
   }
+
+  /// 區段內容的水平留白（常用組合列以外都走這裡）。
+  Widget _padded(List<Widget> children) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    ),
+  );
 
   /// 頁首：貼紙 icon＋名稱＋隨設定即時更新的一句話摘要。
   Widget _header() {
@@ -659,14 +674,14 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
 
   // ── 常用組合列 ───────────────────────────────────────────
 
-  /// 橫向卡片列：每張卡＝一組快照（點卡套用、⋯ 或長按管理），
-  /// 尾端固定「儲存目前設定」卡。
+  /// 橫向卡片列（全出血，自帶 20 水平 padding，卡片滑得出頁緣）：
+  /// 每張卡＝一組快照（點卡套用、⋯ 或長按管理），尾端固定「儲存目前設定」。
   Widget _presetStrip() {
     return SizedBox(
-      height: 78,
+      height: 76,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         children: [
           for (final preset in _presets) ...[
             _presetCard(preset),
@@ -678,23 +693,57 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
   }
 
+  /// 副標的一行摘要：模式小圖示＋「N 人 · 時間」（比全文字短，不易截斷）。
+  Widget _presetDetail(TableTimerConfig c, {required Color color}) {
+    final icon = switch (c.mode) {
+      TableGameMode.party => Icons.groups_rounded,
+      TableGameMode.chess => Icons.swap_vert_rounded,
+      TableGameMode.free => Icons.all_inclusive_rounded,
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            '${c.activePlayers.length} 人 · ${c.timeSummary}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 卡片：淡染表選中（「使用中」細字），不做整塊實色——
+  /// 頁面上唯一的實色 CTA 留給「開始對局」。
   Widget _presetCard(TablePreset preset) {
     final active = _isActivePreset(preset);
-    final detail = TablePreset.defaultName(preset.config);
-    final fg = active ? Colors.white : AppInk.strong;
     return GestureDetector(
       onTap: () => _applyPreset(preset),
       onLongPress: () => _managePreset(preset),
       child: Container(
-        constraints: const BoxConstraints(minWidth: 132, maxWidth: 200),
-        padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+        constraints: const BoxConstraints(minWidth: 136, maxWidth: 216),
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
         decoration: BoxDecoration(
-          color: active ? kGameAccent : AppSurfaces.fill,
+          color: active
+              ? kGameAccent.withValues(alpha: 0.10)
+              : AppSurfaces.fill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: active ? kGameAccent : AppSurfaces.divider),
+          border: Border.all(
+            color: active
+                ? kGameAccent.withValues(alpha: 0.55)
+                : AppSurfaces.divider,
+            width: active ? 1.4 : 1,
+          ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Flexible(
               child: Column(
@@ -709,7 +758,7 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                             ? Icons.check_circle_rounded
                             : Icons.bookmark_rounded,
                         size: 14,
-                        color: active ? Colors.white : kGameAccent,
+                        color: kGameAccent,
                       ),
                       const SizedBox(width: 5),
                       Flexible(
@@ -717,28 +766,31 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                           preset.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 13,
                             height: 1.15,
                             fontWeight: FontWeight.w800,
-                            color: fg,
+                            color: AppInk.strong,
                           ),
                         ),
                       ),
+                      if (active) ...[
+                        const SizedBox(width: 5),
+                        const Text(
+                          '使用中',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: kGameAccent,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    active ? '使用中' : detail,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: active
-                          ? Colors.white.withValues(alpha: 0.9)
-                          : AppInk.faint,
-                    ),
+                  _presetDetail(
+                    preset.config,
+                    color: active ? AppInk.soft : AppInk.faint,
                   ),
                 ],
               ),
@@ -747,14 +799,12 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
             InkWell(
               customBorder: const CircleBorder(),
               onTap: () => _managePreset(preset),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 10),
                 child: Icon(
-                  Icons.more_horiz_rounded,
+                  Icons.more_vert_rounded,
                   size: 16,
-                  color: active
-                      ? Colors.white.withValues(alpha: 0.85)
-                      : AppInk.iconFaint,
+                  color: AppInk.iconFaint,
                 ),
               ),
             ),
@@ -910,13 +960,14 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                   ),
                 ),
               ),
+              // 移除鈕走低調灰（每列一顆紅 ✕ 會讓整區充滿警示噪音）
               IconButton(
                 visualDensity: VisualDensity.compact,
                 onPressed: canRemove ? () => _removePlayer(i) : null,
                 icon: Icon(
                   Icons.close_rounded,
                   size: 20,
-                  color: canRemove ? AppInk.danger : AppSurfaces.divider,
+                  color: canRemove ? AppInk.iconFaint : AppSurfaces.divider,
                 ),
               ),
             ],
@@ -1104,23 +1155,39 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
   }
 
+  /// 區段標題：右側拉漸隱細線收尾（全 app 規範），caption 用次要墨色。
   Widget _sectionTitle(String text, {String? caption}) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13.5,
-          fontWeight: FontWeight.w800,
-          color: AppInk.soft,
-        ),
+      Row(
+        children: [
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              color: AppInk.soft,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    kGameAccent.withValues(alpha: 0.25),
+                    kGameAccent.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       if (caption != null) ...[
         const SizedBox(height: 2),
-        Text(
-          caption,
-          style: const TextStyle(fontSize: 12, color: AppInk.faint),
-        ),
+        Text(caption, style: const TextStyle(fontSize: 12, color: AppInk.soft)),
       ],
     ],
   );

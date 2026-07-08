@@ -136,6 +136,7 @@ class _TableStagePageState extends State<TableStagePage>
                   gaplessPlayback: true,
                 ),
               ),
+              DecoratedBox(decoration: TableTheme.feltWarmLight()),
               DecoratedBox(decoration: TableTheme.feltVignette()),
               ListenableBuilder(
                 listenable: _engine,

@@ -86,12 +86,24 @@ abstract final class TableTheme {
 
   /// 疊在 CG 上的保底暗角：把邊緣再壓深一階，確保中央發光數字
   /// 與角落鍵在任何縮放裁切下都有足夠對比。
+  /// （2026-07-08 降到 35%：原 50% 讓桌面黑成虛空、失去絨布暖感。）
   static BoxDecoration feltVignette() => const BoxDecoration(
     gradient: RadialGradient(
       center: Alignment(0, -0.15),
       radius: 1.3,
-      colors: [Color(0x00000000), Color(0x8019110B)],
+      colors: [Color(0x00000000), Color(0x5919110B)],
       stops: [0.55, 1.0],
+    ),
+  );
+
+  /// 桌面中央的暖光：像桌上方一盞吊燈，把絨布的暖棕托出來，
+  /// 避免整面讀成冷硬的黑（家庭桌遊感 > 賭場感）。
+  static BoxDecoration feltWarmLight() => const BoxDecoration(
+    gradient: RadialGradient(
+      center: Alignment(0, -0.2),
+      radius: 1.0,
+      colors: [Color(0x2EFFD9A0), Color(0x00FFD9A0)],
+      stops: [0.0, 1.0],
     ),
   );
 }

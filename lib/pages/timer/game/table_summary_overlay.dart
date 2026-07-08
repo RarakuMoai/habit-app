@@ -235,9 +235,11 @@ class TableSummaryOverlay extends StatelessWidget {
     bool filled = false,
     required VoidCallback onTap,
   }) {
+    // filled 用暖琥珀（跟獎盃同語調）：對局層的 CTA 走暖色，
+    // 藍色留給 app 內設定頁的 CTA，深色桌上不出現冷色大塊。
     final fg = filled ? Colors.white : AppInk.strong;
     return Material(
-      color: filled ? kGameAccent : AppSurfaces.fill,
+      color: filled ? _amber : AppSurfaces.fill,
       shape: StadiumBorder(
         side: filled
             ? BorderSide.none

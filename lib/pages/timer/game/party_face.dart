@@ -379,11 +379,12 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
         ),
       );
     } else {
+      // 提高存在感（0.62→0.78、加大 1px）：座位環要讀得出「一桌人」
       dot = Container(
-        width: isNext ? 15.0 : 12.0,
-        height: isNext ? 15.0 : 12.0,
+        width: isNext ? 16.0 : 13.0,
+        height: isNext ? 16.0 : 13.0,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.62),
+          color: color.withValues(alpha: 0.78),
           shape: BoxShape.circle,
           border: isNext
               ? Border.all(color: TableTheme.inkSoft, width: 1.6)
@@ -443,21 +444,23 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   }
 
   Widget _footer(bool ready) {
-    // 待機：貼紙 icon 陪等開局（開局後讓位給資訊，不干擾遊戲）。
+    // 待機：暖色小膠囊當開局邀請（貼紙 icon 在深色桌上像硬貼的，不用）。
     if (ready) {
-      return Column(
-        children: [
-          Image.asset('assets/icon/tabs/game_timer.png', width: 54, height: 54),
-          const SizedBox(height: 8),
-          const Text(
-            '準備好了就點桌面開始',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: TableTheme.inkSoft,
-            ),
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0x1AF6ECDD),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: TableTheme.hairline),
+        ),
+        child: const Text(
+          '準備好了就點桌面開始',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: TableTheme.inkStrong,
           ),
-        ],
+        ),
       );
     }
     return Column(
@@ -522,7 +525,7 @@ class _DialPainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
     );
 
-    // 絨布內盤：比桌面略亮一階，中央受光
+    // 絨布內盤：比桌面略亮一階，中央受光（配合暖光層再提亮一階）
     final discRect = Rect.fromCircle(center: center, radius: radius - stroke);
     canvas.drawCircle(
       center,
@@ -531,7 +534,7 @@ class _DialPainter extends CustomPainter {
         ..shader = RadialGradient(
           center: const Alignment(-0.2, -0.3),
           radius: 1.0,
-          colors: [const Color(0xFF413023), const Color(0xFF2B1F16)],
+          colors: [const Color(0xFF4A3826), const Color(0xFF31241A)],
         ).createShader(discRect),
     );
 

@@ -28,7 +28,10 @@ class GameTimer extends StatefulWidget {
 }
 
 class _GameTimerState extends State<GameTimer> {
-  static const double _compactHeight = 280;
+  // 完整設定頁需要的最小高度：Pro Max「面板展開」時內容區約 320，
+  // 一定要落在門檻之下（否則設定頁被塞進小空間硬剪斷）；
+  // 各機型「面板收合」後至少 ~410。
+  static const double _compactHeight = 380;
 
   SharedPreferences? _prefs;
   TableTimerConfig _config = TableTimerConfig.fallback();
@@ -117,12 +120,11 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
+  /// 完成鈕：中性 tonal——footer 只留一顆彩色 CTA（開始對局）。
   Widget _doneButton() {
     return Material(
-      color: kGameAccent.withValues(alpha: 0.10),
-      shape: StadiumBorder(
-        side: BorderSide(color: kGameAccent.withValues(alpha: 0.30)),
-      ),
+      color: AppSurfaces.fill,
+      shape: const StadiumBorder(side: BorderSide(color: AppSurfaces.divider)),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: _collapseDone,
@@ -131,14 +133,14 @@ class _GameTimerState extends State<GameTimer> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_rounded, size: 20, color: kGameAccent),
+              Icon(Icons.check_rounded, size: 20, color: AppInk.soft),
               SizedBox(width: 6),
               Text(
                 '完成',
                 style: TextStyle(
                   fontSize: 15.5,
                   fontWeight: FontWeight.w900,
-                  color: kGameAccent,
+                  color: AppInk.strong,
                 ),
               ),
             ],
@@ -148,7 +150,8 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
-  /// 開始鈕：一小塊深色絨布桌——按下去就是進入對局世界的門。
+  /// 開始鈕：頁面唯一的實色 CTA（遊戲主色）。
+  /// 原「深色絨布門」在暖奶油底上讀成死黑色塊，2026-07-08 截圖自查後撤掉。
   Widget _startButton({required double height, double fontSize = 16.5}) {
     final enabled = _prefs != null;
     return Material(
@@ -156,14 +159,17 @@ class _GameTimerState extends State<GameTimer> {
       child: Ink(
         height: height,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF3C2D21), Color(0xFF241A12)],
-          ),
+          color: enabled ? kGameAccent : AppSurfaces.fill,
           borderRadius: BorderRadius.circular(height / 2),
-          border: Border.all(color: const Color(0x33F6ECDD)),
-          boxShadow: AppShadows.card,
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: kGameAccent.withValues(alpha: 0.30),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ]
+              : null,
         ),
         child: InkWell(
           customBorder: const StadiumBorder(),
@@ -171,10 +177,10 @@ class _GameTimerState extends State<GameTimer> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.play_arrow_rounded,
                 size: 24,
-                color: TableTheme.inkStrong,
+                color: enabled ? Colors.white : AppInk.iconFaint,
               ),
               const SizedBox(width: 6),
               Text(
@@ -182,7 +188,7 @@ class _GameTimerState extends State<GameTimer> {
                 style: TextStyle(
                   fontSize: fontSize,
                   fontWeight: FontWeight.w900,
-                  color: enabled ? TableTheme.inkStrong : TableTheme.inkFaint,
+                  color: enabled ? Colors.white : AppInk.iconFaint,
                   letterSpacing: 1,
                 ),
               ),
