@@ -11,7 +11,6 @@
 // 決定，不用亂數換面。
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -22,7 +21,51 @@ import '../../../utils/app_style.dart';
 import '../../../utils/prefs_keys.dart';
 import '../../../utils/sfx_service.dart';
 import 'dice_world.dart';
-import 'table_timer_theme.dart';
+
+/// 可從其他入口直接 push 的全螢幕骰子屋。
+///
+/// 桌遊對局內仍使用 [DiceTrayOverlay] 疊在進行中的計時器上；需要單獨使用骰子
+/// 時則 push 這個頁面，兩個入口共用完全相同的物理與 UI。
+class DiceTrayPage extends StatelessWidget {
+  const DiceTrayPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _DiceTrayColors.cream,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [_DiceTrayColors.cream, _DiceTrayColors.peachWash],
+              ),
+            ),
+          ),
+          DiceTrayOverlay(
+            onClose: () {
+              unawaited(Navigator.of(context).maybePop());
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+abstract final class _DiceTrayColors {
+  static const cream = Color(0xFFFFFAF2);
+  static const peachWash = Color(0xFFF9E5D2);
+  static const peach = Color(0xFFFFDCC5);
+  static const coral = Color(0xFFC95A43);
+  static const amber = Color(0xFFF0AE45);
+  static const matTop = Color(0xFFFFE8C9);
+  static const matBottom = Color(0xFFF1C99E);
+  static const matBorder = Color(0xFFE5B987);
+}
 
 class DiceTrayOverlay extends StatefulWidget {
   final VoidCallback onClose;
@@ -53,7 +96,10 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
   void initState() {
     super.initState();
     _world.onImpact = _handleImpact;
-    _ticker = createTicker(_onTick)..start();
+    // prefs 還沒載完也先有兩顆骰子，release 冷啟動第一下就能操作。
+    _world.spawn(_count);
+    // 初始骰面是靜態的；真的擲骰或抓骰子時才啟動逐幀物理。
+    _ticker = createTicker(_onTick);
     SharedPreferences.getInstance().then((p) {
       if (!mounted) return;
       setState(() {
@@ -84,6 +130,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
       _showTotal = true;
       playHaptic(HapticLevel.medium); // 定格
       setState(() {});
+      _ticker.stop(); // 靜止後不再每幀喚醒 CPU；下一次互動再啟動。
     } else if (!_world.settled && _showTotal) {
       _showTotal = false;
       setState(() {});
@@ -111,12 +158,16 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
     playHaptic(HapticLevel.selection);
     setState(() {
       _count = next;
+      _showTotal = false;
       _world.spawn(next);
     });
     _prefs?.setInt(PrefsKeys.gameTableDiceCount, next);
   }
 
   void _throwAll() {
+    if (_world.dice.isEmpty) return;
+    _ensureTicker();
+    setState(() => _showTotal = false);
     playFeedback(SfxCue.gameDice);
     _world.throwAll();
   }
@@ -124,6 +175,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
   // ── 多指吸力 ─────────────────────────────────────────────
 
   void _pointerDown(PointerDownEvent e) {
+    _ensureTicker();
     _pointers[e.pointer] = e.localPosition;
     _world.wake();
     playHaptic(HapticLevel.selection); // 「吸住了」
@@ -145,121 +197,39 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
     }
   }
 
+  void _ensureTicker() {
+    if (!_ticker.isActive) {
+      _lastTick = Duration.zero;
+      _ticker.start();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Positioned.fill(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: ColoredBox(
-          color: const Color(0xB31A120C),
-          child: LayoutBuilder(
-            builder: (context, box) {
-              // 物理牆內縮：頂部避開顆數列、底部避開擲骰鈕區，
-              // 骰子撞「隱形牆」反彈、不會滾到 UI 底下
-              final pad = MediaQuery.of(context).padding;
-              _world.setBounds(
-                Rect.fromLTRB(
-                  0,
-                  pad.top + 62,
-                  box.maxWidth,
-                  box.maxHeight - pad.bottom - 168,
-                ),
-                dieSizeFor(_count),
-              );
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  // 物理場：整面都能按住吸骰子、甩出去
-                  Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: _pointerDown,
-                    onPointerMove: _pointerMove,
-                    onPointerUp: (e) => _pointerUp(e.pointer),
-                    onPointerCancel: (e) => _pointerUp(e.pointer),
-                    child: CustomPaint(
-                      painter: _WorldPainter(_world),
-                      isComplex: true,
-                    ),
-                  ),
-                  // 頂部：顆數（吸收自己的觸控，不進物理場）
-                  SafeArea(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: _countRow(),
-                      ),
-                    ),
-                  ),
-                  // 合計：靜止結算後浮現在中央偏上
-                  SafeArea(
-                    child: Align(
-                      alignment: const Alignment(0, -0.62),
-                      child: IgnorePointer(
-                        child: AnimatedOpacity(
-                          opacity: _showTotal && _count > 1 ? 1 : 0,
-                          duration: const Duration(milliseconds: 260),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 22,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xCC3C2D21),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: TableTheme.hairline),
-                            ),
-                            child: Text(
-                              '合計 ${_world.total}',
-                              style: AppType.digits(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w800,
-                                color: TableTheme.inkStrong,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // 底部：擲骰鈕＋提示＋收起
-                  SafeArea(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _throwButton(),
-                            const SizedBox(height: 8),
-                            const Text(
-                              '按住把骰子吸過來，甩出去！',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: TableTheme.inkFaint,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: widget.onClose,
-                              child: const Text(
-                                '收起',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: TableTheme.inkSoft,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+      // 背景已有 97% 不透明漸層，拿掉全螢幕 blur 可明顯降低舊手機 GPU 負擔。
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xF7FFFAF2), Color(0xF7F9E5D2)],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Column(
+              children: [
+                _header(),
+                const SizedBox(height: 10),
+                _countPanel(),
+                const SizedBox(height: 10),
+                Expanded(child: _playMat()),
+                const SizedBox(height: 10),
+                _bottomPanel(),
+              ],
+            ),
           ),
         ),
       ),
@@ -269,71 +239,424 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
   static double dieSizeFor(int count) =>
       count <= 2 ? 92.0 : (count <= 4 ? 80.0 : 70.0);
 
-  Widget _countRow() {
-    Widget btn(IconData icon, int delta, bool enabled) {
-      return Material(
-        color: const Color(0x2EF6ECDD),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: enabled ? () => _setCount(delta) : null,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(
-              icon,
-              size: 20,
-              color: enabled ? TableTheme.inkStrong : TableTheme.inkFaint,
-            ),
-          ),
-        ),
-      );
-    }
-
+  Widget _header() {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        btn(Icons.remove_rounded, -1, _count > 1),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Text(
-            '$_count 顆骰子',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: TableTheme.inkStrong,
-              fontFamily: AppType.digits().fontFamily,
+        Expanded(
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: AppSurfaces.card,
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: AppSurfaces.divider),
+                  boxShadow: AppShadows.flat,
+                ),
+                child: ExcludeSemantics(
+                  child: Image.asset(
+                    'assets/icon/tabs/game_timer.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: FittedBox(
+                  alignment: Alignment.centerLeft,
+                  fit: BoxFit.scaleDown,
+                  child: const Text(
+                    '兔咪骰子屋',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: '關閉骰子屋，回到遊戲',
+          child: Semantics(
+            button: true,
+            label: '回到遊戲，關閉骰子屋',
+            child: Material(
+              color: AppSurfaces.card,
+              shape: StadiumBorder(
+                side: BorderSide(
+                  color: _DiceTrayColors.coral.withValues(alpha: 0.28),
+                ),
+              ),
+              child: InkWell(
+                customBorder: const StadiumBorder(),
+                onTap: widget.onClose,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.arrow_back_rounded,
+                            size: 20,
+                            color: _DiceTrayColors.coral,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            '回到遊戲',
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w900,
+                              color: AppInk.strong,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-        btn(Icons.add_rounded, 1, _count < maxDice),
       ],
     );
   }
 
-  Widget _throwButton() {
-    return Material(
-      color: TableTheme.warn,
-      shape: const StadiumBorder(),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: _throwAll,
-        child: const SizedBox(
-          width: 200,
-          height: 54,
-          child: Row(
+  Widget _countPanel() {
+    return Semantics(
+      container: true,
+      label: '骰子顆數，目前 $_count 顆',
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: AppSurfaces.card.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppSurfaces.divider),
+          boxShadow: AppShadows.flat,
+        ),
+        child: Row(
+          children: [
+            _countButton(
+              icon: Icons.remove_rounded,
+              label: '減少一顆骰子',
+              enabled: _count > 1,
+              onTap: () => _setCount(-1),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: ExcludeSemantics(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '$_count 顆骰子',
+                      maxLines: 1,
+                      style: AppType.digits(
+                        fontSize: 27,
+                        fontWeight: FontWeight.w800,
+                        color: AppInk.strong,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            _countButton(
+              icon: Icons.add_rounded,
+              label: '增加一顆骰子',
+              enabled: _count < maxDice,
+              onTap: () => _setCount(1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countButton({
+    required IconData icon,
+    required String label,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        label: label,
+        child: Material(
+          color: enabled ? _DiceTrayColors.peach : AppSurfaces.fill,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: enabled ? onTap : null,
+            child: SizedBox.square(
+              dimension: 56,
+              child: Icon(
+                icon,
+                size: 28,
+                color: enabled ? _DiceTrayColors.coral : AppInk.iconFaint,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _playMat() {
+    return LayoutBuilder(
+      builder: (context, box) {
+        // 控制列已移出物理場，指標與邊界都改用骰盤自己的座標；保留上方結果卡
+        // 的呼吸空間，骰子不會滾到合計數字下面。
+        final topInset = box.maxHeight >= 210 ? 72.0 : 10.0;
+        _world.setBounds(
+          Rect.fromLTRB(
+            10,
+            topInset,
+            math.max(10.0, box.maxWidth - 10),
+            math.max(topInset + 1, box.maxHeight - 10),
+          ),
+          dieSizeFor(_count),
+        );
+
+        return Semantics(
+          container: true,
+          label: '骰子遊戲區。可以按住骰子移動，放開手指甩出去。',
+          child: Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_DiceTrayColors.matTop, _DiceTrayColors.matBottom],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: _DiceTrayColors.matBorder, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF8D6E63).withValues(alpha: 0.15),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  right: -32,
+                  top: -38,
+                  child: ExcludeSemantics(
+                    child: Container(
+                      width: 126,
+                      height: 126,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+                Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: _pointerDown,
+                  onPointerMove: _pointerMove,
+                  onPointerUp: (e) => _pointerUp(e.pointer),
+                  onPointerCancel: (e) => _pointerUp(e.pointer),
+                  child: CustomPaint(
+                    painter: _WorldPainter(_world),
+                    isComplex: true,
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 11),
+                    child: IgnorePointer(child: _totalCard()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _totalCard() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(scale: animation, child: child),
+      ),
+      child: !_showTotal
+          ? const SizedBox.shrink(key: ValueKey('no-total'))
+          : Semantics(
+              key: ValueKey('total-${_world.total}'),
+              container: true,
+              liveRegion: true,
+              label: '本次合計 ${_world.total} 點',
+              child: ExcludeSemantics(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 250),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppSurfaces.card.withValues(alpha: 0.96),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: _DiceTrayColors.amber.withValues(alpha: 0.55),
+                    ),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '本次合計',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: AppInk.soft,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '${_world.total}',
+                          style: AppType.digits(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w800,
+                            color: _DiceTrayColors.coral,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        const Text(
+                          '點',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: AppInk.soft,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _bottomPanel() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      decoration: BoxDecoration(
+        color: AppSurfaces.card.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppSurfaces.divider),
+        boxShadow: AppShadows.flat,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _throwButton(),
+          const SizedBox(height: 7),
+          const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.casino_rounded, size: 24, color: Color(0xFF241A12)),
-              SizedBox(width: 8),
-              Text(
-                '擲骰子',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF241A12),
+              Icon(
+                Icons.touch_app_rounded,
+                size: 18,
+                color: _DiceTrayColors.coral,
+              ),
+              SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  '想自己動手？按住骰子再甩出去！',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.15,
+                    fontWeight: FontWeight.w700,
+                    color: AppInk.soft,
+                  ),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _throwButton() {
+    final label = _world.hasBeenThrown ? '再骰一次' : '擲骰子';
+    return Tooltip(
+      message: '$label，擲出 $_count 顆骰子',
+      child: Semantics(
+        button: true,
+        enabled: _world.dice.isNotEmpty,
+        label: '$label，$_count 顆骰子',
+        hint: '啟用按鈕開始擲骰',
+        child: Material(
+          color: _DiceTrayColors.coral,
+          shape: const StadiumBorder(),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: _world.dice.isEmpty ? null : _throwAll,
+            child: SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.casino_rounded,
+                        size: 27,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 9),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

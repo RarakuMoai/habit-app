@@ -42,6 +42,7 @@ class _TableStagePageState extends State<TableStagePage>
   void initState() {
     super.initState();
     _engine = TableTimerEngine(widget.config)..onEvent = _handleEvent;
+    _engine.addListener(_syncWakeGuard);
     WakeGuard.acquire('gameTable');
     WidgetsBinding.instance.addObserver(this);
   }
@@ -49,6 +50,7 @@ class _TableStagePageState extends State<TableStagePage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _engine.removeListener(_syncWakeGuard);
     WakeGuard.release('gameTable');
     _engine.dispose();
     super.dispose();
@@ -58,7 +60,21 @@ class _TableStagePageState extends State<TableStagePage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // 桌上情境手機不該離開這頁；真的被切走（來電、鎖屏）就自動暫停，
     // 回來看到暫停層自己按繼續，不會偷跑時間。
-    if (state == AppLifecycleState.paused) _engine.pause();
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _engine.pause();
+    }
+  }
+
+  void _syncWakeGuard() {
+    if (_engine.phase == TablePhase.paused ||
+        _engine.phase == TablePhase.finished) {
+      WakeGuard.release('gameTable');
+    } else {
+      WakeGuard.acquire('gameTable');
+    }
   }
 
   // 時間驅動的提醒：桌遊專屬音效（木質 tick／沉鑼，2026-07 生成）。
@@ -106,10 +122,13 @@ class _TableStagePageState extends State<TableStagePage>
   /// 再來一局：同一份設定換一顆全新引擎，回到 ready。
   void _rematch() {
     final old = _engine;
+    old.removeListener(_syncWakeGuard);
     setState(() {
       _showSummary = false;
       _engine = TableTimerEngine(widget.config)..onEvent = _handleEvent;
+      _engine.addListener(_syncWakeGuard);
     });
+    WakeGuard.acquire('gameTable');
     old.dispose();
   }
 
@@ -118,20 +137,25 @@ class _TableStagePageState extends State<TableStagePage>
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _confirmExit();
+        if (didPop) return;
+        if (_showDiceTray) {
+          setState(() => _showDiceTray = false);
+        } else {
+          _confirmExit();
+        }
       },
       child: Scaffold(
         backgroundColor: TableTheme.feltEdge,
         body: DecoratedBox(
-          // 後備漸層：CG 還沒解碼完成的第一幀也不會閃白
           decoration: TableTheme.feltBackground(),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // AI 生成絨布桌 CG＋保底暗角（光影特效照慣例 Flutter 端疊）
               const RepaintBoundary(
                 child: Image(
-                  image: AssetImage(TableTheme.feltAsset),
+                  image: AssetImage(
+                    'assets/scenes/game/game_family_table_bg.png',
+                  ),
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
                 ),
@@ -157,10 +181,8 @@ class _TableStagePageState extends State<TableStagePage>
                         )
                       else
                         PartyFace(key: ObjectKey(_engine), engine: _engine),
-                      // 角落小鍵蓋在整面觸控區上方（吸收點擊，不觸發換人）。
-                      // 棋鐘的控制在中央窄帶，這裡只給多人/自由模式。
-                      // 注意 Stack 是 expand：一定要 Align 回頂部，不然 Row
-                      // 會被撐滿整頁、按鈕垂直置中。
+                      // 清楚標字的控制蓋在整面交棒區上方，避免兒童或長者
+                      // 猜測純 icon；棋鐘的控制留在中央帶。
                       if (!chess)
                         SafeArea(
                           child: Align(
@@ -171,38 +193,28 @@ class _TableStagePageState extends State<TableStagePage>
                                 vertical: 6,
                               ),
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  _CornerButton(
+                                  _StageActionButton(
                                     icon: Icons.close_rounded,
+                                    label: '離開',
                                     onTap: _confirmExit,
                                   ),
-                                  _CornerButton(
+                                  const Spacer(),
+                                  _StageActionButton(
                                     icon: Icons.pause_rounded,
+                                    label: '暫停',
                                     onTap: _engine.phase == TablePhase.running
                                         ? _engine.pause
                                         : null,
                                   ),
+                                  const SizedBox(width: 8),
+                                  _StageActionButton(
+                                    icon: Icons.casino_rounded,
+                                    label: '骰子',
+                                    onTap: () =>
+                                        setState(() => _showDiceTray = true),
+                                  ),
                                 ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      // 骰子鈕：party/free 放右下角（棋鐘在中央帶）
-                      if (!chess)
-                        SafeArea(
-                          child: Align(
-                            alignment: Alignment.bottomRight,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 6,
-                              ),
-                              child: _CornerButton(
-                                icon: Icons.casino_rounded,
-                                onTap: () =>
-                                    setState(() => _showDiceTray = true),
                               ),
                             ),
                           ),
@@ -231,41 +243,80 @@ class _TableStagePageState extends State<TableStagePage>
   }
 }
 
-/// 角落半透明圓鍵（✕ / ⏸）。
-class _CornerButton extends StatelessWidget {
+/// 對局工具鈕：文字＋圖示、至少 48px，並提供完整輔助說明。
+class _StageActionButton extends StatelessWidget {
   final IconData icon;
+  final String label;
   final VoidCallback? onTap;
 
-  const _CornerButton({required this.icon, this.onTap});
+  const _StageActionButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0x2EF6ECDD),
-      shape: const CircleBorder(),
+    final enabled = onTap != null;
+    final button = Material(
+      color: enabled
+          ? AppSurfaces.card.withValues(alpha: 0.94)
+          : AppSurfaces.fill.withValues(alpha: 0.82),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: enabled ? TableTheme.tableDivider : AppSurfaces.divider,
+        ),
+      ),
+      elevation: enabled ? 1 : 0,
+      shadowColor: const Color(0x338D6E63),
       child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap == null
-            ? null
-            : () {
+        customBorder: const StadiumBorder(),
+        onTap: enabled
+            ? () {
                 playHaptic(HapticLevel.selection);
                 onTap!();
-              },
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Icon(
-            icon,
-            size: 22,
-            color: onTap == null ? TableTheme.inkFaint : TableTheme.inkStrong,
+              }
+            : null,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48, minWidth: 76),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 13),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 21,
+                  color: enabled ? TableTheme.tableInkStrong : AppInk.iconFaint,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: enabled
+                        ? TableTheme.tableInkStrong
+                        : AppInk.iconFaint,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: label,
+      child: Tooltip(message: label, child: button),
+    );
   }
 }
 
-/// 暫停霧面層：模糊桌面上蓋一張 app 本體的暖紙卡片——
-/// 對局中的「休息角落」，把兔咪世界的溫度帶進深色桌面。
+/// 暫停霧面層：兔咪陪大家歇一下，所有修正操作都用完整文字表達。
 class _PauseOverlay extends StatelessWidget {
   final TableTimerEngine engine;
   final Future<void> Function() onExit;
@@ -279,7 +330,7 @@ class _PauseOverlay extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
         child: ColoredBox(
-          color: const Color(0x8C1A120C),
+          color: const Color(0x665E8B79),
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -288,36 +339,59 @@ class _PauseOverlay extends StatelessWidget {
                   vertical: 20,
                 ),
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 330),
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
                   decoration: BoxDecoration(
                     color: AppSurfaces.card,
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x59120B06),
-                        blurRadius: 30,
-                        offset: Offset(0, 12),
+                        color: Color(0x338D6E63),
+                        blurRadius: 24,
+                        offset: Offset(0, 10),
                       ),
                     ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 54,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          color: seat.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
+                      SizedBox(
+                        height: 82,
+                        child: Stack(
+                          alignment: Alignment.bottomCenter,
+                          children: [
+                            Image.asset(
+                              'assets/mascot/core/tumi_sleep.png',
+                              width: 92,
+                              height: 92,
+                              fit: BoxFit.contain,
+                              semanticLabel: '兔咪陪你休息一下',
+                            ),
+                            Positioned(
+                              right: 2,
+                              top: 0,
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: seat.withValues(alpha: 0.14),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.pause_rounded,
+                                  size: 22,
+                                  color: seat,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        child: Icon(Icons.pause_rounded, size: 30, color: seat),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       const Text(
-                        '暫停中',
+                        '先休息一下',
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 22,
                           fontWeight: FontWeight.w900,
                           color: AppInk.strong,
                         ),
@@ -341,7 +415,7 @@ class _PauseOverlay extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 14.5,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w800,
                                 color: AppInk.strong,
                               ),
@@ -351,12 +425,13 @@ class _PauseOverlay extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       const Text(
-                        '喝口水休息一下，回來再繼續',
-                        style: TextStyle(fontSize: 12.5, color: AppInk.soft),
+                        '時間已經停住，準備好再繼續就可以了。',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14.5, color: AppInk.soft),
                       ),
                       const SizedBox(height: 18),
                       _cardButton(
-                        label: '繼續',
+                        label: '繼續這一局',
                         icon: Icons.play_arrow_rounded,
                         background: seat,
                         foreground: Colors.white,
@@ -365,28 +440,22 @@ class _PauseOverlay extends StatelessWidget {
                         onTap: engine.resume,
                       ),
                       const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _cardButton(
-                              label: '回上一位',
-                              icon: Icons.undo_rounded,
-                              onTap: engine.canUndo ? engine.undo : null,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _cardButton(
-                              label: '重開回合',
-                              icon: Icons.replay_rounded,
-                              onTap: engine.restartTurn,
-                            ),
-                          ),
-                        ],
+                      _cardButton(
+                        label: '回到上一位',
+                        icon: Icons.undo_rounded,
+                        height: 50,
+                        onTap: engine.canUndo ? engine.undo : null,
+                      ),
+                      const SizedBox(height: 8),
+                      _cardButton(
+                        label: '這回合重新計時',
+                        icon: Icons.replay_rounded,
+                        height: 50,
+                        onTap: engine.restartTurn,
                       ),
                       const SizedBox(height: 4),
                       _cardButton(
-                        label: '結束對局',
+                        label: '結束這一局',
                         icon: Icons.stop_rounded,
                         foreground: AppInk.danger,
                         flat: true,
@@ -411,12 +480,12 @@ class _PauseOverlay extends StatelessWidget {
     Color? background,
     Color? foreground,
     bool flat = false,
-    double height = 46,
+    double height = 48,
     double fontSize = 14.5,
   }) {
     final enabled = onTap != null;
     final fg = !enabled ? AppInk.iconFaint : (foreground ?? AppInk.strong);
-    return Material(
+    final button = Material(
       color: background ?? (flat ? Colors.transparent : AppSurfaces.fill),
       shape: StadiumBorder(
         side: background != null || flat
@@ -451,6 +520,12 @@ class _PauseOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: label,
+      child: Tooltip(message: label, child: button),
     );
   }
 }
