@@ -92,7 +92,16 @@ class _GameTimerState extends State<GameTimer> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        if (box.maxHeight < _compactHeight) return _buildCompact();
+        // 判斷縮小門檻時把鍵盤高度加回來：鍵盤彈出會把卡片壓過門檻，
+        // 若因此切成縮小卡，設定頁 state（連同輸入對話框按確定後的
+        // 存檔）會整個被銷毀——「常用玩家存不進去、改名無效、畫面
+        // 捲回頂部」全是這條路（2026-07-10 修）。Scaffold 已吃掉
+        // viewInsets，直接讀 View 原始值；且必須在 LayoutBuilder 的
+        // builder 裡讀——GameTimer 是 const 建構，鍵盤出現時只有
+        // 這個 builder 會因約束變化重跑，外層 build 不會。
+        final view = View.of(context);
+        final keyboard = view.viewInsets.bottom / view.devicePixelRatio;
+        if (box.maxHeight + keyboard < _compactHeight) return _buildCompact();
         return _buildFull();
       },
     );

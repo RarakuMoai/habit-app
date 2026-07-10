@@ -56,9 +56,12 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
   void _apply(TableTimerConfig next) {
     // 每回合時間變短時把倒數提醒一起夾回（warn 必須 < 每回合時間）
     final fixed = next.clampWarn();
-    setState(() => _config = fixed);
+    // 先寫 prefs 再 setState：對話框開著時面板可能被親層換掉銷毀
+    // （鍵盤壓縮門檻的歷史教訓），存檔不能押在 state 還活著上。
+    _config = fixed;
     TableStore.saveConfig(widget.prefs, fixed);
     widget.onConfigChanged(fixed);
+    if (mounted) setState(() {});
   }
 
   void _saveRoster() {
@@ -109,91 +112,27 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
 
   Future<void> _renamePlayer(int i) async {
     final player = _config.players[i];
-    final controller = TextEditingController(text: player.name);
-    var addToRoster = false;
-
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<_NameInputResult>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialog) => AlertDialog(
-          title: const Text('玩家名字'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                maxLength: 12,
-                decoration: const InputDecoration(hintText: '輸入名字'),
-              ),
-              if (_roster.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                const Text(
-                  '從常用玩家帶入',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppInk.soft,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final name in _roster)
-                      _pickChip(
-                        name,
-                        onTap: () => setDialog(() => controller.text = name),
-                      ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 6),
-              InkWell(
-                onTap: () => setDialog(() => addToRoster = !addToRoster),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      addToRoster
-                          ? Icons.check_box_rounded
-                          : Icons.check_box_outline_blank_rounded,
-                      size: 20,
-                      color: addToRoster ? kGameAccent : AppInk.iconFaint,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      '同時存入常用玩家',
-                      style: TextStyle(fontSize: 13.5, color: AppInk.soft),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('確定'),
-            ),
-          ],
-        ),
+      builder: (_) => _NameInputDialog(
+        title: '玩家名字',
+        hint: '輸入名字',
+        maxLength: 12,
+        confirmLabel: '確定',
+        initial: player.name,
+        suggestions: _roster,
+        askAddToRoster: true,
       ),
     );
-
-    final name = controller.text.trim();
-    controller.dispose();
-    if (confirmed != true || name.isEmpty) return;
+    if (result == null) return;
 
     final next = List.of(_config.players);
-    next[i] = player.copyWith(name: name);
+    next[i] = player.copyWith(name: result.name);
     _apply(_config.copyWith(players: next));
-    if (addToRoster && !_roster.contains(name)) {
-      setState(() => _roster.add(name));
+    if (result.addToRoster && !_roster.contains(result.name)) {
+      _roster.add(result.name);
       _saveRoster();
+      if (mounted) setState(() {});
     }
   }
 
@@ -211,30 +150,17 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     required String initial,
     required String confirmLabel,
   }) async {
-    final controller = TextEditingController(text: initial);
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<_NameInputResult>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 20,
-          decoration: const InputDecoration(hintText: '組合名稱'),
-        ),
-        actions: [
-          dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(confirmLabel),
-          ),
-        ],
+      builder: (_) => _NameInputDialog(
+        title: title,
+        hint: '組合名稱',
+        maxLength: 20,
+        confirmLabel: confirmLabel,
+        initial: initial,
       ),
     );
-    final name = controller.text.trim();
-    controller.dispose();
-    if (confirmed != true || name.isEmpty) return null;
-    return name;
+    return result?.name;
   }
 
   Future<void> _saveCurrentAsPreset() async {
@@ -246,8 +172,9 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
     if (name == null) return;
     playFeedback(SfxCue.success);
-    setState(() => _presets.add(TablePreset(name: name, config: _config)));
+    _presets.add(TablePreset(name: name, config: _config));
     _savePresets();
+    if (mounted) setState(() {});
   }
 
   void _applyPreset(TablePreset preset) {
@@ -264,10 +191,9 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     if (name == null) return;
     final i = _presets.indexOf(preset);
     if (i < 0) return;
-    setState(() {
-      _presets[i] = TablePreset(name: name, config: preset.config);
-    });
+    _presets[i] = TablePreset(name: name, config: preset.config);
     _savePresets();
+    if (mounted) setState(() {});
   }
 
   /// 長按或點 ⋯：改名 / 刪除 選單。
@@ -349,37 +275,27 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
         await _renamePreset(preset);
       case 'delete':
         playFeedback(SfxCue.cancel);
-        setState(() => _presets.remove(preset));
+        _presets.remove(preset);
         _savePresets();
+        if (mounted) setState(() {});
     }
   }
 
   Future<void> _addRosterName() async {
-    final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<_NameInputResult>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('新增常用玩家'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 12,
-          decoration: const InputDecoration(hintText: '輸入名字'),
-        ),
-        actions: [
-          dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('新增'),
-          ),
-        ],
+      builder: (_) => const _NameInputDialog(
+        title: '新增常用玩家',
+        hint: '輸入名字',
+        maxLength: 12,
+        confirmLabel: '新增',
       ),
     );
-    final name = controller.text.trim();
-    controller.dispose();
-    if (confirmed != true || name.isEmpty || _roster.contains(name)) return;
-    setState(() => _roster.add(name));
+    final name = result?.name;
+    if (name == null || _roster.contains(name)) return;
+    _roster.add(name);
     _saveRoster();
+    if (mounted) setState(() {});
   }
 
   // ── build ────────────────────────────────────────────────
@@ -453,31 +369,16 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                     selected: _config.turnSeconds == s,
                     onTap: () => _apply(_config.copyWith(turnSeconds: s)),
                   ),
+                _customTimeChip(
+                  presets: _turnPresets,
+                  title: '自訂每回合時間',
+                  step: 5,
+                  min: TableTimerConfig.minTurnSeconds,
+                  max: TableTimerConfig.maxTurnSeconds,
+                  read: () => _config.turnSeconds,
+                  write: (v) => _apply(_config.copyWith(turnSeconds: v)),
+                ),
               ],
-            ),
-            const SizedBox(height: 8),
-            _stepperRow(
-              text: _secondsText(_config.turnSeconds),
-              onMinus: _config.turnSeconds > TableTimerConfig.minTurnSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        turnSeconds: (_config.turnSeconds - 5).clamp(
-                          TableTimerConfig.minTurnSeconds,
-                          TableTimerConfig.maxTurnSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
-              onPlus: _config.turnSeconds < TableTimerConfig.maxTurnSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        turnSeconds: (_config.turnSeconds + 5).clamp(
-                          TableTimerConfig.minTurnSeconds,
-                          TableTimerConfig.maxTurnSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
             ),
           ],
           if (_config.usesBank) ...[
@@ -494,31 +395,16 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                     selected: _config.bankSeconds == s,
                     onTap: () => _apply(_config.copyWith(bankSeconds: s)),
                   ),
+                _customTimeChip(
+                  presets: _bankPresets,
+                  title: '自訂每人總時間',
+                  step: 30,
+                  min: TableTimerConfig.minBankSeconds,
+                  max: TableTimerConfig.maxBankSeconds,
+                  read: () => _config.bankSeconds,
+                  write: (v) => _apply(_config.copyWith(bankSeconds: v)),
+                ),
               ],
-            ),
-            const SizedBox(height: 8),
-            _stepperRow(
-              text: _secondsText(_config.bankSeconds),
-              onMinus: _config.bankSeconds > TableTimerConfig.minBankSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        bankSeconds: (_config.bankSeconds - 30).clamp(
-                          TableTimerConfig.minBankSeconds,
-                          TableTimerConfig.maxBankSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
-              onPlus: _config.bankSeconds < TableTimerConfig.maxBankSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        bankSeconds: (_config.bankSeconds + 30).clamp(
-                          TableTimerConfig.minBankSeconds,
-                          TableTimerConfig.maxBankSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
             ),
             const SizedBox(height: 20),
             _sectionTitle('每手加秒（Fischer）', caption: '時間用盡＝旗倒直接分勝負；走完一手可加回幾秒'),
@@ -538,12 +424,9 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
           ],
           if (!free) ...[
             const SizedBox(height: 20),
-            _sectionTitle(
-              '倒數提醒',
-              caption: _config.usesBank
-                  ? '剩幾秒開始提醒（要比每人總時間短）'
-                  : '剩幾秒開始提醒（要比每回合時間短）',
-            ),
+            // 倒數提醒只給預設檔位（不開自訂）：超過上限的檔位自動藏起，
+            // 不需要另外用文字解釋「要比回合時間短」。
+            _sectionTitle('倒數提醒'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -557,20 +440,6 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                       onTap: () => _apply(_config.copyWith(warnSeconds: s)),
                     ),
               ],
-            ),
-            const SizedBox(height: 8),
-            _stepperRow(
-              text: '剩 ${_config.warnSeconds} 秒',
-              onMinus: _config.warnSeconds > TableTimerConfig.minWarnSeconds
-                  ? () => _apply(
-                      _config.copyWith(warnSeconds: _config.warnSeconds - 1),
-                    )
-                  : null,
-              onPlus: _config.warnSeconds < _config.warnCap
-                  ? () => _apply(
-                      _config.copyWith(warnSeconds: _config.warnSeconds + 1),
-                    )
-                  : null,
             ),
             const SizedBox(height: 10),
             if (!_config.usesBank)
@@ -624,7 +493,7 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
             runSpacing: 8,
             children: [
               for (final name in _roster) _rosterChip(name),
-              _pickChip('＋ 新增', onTap: _addRosterName, accent: true),
+              _tonalChip('＋ 新增', onTap: _addRosterName, accent: true),
             ],
           ),
         ]),
@@ -1354,35 +1223,150 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     return r == 0 ? '$m 分' : '$m 分 $r 秒';
   }
 
-  /// 自訂步進列：點一下 ±step、按住連發；到極值自動停用。
-  Widget _stepperRow({
-    required String text,
-    VoidCallback? onMinus,
-    VoidCallback? onPlus,
+  /// 「自訂」chip：值落在預設檔位外時亮起並直接顯示目前值，
+  /// 點了開步進 sheet（同番茄鐘慣例：純步進器、不出鍵盤）。
+  Widget _customTimeChip({
+    required List<int> presets,
+    required String title,
+    required int step,
+    required int min,
+    required int max,
+    required int Function() read,
+    required ValueChanged<int> write,
   }) {
-    return Row(
-      children: [
-        const Text(
-          '自訂',
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w700,
-            color: AppInk.soft,
-          ),
-        ),
-        const Spacer(),
-        _stepBtn(Icons.remove_rounded, onTrigger: onMinus),
-        SizedBox(
-          width: 96,
-          child: Center(
-            child: Text(
-              text,
-              style: AppType.digits(fontSize: 17, color: AppInk.strong),
+    final value = read();
+    final custom = !presets.contains(value);
+    return _valueChip(
+      custom ? '自訂 ${_secondsText(value)}' : '自訂',
+      selected: custom,
+      onTap: () => _openCustomTimeSheet(
+        title: title,
+        step: step,
+        min: min,
+        max: max,
+        read: read,
+        write: write,
+      ),
+    );
+  }
+
+  /// 自訂時間 sheet：大字目前值＋按住連發的 ±step、「完成」固定在底。
+  /// 改值走 _apply 即改即存，關掉 sheet 不需要任何確認。
+  Future<void> _openCustomTimeSheet({
+    required String title,
+    required int step,
+    required int min,
+    required int max,
+    required int Function() read,
+    required ValueChanged<int> write,
+  }) async {
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final v = read();
+          void change(int next) {
+            write(next.clamp(min, max));
+            setSheet(() {});
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppSurfaces.card,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: kGameAccent.withValues(alpha: 0.18),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppSurfaces.dragHandle,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _stepBtn(
+                            Icons.remove_rounded,
+                            onTrigger: v > min ? () => change(read() - step) : null,
+                          ),
+                          SizedBox(
+                            width: 150,
+                            child: Center(
+                              child: Text(
+                                _secondsText(v),
+                                style: AppType.digits(
+                                  fontSize: 30,
+                                  color: AppInk.strong,
+                                ),
+                              ),
+                            ),
+                          ),
+                          _stepBtn(
+                            Icons.add_rounded,
+                            onTrigger: v < max ? () => change(read() + step) : null,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '每格 ${_secondsText(step)}，按住可以快轉',
+                        style: const TextStyle(fontSize: 12, color: AppInk.soft),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: kGameAccent,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          child: const Text('完成'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-        _stepBtn(Icons.add_rounded, onTrigger: onPlus),
-      ],
+          );
+        },
+      ),
     );
   }
 
@@ -1398,11 +1382,11 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
           shape: BoxShape.circle,
         ),
         child: SizedBox(
-          width: 36,
-          height: 36,
+          width: 44,
+          height: 44,
           child: Icon(
             icon,
-            size: 19,
+            size: 22,
             color: active ? kGameAccent : AppInk.iconFaint,
           ),
         ),
@@ -1479,38 +1463,6 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
   }
 
-  Widget _pickChip(
-    String label, {
-    required VoidCallback onTap,
-    bool accent = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-        decoration: BoxDecoration(
-          color: accent
-              ? kGameAccent.withValues(alpha: 0.10)
-              : AppSurfaces.fill,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: accent
-                ? kGameAccent.withValues(alpha: 0.35)
-                : AppSurfaces.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: accent ? kGameAccent : AppInk.strong,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _rosterChip(String name) {
     return Container(
       padding: const EdgeInsets.only(left: 13, right: 6, top: 4, bottom: 4),
@@ -1548,6 +1500,167 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 淡染小 chip（常用玩家「＋ 新增」、對話框帶入候選共用）。
+Widget _tonalChip(
+  String label, {
+  required VoidCallback onTap,
+  bool accent = false,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+      decoration: BoxDecoration(
+        color: accent ? kGameAccent.withValues(alpha: 0.10) : AppSurfaces.fill,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: accent
+              ? kGameAccent.withValues(alpha: 0.35)
+              : AppSurfaces.divider,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: accent ? kGameAccent : AppInk.strong,
+        ),
+      ),
+    ),
+  );
+}
+
+/// 輸入對話框的結果：名字＋是否同時存入常用玩家。
+typedef _NameInputResult = ({String name, bool addToRoster});
+
+/// 名字／名稱輸入對話框。
+///
+/// TextEditingController 由對話框自己持有、在 State.dispose 釋放——
+/// 呼叫端「await 完就 dispose」會在退場動畫還在 build 這顆 controller
+/// 時炸掉（2026-07-10 修）。空白輸入視同取消（pop null）。
+class _NameInputDialog extends StatefulWidget {
+  final String title;
+  final String hint;
+  final int maxLength;
+  final String confirmLabel;
+  final String initial;
+
+  /// 一鍵帶入的候選名（玩家改名用）；空＝不顯示。
+  final List<String> suggestions;
+
+  /// 顯示「同時存入常用玩家」勾選（玩家改名用）。
+  final bool askAddToRoster;
+
+  const _NameInputDialog({
+    required this.title,
+    required this.hint,
+    required this.maxLength,
+    required this.confirmLabel,
+    this.initial = '',
+    this.suggestions = const [],
+    this.askAddToRoster = false,
+  });
+
+  @override
+  State<_NameInputDialog> createState() => _NameInputDialogState();
+}
+
+class _NameInputDialogState extends State<_NameInputDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+  bool _addToRoster = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _confirm() {
+    final name = _controller.text.trim();
+    Navigator.pop<_NameInputResult>(
+      context,
+      name.isEmpty ? null : (name: name, addToRoster: _addToRoster),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: widget.maxLength,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _confirm(),
+            decoration: InputDecoration(
+              hintText: widget.hint,
+              counterText: '',
+            ),
+          ),
+          if (widget.suggestions.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            const Text(
+              '從常用玩家帶入',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: AppInk.soft,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final name in widget.suggestions)
+                  _tonalChip(
+                    name,
+                    onTap: () => setState(() => _controller.text = name),
+                  ),
+              ],
+            ),
+          ],
+          if (widget.askAddToRoster) ...[
+            const SizedBox(height: 6),
+            InkWell(
+              onTap: () => setState(() => _addToRoster = !_addToRoster),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _addToRoster
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    size: 20,
+                    color: _addToRoster ? kGameAccent : AppInk.iconFaint,
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    '同時存入常用玩家',
+                    style: TextStyle(fontSize: 13.5, color: AppInk.soft),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        dialogCancelAction(context),
+        TextButton(onPressed: _confirm, child: Text(widget.confirmLabel)),
+      ],
     );
   }
 }

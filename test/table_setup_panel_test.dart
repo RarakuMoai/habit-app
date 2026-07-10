@@ -85,4 +85,68 @@ void main() {
     expect(find.text('剩 20 秒'), findsOneWidget);
     expect(find.text('剩 30 秒'), findsNothing); // cap = 29
   });
+
+  testWidgets('對話框開著時面板被換掉，「新增」仍把常用玩家存進 prefs', (tester) async {
+    // 迴歸：鍵盤彈出壓縮卡片 → 面板被換成縮小卡（state 銷毀）→
+    // 對話框按確定後什麼都沒存（2026-07-10 修）。
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    tester.view.physicalSize = const Size(800, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final show = ValueNotifier(true);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder<bool>(
+            valueListenable: show,
+            builder: (_, v, _) => v
+                ? TableSetupPanel(prefs: prefs, onConfigChanged: (_) {})
+                : const SizedBox(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('＋ 新增'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '小兔');
+
+    // 對話框還開著，把面板從樹上換掉（模擬縮小卡頂替）
+    show.value = false;
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('新增'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(TableStore.loadRoster(prefs), contains('小兔'));
+  });
+
+  testWidgets('自訂 sheet：步進調整每回合時間並即改即存', (tester) async {
+    final prefs = await pumpPanel(tester);
+
+    await tester.tap(find.text('自訂'));
+    await tester.pumpAndSettle();
+    expect(find.text('自訂每回合時間'), findsOneWidget);
+
+    // 預設 60 秒，+5 → 65 秒；sheet 大字即時更新
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byIcon(Icons.add_rounded),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 分 5 秒'), findsWidgets);
+
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(TableStore.loadConfig(prefs).turnSeconds, 65);
+    // 值落在預設檔位外：自訂 chip 亮起並顯示目前值
+    expect(find.text('自訂 1 分 5 秒'), findsOneWidget);
+  });
 }
