@@ -29,13 +29,13 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   // 點擊波紋：從點擊落點擴散一圈新玩家色光波。
   late final AnimationController _ripple;
   Offset? _rippleCenter; // null = 從畫面中心（自動換人時）
-  Color _rippleColor = TableTheme.inkSoft;
+  Color _rippleColor = TableTheme.tableInkSoft;
 
   // 接力光點：換人時沿座位環從舊座位「傳」到新座位的彗尾光點。
   late final AnimationController _relay;
   double _relayFromAngle = 0;
   double _relaySweep = 0;
-  Color _relayColor = TableTheme.inkSoft;
+  Color _relayColor = TableTheme.tableInkSoft;
 
   int _lastTurnCount = 0;
   int _lastIndex = 0;
@@ -320,7 +320,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
                 fontSize: 14.5,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 2,
-                color: engine.inOvertime ? accent : TableTheme.inkFaint,
+                color: engine.inOvertime ? accent : TableTheme.tableInkFaint,
               ),
             ),
         ],
@@ -368,7 +368,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
-            border: Border.all(color: TableTheme.inkStrong, width: 2),
+            border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
                 color: color.withValues(alpha: 0.5 + 0.35 * _breath.value),
@@ -387,7 +387,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
           color: color.withValues(alpha: 0.78),
           shape: BoxShape.circle,
           border: isNext
-              ? Border.all(color: TableTheme.inkSoft, width: 1.6)
+              ? Border.all(color: TableTheme.tableInkSoft, width: 1.6)
               : null,
         ),
       );
@@ -414,14 +414,14 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: TableTheme.inkFaint,
+            color: TableTheme.tableInkFaint,
           ),
         ),
         const SizedBox(width: 8),
         const Icon(
           Icons.arrow_right_alt_rounded,
           size: 20,
-          color: TableTheme.inkFaint,
+          color: TableTheme.tableInkFaint,
         ),
         const SizedBox(width: 8),
         _dot(TableTheme.seatColor(next.colorIndex), 10),
@@ -435,7 +435,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
             style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w900,
-              color: TableTheme.inkSoft,
+              color: TableTheme.tableInkSoft,
             ),
           ),
         ),
@@ -444,21 +444,21 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   }
 
   Widget _footer(bool ready) {
-    // 待機：暖色小膠囊當開局邀請（貼紙 icon 在深色桌上像硬貼的，不用）。
+    // 待機：暖紙小膠囊當開局邀請。
     if (ready) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0x1AF6ECDD),
+          color: AppSurfaces.card.withValues(alpha: 0.90),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: TableTheme.hairline),
+          border: Border.all(color: TableTheme.tableDivider),
         ),
         child: const Text(
           '準備好了就點桌面開始',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w800,
-            color: TableTheme.inkStrong,
+            color: TableTheme.tableInkStrong,
           ),
         ),
       );
@@ -470,13 +470,16 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: TableTheme.inkFaint,
+            color: TableTheme.tableInkFaint,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           '第 ${engine.turnCount} 手',
-          style: AppType.digits(fontSize: 12.5, color: TableTheme.inkFaint),
+          style: AppType.digits(
+            fontSize: 12.5,
+            color: TableTheme.tableInkFaint,
+          ),
         ),
       ],
     );
@@ -516,16 +519,16 @@ class _DialPainter extends CustomPainter {
     final stroke = math.max(10.0, shortest * 0.045);
     final radius = shortest / 2 - stroke;
 
-    // 呼吸光暈（畫最底層）
+    // 呼吸光暈（畫最底層；淺底上壓低一階，避免糊成粉彩）
     canvas.drawCircle(
       center,
       radius + stroke * 0.6,
       Paint()
-        ..color = color.withValues(alpha: (dimmed ? 0.10 : 0.16) * glow)
+        ..color = color.withValues(alpha: (dimmed ? 0.08 : 0.13) * glow)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
     );
 
-    // 絨布內盤：比桌面略亮一階，中央受光（配合暖光層再提亮一階）
+    // 暖紙內盤：比桌布再亮一階的奶油面，中央受光
     final discRect = Rect.fromCircle(center: center, radius: radius - stroke);
     canvas.drawCircle(
       center,
@@ -534,7 +537,7 @@ class _DialPainter extends CustomPainter {
         ..shader = RadialGradient(
           center: const Alignment(-0.2, -0.3),
           radius: 1.0,
-          colors: [const Color(0xFF4A3826), const Color(0xFF31241A)],
+          colors: [const Color(0xFFFFFDF6), const Color(0xFFF3E9D8)],
         ).createShader(discRect),
     );
 
@@ -545,7 +548,7 @@ class _DialPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke
-        ..color = const Color(0x1FF6ECDD),
+        ..color = const Color(0x1F6F6258),
     );
 
     // 進度弧（帶一層柔光）
@@ -640,7 +643,7 @@ class _RelayPainter extends CustomPainter {
       Paint()
         ..color = Color.lerp(
           color,
-          TableTheme.inkStrong,
+          Colors.white,
           0.35,
         )!.withValues(alpha: fade),
     );

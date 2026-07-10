@@ -24,6 +24,37 @@ import '../../../utils/sfx_service.dart';
 import 'dice_world.dart';
 import 'table_timer_theme.dart';
 
+/// 兔咪骰子屋：不開對局、只想骰骰子時的獨立全螢幕頁
+/// （入口卡「只骰骰子」直達）。骰盤刻意保留深色墊的質感，
+/// 這裡鋪一層深色絨布當底，overlay 原樣復用。
+class DiceTrayPage extends StatelessWidget {
+  const DiceTrayPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF19110B),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0, -0.15),
+                radius: 1.25,
+                colors: [Color(0xFF33261C), Color(0xFF19110B)],
+              ),
+            ),
+          ),
+          DiceTrayOverlay(
+            onClose: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class DiceTrayOverlay extends StatefulWidget {
   final VoidCallback onClose;
 

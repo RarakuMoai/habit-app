@@ -21,10 +21,14 @@ class TableSetupPanel extends StatefulWidget {
   /// 設定有任何改動（含套用常用組合）就回報最新版，入口卡同步摘要。
   final ValueChanged<TableTimerConfig> onConfigChanged;
 
+  /// 「只骰骰子」直達兔咪骰子屋（給的話，橫幅上出現骰子小鈕）。
+  final VoidCallback? onDice;
+
   const TableSetupPanel({
     super.key,
     required this.prefs,
     required this.onConfigChanged,
+    this.onDice,
   });
 
   @override
@@ -638,39 +642,96 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
   );
 
   /// 頁首：貼紙 icon＋名稱＋隨設定即時更新的一句話摘要。
+  /// 兔咪邀請橫幅：設定頁不是表單，是兔咪招呼大家上桌。
+  /// （展開狀態兔咪面板收合、本尊不在場，這裡由邀請差分補上兔咪感。）
   Widget _header() {
-    return Row(
-      children: [
-        Image.asset('assets/icon/tabs/game_timer.png', width: 44, height: 44),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '桌遊計時器',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: AppInk.strong,
-                ),
+    return Semantics(
+      container: true,
+      label: '兔咪遊戲桌設定',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF8E8), Color(0xFFEAF6EC)],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: kGameAccent.withValues(alpha: 0.16)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '兔咪遊戲桌',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    '兔咪會幫忙記住每個人的回合，想好再換下一位。',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                  if (widget.onDice != null) ...[
+                    const SizedBox(height: 8),
+                    _diceChip(),
+                  ],
+                ],
               ),
-              const SizedBox(height: 1),
+            ),
+            const SizedBox(width: 6),
+            ExcludeSemantics(
+              child: Image.asset(
+                'assets/mascot/core/tumi_invite.png',
+                width: 84,
+                height: 84,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 橫幅上的「只骰骰子」小鈕：不開對局也能用骰盤。
+  Widget _diceChip() {
+    return Material(
+      color: AppSurfaces.card.withValues(alpha: 0.85),
+      shape: StadiumBorder(
+        side: BorderSide(color: kGameAccent.withValues(alpha: 0.28)),
+      ),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: widget.onDice,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.casino_rounded, size: 16, color: kGameAccentDark),
+              SizedBox(width: 5),
               Text(
-                '${_config.mode.label} · ${_config.activePlayers.length} 人 · '
-                '${_config.timeSummary}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                '只骰骰子',
+                style: TextStyle(
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppInk.soft,
+                  fontWeight: FontWeight.w900,
+                  color: kGameAccentDark,
                 ),
               ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -745,7 +806,7 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                     value: _warnSummary,
                     accent: _config.mode == TableGameMode.free
                         ? AppInk.soft
-                        : TableTheme.warn,
+                        : TableTheme.warnInk,
                   ),
                 ],
               );

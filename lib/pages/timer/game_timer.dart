@@ -1,10 +1,11 @@
-// 「遊戲」計時入口卡：桌遊計時器的兩種面貌。
+// 「遊戲」計時入口卡：兔咪遊戲桌的兩種面貌。
 //
 // 狀態定位（2026-07 UX 改版）：
 // - 縮小（兔咪面板展開）＝快速面板：看目前設定、一鍵開局、需要才進設定。
 // - 展開（兔咪面板收合）＝完整設定頁：玩家順位/時間/倒數提醒/常用組合
 //   全部住在卡片裡（TableSetupPanel），底部固定「完成＋開始對局」。
 // - 完整遊玩體驗在 push 進去的全螢幕桌面模式（TableStagePage）。
+// - 不開對局也能「只骰骰子」：直達兔咪骰子屋（DiceTrayPage）。
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,6 +13,7 @@ import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/mascot.dart';
 import '../../utils/sfx_service.dart';
+import 'game/dice_tray.dart';
 import 'game/table_setup_panel.dart';
 import 'game/table_stage_page.dart';
 import 'game/table_store.dart';
@@ -59,6 +61,17 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
+  /// 不開對局、只想骰骰子：直達兔咪骰子屋。
+  Future<void> _openDice() async {
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => const DiceTrayPage(),
+      ),
+    );
+  }
+
   /// 縮小狀態的「調整設定」：把卡片拉開＝進入完整設定頁。
   void _expandToSetup() {
     playFeedback(SfxCue.tap);
@@ -96,6 +109,7 @@ class _GameTimerState extends State<GameTimer> {
           child: TableSetupPanel(
             prefs: prefs,
             onConfigChanged: (c) => setState(() => _config = c),
+            onDice: _openDice,
           ),
         ),
         _footerBar(),
@@ -223,7 +237,7 @@ class _GameTimerState extends State<GameTimer> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '桌遊計時器',
+                        '兔咪遊戲桌',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
@@ -247,10 +261,20 @@ class _GameTimerState extends State<GameTimer> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _compactSetupButton(),
-                  const SizedBox(width: 10),
+                  _compactChipButton(
+                    icon: Icons.tune_rounded,
+                    label: '設定',
+                    onTap: _expandToSetup,
+                  ),
+                  const SizedBox(width: 8),
+                  _compactChipButton(
+                    icon: Icons.casino_rounded,
+                    label: '骰子',
+                    onTap: _openDice,
+                  ),
+                  const SizedBox(width: 8),
                   SizedBox(
-                    width: 168,
+                    width: 160,
                     child: _startButton(height: 46, fontSize: 15),
                   ),
                 ],
@@ -262,25 +286,29 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
-  Widget _compactSetupButton() {
+  Widget _compactChipButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return Material(
       color: AppSurfaces.fill,
       shape: const StadiumBorder(side: BorderSide(color: AppSurfaces.divider)),
       child: InkWell(
         customBorder: const StadiumBorder(),
-        onTap: _expandToSetup,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: SizedBox(
             height: 46,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.tune_rounded, size: 18, color: AppInk.soft),
-                SizedBox(width: 6),
+                Icon(icon, size: 18, color: AppInk.soft),
+                const SizedBox(width: 6),
                 Text(
-                  '設定',
-                  style: TextStyle(
+                  label,
+                  style: const TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w900,
                     color: AppInk.strong,

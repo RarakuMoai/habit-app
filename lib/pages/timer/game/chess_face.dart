@@ -119,21 +119,26 @@ class _ChessFaceState extends State<ChessFace>
               duration: const Duration(milliseconds: 260),
               curve: Curves.easeOut,
               decoration: BoxDecoration(
-                color: active ? TableTheme.panel : const Color(0xFF241A12),
+                // 旗倒側鋪淡紅、活側亮紙面、閒側半透明退進桌布
+                color: flagged
+                    ? const Color(0xFFFFECE8)
+                    : active
+                    ? TableTheme.panel
+                    : AppSurfaces.card.withValues(alpha: 0.62),
                 borderRadius: BorderRadius.circular(26),
                 border: Border.all(
                   color: active
-                      ? accent.withValues(alpha: 0.75)
-                      : TableTheme.hairline,
+                      ? accent.withValues(alpha: 0.72)
+                      : TableTheme.tableDivider,
                   width: active ? 2.4 : 1,
                 ),
                 boxShadow: active
                     ? [
                         BoxShadow(
                           color: accent.withValues(
-                            alpha: 0.22 + 0.18 * _breath.value,
+                            alpha: 0.15 + 0.12 * _breath.value,
                           ),
-                          blurRadius: 30 + 10 * _breath.value,
+                          blurRadius: 26 + 10 * _breath.value,
                         ),
                       ]
                     : null,
@@ -142,7 +147,7 @@ class _ChessFaceState extends State<ChessFace>
             );
           },
           child: Opacity(
-            opacity: active || ready ? 1.0 : 0.42,
+            opacity: active || ready ? 1.0 : 0.52,
             child: LayoutBuilder(
               builder: (context, box) {
                 return Column(
@@ -177,7 +182,7 @@ class _ChessFaceState extends State<ChessFace>
                           timeText,
                           maxLines: 1,
                           style: TableTheme.bigDigits(
-                            color: active ? accent : TableTheme.inkSoft,
+                            color: active ? accent : TableTheme.tableInkSoft,
                           ),
                         ),
                       ),
@@ -200,7 +205,7 @@ class _ChessFaceState extends State<ChessFace>
                                     style: TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w700,
-                                      color: TableTheme.inkFaint,
+                                      color: TableTheme.tableInkFaint,
                                     ),
                                   )
                                 : null),
@@ -251,7 +256,7 @@ class _ChessFaceState extends State<ChessFace>
         style: TextStyle(
           fontSize: 13.5,
           fontWeight: FontWeight.w800,
-          color: TableTheme.inkFaint,
+          color: TableTheme.tableInkFaint,
         ),
       );
     }
@@ -271,14 +276,20 @@ class _ChessFaceState extends State<ChessFace>
       '第 ${engine.turnCount} 手',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: AppType.digits(fontSize: 14, color: TableTheme.inkSoft),
+      style: AppType.digits(fontSize: 14, color: TableTheme.tableInkSoft),
     );
   }
 
   Widget _bandButton({required IconData icon, VoidCallback? onTap}) {
     return Material(
-      color: const Color(0x2EF6ECDD),
-      shape: const CircleBorder(),
+      color: AppSurfaces.card.withValues(alpha: 0.92),
+      shape: CircleBorder(
+        side: BorderSide(
+          color: onTap == null ? AppSurfaces.divider : TableTheme.tableDivider,
+        ),
+      ),
+      elevation: onTap == null ? 0 : 1,
+      shadowColor: const Color(0x338D6E63),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap == null
@@ -292,7 +303,9 @@ class _ChessFaceState extends State<ChessFace>
           child: Icon(
             icon,
             size: 20,
-            color: onTap == null ? TableTheme.inkFaint : TableTheme.inkStrong,
+            color: onTap == null
+                ? AppInk.iconFaint
+                : TableTheme.tableInkStrong,
           ),
         ),
       ),
