@@ -392,7 +392,9 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
       children: [
         _padded([
           _header(),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+          _matchSummary(),
+          const SizedBox(height: 16),
           _sectionTitle('常用組合', caption: '把玩家＋模式＋時間存成一組，下次一鍵套用'),
           const SizedBox(height: 8),
         ]),
@@ -672,6 +674,197 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
   }
 
+  /// 開局前摘要：把最影響對局的三件事先亮出來，讓設定頁不是只是一串控制。
+  Widget _matchSummary() {
+    final activePlayers = _config.activePlayers;
+    final seat = TableTheme.seatColor(activePlayers.first.colorIndex);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: kGameAccent.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kGameAccent.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.sports_esports_rounded,
+                size: 18,
+                color: kGameAccent,
+              ),
+              const SizedBox(width: 7),
+              const Text(
+                '本局摘要',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: AppInk.strong,
+                ),
+              ),
+              const Spacer(),
+              _summaryPill(
+                icon: _modeIcon(_config.mode),
+                label: _config.mode.label,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, box) {
+              final columns = box.maxWidth >= 420 ? 3 : 2;
+              final spacing = 8.0;
+              final width = (box.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  _summaryTile(
+                    width: width,
+                    icon: Icons.people_alt_rounded,
+                    label: '${activePlayers.length} 人出場',
+                    value: _playersSummary,
+                    accent: seat,
+                  ),
+                  _summaryTile(
+                    width: width,
+                    icon: _config.usesBank
+                        ? Icons.hourglass_bottom_rounded
+                        : Icons.timelapse_rounded,
+                    label: _config.usesBank ? '時間庫' : '回合時間',
+                    value: _config.timeSummary,
+                  ),
+                  _summaryTile(
+                    width: width,
+                    icon: _config.mode == TableGameMode.free
+                        ? Icons.all_inclusive_rounded
+                        : Icons.notifications_active_rounded,
+                    label: _config.mode == TableGameMode.free ? '節奏' : '提醒',
+                    value: _warnSummary,
+                    accent: _config.mode == TableGameMode.free
+                        ? AppInk.soft
+                        : TableTheme.warn,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryPill({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppSurfaces.card.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kGameAccent.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: kGameAccent),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+              color: AppInk.strong,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryTile({
+    required double width,
+    required IconData icon,
+    required String label,
+    required String value,
+    Color accent = kGameAccent,
+  }) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 64),
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
+        decoration: BoxDecoration(
+          color: AppSurfaces.card.withValues(alpha: 0.82),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: AppSurfaces.divider.withValues(alpha: 0.82),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 25,
+              height: 25,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.13),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 15, color: accent),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.12,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get _playersSummary {
+    final players = _config.activePlayers;
+    final names = players.take(3).map((p) => p.name).join('、');
+    if (players.length <= 3) return names;
+    return '$names 等 ${players.length} 人';
+  }
+
+  String get _warnSummary {
+    if (_config.mode == TableGameMode.free) return '不倒數，只記時間';
+    final warn = '剩 ${_config.warnSeconds} 秒';
+    if (_config.usesBank) return '$warn 旗倒';
+    return _config.autoAdvance ? '$warn 自動換人' : '$warn 手動換人';
+  }
+
   // ── 常用組合列 ───────────────────────────────────────────
 
   /// 橫向卡片列（全出血，自帶 20 水平 padding，卡片滑得出頁緣）：
@@ -695,15 +888,10 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
 
   /// 副標的一行摘要：模式小圖示＋「N 人 · 時間」（比全文字短，不易截斷）。
   Widget _presetDetail(TableTimerConfig c, {required Color color}) {
-    final icon = switch (c.mode) {
-      TableGameMode.party => Icons.groups_rounded,
-      TableGameMode.chess => Icons.swap_vert_rounded,
-      TableGameMode.free => Icons.all_inclusive_rounded,
-    };
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: color),
+        Icon(_modeIcon(c.mode), size: 13, color: color),
         const SizedBox(width: 4),
         Flexible(
           child: Text(
@@ -978,6 +1166,12 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
   }
 
   // ── 模式/計時制 ──────────────────────────────────────────
+
+  IconData _modeIcon(TableGameMode mode) => switch (mode) {
+    TableGameMode.party => Icons.groups_rounded,
+    TableGameMode.chess => Icons.swap_vert_rounded,
+    TableGameMode.free => Icons.all_inclusive_rounded,
+  };
 
   Widget _modeSwitch() {
     Widget seg(TableGameMode mode, IconData icon) {

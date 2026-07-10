@@ -38,6 +38,9 @@ void main() {
 
     expect(find.text('出場順位'), findsOneWidget);
     expect(find.text('由上到下輪流出場，按住 ≡ 拖曳調整'), findsOneWidget);
+    expect(find.text('本局摘要'), findsOneWidget);
+    expect(find.text('4 人出場'), findsOneWidget);
+    expect(find.text('每回合 1 分'), findsWidgets);
     expect(find.text('倒數提醒'), findsOneWidget);
     expect(find.text('常用組合'), findsOneWidget);
     expect(find.text('儲存目前設定'), findsOneWidget);

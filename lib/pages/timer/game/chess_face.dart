@@ -218,44 +218,60 @@ class _ChessFaceState extends State<ChessFace>
   /// 中央窄帶：暫停 / 手數 / 結束（雙向都看得懂的置中排法）。
   Widget _middleBand(bool ready) {
     return SizedBox(
-      height: 52,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _bandButton(icon: Icons.close_rounded, onTap: () => widget.onExit()),
-          const SizedBox(width: 26),
-          if (ready)
-            const Text(
-              '點自己那側開始',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                color: TableTheme.inkFaint,
-              ),
-            )
-          else if (engine.phase == TablePhase.finished)
-            Text(
-              '${engine.players[engine.flagFallIndex!].name} 時間到',
-              style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                color: TableTheme.overtime,
-              ),
-            )
-          else
-            Text(
-              '第 ${engine.turnCount} 手',
-              style: AppType.digits(fontSize: 14, color: TableTheme.inkSoft),
+      height: 54,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            _bandButton(
+              icon: Icons.close_rounded,
+              onTap: () => widget.onExit(),
             ),
-          const SizedBox(width: 26),
-          _bandButton(
-            icon: Icons.pause_rounded,
-            onTap: engine.phase == TablePhase.running ? widget.onPause : null,
-          ),
-          const SizedBox(width: 26),
-          _bandButton(icon: Icons.casino_rounded, onTap: widget.onDice),
-        ],
+            const SizedBox(width: 10),
+            Expanded(child: Center(child: _middleLabel(ready))),
+            const SizedBox(width: 10),
+            _bandButton(
+              icon: Icons.pause_rounded,
+              onTap: engine.phase == TablePhase.running ? widget.onPause : null,
+            ),
+            const SizedBox(width: 8),
+            _bandButton(icon: Icons.casino_rounded, onTap: widget.onDice),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _middleLabel(bool ready) {
+    if (ready) {
+      return const Text(
+        '點自己那側開始',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w800,
+          color: TableTheme.inkFaint,
+        ),
+      );
+    }
+    if (engine.phase == TablePhase.finished) {
+      return Text(
+        '${engine.players[engine.flagFallIndex!].name} 時間到',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w800,
+          color: TableTheme.overtime,
+        ),
+      );
+    }
+    return Text(
+      '第 ${engine.turnCount} 手',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppType.digits(fontSize: 14, color: TableTheme.inkSoft),
     );
   }
 
