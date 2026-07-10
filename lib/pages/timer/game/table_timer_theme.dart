@@ -1,108 +1,101 @@
-// 全螢幕桌面模式專屬視覺 token：深色絨布遊戲桌。
+// 全螢幕桌面模式專屬視覺 token：兔咪家的暖奶油遊戲桌。
 //
-// 這是刻意的「場景切換」——推入對戰面就像把手機放上一張高級遊戲桌，
-// 與 app 本體的暖紙質感形成儀式感對比；不是後場灰黑回潮。
-// 色彩仍守全 app 慣例:深色以暖棕為基底、不用純黑，發光不用純白。
+// 對局面延續 app 的暖紙、木質與鼠尾草綠，不再切進近黑賭場場景。
+// `inkStrong/Soft/Faint` 仍保留給不可修改的深色骰盤使用；新的淺色桌面
+// 請使用 `tableInk*`，避免骰盤的文字對比被連帶破壞。
 import 'package:flutter/material.dart';
 
 import '../../../utils/app_style.dart';
 
-/// 「遊戲」模式在 app 淺色世界裡的主色（計時頁分段鈕、入口卡用）。
-/// 深色對戰面有自己的色盤（TableTheme），不共用這顆。
-const Color kGameAccent = Color(0xFF5B8DEF);
+/// 「遊戲」模式在 app 淺色世界與家庭對局面共用的鼠尾草主色。
+const Color kGameAccent = Color(0xFF3F7868);
+const Color kGameAccentDark = Color(0xFF28594D);
 
 abstract final class TableTheme {
-  // ── 絨布桌面 ─────────────────────────────────────────────
-  /// 桌面中心（受光處）。
-  static const Color feltCenter = Color(0xFF33261C);
+  // ── 家庭遊戲桌 ───────────────────────────────────────────
+  static const Color feltCenter = Color(0xFFFFF8EC);
+  static const Color feltEdge = Color(0xFFDDE9E0);
+  static const Color panel = Color(0xFFFFFDF9);
 
-  /// 桌面邊緣（vignette 暗角）。
-  static const Color feltEdge = Color(0xFF19110B);
+  /// 淺色桌面的文字與描邊；皆可在奶油底上保持清楚可讀。
+  static const Color tableInkStrong = AppInk.strong;
+  static const Color tableInkSoft = Color(0xFF6F6258);
+  static const Color tableInkFaint = Color(0xFF796D63);
+  static const Color tableDivider = Color(0xFFD8CEC2);
 
-  /// 桌面上的浮起面板（暫停層卡片、棋鐘半面底）。
-  static const Color panel = Color(0xFF3C2D21);
-
-  /// 桌面用的描邊/分隔（奶油色低透明）。
-  static const Color hairline = Color(0x26F6ECDD);
-
-  // ── 深色面上的墨色階層（奶油系）────────────────────────────
+  /// 深色骰盤仍使用這組奶油墨色（骰盤檔案不屬於本次改造範圍）。
+  static const Color hairline = Color(0x3DF6ECDD);
   static const Color inkStrong = Color(0xFFF6ECDD);
-  static const Color inkSoft = Color(0xFFCBB9A4);
-  static const Color inkFaint = Color(0xFF8F7B67);
+  static const Color inkSoft = Color(0xFFD8C8B5);
+  static const Color inkFaint = Color(0xFFB9A58E);
 
-  // ── 玩家座位色（6 色寶石盤，深底調校：鮮明但不螢光）──────────
-  // 刻意避開警示色相：警示琥珀/猩紅要「一變色就看得出來」，
-  // 所以 1 號位不用珊瑚紅（跟猩紅撞色），改玫瑰粉。
+  // ── 玩家座位色（淺底可讀；UI 仍會同時顯示號碼與姓名）──────────
   static const List<Color> seatColors = [
-    Color(0xFFEE7FA5), // 玫瑰
-    Color(0xFFE9A94E), // 琥珀
-    Color(0xFF83C58F), // 苔玉
-    Color(0xFF5FBFCB), // 青瓷
-    Color(0xFF8B9BEF), // 藍紫
-    Color(0xFFCE8FDC), // 莓紫
+    Color(0xFFA84262), // 玫瑰
+    Color(0xFF8B611B), // 蜂蜜棕
+    Color(0xFF3F744E), // 苔玉綠
+    Color(0xFF2F7078), // 青瓷藍
+    Color(0xFF4E5FA6), // 藍紫
+    Color(0xFF765084), // 莓紫
   ];
 
   static Color seatColor(int index) => seatColors[index % seatColors.length];
 
-  // ── 警示色階（正常時用玩家座位色）────────────────────────────
-  /// 剩 warnSeconds 秒：明顯提醒。
-  static const Color warn = Color(0xFFE9A94E);
+  // ── 警示色階 ─────────────────────────────────────────────
+  /// 骰盤實色按鈕使用的柔和蜂蜜色。
+  static const Color warn = Color(0xFFE4AE4B);
 
-  /// 加強提醒（每秒脈動）。深猩紅：與所有座位色拉開色相。
-  static const Color critical = Color(0xFFE8452F);
+  /// 淺色桌面上的提醒文字／倒數弧。
+  static const Color warnInk = Color(0xFF956313);
+  static const Color critical = Color(0xFFB74736);
+  static const Color overtime = Color(0xFFA93D32);
 
-  /// 超時。
-  static const Color overtime = Color(0xFFD63A26);
-
-  /// urgency（引擎的 0–3）對應主色；0 時用玩家座位色。
   static Color urgencyColor(int urgency, Color seat) => switch (urgency) {
-    1 => warn,
+    1 => warnInk,
     2 => critical,
     3 => overtime,
     _ => seat,
   };
 
   // ── 文字樣式 ─────────────────────────────────────────────
-  /// 巨大倒數數字（實際尺寸由外層 FittedBox 決定，這裡給大基準）。
-  static TextStyle bigDigits({Color color = inkStrong}) =>
+  static TextStyle bigDigits({Color color = tableInkStrong}) =>
       AppType.digits(fontSize: 120, fontWeight: FontWeight.w800, color: color);
 
-  static TextStyle nameStyle({double fontSize = 26, Color color = inkStrong}) =>
+  static TextStyle nameStyle({
+    double fontSize = 26,
+    Color color = tableInkStrong,
+  }) =>
       TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: color);
 
-  /// 絨布桌面背景漸層（radial vignette）。
-  /// CG 絨布圖（[feltAsset]）的後備：asset 載不出來也不會開天窗。
+  /// 奶油紙面到鼠尾草桌邊的柔和背景。
   static BoxDecoration feltBackground() => const BoxDecoration(
-    gradient: RadialGradient(
-      center: Alignment(0, -0.15),
-      radius: 1.25,
-      colors: [feltCenter, feltEdge],
-      stops: [0.0, 1.0],
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFFFFFAF1), feltCenter, feltEdge],
+      stops: [0.0, 0.52, 1.0],
     ),
   );
 
-  /// AI 生成的絨布桌面 CG（2026-07 素材整合）。
+  /// 保留舊常數供其他檔案編譯；新的 Stage 不再顯示深色絨布圖。
   static const String feltAsset = 'assets/scenes/game/game_felt_bg.png';
 
-  /// 疊在 CG 上的保底暗角：把邊緣再壓深一階，確保中央發光數字
-  /// 與角落鍵在任何縮放裁切下都有足夠對比。
-  /// （2026-07-08 降到 35%：原 50% 讓桌面黑成虛空、失去絨布暖感。）
+  /// 極淡的鼠尾草收邊，不把畫面壓暗。
   static BoxDecoration feltVignette() => const BoxDecoration(
     gradient: RadialGradient(
-      center: Alignment(0, -0.15),
-      radius: 1.3,
-      colors: [Color(0x00000000), Color(0x5919110B)],
-      stops: [0.55, 1.0],
+      center: Alignment(0, -0.1),
+      radius: 1.25,
+      colors: [Color(0x00FFFFFF), Color(0x245E8B79)],
+      stops: [0.62, 1.0],
     ),
   );
 
-  /// 桌面中央的暖光：像桌上方一盞吊燈，把絨布的暖棕托出來，
-  /// 避免整面讀成冷硬的黑（家庭桌遊感 > 賭場感）。
+  /// 中央暖陽光，讓奶油紙面仍有插畫層次。
   static BoxDecoration feltWarmLight() => const BoxDecoration(
     gradient: RadialGradient(
-      center: Alignment(0, -0.2),
-      radius: 1.0,
-      colors: [Color(0x2EFFD9A0), Color(0x00FFD9A0)],
+      center: Alignment(-0.25, -0.35),
+      radius: 1.1,
+      colors: [Color(0x8CFFFFFF), Color(0x00FFFFFF)],
       stops: [0.0, 1.0],
     ),
   );

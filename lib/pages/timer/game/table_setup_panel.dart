@@ -1,24 +1,22 @@
-// 「展開狀態」的完整設定面板：桌遊計時器的設定不再藏在彈出 sheet，
-// 展開卡片本身就是設定頁——縮小快速用、展開完整設定。
+// Codex 版桌遊開局面板。
 //
-// 所有改動即改即存（TableStore）並回報給入口卡（onConfigChanged），
-// 縮小或開局前不需要任何確認步驟；桌遊開局前的調整沒有毀滅性操作。
+// 設計重點不是把所有選項攤在同一層，而是先回答三件事：
+// 「怎麼玩、幾個人、多久」。玩家名字、提醒與棋鐘加秒仍保留，
+// 但放在自然的次層，讓孩子與長輩第一次打開也能直接開始。
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/sfx_service.dart';
-import '../../../widgets/app_dialogs.dart';
-import '../../../widgets/hold_repeat_button.dart';
 import 'table_store.dart';
 import 'table_timer_models.dart';
 import 'table_timer_theme.dart';
 
 class TableSetupPanel extends StatefulWidget {
   final SharedPreferences prefs;
-
-  /// 設定有任何改動（含套用常用組合）就回報最新版，入口卡同步摘要。
   final ValueChanged<TableTimerConfig> onConfigChanged;
 
   const TableSetupPanel({
@@ -32,14 +30,14 @@ class TableSetupPanel extends StatefulWidget {
 }
 
 class _TableSetupPanelState extends State<TableSetupPanel> {
+  static const _turnChoices = [30, 60, 90, 180];
+  static const _bankChoices = [180, 300, 600, 900];
+  static const _warnChoices = [5, 10, 15, 20, 30];
+  static const _incrementChoices = [0, 2, 5, 10];
+
   late TableTimerConfig _config;
   late List<String> _roster;
   late List<TablePreset> _presets;
-
-  static const _turnPresets = [30, 45, 60, 90, 120, 180, 300];
-  static const _warnPresets = [5, 10, 15, 20, 30];
-  static const _bankPresets = [60, 180, 300, 600, 900, 1800];
-  static const _incrementPresets = [0, 2, 5, 10];
 
   @override
   void initState() {
@@ -50,70 +48,55 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
   }
 
   void _apply(TableTimerConfig next) {
-    // 每回合時間變短時把倒數提醒一起夾回（warn 必須 < 每回合時間）
     final fixed = next.clampWarn();
     setState(() => _config = fixed);
-    TableStore.saveConfig(widget.prefs, fixed);
+    unawaited(TableStore.saveConfig(widget.prefs, fixed));
     widget.onConfigChanged(fixed);
   }
 
-  void _saveRoster() {
-    TableStore.saveRoster(widget.prefs, _roster);
+  void _setMode(TableGameMode mode) {
+    if (_config.mode == mode) return;
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    _apply(_config.copyWith(mode: mode));
   }
 
-  // ── 玩家操作 ─────────────────────────────────────────────
-
-  int _nextFreeColor() {
-    final used = {for (final p in _config.players) p.colorIndex};
-    for (var c = 0; c < TableTheme.seatColors.length; c++) {
-      if (!used.contains(c)) return c;
-    }
-    return _config.players.length % TableTheme.seatColors.length;
-  }
-
-  void _addPlayer() {
-    if (_config.players.length >= TableTimerConfig.maxPlayers) return;
-    playFeedback(SfxCue.tap);
-    final n = _config.players.length + 1;
-    _apply(
-      _config.copyWith(
-        players: [
-          ..._config.players,
-          TablePlayer(name: '玩家 $n', colorIndex: _nextFreeColor()),
-        ],
-      ),
+  void _setPlayerCount(int count) {
+    final wanted = count.clamp(
+      TableTimerConfig.minPlayers,
+      TableTimerConfig.maxPlayers,
     );
-  }
-
-  void _removePlayer(int i) {
-    if (_config.players.length <= TableTimerConfig.minPlayers) return;
-    playFeedback(SfxCue.cancel);
-    final next = List.of(_config.players)..removeAt(i);
-    _apply(_config.copyWith(players: next));
-  }
-
-  void _reorderPlayer(int oldIndex, int newIndex) {
-    // ReorderableListView 的 newIndex 是「移除前」的位置，往後移要 -1。
-    if (newIndex > oldIndex) newIndex -= 1;
-    if (oldIndex == newIndex) return;
+    if (wanted == _config.players.length) return;
+    final players = List<TablePlayer>.of(_config.players);
+    while (players.length < wanted) {
+      final index = players.length;
+      players.add(TablePlayer(name: '玩家 ${index + 1}', colorIndex: index));
+    }
+    while (players.length > wanted) {
+      players.removeLast();
+    }
     playHaptic(HapticLevel.selection);
-    final next = List.of(_config.players);
-    final p = next.removeAt(oldIndex);
-    next.insert(newIndex, p);
-    _apply(_config.copyWith(players: next));
+    _apply(_config.copyWith(players: players));
   }
 
-  Future<void> _renamePlayer(int i) async {
-    final player = _config.players[i];
-    final controller = TextEditingController(text: player.name);
-    var addToRoster = false;
+  void _movePlayer(int index, int delta) {
+    final target = index + delta;
+    if (target < 0 || target >= _config.players.length) return;
+    final players = List<TablePlayer>.of(_config.players);
+    final player = players.removeAt(index);
+    players.insert(target, player);
+    playHaptic(HapticLevel.selection);
+    _apply(_config.copyWith(players: players));
+  }
 
-    final confirmed = await showDialog<bool>(
+  Future<void> _renamePlayer(int index) async {
+    final player = _config.players[index];
+    final controller = TextEditingController(text: player.name);
+    final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialog) => AlertDialog(
-          title: const Text('玩家名字'),
-          content: Column(
+      builder: (dialogContext) => AlertDialog(
+        title: Text('第 ${index + 1} 位玩家叫什麼？'),
+        content: SingleChildScrollView(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -121,15 +104,22 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                 controller: controller,
                 autofocus: true,
                 maxLength: 12,
-                decoration: const InputDecoration(hintText: '輸入名字'),
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: '玩家名字',
+                  hintText: '例如：奶奶、小安',
+                  prefixIcon: Icon(Icons.face_rounded),
+                ),
+                onSubmitted: (value) =>
+                    Navigator.of(dialogContext).pop(value.trim()),
               ),
               if (_roster.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 const Text(
-                  '從常用玩家帶入',
+                  '常用名字',
                   style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
                     color: AppInk.soft,
                   ),
                 ),
@@ -139,529 +129,282 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                   runSpacing: 8,
                   children: [
                     for (final name in _roster)
-                      _pickChip(
-                        name,
-                        onTap: () => setDialog(() => controller.text = name),
+                      ActionChip(
+                        label: Text(name),
+                        onPressed: () => controller.text = name,
                       ),
                   ],
                 ),
               ],
-              const SizedBox(height: 6),
-              InkWell(
-                onTap: () => setDialog(() => addToRoster = !addToRoster),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      addToRoster
-                          ? Icons.check_box_rounded
-                          : Icons.check_box_outline_blank_rounded,
-                      size: 20,
-                      color: addToRoster ? kGameAccent : AppInk.iconFaint,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      '同時存入常用玩家',
-                      style: TextStyle(fontSize: 13.5, color: AppInk.soft),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
-          actions: [
-            dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('確定'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('完成'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || result.isEmpty || !mounted) return;
+
+    final players = List<TablePlayer>.of(_config.players);
+    players[index] = player.copyWith(name: result);
+    if (!_roster.contains(result) && !result.startsWith('玩家 ')) {
+      _roster.add(result);
+      unawaited(TableStore.saveRoster(widget.prefs, _roster));
+    }
+    playFeedback(SfxCue.success, haptic: HapticLevel.selection);
+    _apply(_config.copyWith(players: players));
+  }
+
+  Future<void> _saveFavorite() async {
+    if (_presets.length >= TablePreset.maxCount) return;
+    final controller = TextEditingController(
+      text: switch (_config.mode) {
+        TableGameMode.party => '家庭桌遊',
+        TableGameMode.chess => '雙人對弈',
+        TableGameMode.free => '輕鬆輪流',
+      },
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('收藏這組玩法'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 20,
+          decoration: const InputDecoration(
+            labelText: '幫它取個名字',
+            prefixIcon: Icon(Icons.favorite_rounded),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('收藏'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty || !mounted) return;
+    final next = [..._presets, TablePreset(name: name, config: _config)];
+    setState(() => _presets = next);
+    unawaited(TableStore.savePresets(widget.prefs, next));
+    playFeedback(SfxCue.success, haptic: HapticLevel.medium);
+  }
+
+  void _applyFavorite(TablePreset preset) {
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    _apply(preset.config);
+  }
+
+  Future<void> _removeFavorite(TablePreset preset) async {
+    final remove = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('移除「${preset.name}」？'),
+        content: const Text('只會移除收藏，不會影響目前的設定。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('保留'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('移除', style: TextStyle(color: AppInk.danger)),
+          ),
+        ],
+      ),
+    );
+    if (remove != true || !mounted) return;
+    setState(() => _presets.remove(preset));
+    unawaited(TableStore.savePresets(widget.prefs, _presets));
+    playFeedback(SfxCue.cancel, haptic: HapticLevel.selection);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activeCount = _config.activePlayers.length;
+    return ListView(
+      key: const PageStorageKey('codex-game-setup'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        _welcomeCard(),
+        if (_presets.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _sectionHeader(
+            number: null,
+            title: '常用玩法',
+            subtitle: '點一下就準備好；長按可以移除',
+          ),
+          const SizedBox(height: 10),
+          _favoriteStrip(),
+        ],
+        const SizedBox(height: 22),
+        _sectionHeader(number: 1, title: '今天怎麼玩？', subtitle: '選最接近的玩法就好'),
+        const SizedBox(height: 10),
+        _modeChoices(),
+        const SizedBox(height: 24),
+        _sectionHeader(
+          number: 2,
+          title: _config.mode == TableGameMode.chess ? '哪兩位對弈？' : '今天有幾位玩家？',
+          subtitle: _config.mode == TableGameMode.chess
+              ? '棋鐘固定兩位，點名字可以修改'
+              : '輪到的順序會照下面排列',
+        ),
+        const SizedBox(height: 10),
+        if (_config.mode != TableGameMode.chess) ...[
+          _playerCountControl(activeCount),
+          const SizedBox(height: 12),
+        ],
+        _playerCards(),
+        const SizedBox(height: 24),
+        _sectionHeader(
+          number: 3,
+          title: _config.mode == TableGameMode.free ? '不用趕，慢慢玩' : '想留多少時間？',
+          subtitle: _config.mode == TableGameMode.free
+              ? '只記錄每個人想了多久，不會倒數'
+              : '先選一個舒服的速度，遊戲中仍可暫停',
+        ),
+        const SizedBox(height: 10),
+        _timeChoices(),
+        const SizedBox(height: 18),
+        _advancedCard(),
+        const SizedBox(height: 14),
+        _saveFavoriteButton(),
+      ],
+    );
+  }
+
+  Widget _welcomeCard() {
+    return Semantics(
+      container: true,
+      label: '兔咪遊戲桌，三步就能開始',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF8E8), Color(0xFFEAF6EC)],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFE9DDC9)),
+          boxShadow: AppShadows.flat,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '兔咪遊戲桌',
+                    style: TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '選玩法、人數和時間，準備好就一起玩！',
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_config.mode.label} · $activeCountText · ${_config.timeSummary}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: kGameAccentDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            ExcludeSemantics(
+              child: Image.asset(
+                'assets/mascot/core/tumi_invite.png',
+                width: 88,
+                height: 88,
+                fit: BoxFit.contain,
+              ),
             ),
           ],
         ),
       ),
     );
-
-    final name = controller.text.trim();
-    controller.dispose();
-    if (confirmed != true || name.isEmpty) return;
-
-    final next = List.of(_config.players);
-    next[i] = player.copyWith(name: name);
-    _apply(_config.copyWith(players: next));
-    if (addToRoster && !_roster.contains(name)) {
-      setState(() => _roster.add(name));
-      _saveRoster();
-    }
   }
 
-  // ── 常用組合 ─────────────────────────────────────────────
+  String get activeCountText => '${_config.activePlayers.length} 人';
 
-  void _savePresets() {
-    TableStore.savePresets(widget.prefs, _presets);
-  }
-
-  bool _isActivePreset(TablePreset preset) =>
-      preset.config.encode() == _config.encode();
-
-  Future<String?> _askPresetName({
+  Widget _sectionHeader({
+    required int? number,
     required String title,
-    required String initial,
-    required String confirmLabel,
-  }) async {
-    final controller = TextEditingController(text: initial);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 20,
-          decoration: const InputDecoration(hintText: '組合名稱'),
-        ),
-        actions: [
-          dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(confirmLabel),
-          ),
-        ],
-      ),
-    );
-    final name = controller.text.trim();
-    controller.dispose();
-    if (confirmed != true || name.isEmpty) return null;
-    return name;
-  }
-
-  Future<void> _saveCurrentAsPreset() async {
-    if (_presets.length >= TablePreset.maxCount) return;
-    final name = await _askPresetName(
-      title: '儲存常用組合',
-      initial: TablePreset.defaultName(_config),
-      confirmLabel: '儲存',
-    );
-    if (name == null) return;
-    playFeedback(SfxCue.success);
-    setState(() => _presets.add(TablePreset(name: name, config: _config)));
-    _savePresets();
-  }
-
-  void _applyPreset(TablePreset preset) {
-    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
-    _apply(preset.config);
-  }
-
-  Future<void> _renamePreset(TablePreset preset) async {
-    final name = await _askPresetName(
-      title: '常用組合改名',
-      initial: preset.name,
-      confirmLabel: '確定',
-    );
-    if (name == null) return;
-    final i = _presets.indexOf(preset);
-    if (i < 0) return;
-    setState(() {
-      _presets[i] = TablePreset(name: name, config: preset.config);
-    });
-    _savePresets();
-  }
-
-  /// 長按或點 ⋯：改名 / 刪除 選單。
-  Future<void> _managePreset(TablePreset preset) async {
-    playHaptic(HapticLevel.selection);
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DecoratedBox(
-        decoration: const BoxDecoration(
-          color: AppSurfaces.card,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppSurfaces.dragHandle,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+    required String subtitle,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (number != null) ...[
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: kGameAccent,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$number',
+              style: AppType.digits(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
               ),
-              const SizedBox(height: 14),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                preset.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                title,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.w900,
                   color: AppInk.strong,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                TablePreset.defaultName(preset.config),
-                style: const TextStyle(fontSize: 12.5, color: AppInk.soft),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                leading: const Icon(Icons.edit_rounded, color: AppInk.soft),
-                title: const Text(
-                  '改名',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppInk.strong,
-                  ),
-                ),
-                onTap: () => Navigator.pop(ctx, 'rename'),
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: AppInk.danger,
-                ),
-                title: const Text(
-                  '刪除這組',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppInk.danger,
-                  ),
-                ),
-                onTap: () => Navigator.pop(ctx, 'delete'),
-              ),
-              const SizedBox(height: 6),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (!mounted) return;
-    switch (action) {
-      case 'rename':
-        await _renamePreset(preset);
-      case 'delete':
-        playFeedback(SfxCue.cancel);
-        setState(() => _presets.remove(preset));
-        _savePresets();
-    }
-  }
-
-  Future<void> _addRosterName() async {
-    final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('新增常用玩家'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 12,
-          decoration: const InputDecoration(hintText: '輸入名字'),
-        ),
-        actions: [
-          dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('新增'),
-          ),
-        ],
-      ),
-    );
-    final name = controller.text.trim();
-    controller.dispose();
-    if (confirmed != true || name.isEmpty || _roster.contains(name)) return;
-    setState(() => _roster.add(name));
-    _saveRoster();
-  }
-
-  // ── build ────────────────────────────────────────────────
-
-  @override
-  Widget build(BuildContext context) {
-    final chess = _config.mode == TableGameMode.chess;
-    final free = _config.mode == TableGameMode.free;
-
-    // 水平留白由各區自己包（_padded）：常用組合列要「全出血」，
-    // 卡片才能自然滑出頁緣、不會在頁邊被硬切（SE 撞邊問題）。
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 14),
-      children: [
-        _padded([
-          _header(),
-          const SizedBox(height: 14),
-          _sectionTitle('常用組合', caption: '把玩家＋模式＋時間存成一組，下次一鍵套用'),
-          const SizedBox(height: 8),
-        ]),
-        _presetStrip(),
-        _padded([
-          const SizedBox(height: 20),
-          _sectionTitle('玩法'),
-          const SizedBox(height: 8),
-          _modeSwitch(),
-          const SizedBox(height: 6),
-          Text(switch (_config.mode) {
-            TableGameMode.party => '放桌子中央，輪到誰就點一下換下一位',
-            TableGameMode.chess => '兩人對坐，點自己那側交棒給對方',
-            TableGameMode.free => '不倒數沒壓力，只記錄輪到誰、想了多久',
-          }, style: const TextStyle(fontSize: 12, color: AppInk.soft)),
-          const SizedBox(height: 20),
-          _sectionTitle(
-            '出場順位',
-            caption: chess ? '由上到下排序，棋鐘由前兩位上場' : '由上到下輪流出場，按住 ≡ 拖曳調整',
-          ),
-          const SizedBox(height: 8),
-          _playerList(chess: chess),
-          if (!chess && _config.players.length < TableTimerConfig.maxPlayers)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _addPlayer,
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text(
-                  '新增玩家',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-            ),
-          if (chess) ...[
-            const SizedBox(height: 12),
-            _sectionTitle('計時制'),
-            const SizedBox(height: 8),
-            _timingSwitch(),
-          ],
-          if (!free && !_config.usesBank) ...[
-            const SizedBox(height: 20),
-            _sectionTitle('每回合時間'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in _turnPresets)
-                  _valueChip(
-                    _secondsText(s),
-                    selected: _config.turnSeconds == s,
-                    onTap: () => _apply(_config.copyWith(turnSeconds: s)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _stepperRow(
-              text: _secondsText(_config.turnSeconds),
-              onMinus: _config.turnSeconds > TableTimerConfig.minTurnSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        turnSeconds: (_config.turnSeconds - 5).clamp(
-                          TableTimerConfig.minTurnSeconds,
-                          TableTimerConfig.maxTurnSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
-              onPlus: _config.turnSeconds < TableTimerConfig.maxTurnSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        turnSeconds: (_config.turnSeconds + 5).clamp(
-                          TableTimerConfig.minTurnSeconds,
-                          TableTimerConfig.maxTurnSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-          ],
-          if (_config.usesBank) ...[
-            const SizedBox(height: 20),
-            _sectionTitle('每人總時間'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in _bankPresets)
-                  _valueChip(
-                    _secondsText(s),
-                    selected: _config.bankSeconds == s,
-                    onTap: () => _apply(_config.copyWith(bankSeconds: s)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _stepperRow(
-              text: _secondsText(_config.bankSeconds),
-              onMinus: _config.bankSeconds > TableTimerConfig.minBankSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        bankSeconds: (_config.bankSeconds - 30).clamp(
-                          TableTimerConfig.minBankSeconds,
-                          TableTimerConfig.maxBankSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
-              onPlus: _config.bankSeconds < TableTimerConfig.maxBankSeconds
-                  ? () => _apply(
-                      _config.copyWith(
-                        bankSeconds: (_config.bankSeconds + 30).clamp(
-                          TableTimerConfig.minBankSeconds,
-                          TableTimerConfig.maxBankSeconds,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 20),
-            _sectionTitle('每手加秒（Fischer）', caption: '時間用盡＝旗倒直接分勝負；走完一手可加回幾秒'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in _incrementPresets)
-                  _valueChip(
-                    s == 0 ? '不加秒' : '＋$s 秒',
-                    selected: _config.incrementSeconds == s,
-                    onTap: () => _apply(_config.copyWith(incrementSeconds: s)),
-                  ),
-              ],
-            ),
-          ],
-          if (!free) ...[
-            const SizedBox(height: 20),
-            _sectionTitle(
-              '倒數提醒',
-              caption: _config.usesBank
-                  ? '剩幾秒開始提醒（要比每人總時間短）'
-                  : '剩幾秒開始提醒（要比每回合時間短）',
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in _warnPresets)
-                  if (s <= _config.warnCap)
-                    _valueChip(
-                      '剩 $s 秒',
-                      selected: _config.warnSeconds == s,
-                      onTap: () => _apply(_config.copyWith(warnSeconds: s)),
-                    ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _stepperRow(
-              text: '剩 ${_config.warnSeconds} 秒',
-              onMinus: _config.warnSeconds > TableTimerConfig.minWarnSeconds
-                  ? () => _apply(
-                      _config.copyWith(warnSeconds: _config.warnSeconds - 1),
-                    )
-                  : null,
-              onPlus: _config.warnSeconds < _config.warnCap
-                  ? () => _apply(
-                      _config.copyWith(warnSeconds: _config.warnSeconds + 1),
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 10),
-            if (!_config.usesBank)
-              InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () =>
-                    _apply(_config.copyWith(autoAdvance: !_config.autoAdvance)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '超時自動換下一位',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppInk.strong,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              '關閉時超時會亮紅等待，點一下才換人',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: AppInk.soft,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: _config.autoAdvance,
-                        activeTrackColor: kGameAccent,
-                        onChanged: (v) =>
-                            _apply(_config.copyWith(autoAdvance: v)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-          const SizedBox(height: 20),
-          _sectionTitle('常用玩家', caption: '改玩家名字時可以一鍵帶入'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final name in _roster) _rosterChip(name),
-              _pickChip('＋ 新增', onTap: _addRosterName, accent: true),
-            ],
-          ),
-        ]),
-      ],
-    );
-  }
-
-  /// 區段內容的水平留白（常用組合列以外都走這裡）。
-  Widget _padded(List<Widget> children) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: children,
-    ),
-  );
-
-  /// 頁首：貼紙 icon＋名稱＋隨設定即時更新的一句話摘要。
-  Widget _header() {
-    return Row(
-      children: [
-        Image.asset('assets/icon/tabs/game_timer.png', width: 44, height: 44),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '桌遊計時器',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: AppInk.strong,
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                '${_config.mode.label} · ${_config.activePlayers.length} 人 · '
-                '${_config.timeSummary}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                subtitle,
                 style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
                   color: AppInk.soft,
                 ),
               ),
@@ -672,627 +415,704 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
   }
 
-  // ── 常用組合列 ───────────────────────────────────────────
-
-  /// 橫向卡片列（全出血，自帶 20 水平 padding，卡片滑得出頁緣）：
-  /// 每張卡＝一組快照（點卡套用、⋯ 或長按管理），尾端固定「儲存目前設定」。
-  Widget _presetStrip() {
-    return SizedBox(
-      height: 76,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        children: [
-          for (final preset in _presets) ...[
-            _presetCard(preset),
-            const SizedBox(width: 8),
-          ],
-          if (_presets.length < TablePreset.maxCount) _savePresetCard(),
-        ],
-      ),
-    );
-  }
-
-  /// 副標的一行摘要：模式小圖示＋「N 人 · 時間」（比全文字短，不易截斷）。
-  Widget _presetDetail(TableTimerConfig c, {required Color color}) {
-    final icon = switch (c.mode) {
-      TableGameMode.party => Icons.groups_rounded,
-      TableGameMode.chess => Icons.swap_vert_rounded,
-      TableGameMode.free => Icons.all_inclusive_rounded,
-    };
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget _modeChoices() {
+    return Column(
       children: [
-        Icon(icon, size: 13, color: color),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            '${c.activePlayers.length} 人 · ${c.timeSummary}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
+        _modeCard(
+          mode: TableGameMode.party,
+          icon: Icons.groups_rounded,
+          title: '大家輪流',
+          description: '桌遊、牌卡、說故事',
+          badge: '2–6 人',
+          color: const Color(0xFF67A77F),
+        ),
+        const SizedBox(height: 10),
+        _modeCard(
+          mode: TableGameMode.chess,
+          icon: Icons.swap_vert_rounded,
+          title: '雙人對弈',
+          description: '下棋、將棋、策略對戰',
+          badge: '2 人',
+          color: const Color(0xFF6F8FD6),
+        ),
+        const SizedBox(height: 10),
+        _modeCard(
+          mode: TableGameMode.free,
+          icon: Icons.all_inclusive_rounded,
+          title: '輕鬆輪流',
+          description: '不倒數，只記錄輪到誰',
+          badge: '無壓力',
+          color: const Color(0xFFD58B68),
         ),
       ],
     );
   }
 
-  /// 卡片：淡染表選中（「使用中」細字），不做整塊實色——
-  /// 頁面上唯一的實色 CTA 留給「開始對局」。
-  Widget _presetCard(TablePreset preset) {
-    final active = _isActivePreset(preset);
-    return GestureDetector(
-      onTap: () => _applyPreset(preset),
-      onLongPress: () => _managePreset(preset),
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 136, maxWidth: 216),
-        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-        decoration: BoxDecoration(
-          color: active
-              ? kGameAccent.withValues(alpha: 0.10)
-              : AppSurfaces.fill,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: active
-                ? kGameAccent.withValues(alpha: 0.55)
-                : AppSurfaces.divider,
-            width: active ? 1.4 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Flexible(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+  Widget _modeCard({
+    required TableGameMode mode,
+    required IconData icon,
+    required String title,
+    required String description,
+    required String badge,
+    required Color color,
+  }) {
+    final selected = _config.mode == mode;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$title，$description，$badge',
+      child: Material(
+        color: selected ? color.withValues(alpha: 0.13) : AppSurfaces.card,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _setMode(mode),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            constraints: const BoxConstraints(minHeight: 76),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? color : AppSurfaces.divider,
+                width: selected ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: selected ? 0.20 : 0.11),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 27),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        active
-                            ? Icons.check_circle_rounded
-                            : Icons.bookmark_rounded,
-                        size: 14,
-                        color: kGameAccent,
-                      ),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          preset.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            height: 1.15,
-                            fontWeight: FontWeight.w800,
-                            color: AppInk.strong,
-                          ),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
                         ),
                       ),
-                      if (active) ...[
-                        const SizedBox(width: 5),
-                        const Text(
-                          '使用中',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            color: kGameAccent,
-                          ),
+                      const SizedBox(height: 2),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppInk.soft,
                         ),
-                      ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 3),
-                  _presetDetail(
-                    preset.config,
-                    color: active ? AppInk.soft : AppInk.faint,
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
                   ),
-                ],
-              ),
-            ),
-            // 管理入口（改名/刪除）；長按整卡也會開同一個選單
-            InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => _managePreset(preset),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                child: Icon(
-                  Icons.more_vert_rounded,
-                  size: 16,
-                  color: AppInk.iconFaint,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _savePresetCard() {
-    return GestureDetector(
-      onTap: _saveCurrentAsPreset,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: kGameAccent.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kGameAccent.withValues(alpha: 0.35)),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.add_circle_outline_rounded,
-              size: 17,
-              color: kGameAccent,
-            ),
-            SizedBox(width: 6),
-            Text(
-              '儲存目前設定',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: kGameAccent,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── 出場順位 ─────────────────────────────────────────────
-
-  Widget _playerList({required bool chess}) {
-    return ReorderableListView(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      buildDefaultDragHandles: false,
-      onReorderStart: (_) => playHaptic(HapticLevel.selection),
-      onReorder: _reorderPlayer,
-      proxyDecorator: (child, _, _) => Material(
-        color: Colors.transparent,
-        child: Transform.scale(scale: 1.03, child: child),
-      ),
-      children: [
-        // key 綁玩家實體（不能綁 index）：拖曳排序時 framework 靠 key
-        // 追蹤「同一列」，綁 index 會讓動畫與 proxy 對錯人。
-        for (var i = 0; i < _config.players.length; i++)
-          _playerRow(
-            i,
-            key: ObjectKey(_config.players[i]),
-            dimmed: chess && i >= 2,
-          ),
-      ],
-    );
-  }
-
-  Widget _playerRow(int i, {required Key key, required bool dimmed}) {
-    final p = _config.players[i];
-    final canRemove = _config.players.length > TableTimerConfig.minPlayers;
-    return Padding(
-      key: key,
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Opacity(
-        opacity: dimmed ? 0.45 : 1,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppSurfaces.fill,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              // 順位徽章：座位色底＋序號，「由上到下」一眼可讀
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: TableTheme.seatColor(p.colorIndex),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '${i + 1}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? color.withValues(alpha: 0.16)
+                        : AppSurfaces.fill,
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: InkWell(
-                  onTap: dimmed ? null : () => _renamePlayer(i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            p.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w800,
-                              color: AppInk.strong,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.edit_rounded,
-                          size: 15,
-                          color: AppInk.iconFaint,
-                        ),
-                        if (dimmed) ...[
-                          const SizedBox(width: 6),
-                          const Text(
-                            '本局輪空',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppInk.faint,
-                            ),
-                          ),
-                        ],
-                      ],
+                  child: Text(
+                    selected ? '已選' : badge,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: selected ? color : AppInk.soft,
                     ),
-                  ),
-                ),
-              ),
-              ReorderableDragStartListener(
-                index: i,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  child: Icon(
-                    Icons.drag_indicator_rounded,
-                    size: 20,
-                    color: AppInk.iconFaint,
-                  ),
-                ),
-              ),
-              // 移除鈕走低調灰（每列一顆紅 ✕ 會讓整區充滿警示噪音）
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                onPressed: canRemove ? () => _removePlayer(i) : null,
-                icon: Icon(
-                  Icons.close_rounded,
-                  size: 20,
-                  color: canRemove ? AppInk.iconFaint : AppSurfaces.divider,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── 模式/計時制 ──────────────────────────────────────────
-
-  Widget _modeSwitch() {
-    Widget seg(TableGameMode mode, IconData icon) {
-      final sel = _config.mode == mode;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () {
-            if (sel) return;
-            playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
-            _apply(_config.copyWith(mode: mode));
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: sel ? kGameAccent : Colors.transparent,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Column(
-              children: [
-                Icon(icon, size: 20, color: sel ? Colors.white : AppInk.soft),
-                const SizedBox(height: 3),
-                Text(
-                  mode.label,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: sel ? Colors.white : AppInk.soft,
                   ),
                 ),
               ],
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
+  Widget _playerCountControl(int count) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppSurfaces.fill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppSurfaces.divider),
+        color: const Color(0xFFF5F9F2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDDE9D9)),
       ),
       child: Row(
         children: [
-          seg(TableGameMode.party, Icons.groups_rounded),
-          seg(TableGameMode.chess, Icons.swap_vert_rounded),
-          seg(TableGameMode.free, Icons.all_inclusive_rounded),
+          Expanded(
+            child: Text(
+              '$count 位玩家',
+              textAlign: TextAlign.center,
+              style: AppType.digits(
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+                color: AppInk.strong,
+              ),
+            ),
+          ),
+          _roundStepButton(
+            icon: Icons.remove_rounded,
+            tooltip: '減少一位玩家',
+            onTap: count > TableTimerConfig.minPlayers
+                ? () => _setPlayerCount(count - 1)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          _roundStepButton(
+            icon: Icons.add_rounded,
+            tooltip: '增加一位玩家',
+            onTap: count < TableTimerConfig.maxPlayers
+                ? () => _setPlayerCount(count + 1)
+                : null,
+          ),
         ],
       ),
     );
   }
 
-  /// 棋鐘計時制：每回合制 / 總時間制（時間庫＋Fischer）。
-  Widget _timingSwitch() {
-    Widget seg({
-      required bool bank,
-      required IconData icon,
-      required String label,
-    }) {
-      final sel = _config.chessUseBank == bank;
-      return Expanded(
-        child: GestureDetector(
+  Widget _roundStepButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onTap,
+  }) {
+    final enabled = onTap != null;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: tooltip,
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: enabled ? kGameAccent : AppSurfaces.fill,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox.square(
+              dimension: 52,
+              child: Icon(
+                icon,
+                size: 27,
+                color: enabled ? Colors.white : AppInk.iconFaint,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _playerCards() {
+    final count = _config.mode == TableGameMode.chess
+        ? 2
+        : _config.players.length;
+    return Column(
+      children: [
+        for (var i = 0; i < count; i++) ...[
+          _playerCard(i, canMove: _config.mode != TableGameMode.chess),
+          if (i != count - 1) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _playerCard(int index, {required bool canMove}) {
+    final player = _config.players[index];
+    final color = TableTheme.seatColor(player.colorIndex);
+    return Semantics(
+      container: true,
+      label: '第 ${index + 1} 位，${player.name}',
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 64),
+        padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              child: Text(
+                '${index + 1}',
+                style: AppType.digits(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                player.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: AppInk.strong,
+                ),
+              ),
+            ),
+            if (canMove) ...[
+              _smallIconButton(
+                icon: Icons.arrow_upward_rounded,
+                label: '把 ${player.name} 往前移',
+                onTap: index > 0 ? () => _movePlayer(index, -1) : null,
+              ),
+              _smallIconButton(
+                icon: Icons.arrow_downward_rounded,
+                label: '把 ${player.name} 往後移',
+                onTap: index < _config.players.length - 1
+                    ? () => _movePlayer(index, 1)
+                    : null,
+              ),
+            ],
+            _smallIconButton(
+              icon: Icons.edit_rounded,
+              label: '修改 ${player.name} 的名字',
+              onTap: () => _renamePlayer(index),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _smallIconButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+  }) {
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: IconButton(
+          constraints: const BoxConstraints.tightFor(width: 44, height: 48),
+          onPressed: onTap,
+          icon: Icon(icon, size: 21),
+          color: AppInk.soft,
+          disabledColor: AppInk.iconFaint,
+        ),
+      ),
+    );
+  }
+
+  Widget _timeChoices() {
+    if (_config.mode == TableGameMode.free) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3E9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFF2D8C5)),
+        ),
+        child: const Row(
+          children: [
+            Icon(
+              Icons.self_improvement_rounded,
+              size: 38,
+              color: Color(0xFFD58B68),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '兔咪會幫忙記住每個人的回合，想好再換下一位。',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
+                  color: AppInk.strong,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_config.mode == TableGameMode.chess) ...[
+          _timingModeSwitch(),
+          const SizedBox(height: 12),
+        ],
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final seconds
+                in _config.usesBank ? _bankChoices : _turnChoices)
+              _timeCard(
+                seconds,
+                selected:
+                    (_config.usesBank
+                        ? _config.bankSeconds
+                        : _config.turnSeconds) ==
+                    seconds,
+                onTap: () => _apply(
+                  _config.usesBank
+                      ? _config.copyWith(bankSeconds: seconds)
+                      : _config.copyWith(turnSeconds: seconds),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _timingModeSwitch() {
+    return SegmentedButton<bool>(
+      expandedInsets: EdgeInsets.zero,
+      segments: const [
+        ButtonSegment(
+          value: false,
+          icon: Icon(Icons.hourglass_top_rounded),
+          label: Text('每回合'),
+        ),
+        ButtonSegment(
+          value: true,
+          icon: Icon(Icons.timer_rounded),
+          label: Text('每人總時間'),
+        ),
+      ],
+      selected: {_config.chessUseBank},
+      showSelectedIcon: false,
+      onSelectionChanged: (value) =>
+          _apply(_config.copyWith(chessUseBank: value.first)),
+      style: const ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(Size.fromHeight(52)),
+        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 8)),
+        textStyle: WidgetStatePropertyAll(
+          TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
+  Widget _timeCard(
+    int seconds, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final label = _secondsText(seconds);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Material(
+        color: selected
+            ? kGameAccent.withValues(alpha: 0.14)
+            : AppSurfaces.card,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
           onTap: () {
-            if (sel) return;
-            playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
-            _apply(_config.copyWith(chessUseBank: bank));
+            playHaptic(HapticLevel.selection);
+            onTap();
           },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 9),
+            duration: const Duration(milliseconds: 160),
+            width: 146,
+            constraints: const BoxConstraints(minHeight: 66),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: sel ? kGameAccent : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected ? kGameAccent : AppSurfaces.divider,
+                width: selected ? 2 : 1,
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 17, color: sel ? Colors.white : AppInk.soft),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: sel ? Colors.white : AppInk.soft,
+                Icon(
+                  selected ? Icons.check_circle_rounded : Icons.timer_outlined,
+                  size: 22,
+                  color: selected ? kGameAccentDark : AppInk.soft,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: selected ? kGameAccentDark : AppInk.strong,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(4),
+  Widget _advancedCard() {
+    final free = _config.mode == TableGameMode.free;
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: AppSurfaces.fill,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppSurfaces.divider),
       ),
-      child: Row(
-        children: [
-          seg(bank: false, icon: Icons.timelapse_rounded, label: '每回合制'),
-          seg(bank: true, icon: Icons.hourglass_bottom_rounded, label: '總時間制'),
-        ],
-      ),
-    );
-  }
-
-  // ── 小元件 ───────────────────────────────────────────────
-
-  String _secondsText(int s) {
-    if (s < 60) return '$s 秒';
-    final m = s ~/ 60;
-    final r = s % 60;
-    return r == 0 ? '$m 分' : '$m 分 $r 秒';
-  }
-
-  /// 自訂步進列：點一下 ±step、按住連發；到極值自動停用。
-  Widget _stepperRow({
-    required String text,
-    VoidCallback? onMinus,
-    VoidCallback? onPlus,
-  }) {
-    return Row(
-      children: [
-        const Text(
-          '自訂',
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w700,
-            color: AppInk.soft,
-          ),
-        ),
-        const Spacer(),
-        _stepBtn(Icons.remove_rounded, onTrigger: onMinus),
-        SizedBox(
-          width: 96,
-          child: Center(
-            child: Text(
-              text,
-              style: AppType.digits(fontSize: 17, color: AppInk.strong),
-            ),
-          ),
-        ),
-        _stepBtn(Icons.add_rounded, onTrigger: onPlus),
-      ],
-    );
-  }
-
-  Widget _stepBtn(IconData icon, {VoidCallback? onTrigger}) {
-    final active = onTrigger != null;
-    return HoldRepeatButton(
-      onTrigger: onTrigger,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: active
-              ? kGameAccent.withValues(alpha: 0.10)
-              : AppSurfaces.fill,
-          shape: BoxShape.circle,
-        ),
-        child: SizedBox(
-          width: 36,
-          height: 36,
-          child: Icon(
-            icon,
-            size: 19,
-            color: active ? kGameAccent : AppInk.iconFaint,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 區段標題：右側拉漸隱細線收尾（全 app 規範），caption 用次要墨色。
-  Widget _sectionTitle(String text, {String? caption}) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w800,
-              color: AppInk.soft,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    kGameAccent.withValues(alpha: 0.25),
-                    kGameAccent.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      if (caption != null) ...[
-        const SizedBox(height: 2),
-        Text(caption, style: const TextStyle(fontSize: 12, color: AppInk.soft)),
-      ],
-    ],
-  );
-
-  Widget _valueChip(
-    String label, {
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        playHaptic(HapticLevel.selection);
-        onTap();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? kGameAccent : AppSurfaces.fill,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? kGameAccent : AppSurfaces.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w800,
-            color: selected ? Colors.white : AppInk.soft,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _pickChip(
-    String label, {
-    required VoidCallback onTap,
-    bool accent = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-        decoration: BoxDecoration(
-          color: accent
-              ? kGameAccent.withValues(alpha: 0.10)
-              : AppSurfaces.fill,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: accent
-                ? kGameAccent.withValues(alpha: 0.35)
-                : AppSurfaces.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: accent ? kGameAccent : AppInk.strong,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _rosterChip(String name) {
-    return Container(
-      padding: const EdgeInsets.only(left: 13, right: 6, top: 4, bottom: 4),
-      decoration: BoxDecoration(
-        color: AppSurfaces.fill,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppSurfaces.divider),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          // ListView 會用 PageStorage 保存 double 捲動位置；若這裡沒有自己
+          // 的 key，ExpansionTile 可能讀到同一份資料並把 double 當 bool。
+          key: const PageStorageKey('codex-game-advanced'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+          leading: const Icon(Icons.tune_rounded, color: kGameAccentDark),
+          title: const Text(
+            '更多設定',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
               color: AppInk.strong,
             ),
           ),
-          const SizedBox(width: 2),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-            onPressed: () {
-              playFeedback(SfxCue.cancel);
-              setState(() => _roster.remove(name));
-              _saveRoster();
-            },
-            icon: const Icon(
-              Icons.close_rounded,
-              size: 15,
-              color: AppInk.iconFaint,
-            ),
+          subtitle: Text(
+            free ? '目前不需調整倒數' : '提醒、超時與棋鐘加秒',
+            style: const TextStyle(fontSize: 12.5, color: AppInk.soft),
           ),
-        ],
+          children: free ? [_freeAdvancedNote()] : _timedAdvancedChildren(),
+        ),
       ),
     );
+  }
+
+  Widget _freeAdvancedNote() {
+    return const Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        '自由輪流不會催促玩家；開局後仍可暫停、回上一位或重新開始回合。',
+        style: TextStyle(fontSize: 13.5, height: 1.4, color: AppInk.soft),
+      ),
+    );
+  }
+
+  List<Widget> _timedAdvancedChildren() {
+    final visibleWarnChoices = <int>{
+      _config.warnSeconds,
+      for (final seconds in _warnChoices)
+        if (seconds <= _config.warnCap) seconds,
+    }.toList()..sort();
+    return [
+      const Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          '剩幾秒開始提醒？',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            color: AppInk.strong,
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final seconds in visibleWarnChoices)
+              ChoiceChip(
+                label: Text('剩 $seconds 秒'),
+                selected: _config.warnSeconds == seconds,
+                onSelected: (_) =>
+                    _apply(_config.copyWith(warnSeconds: seconds)),
+              ),
+          ],
+        ),
+      ),
+      if (_config.usesBank) ...[
+        const SizedBox(height: 18),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '走完一手加秒',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              color: AppInk.strong,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final seconds in _incrementChoices)
+                ChoiceChip(
+                  label: Text(seconds == 0 ? '不加秒' : '＋$seconds 秒'),
+                  selected: _config.incrementSeconds == seconds,
+                  onSelected: (_) =>
+                      _apply(_config.copyWith(incrementSeconds: seconds)),
+                ),
+            ],
+          ),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        Semantics(
+          toggled: _config.autoAdvance,
+          label: '時間到自動換下一位',
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text(
+              '時間到自動換下一位',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+            ),
+            subtitle: const Text(
+              '關閉時會停在紅色提醒，等你手動換人',
+              style: TextStyle(fontSize: 12.5, color: AppInk.soft),
+            ),
+            activeTrackColor: kGameAccent,
+            value: _config.autoAdvance,
+            onChanged: (value) => _apply(_config.copyWith(autoAdvance: value)),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  Widget _favoriteStrip() {
+    return SizedBox(
+      height: 78,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _presets.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final preset = _presets[index];
+          final active = preset.config.encode() == _config.encode();
+          return Semantics(
+            button: true,
+            selected: active,
+            label: '常用玩法 ${preset.name}，${preset.config.timeSummary}',
+            hint: '長按可以移除',
+            child: Material(
+              color: active
+                  ? kGameAccent.withValues(alpha: 0.14)
+                  : AppSurfaces.fill,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _applyFavorite(preset),
+                onLongPress: () => _removeFavorite(preset),
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 144,
+                    maxWidth: 210,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: active ? kGameAccent : AppSurfaces.divider,
+                      width: active ? 1.6 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        preset.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${preset.config.activePlayers.length} 人 · ${preset.config.timeSummary}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppInk.soft,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _saveFavoriteButton() {
+    final enabled = _presets.length < TablePreset.maxCount;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: '收藏目前的玩法設定',
+      child: OutlinedButton.icon(
+        onPressed: enabled ? _saveFavorite : null,
+        icon: const Icon(Icons.favorite_border_rounded),
+        label: Text(enabled ? '收藏這組玩法' : '常用玩法已收藏滿'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          foregroundColor: kGameAccentDark,
+          side: const BorderSide(color: Color(0xFFBBD6C5)),
+          shape: const StadiumBorder(),
+          textStyle: const TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _secondsText(int seconds) {
+    if (seconds < 60) return '$seconds 秒';
+    final minutes = seconds ~/ 60;
+    final rest = seconds % 60;
+    return rest == 0 ? '$minutes 分鐘' : '$minutes 分 $rest 秒';
   }
 }

@@ -1,8 +1,8 @@
-// 對局結算面：結束對局後蓋在絨布桌上的暖紙小結卡。
+// 對局結算面：兔咪陪大家一起看看這局完成了多少回合。
 //
 // 每人一列：回合數、總思考、平均；平均最快的玩家給「⚡ 最快」（正向、
 // 不點名最慢的）。資料吃引擎的 TurnStats，進行中沒結算的半截回合不計。
-// 卡片走 app 本體的暖紙質感（同暫停層），是深色桌面上的「回家」時刻。
+// 卡片延續 app 的暖紙與鼠尾草色，數據只做正向回顧，不排行輸贏。
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -40,8 +40,8 @@ class TableSummaryOverlay extends StatelessWidget {
     return best;
   }
 
-  static const Color _amber = Color(0xFFE9A94E);
-  static const Color _amberInk = Color(0xFFA8741F);
+  static const Color _amber = Color(0xFFE5A94A);
+  static const Color _amberInk = Color(0xFF8A5C13);
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +50,7 @@ class TableSummaryOverlay extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
         child: ColoredBox(
-          color: const Color(0x8C1A120C),
+          color: const Color(0x66718F7B),
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -59,15 +59,15 @@ class TableSummaryOverlay extends StatelessWidget {
                   vertical: 20,
                 ),
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 340),
-                  padding: const EdgeInsets.fromLTRB(20, 26, 20, 18),
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
                   decoration: BoxDecoration(
                     color: AppSurfaces.card,
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x59120B06),
-                        blurRadius: 30,
+                        color: Color(0x338D6E63),
+                        blurRadius: 26,
                         offset: Offset(0, 12),
                       ),
                     ],
@@ -75,22 +75,33 @@ class TableSummaryOverlay extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: _amber.withValues(alpha: 0.16),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.emoji_events_rounded,
-                          size: 30,
-                          color: _amberInk,
+                      SizedBox(
+                        height: 92,
+                        child: Stack(
+                          alignment: Alignment.bottomCenter,
+                          children: [
+                            Image.asset(
+                              'assets/mascot/core/tumi_happy.png',
+                              width: 104,
+                              height: 104,
+                              fit: BoxFit.contain,
+                              semanticLabel: '開心的兔咪',
+                            ),
+                            const Positioned(
+                              right: 70,
+                              top: 4,
+                              child: Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 26,
+                                color: _amber,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       const Text(
-                        '對局結束',
+                        '這局玩得真棒！',
                         style: TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
@@ -99,9 +110,10 @@ class TableSummaryOverlay extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '一起玩了 ${engine.settledTurns} 手',
+                        '大家一起完成了 ${engine.settledTurns} 手',
                         style: AppType.digits(
-                          fontSize: 13.5,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
                           color: AppInk.soft,
                         ),
                       ),
@@ -111,7 +123,7 @@ class TableSummaryOverlay extends StatelessWidget {
                           color: AppSurfaces.fill,
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+                        padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
                         child: Column(
                           children: [
                             for (var i = 0; i < engine.players.length; i++)
@@ -147,66 +159,81 @@ class TableSummaryOverlay extends StatelessWidget {
     final player = engine.players[i];
     final stats = engine.stats[i];
     final seat = TableTheme.seatColor(player.colorIndex);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: seat, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    player.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppInk.strong,
-                    ),
-                  ),
+    final detail = stats.turns == 0
+        ? '這局還沒輪到'
+        : '${stats.turns} 手 · 共 ${formatTableElapsed(stats.totalThink)} · '
+              '平均 ${formatTableElapsed(stats.averageThink)}';
+    return Semantics(
+      container: true,
+      label:
+          '${player.name}，$detail'
+          '${isFastest ? '，平均思考最快' : ''}'
+          '${engine.flagFallIndex == i ? '，時間到' : ''}',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: seat, shape: BoxShape.circle),
+              child: Text(
+                '${i + 1}',
+                style: AppType.digits(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
                 ),
-                if (isFastest) ...[
-                  const SizedBox(width: 6),
-                  _miniBadge('⚡ 最快', _amberInk, _amber.withValues(alpha: 0.16)),
-                ],
-                if (engine.flagFallIndex == i) ...[
-                  const SizedBox(width: 6),
-                  _miniBadge(
-                    '時間到',
-                    AppInk.danger,
-                    AppInk.danger.withValues(alpha: 0.10),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                stats.turns == 0
-                    ? '－'
-                    : '${stats.turns} 手 · ${formatTableElapsed(stats.totalThink)}',
-                style: AppType.digits(fontSize: 14, color: AppInk.strong),
+            const SizedBox(width: 9),
+            Expanded(
+              child: ExcludeSemantics(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          player.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w900,
+                            color: AppInk.strong,
+                          ),
+                        ),
+                        if (isFastest)
+                          _miniBadge(
+                            '⚡ 最快',
+                            _amberInk,
+                            _amber.withValues(alpha: 0.16),
+                          ),
+                        if (engine.flagFallIndex == i)
+                          _miniBadge(
+                            '時間到',
+                            AppInk.danger,
+                            AppInk.danger.withValues(alpha: 0.10),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      detail,
+                      style: AppType.digits(fontSize: 12.5, color: AppInk.soft),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 1),
-              Text(
-                stats.turns == 0
-                    ? '沒輪到'
-                    : '平均 ${formatTableElapsed(stats.averageThink)}',
-                style: AppType.digits(fontSize: 11.5, color: AppInk.faint),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -235,10 +262,8 @@ class TableSummaryOverlay extends StatelessWidget {
     bool filled = false,
     required VoidCallback onTap,
   }) {
-    // filled 用暖琥珀（跟獎盃同語調）：對局層的 CTA 走暖色，
-    // 藍色留給 app 內設定頁的 CTA，深色桌上不出現冷色大塊。
     final fg = filled ? Colors.white : AppInk.strong;
-    return Material(
+    final button = Material(
       color: filled ? _amber : AppSurfaces.fill,
       shape: StadiumBorder(
         side: filled
@@ -253,7 +278,7 @@ class TableSummaryOverlay extends StatelessWidget {
         },
         child: SizedBox(
           width: double.infinity,
-          height: filled ? 52 : 46,
+          height: filled ? 58 : 52,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -271,6 +296,11 @@ class TableSummaryOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+    return Semantics(
+      button: true,
+      label: label,
+      child: Tooltip(message: label, child: button),
     );
   }
 }
