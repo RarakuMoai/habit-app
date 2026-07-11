@@ -162,6 +162,13 @@ class _FamilyPageState extends State<FamilyPage> {
                       duration: const Duration(milliseconds: 260),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
+                      // AnimatedSwitcher 預設會把比面板矮的 child 垂直置中。
+                      // 空狀態邀請卡因此即使內層用了 topCenter，仍會落在面板中央；
+                      // 在真正持有面板高度的這一層改成靠上排列。
+                      layoutBuilder: (currentChild, previousChildren) => Stack(
+                        alignment: Alignment.topCenter,
+                        children: [...previousChildren, ?currentChild],
+                      ),
                       transitionBuilder: (child, animation) {
                         final offset = Tween<Offset>(
                           begin: const Offset(0.06, 0),

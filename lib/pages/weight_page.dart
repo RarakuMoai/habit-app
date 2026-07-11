@@ -136,8 +136,7 @@ class _WeightPageState extends State<WeightPage> {
   }
 
   // 今天日期字串（yyyy-MM-dd）；換日線往後挪時，睡前的記錄仍算前一天。
-  String _todayString() =>
-      LogicalDate.stringFor(DateTime.now(), _dayStartHour);
+  String _todayString() => LogicalDate.stringFor(DateTime.now(), _dayStartHour);
 
   // DateTime 轉 yyyy-MM-dd 字串（使用者明確挑選的日曆日，不套換日 offset）
   String _dateStr(DateTime d) =>
@@ -1124,16 +1123,33 @@ class _WeightPageState extends State<WeightPage> {
                             ? Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.white,
+                                      Colors.orange.withValues(alpha: 0.055),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
                                   borderRadius: BorderRadius.circular(
                                     AppCardStyle.radius,
                                   ),
-                                  border: AppCardStyle.hairline,
+                                  border: Border.all(
+                                    color: Colors.orange.withValues(
+                                      alpha: 0.13,
+                                    ),
+                                  ),
                                   boxShadow: AppShadows.card,
                                 ),
                                 child: _buildStatGrid(todayRec),
                               )
                             : _buildTodayEmptyCard(),
+
+                        // 今日數字之後緊接目標，閱讀順序是「現在 → 要去哪裡」。
+                        if (targetProgressWidget != null) ...[
+                          const SizedBox(height: 12),
+                          targetProgressWidget,
+                        ],
 
                         const SizedBox(height: 16),
 
@@ -1207,32 +1223,16 @@ class _WeightPageState extends State<WeightPage> {
                           ),
                         ),
 
-                        // ── 目標體重進度條（有設定目標才顯示） ──
-                        if (targetProgressWidget != null) ...[
-                          const SizedBox(height: 12),
-                          targetProgressWidget,
-                        ],
-
-                        const SizedBox(height: 12),
-
                         // ── 歷史紀錄列表 ──
-                        const HabitSectionHeader(
-                          label: '歷史紀錄',
-                          icon: Icons.history_rounded,
-                          color: Colors.orange,
-                        ),
-                        if (_records.isEmpty)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Text(
-                                '還沒有體重紀錄',
-                                style: TextStyle(color: AppInk.faint),
-                              ),
-                            ),
-                          )
-                        else
+                        if (_records.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const HabitSectionHeader(
+                            label: '歷史紀錄',
+                            icon: Icons.history_rounded,
+                            color: Colors.orange,
+                          ),
                           ..._records.map(_buildHistoryTile),
+                        ],
                       ],
                     ),
                   ),
@@ -1605,50 +1605,78 @@ class _WeightPageState extends State<WeightPage> {
 
   Widget _buildTodayEmptyCard() {
     return Material(
-      color: Colors.white,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppCardStyle.radius),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         onTap: _openAddSheet,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
+          padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
           decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.white, Colors.orange.withValues(alpha: 0.055)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
-            border: AppCardStyle.hairline,
-            boxShadow: AppShadows.flat,
+            border: Border.all(color: Colors.orange.withValues(alpha: 0.13)),
+            boxShadow: AppShadows.card,
           ),
-          child: Column(
+          child: Row(
             children: [
               Container(
-                width: 54,
-                height: 54,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
                   Icons.monitor_weight_rounded,
                   color: Colors.orange,
-                  size: 28,
+                  size: 25,
                 ),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                '今天還沒量體重喔',
-                style: TextStyle(
-                  color: AppInk.strong,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
+              const SizedBox(width: 13),
+              const Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '今天還沒量體重喔',
+                      style: TextStyle(
+                        color: AppInk.strong,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      '記錄一筆，趨勢圖就會更準',
+                      style: TextStyle(
+                        color: AppInk.soft,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              const Text(
-                '記錄一筆，趨勢圖就會更準',
-                style: TextStyle(
-                  color: AppInk.soft,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(width: 8),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0x0F46342B)),
+                ),
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 17,
+                  color: Colors.orange.shade700,
                 ),
               ),
             ],
