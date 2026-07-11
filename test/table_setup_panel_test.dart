@@ -61,23 +61,90 @@ List<String> savedNames(SharedPreferences prefs) => [
 ];
 
 void main() {
-  testWidgets('分區齊全：順位說明、倒數提醒、常用組合入口都在', (tester) async {
+  testWidgets('第一層只留開局必需：頁首摘要、玩法、順位、時間；進階收合', (tester) async {
     await pumpPanel(tester);
 
+    // 頁首合併卡：兔咪＋一行本局摘要（舊三格摘要卡已收掉）
+    expect(find.text('兔咪遊戲桌'), findsOneWidget);
+    expect(find.text('多人桌遊 · 4 人 · 每回合 1 分'), findsOneWidget);
+    expect(find.text('本局摘要'), findsNothing);
+
+    expect(find.text('玩法'), findsOneWidget);
     expect(find.text('出場順位'), findsOneWidget);
     expect(find.text('由上到下輪流出場'), findsOneWidget);
-    expect(find.text('本局摘要'), findsOneWidget);
-    expect(find.text('4 人出場'), findsOneWidget);
-    expect(find.text('每回合 1 分'), findsWidgets);
-    expect(find.text('倒數提醒'), findsOneWidget);
-    expect(find.text('常用組合'), findsOneWidget);
-    expect(find.text('儲存目前設定'), findsOneWidget);
+    expect(find.text('每回合時間'), findsOneWidget);
+
+    // 進階設定收合，但收合列常駐生效摘要
+    expect(find.text('更多計時設定'), findsOneWidget);
+    expect(find.text('剩 10 秒提醒 · 手動換人'), findsOneWidget);
+    expect(find.text('倒數提醒'), findsNothing);
+    expect(find.text('超時自動換下一位'), findsNothing);
+    expect(find.text('常用內容'), findsOneWidget);
+    expect(find.text('常用玩家'), findsNothing);
+
+    // 空清單不展示常用組合管理區
+    expect(find.text('常用組合'), findsNothing);
+    expect(find.text('儲存目前設定'), findsNothing);
+
     // 預設 4 位玩家 + 順位徽章 1–4，每列一個 ⋯ 選單
     for (var i = 1; i <= 4; i++) {
       expect(find.text('玩家 $i'), findsOneWidget);
       expect(find.text('$i'), findsWidgets);
     }
     expect(find.byIcon(Icons.more_vert_rounded), findsNWidgets(4));
+
+    // 展開「更多計時設定」看得到提醒與自動換人
+    await tester.tap(find.text('更多計時設定'));
+    await tester.pumpAndSettle();
+    expect(find.text('倒數提醒'), findsOneWidget);
+    expect(find.text('超時自動換下一位'), findsOneWidget);
+
+    // 展開「常用內容」看得到常用玩家與儲存組合入口
+    await tester.tap(find.text('常用內容'));
+    await tester.pumpAndSettle();
+    expect(find.text('常用玩家'), findsOneWidget);
+    expect(find.text('＋ 把目前設定存成一組'), findsOneWidget);
+  });
+
+  testWidgets('收合列摘要跟著設定即時更新', (tester) async {
+    await pumpPanel(tester);
+    expect(find.text('剩 10 秒提醒 · 手動換人'), findsOneWidget);
+
+    await tester.tap(find.text('更多計時設定'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(find.text('剩 10 秒提醒 · 超時自動換人'), findsOneWidget);
+  });
+
+  testWidgets('自由輪流沒有可調提醒：整個「更多計時設定」不出現', (tester) async {
+    await pumpPanel(
+      tester,
+      initial: TableTimerConfig.fallback().copyWith(mode: TableGameMode.free),
+    );
+
+    expect(find.text('更多計時設定'), findsNothing);
+    expect(find.text('每回合時間'), findsNothing);
+    expect(find.text('常用內容'), findsOneWidget);
+  });
+
+  testWidgets('空清單從「常用內容」存出第一組後，捷徑列出現', (tester) async {
+    final prefs = await pumpPanel(tester);
+
+    await tester.tap(find.text('常用內容'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('＋ 把目前設定存成一組'));
+    await tester.pumpAndSettle();
+    expect(find.text('儲存常用組合'), findsOneWidget);
+    await tester.tap(find.text('儲存'));
+    await tester.pumpAndSettle();
+
+    expect(TableStore.loadPresets(prefs).length, 1);
+    // 捷徑列（含尾端「儲存目前設定」卡）現身，收合區內的入口收掉
+    expect(find.text('常用組合'), findsOneWidget);
+    expect(find.text('儲存目前設定'), findsOneWidget);
+    expect(find.text('＋ 把目前設定存成一組'), findsNothing);
   });
 
   group('出場順位排序模式', () {
@@ -247,6 +314,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // 倒數提醒住在收合的「更多計時設定」裡，先展開
+    await tester.tap(find.text('更多計時設定'));
+    await tester.pumpAndSettle();
+
     expect(find.text('剩 20 秒'), findsOneWidget);
     expect(find.text('剩 30 秒'), findsNothing); // cap = 29
   });
@@ -275,6 +346,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // 常用玩家住在收合的「常用內容」裡，先展開
+    await tester.tap(find.text('常用內容'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('＋ 新增'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '小兔');
