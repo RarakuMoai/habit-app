@@ -29,6 +29,10 @@ import 'home/room_metrics.dart';
 
 // ── 家庭主頁（小孩選擇畫面）──
 
+// FamilyPage 是主頁 Scaffold 裡的巢狀 Scaffold，看不到外層自訂底部導覽列。
+// 外層底欄最高是雙排 96px；多留 4px，避免 extended FAB 被覆蓋或貼邊。
+const double _kOuterNavFabClearance = 100;
+
 class FamilyPage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
   const FamilyPage({super.key, this.onSettingsChanged});
@@ -198,17 +202,20 @@ class _FamilyPageState extends State<FamilyPage> {
       floatingActionButton: _children.isNotEmpty && _activeChildIndex == null
           ? ValueListenableBuilder<bool>(
               valueListenable: parentSession,
-              builder: (_, unlocked, _) => FloatingActionButton.extended(
-                heroTag: 'family_manage',
-                onPressed: _enterParentManagement,
-                icon: Icon(
-                  unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
+              builder: (_, unlocked, _) => Padding(
+                padding: const EdgeInsets.only(bottom: _kOuterNavFabClearance),
+                child: FloatingActionButton.extended(
+                  heroTag: 'family_manage',
+                  onPressed: _enterParentManagement,
+                  icon: Icon(
+                    unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
+                  ),
+                  label: const Text('家長管理'),
+                  backgroundColor: unlocked
+                      ? Colors.green.shade600
+                      : Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
                 ),
-                label: const Text('家長管理'),
-                backgroundColor: unlocked
-                    ? Colors.green.shade600
-                    : Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
               ),
             )
           : null,
@@ -293,7 +300,8 @@ class _FamilyPageState extends State<FamilyPage> {
   // 小孩卡片清單
   Widget _buildChildList() {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      // 最後一項可以完整捲過抬高後的家長管理按鈕，不會被 FAB 擋住。
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 196),
       itemCount: _children.length + 2,
       itemBuilder: (_, i) {
         if (i == 0) {
