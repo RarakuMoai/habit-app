@@ -413,31 +413,58 @@ class MascotPersona {
       bubble: state.bubble,
       bubbleTick: state.bubble == null ? 0 : ++_bubbleSeq,
     );
-    if (!voiceMuted) unawaited(SfxService.instance.play(_voiceCueFor(ctx)));
+    final cue = _voiceCueFor(ctx);
+    if (cue != null && !voiceMuted && _voiceAllowed(ctx)) {
+      unawaited(SfxService.instance.play(cue));
+      _lastVoiceAt = DateTime.now();
+    }
     _holdUntil = DateTime.now().add(_holdDuration);
     _activePriority = _priorityOf(ctx);
     _scheduleRevert();
   }
 
-  static SfxCue _voiceCueFor(MascotContext ctx) {
+  // ── 語音冷卻 ──
+  // 日常互動（點兔咪、摸頭、打卡…）表情照常換，但語音最多每
+  // [_voiceCooldown] 出聲一次，避免連續打卡/狂點兔咪時太吵。
+  // 大事件（優先度 >= 20：全完成、連勝、撤銷、喝水過量）不受冷卻限制。
+  static const Duration _voiceCooldown = Duration(seconds: 18);
+  static const int _voiceBypassPriority = 20;
+  static DateTime? _lastVoiceAt;
+
+  static bool _voiceAllowed(MascotContext ctx) {
+    if (_priorityOf(ctx) >= _voiceBypassPriority) return true;
+    final last = _lastVoiceAt;
+    return last == null || DateTime.now().difference(last) >= _voiceCooldown;
+  }
+
+  /// 情境 → 兔咪語音。回 null 代表這個情境保持安靜
+  /// （睡著/夜晚出聲反而違和，靠 Zzz 泡泡表達就好）。
+  static SfxCue? _voiceCueFor(MascotContext ctx) {
     switch (ctx) {
+      // 大慶祝：歡呼（表情 happy / streak 雀躍）
       case MascotContext.allDone:
-      case MascotContext.completedOne:
       case MascotContext.streak:
+        return SfxCue.tumiCheer;
+      // 輕聲確認：打卡、進度過半、開場招呼（最高頻，選最短促的）
+      case MascotContext.completedOne:
+      case MascotContext.halfDone:
+      case MascotContext.openApp:
+        return SfxCue.tumiConfirm;
+      // 開心：摸頭（表情 smile）
       case MascotContext.headPet:
         return SfxCue.tumiHappy;
+      // 難過：撤銷（表情 sad）
       case MascotContext.undone:
-      case MascotContext.overhydration:
         return SfxCue.tumiSad;
-      case MascotContext.notStarted:
-      case MascotContext.night:
-        return SfxCue.tumiSleepy;
+      // 疑問：點兔咪、空狀態、喝水過量（表情 neutral / invite / question 歪頭）
       case MascotContext.tapReaction:
       case MascotContext.emptyHabits:
+      case MascotContext.overhydration:
         return SfxCue.tumiQuestion;
-      case MascotContext.openApp:
-      case MascotContext.halfDone:
-        return SfxCue.tumiNeutral;
+      // 睡著中不出聲
+      case MascotContext.notStarted:
+      case MascotContext.night:
+        return null;
     }
   }
 

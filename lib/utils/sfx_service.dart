@@ -9,11 +9,14 @@ enum SfxCue {
   success('assets/sounds/sfx_success.wav', 0.95),
   complete('assets/sounds/sfx_complete.wav', 1.0),
   cancel('assets/sounds/sfx_cancel.wav', 0.9),
-  tumiNeutral('assets/sounds/tumi_mi_neutral.wav', 0.52),
-  tumiQuestion('assets/sounds/tumi_mi_question.wav', 0.54),
-  tumiHappy('assets/sounds/tumi_mi_happy.wav', 0.56),
-  tumiSad('assets/sounds/tumi_mi_sad.wav', 0.50),
-  tumiSleepy('assets/sounds/tumi_mi_sleepy.wav', 0.44),
+  // 兔咪語音（2026-07 新錄音組，取代舊 tumi_mi_*）。
+  // 各檔原始響度不齊（RMS -20.8 ~ -28.3 dBFS），用音量係數拉齊到
+  // 「輕聲陪伴」水準；歡呼是大事件慶祝，刻意比日常亮一點。
+  tumiCheer('assets/sounds/tumi_voice_cheer.wav', 0.95),
+  tumiConfirm('assets/sounds/tumi_voice_confirm.wav', 0.45),
+  tumiHappy('assets/sounds/tumi_voice_happy.wav', 0.50),
+  tumiQuestion('assets/sounds/tumi_voice_question.wav', 0.58),
+  tumiSad('assets/sounds/tumi_voice_sad.wav', 0.85),
   // 桌遊計時器專屬（ElevenLabs 生成、剪裁後 peak 對齊上面同類音效）
   gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人
   gameWarn('assets/sounds/sfx_game_warn.wav', 0.85), // 木質 tick：倒數警示
