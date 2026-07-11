@@ -11,6 +11,7 @@ import '../../../utils/app_style.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../widgets/app_dialogs.dart';
 import '../../../widgets/hold_repeat_button.dart';
+import '../../../widgets/reorder_jiggle.dart';
 import 'table_store.dart';
 import 'table_timer_models.dart';
 import 'table_timer_theme.dart';
@@ -35,10 +36,16 @@ class TableSetupPanel extends StatefulWidget {
   State<TableSetupPanel> createState() => _TableSetupPanelState();
 }
 
-class _TableSetupPanelState extends State<TableSetupPanel> {
+class _TableSetupPanelState extends State<TableSetupPanel>
+    with SingleTickerProviderStateMixin {
   late TableTimerConfig _config;
   late List<String> _roster;
   late List<TablePreset> _presets;
+
+  /// 出場順位的排序模式：長按整列或 ⋯ > 移動 進入，整列 Q 版抖動、
+  /// 即按即拖，點「完成排序」退出（與習慣頁／衣櫃播放清單同一套互動）。
+  bool _sortingPlayers = false;
+  late final AnimationController _jiggleCtrl;
 
   static const _turnPresets = [30, 45, 60, 90, 120, 180, 300];
   static const _warnPresets = [5, 10, 15, 20, 30];
@@ -51,6 +58,16 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     _config = TableStore.loadConfig(widget.prefs);
     _roster = List.of(TableStore.loadRoster(widget.prefs));
     _presets = List.of(TableStore.loadPresets(widget.prefs));
+    _jiggleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 620),
+    );
+  }
+
+  @override
+  void dispose() {
+    _jiggleCtrl.dispose();
+    super.dispose();
   }
 
   void _apply(TableTimerConfig next) {
@@ -108,6 +125,59 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     final p = next.removeAt(oldIndex);
     next.insert(newIndex, p);
     _apply(_config.copyWith(players: next));
+  }
+
+  void _startSortingPlayers() {
+    if (_sortingPlayers) return;
+    setState(() => _sortingPlayers = true);
+    _jiggleCtrl.repeat();
+    playFeedback(SfxCue.tap);
+  }
+
+  void _finishSortingPlayers({bool sfx = true}) {
+    if (!_sortingPlayers) return;
+    setState(() => _sortingPlayers = false);
+    _jiggleCtrl
+      ..stop()
+      ..value = 0;
+    if (sfx) playFeedback(SfxCue.tap);
+  }
+
+  /// 玩家列的 ⋯ 選單：改名／移動／移除。
+  /// 「移動」是不知道長按手勢之使用者的明示排序入口。
+  Future<void> _playerMenu(int i) async {
+    playHaptic(HapticLevel.selection);
+    final p = _config.players[i];
+    final canRemove = _config.players.length > TableTimerConfig.minPlayers;
+    final action = await _showActionSheet(
+      title: p.name,
+      subtitle: '目前第 ${i + 1} 位',
+      actions: [
+        (key: 'rename', icon: Icons.edit_rounded, label: '改名', danger: false),
+        (
+          key: 'move',
+          icon: Icons.swap_vert_rounded,
+          label: '移動',
+          danger: false,
+        ),
+        if (canRemove)
+          (
+            key: 'remove',
+            icon: Icons.person_remove_rounded,
+            label: '移除',
+            danger: true,
+          ),
+      ],
+    );
+    if (!mounted) return;
+    switch (action) {
+      case 'rename':
+        await _renamePlayer(i);
+      case 'move':
+        _startSortingPlayers();
+      case 'remove':
+        _removePlayer(i);
+    }
   }
 
   Future<void> _renamePlayer(int i) async {
@@ -178,6 +248,8 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
   }
 
   void _applyPreset(TablePreset preset) {
+    // 名單要被整包換掉，先無聲退出排序模式，抖動不殘留在新名單上
+    _finishSortingPlayers(sfx: false);
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
     _apply(preset.config);
   }
@@ -199,7 +271,39 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
   /// 長按或點 ⋯：改名 / 刪除 選單。
   Future<void> _managePreset(TablePreset preset) async {
     playHaptic(HapticLevel.selection);
-    final action = await showModalBottomSheet<String>(
+    final action = await _showActionSheet(
+      title: preset.name,
+      subtitle: TablePreset.defaultName(preset.config),
+      actions: [
+        (key: 'rename', icon: Icons.edit_rounded, label: '改名', danger: false),
+        (
+          key: 'delete',
+          icon: Icons.delete_outline_rounded,
+          label: '刪除這組',
+          danger: true,
+        ),
+      ],
+    );
+    if (!mounted) return;
+    switch (action) {
+      case 'rename':
+        await _renamePreset(preset);
+      case 'delete':
+        playFeedback(SfxCue.cancel);
+        _presets.remove(preset);
+        _savePresets();
+        if (mounted) setState(() {});
+    }
+  }
+
+  /// 底部動作選單（常用組合、玩家列共用）：標題＋副標＋動作列，
+  /// 回傳被點動作的 key（滑掉＝null）。
+  Future<String?> _showActionSheet({
+    required String title,
+    String? subtitle,
+    required List<_SheetAction> actions,
+  }) {
+    return showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => DecoratedBox(
@@ -223,7 +327,7 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
               ),
               const SizedBox(height: 14),
               Text(
-                preset.name,
+                title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -232,53 +336,35 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                   color: AppInk.strong,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                TablePreset.defaultName(preset.config),
-                style: const TextStyle(fontSize: 12.5, color: AppInk.soft),
-              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12.5, color: AppInk.soft),
+                ),
+              ],
               const SizedBox(height: 8),
-              ListTile(
-                leading: const Icon(Icons.edit_rounded, color: AppInk.soft),
-                title: const Text(
-                  '改名',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppInk.strong,
+              for (final a in actions)
+                ListTile(
+                  leading: Icon(
+                    a.icon,
+                    color: a.danger ? AppInk.danger : AppInk.soft,
                   ),
-                ),
-                onTap: () => Navigator.pop(ctx, 'rename'),
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: AppInk.danger,
-                ),
-                title: const Text(
-                  '刪除這組',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppInk.danger,
+                  title: Text(
+                    a.label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: a.danger ? AppInk.danger : AppInk.strong,
+                    ),
                   ),
+                  onTap: () => Navigator.pop(ctx, a.key),
                 ),
-                onTap: () => Navigator.pop(ctx, 'delete'),
-              ),
               const SizedBox(height: 6),
             ],
           ),
         ),
       ),
     );
-    if (!mounted) return;
-    switch (action) {
-      case 'rename':
-        await _renamePreset(preset);
-      case 'delete':
-        playFeedback(SfxCue.cancel);
-        _presets.remove(preset);
-        _savePresets();
-        if (mounted) setState(() {});
-    }
   }
 
   Future<void> _addRosterName() async {
@@ -333,11 +419,18 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
           const SizedBox(height: 20),
           _sectionTitle(
             '出場順位',
-            caption: chess ? '由上到下排序，棋鐘由前兩位上場' : '由上到下輪流出場，按住 ≡ 拖曳調整',
+            caption: _sortingPlayers
+                ? '拖曳玩家調整出場順位'
+                : (chess ? '前兩位上場，其餘本局輪空' : '由上到下輪流出場'),
+            trailing: _sortingPlayers
+                ? _tonalChip('完成排序', onTap: _finishSortingPlayers, accent: true)
+                : null,
           ),
           const SizedBox(height: 8),
           _playerList(chess: chess),
-          if (!chess && _config.players.length < TableTimerConfig.maxPlayers)
+          if (!chess &&
+              !_sortingPlayers &&
+              _config.players.length < TableTimerConfig.maxPlayers)
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
@@ -972,7 +1065,15 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
-      onReorderStart: (_) => playHaptic(HapticLevel.selection),
+      onReorderStart: (_) {
+        playHaptic(HapticLevel.selection);
+        if (!_sortingPlayers) {
+          // 首次長按拖曳：本幀後再翻成排序模式，避免拖曳啟動當下重建清單
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _startSortingPlayers();
+          });
+        }
+      },
       onReorder: _reorderPlayer,
       proxyDecorator: (child, _, _) => Material(
         color: Colors.transparent,
@@ -981,114 +1082,122 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
       children: [
         // key 綁玩家實體（不能綁 index）：拖曳排序時 framework 靠 key
         // 追蹤「同一列」，綁 index 會讓動畫與 proxy 對錯人。
+        // 整列都是拖曳目標：未進排序模式長按 1 秒啟動（同一手勢直接滑），
+        // 進模式後即按即拖。
         for (var i = 0; i < _config.players.length; i++)
-          _playerRow(
-            i,
+          ReorderHoldDragListener(
             key: ObjectKey(_config.players[i]),
-            dimmed: chess && i >= 2,
+            index: i,
+            immediate: _sortingPlayers,
+            child: ReorderJiggle(
+              animation: _jiggleCtrl,
+              enabled: _sortingPlayers,
+              seed: identityHashCode(_config.players[i]),
+              child: _playerRow(i, chess: chess),
+            ),
           ),
       ],
     );
   }
 
-  Widget _playerRow(int i, {required Key key, required bool dimmed}) {
+  Widget _playerRow(int i, {required bool chess}) {
     final p = _config.players[i];
-    final canRemove = _config.players.length > TableTimerConfig.minPlayers;
+    final benched = chess && i >= 2;
     return Padding(
-      key: key,
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Opacity(
-        opacity: dimmed ? 0.45 : 1,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppSurfaces.fill,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              // 順位徽章：座位色底＋序號，「由上到下」一眼可讀
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: TableTheme.seatColor(p.colorIndex),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '${i + 1}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+        opacity: benched ? 0.45 : 1,
+        child: Semantics(
+          container: true,
+          label: chess
+              ? '第 ${i + 1} 位 ${p.name}，${benched ? '本局輪空' : '本局上場'}'
+              : '第 ${i + 1} 位 ${p.name}',
+          hint: _sortingPlayers ? '拖曳調整出場順位' : '點一下改名，長按拖曳排序',
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppSurfaces.fill,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                // 順位徽章：座位色底＋序號，「由上到下」一眼可讀
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: TableTheme.seatColor(p.colorIndex),
+                    shape: BoxShape.circle,
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: InkWell(
-                  onTap: dimmed ? null : () => _renamePlayer(i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            p.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w800,
-                              color: AppInk.strong,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.edit_rounded,
-                          size: 15,
-                          color: AppInk.iconFaint,
-                        ),
-                        if (dimmed) ...[
-                          const SizedBox(width: 6),
-                          const Text(
-                            '本局輪空',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppInk.faint,
-                            ),
-                          ),
-                        ],
-                      ],
+                  child: Text(
+                    '${i + 1}',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
                     ),
                   ),
                 ),
-              ),
-              ReorderableDragStartListener(
-                index: i,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  child: Icon(
-                    Icons.drag_indicator_rounded,
-                    size: 20,
-                    color: AppInk.iconFaint,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    onTap: _sortingPlayers ? null : () => _renamePlayer(i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              p.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppInk.strong,
+                              ),
+                            ),
+                          ),
+                          if (chess) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              benched ? '本局輪空' : '上場',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: benched ? AppInk.faint : kGameAccent,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              // 移除鈕走低調灰（每列一顆紅 ✕ 會讓整區充滿警示噪音）
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                onPressed: canRemove ? () => _removePlayer(i) : null,
-                icon: Icon(
-                  Icons.close_rounded,
-                  size: 20,
-                  color: canRemove ? AppInk.iconFaint : AppSurfaces.divider,
-                ),
-              ),
-            ],
+                if (_sortingPlayers)
+                  // 排序模式的拖曳提示：整列可拖，圖示只是視覺錨點
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    child: Icon(
+                      Icons.drag_indicator_rounded,
+                      size: 18,
+                      color: AppInk.iconFaint,
+                    ),
+                  )
+                else
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '改名、移動或移除',
+                    onPressed: () => _playerMenu(i),
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      size: 20,
+                      color: AppInk.iconFaint,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1316,7 +1425,9 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                         children: [
                           _stepBtn(
                             Icons.remove_rounded,
-                            onTrigger: v > min ? () => change(read() - step) : null,
+                            onTrigger: v > min
+                                ? () => change(read() - step)
+                                : null,
                           ),
                           SizedBox(
                             width: 150,
@@ -1332,14 +1443,19 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
                           ),
                           _stepBtn(
                             Icons.add_rounded,
-                            onTrigger: v < max ? () => change(read() + step) : null,
+                            onTrigger: v < max
+                                ? () => change(read() + step)
+                                : null,
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '每格 ${_secondsText(step)}，按住可以快轉',
-                        style: const TextStyle(fontSize: 12, color: AppInk.soft),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppInk.soft,
+                        ),
                       ),
                       const SizedBox(height: 14),
                       SizedBox(
@@ -1394,42 +1510,48 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
   }
 
-  /// 區段標題：右側拉漸隱細線收尾（全 app 規範），caption 用次要墨色。
-  Widget _sectionTitle(String text, {String? caption}) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
+  /// 區段標題：右側拉漸隱細線收尾（全 app 規範），caption 用次要墨色，
+  /// [trailing] 放區段級動作（例：排序模式的「完成排序」）。
+  Widget _sectionTitle(String text, {String? caption, Widget? trailing}) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w800,
-              color: AppInk.soft,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    kGameAccent.withValues(alpha: 0.25),
-                    kGameAccent.withValues(alpha: 0),
-                  ],
+          Row(
+            children: [
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppInk.soft,
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        kGameAccent.withValues(alpha: 0.25),
+                        kGameAccent.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 10), trailing],
+            ],
           ),
+          if (caption != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              caption,
+              style: const TextStyle(fontSize: 12, color: AppInk.soft),
+            ),
+          ],
         ],
-      ),
-      if (caption != null) ...[
-        const SizedBox(height: 2),
-        Text(caption, style: const TextStyle(fontSize: 12, color: AppInk.soft)),
-      ],
-    ],
-  );
+      );
 
   Widget _valueChip(
     String label, {
@@ -1503,6 +1625,9 @@ class _TableSetupPanelState extends State<TableSetupPanel> {
     );
   }
 }
+
+/// 底部動作選單的一列動作：key 回傳值＋圖示＋文字＋是否紅色警示。
+typedef _SheetAction = ({String key, IconData icon, String label, bool danger});
 
 /// 淡染小 chip（常用玩家「＋ 新增」、對話框帶入候選共用）。
 Widget _tonalChip(
@@ -1604,10 +1729,7 @@ class _NameInputDialogState extends State<_NameInputDialog> {
             maxLength: widget.maxLength,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _confirm(),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              counterText: '',
-            ),
+            decoration: InputDecoration(hintText: widget.hint, counterText: ''),
           ),
           if (widget.suggestions.isNotEmpty) ...[
             const SizedBox(height: 4),
