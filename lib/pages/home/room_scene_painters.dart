@@ -18,11 +18,15 @@ class RoomSceneEffects extends StatefulWidget {
   final double progress;
   final bool allDone;
 
+  /// 共享場景時鐘（見 [SceneAnimationClock]）；null = 自建 30fps ticker。
+  final ValueNotifier<double>? clock;
+
   const RoomSceneEffects({
     super.key,
     required this.accent,
     required this.progress,
     required this.allDone,
+    this.clock,
   });
 
   @override
@@ -31,6 +35,9 @@ class RoomSceneEffects extends StatefulWidget {
 
 class _RoomSceneEffectsState extends State<RoomSceneEffects>
     with SingleTickerProviderStateMixin, ThrottledSceneTicker {
+  @override
+  ValueNotifier<double>? get externalClock => widget.clock;
+
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
@@ -100,11 +107,13 @@ class RoomSceneEffectsPainter extends CustomPainter {
     return 1 - _smooth(12.0, 16.0, hour);
   }
 
+  // 黃昏地板光池／檯燈氛圍：時間窗與 RoomAmbientOverlay companionTiming
+  // 一致（黃昏核心全程都在、暮→夜交接收掉；燈 16:48 起漸亮）。
   double _dusk(double hour) =>
-      _smooth(16.0, 16.8, hour) * (1 - _smooth(17.4, 18.0, hour));
+      _smooth(16.0, 16.8, hour) * (1 - _smooth(18.3, 19.2, hour));
 
   double _lamp(double hour) =>
-      hour >= 12 ? _smooth(17.2, 18.0, hour) : (1 - _smooth(5.4, 6.4, hour));
+      hour >= 12 ? _smooth(16.8, 18.0, hour) : (1 - _smooth(5.4, 6.4, hour));
 
   void _paintSoftRoomDepth(
     Canvas canvas,

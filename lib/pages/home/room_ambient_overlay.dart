@@ -82,32 +82,77 @@ double _smooth(double a, double b, double x) {
   return t * t * (3 - 2 * t);
 }
 
-/// 30fps Ticker + ValueNotifier 的共用底座（三個動態層都用這個模式）。
+/// 單一場景動畫時鐘：一條 Ticker 驅動同場景所有動態層（窗景/室內光影/
+/// 互動特效共享相位），完整模式節流 20fps（計劃書 §5.2）。
+/// 由頁面 State 持有並負責 start/stop/dispose：閒置凍結呼叫 [stop]（0fps），
+/// 互動喚醒呼叫 [start]；切分頁/退背景由 TickerProvider 的 TickerMode 靜音。
+class SceneAnimationClock {
+  SceneAnimationClock({required TickerProvider vsync, double maxFps = 20})
+    : _minInterval = 1 / maxFps {
+    _ticker = vsync.createTicker(_onTick);
+  }
+
+  late final Ticker _ticker;
+  final double _minInterval;
+
+  /// painter 的 repaint listenable：值 = 時鐘啟動至今秒數（無界）。
+  final ValueNotifier<double> time = ValueNotifier<double>(0);
+  double _lastNotified = 0;
+
+  void _onTick(Duration elapsed) {
+    final t = elapsed.inMicroseconds / 1e6;
+    if (t - _lastNotified < _minInterval) return;
+    _lastNotified = t;
+    time.value = t;
+  }
+
+  void start() {
+    if (!_ticker.isActive) _ticker.start();
+  }
+
+  /// 完全停止（0fps）。之後的時段配色更新走 SceneTimeController 的
+  /// 分鐘級單次 repaint，不需要動畫幀。
+  void stop() => _ticker.stop();
+
+  void dispose() {
+    _ticker.dispose();
+    time.dispose();
+  }
+}
+
+/// Ticker + ValueNotifier 的共用底座（動態層自有時鐘用，30fps 節流）。
+/// 覆寫 [externalClock] 提供共享時鐘時，不建立自己的 Ticker（首頁模式；
+/// 計劃書 §5.2「同一場景單一 clock」）。
 mixin ThrottledSceneTicker<T extends StatefulWidget>
     on State<T>, SingleTickerProviderStateMixin<T> {
-  late final Ticker _ticker;
+  Ticker? _ticker;
   // painter 的 repaint listenable：值 = 開場至今秒數（無界）
   final ValueNotifier<double> _time = ValueNotifier<double>(0);
   double _lastNotified = 0;
 
+  /// 外部共享時鐘（例：首頁的 [SceneAnimationClock.time]）；null = 自建。
+  ValueNotifier<double>? get externalClock => null;
+
   /// painter 的 repaint listenable（跨檔案重用，例：room_scene_painters 的
-  /// [RoomSceneEffects]）。同檔案內仍可直接用 `_time`。
-  ValueNotifier<double> get sceneTime => _time;
+  /// [RoomSceneEffects]）。
+  ValueNotifier<double> get sceneTime => externalClock ?? _time;
 
   @override
   void initState() {
     super.initState();
-    _ticker = createTicker((elapsed) {
-      final t = elapsed.inMicroseconds / 1e6;
-      if (t - _lastNotified < 1 / 30) return; // 節流 ~30fps
-      _lastNotified = t;
-      _time.value = t;
-    })..start();
+    if (externalClock == null) {
+      _ticker = createTicker((elapsed) {
+        final t = elapsed.inMicroseconds / 1e6;
+        if (t - _lastNotified < 1 / 30) return; // 節流 ~30fps
+        _lastNotified = t;
+        _time.value = t;
+      })..start();
+    }
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _ticker?.dispose();
     _time.dispose();
     super.dispose();
   }
@@ -123,9 +168,13 @@ class WindowBackdrop extends StatefulWidget {
   /// 預設為首頁拱窗位置，故首頁 `const WindowBackdrop()` 行為不變。
   final Rect windowRect;
 
+  /// 共享場景時鐘（見 [SceneAnimationClock]）；null = 自建 30fps ticker。
+  final ValueNotifier<double>? clock;
+
   const WindowBackdrop({
     super.key,
     this.windowRect = const Rect.fromLTRB(0, 0.040, 0.21, 0.345),
+    this.clock,
   });
 
   @override
@@ -135,6 +184,9 @@ class WindowBackdrop extends StatefulWidget {
 class _WindowBackdropState extends State<WindowBackdrop>
     with SingleTickerProviderStateMixin, ThrottledSceneTicker {
   @override
+  ValueNotifier<double>? get externalClock => widget.clock;
+
+  @override
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: RepaintBoundary(
@@ -143,7 +195,7 @@ class _WindowBackdropState extends State<WindowBackdrop>
           willChange: true,
           size: Size.infinite,
           painter: _WindowBackdropPainter(
-            time: _time,
+            time: sceneTime,
             windowRect: widget.windowRect,
           ),
         ),
@@ -371,7 +423,10 @@ class _WindowBackdropPainter extends CustomPainter {
       old.windowRect != windowRect;
 }
 
-// 窗外景時段調色盤：keyframe 線性插值（與 _sceneTint 時段概念對齊）
+// 窗外景時段調色盤：keyframe 線性插值。時間點對齊 scene_time.dart 的
+// 交接視窗：黃昏核心 17:00–19:00 天空要明顯金橘（原本 18.6 才到位，
+// 17:30 只混 39% 看起來還是白天）；夜空在暮→夜交接（18:45–19:45）
+// 收尾後的 20:30 完全就位。
 ({Color top, Color bot, Color cloud, double star, double nightness})
 _windowPalette(double h) {
   const stops = <(double, (int, int, int, double, double))>[
@@ -380,10 +435,10 @@ _windowPalette(double h) {
     (5.0, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
     (6.6, (0xFFB8B5E0, 0xFFFFD9B3, 0xFFFFE7DC, 0.2, 0.15)),
     (8.5, (0xFF8FC9EC, 0xFFD6EFF7, 0xFFFFFFFF, 0.0, 0.0)),
-    (16.8, (0xFF8FC9EC, 0xFFD6EFF7, 0xFFFFFFFF, 0.0, 0.0)),
-    (18.6, (0xFF8F8BC9, 0xFFFFC08A, 0xFFF4CDC2, 0.1, 0.2)),
-    (20.4, (0xFF5D5C96, 0xFFB98FB4, 0xFFB9AED6, 0.55, 0.55)),
-    (22.4, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
+    (16.5, (0xFF8FC9EC, 0xFFD6EFF7, 0xFFFFFFFF, 0.0, 0.0)),
+    (17.6, (0xFF8F8BC9, 0xFFFFC08A, 0xFFF4CDC2, 0.1, 0.2)),
+    (19.4, (0xFF5D5C96, 0xFFB98FB4, 0xFFB9AED6, 0.55, 0.55)),
+    (20.5, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
     (24.0, (0xFF3D4673, 0xFF6E78AC, 0xFF9FA8CE, 1.0, 1.0)),
   ];
   for (var i = 0; i < stops.length - 1; i++) {
@@ -426,11 +481,15 @@ class RoomAmbientOverlay extends StatefulWidget {
   /// 16~18 點黃昏，夜晚以暖桌燈為主。預設 false，避免影響其他頁。
   final bool companionTiming;
 
+  /// 共享場景時鐘（見 [SceneAnimationClock]）；null = 自建 30fps ticker。
+  final ValueNotifier<double>? clock;
+
   const RoomAmbientOverlay({
     super.key,
     this.lampCenter = const Offset(0.645, 0.41),
     this.tint = false,
     this.companionTiming = false,
+    this.clock,
   });
 
   @override
@@ -440,6 +499,9 @@ class RoomAmbientOverlay extends StatefulWidget {
 class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
     with SingleTickerProviderStateMixin, ThrottledSceneTicker {
   @override
+  ValueNotifier<double>? get externalClock => widget.clock;
+
+  @override
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: RepaintBoundary(
@@ -448,7 +510,7 @@ class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
           willChange: true,
           size: Size.infinite,
           painter: _RoomAmbientPainter(
-            time: _time,
+            time: sceneTime,
             lampCenter: widget.lampCenter,
             tint: widget.tint,
             companionTiming: widget.companionTiming,
@@ -507,7 +569,8 @@ class _RoomAmbientPainter extends CustomPainter {
     if (companionTiming) {
       final sun = _companionSun(h);
       final noon = _smooth(6.0, 12.0, h);
-      final dusk = _smooth(16.0, 16.8, h) * (1 - _smooth(17.4, 18.0, h));
+      // 黃昏斜光：整個黃昏核心（~17:00–19:00）都在，跟著暮→夜交接收掉
+      final dusk = _smooth(16.0, 16.8, h) * (1 - _smooth(18.3, 19.2, h));
       if (sun > 0.01) {
         _paintSunShafts(canvas, w, imgH, t, 0.68 * sun, noon, spreadScale: 8.0);
       }
@@ -517,13 +580,14 @@ class _RoomAmbientPainter extends CustomPainter {
           w,
           imgH,
           t,
-          0.22 * dusk,
+          0.26 * dusk,
           0.22,
           colorOverride: const Color(0xFFFFB36F),
           spreadScale: 3.2,
         );
       }
-      lamp = h >= 12 ? _smooth(17.2, 18.0, h) : (1 - _smooth(5.4, 6.4, h));
+      // 檯燈與黃昏同步暖起來（16:48 起漸亮）
+      lamp = h >= 12 ? _smooth(16.8, 18.0, h) : (1 - _smooth(5.4, 6.4, h));
       moon =
           (h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h))) *
           0.45;

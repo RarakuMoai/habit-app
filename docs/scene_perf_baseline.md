@@ -104,7 +104,21 @@ flutter run -d <simulator> --dart-define=SCENE_PERF=1
 註：此輪量測時 Phase 1 的時間來源接線可能已編入（kernel 編譯與改檔並行），
 但繪製結構、ticker 數量與 30fps 節流皆與基準版相同，幀數據可視為改造前基準。
 
-### 6.2 實機 profile（待補）
+### 6.2 Golden Scene 原型（Phase 2）對照——同模擬器、同 debug 模式
+
+單一 20fps `SceneAnimationClock`（三層共享）改造後、同一情境重測：
+
+| 情境 | 幀率 | UI avg/p95 (ms) | raster avg/p95 (ms) | 對比基準 |
+|---|---:|---:|---:|---|
+| 首頁活躍（w1） | 60fps* | 1.3 / 2.9 | 4.6 / 7.1 | UI avg −52%、raster p95 −53%、超預算幀 21→2 |
+| 閒置 >20s | **0fps** | – | – | 相同（時鐘 `stop()`＋TickerMode 雙保險） |
+
+\* 整頁仍 60fps 排幀：兔咪呼吸 `AnimationController`（mascot_scene.dart，
+在途互動翻修的檔案，本任務不動）尚未併入場景時鐘；場景三層本身已是
+20fps 重繪、其餘幀只是合成快取層，所以 raster 大幅下降。
+把兔咪演出併進統一時鐘留給互動翻修完成後（Phase 5 前）。
+
+### 6.3 實機 profile（待補）
 
 無實體 iPhone 連線時無法取得；腳本與探針已備妥，插上實機執行 §5 指令即可。
 10 分鐘耗電/溫度/記憶體趨勢亦需實機。

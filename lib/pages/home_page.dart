@@ -92,19 +92,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _sceneIdle = false;
   // 追蹤本頁是否為當前可見分頁（外層 TickerMode），切回來時喚醒場景。
   bool _wasVisible = true;
+  // 單一場景動畫時鐘：窗景/室內光影/互動特效三層共享（20fps；§5.2）。
+  // 切分頁/退背景由外層 TickerMode 靜音；閒置凍結由下面兩個 hook 停啟。
+  late final SceneAnimationClock _sceneClock;
 
   // 有互動：取消計時、若正凍結則喚醒，並重排下一次閒置。
   void _markSceneActive() {
     _sceneIdleTimer?.cancel();
+    _sceneClock.start();
     if (_sceneIdle) {
       setState(() => _sceneIdle = false);
     }
     _sceneIdleTimer = Timer(_sceneIdleDelay, _goSceneIdle);
   }
 
-  // 閒置到時：凍結所有裝飾動態層（窗景/光影/流光的 ticker 由 TickerMode 一起靜音）。
+  // 閒置到時：場景時鐘完全停止（0fps；時段配色改由 SceneTimeController
+  // 的分鐘級單次 repaint 維持正確），兔咪演出由 TickerMode/paused 一起凍結。
   void _goSceneIdle() {
     if (!mounted || _sceneIdle) return;
+    _sceneClock.stop();
     setState(() => _sceneIdle = true);
   }
 
@@ -131,6 +137,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 620),
     );
+    _sceneClock = SceneAnimationClock(vsync: this);
+    _markSceneActive(); // 啟動場景時鐘並武裝閒置凍結計時
 
     loadHabits();
   }
@@ -140,6 +148,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     SceneTimeController.instance.removeListener(_handleSceneTimeChanged);
     MascotPersona.current.removeListener(_handleMascotActivity);
     _sceneIdleTimer?.cancel();
+    _sceneClock.dispose();
     _celebCtrl.dispose();
     _glowCtrl.dispose();
     _jiggleCtrl.dispose();
@@ -945,18 +954,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           child: Stack(
             children: [
-              // 窗外景：墊在背景圖之下，透過挖掉的窗玻璃露出來
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: bgH,
-                // 閒置時凍結：TickerMode 靜音子樹 ticker，停止每幀重繪。
-                child: TickerMode(
-                  enabled: !_sceneIdle,
-                  child: const WindowBackdrop(),
+              // 窗外景：墊在背景圖之下，透過挖掉的窗玻璃露出來。
+              // 三個動態層都掛 kRoomAmbienceEnabled 總開關：關掉＝純背景圖。
+              if (kRoomAmbienceEnabled)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: bgH,
+                  // 閒置時凍結：共享場景時鐘 stop（0fps），TickerMode 保險。
+                  child: TickerMode(
+                    enabled: !_sceneIdle,
+                    child: WindowBackdrop(clock: _sceneClock.time),
+                  ),
                 ),
-              ),
               Positioned(
                 top: 0,
                 left: 0,
@@ -987,29 +998,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               ),
               // 動態光影層：窗光/塵埃/檯燈暈，讓靜態房間活起來
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: bgH,
-                // 最吃 GPU 的層（每幀 MaskFilter.blur）：閒置時一起凍結。
-                child: TickerMode(
-                  enabled: !_sceneIdle,
-                  child: const RoomAmbientOverlay(companionTiming: true),
-                ),
-              ),
-              // 互動狀態效果（完成星光、場景柔光）：最吃 GPU 的全螢幕 blur 層，
-              // 比照窗景/光影層做 30fps 節流 + RepaintBoundary，閒置時 TickerMode 凍結。
-              Positioned.fill(
-                child: TickerMode(
-                  enabled: !_sceneIdle,
-                  child: RoomSceneEffects(
-                    accent: colors.accent,
-                    progress: sceneProgress.clamp(0.0, 1.0),
-                    allDone: allDone0 && habits.isNotEmpty,
+              if (kRoomAmbienceEnabled)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: bgH,
+                  // 最吃 GPU 的層（每幀 MaskFilter.blur）：閒置時一起凍結。
+                  child: TickerMode(
+                    enabled: !_sceneIdle,
+                    child: RoomAmbientOverlay(
+                      companionTiming: true,
+                      clock: _sceneClock.time,
+                    ),
                   ),
                 ),
-              ),
+              // 互動狀態效果（完成星光、場景柔光）：最吃 GPU 的全螢幕 blur 層，
+              // 與窗景/光影層共享單一 20fps 場景時鐘，閒置時一起凍結。
+              if (kRoomAmbienceEnabled)
+                Positioned.fill(
+                  child: TickerMode(
+                    enabled: !_sceneIdle,
+                    child: RoomSceneEffects(
+                      accent: colors.accent,
+                      progress: sceneProgress.clamp(0.0, 1.0),
+                      allDone: allDone0 && habits.isNotEmpty,
+                      clock: _sceneClock.time,
+                    ),
+                  ),
+                ),
               // 內容
               SafeArea(child: _buildMascotScene()),
             ],

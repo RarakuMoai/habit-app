@@ -212,9 +212,18 @@ class SceneTimeController extends ChangeNotifier with WidgetsBindingObserver {
   void loadFromPrefs(SharedPreferences prefs) {
     SceneFrameProbe.ensureAttached(); // SCENE_PERF=1 才生效，正式版 no-op
     if (kDevToolsEnabled) {
-      // 只有 prefs 真的有值才覆蓋，避免洗掉程式裡手動設的預覽值。
-      final v = prefs.getDouble(PrefsKeys.debugSceneHour);
-      if (v != null) _previewHour = v;
+      // 截圖工作流：--dart-define=SCENE_HOUR=17.5 直接鎖定預覽小時。
+      // 從外部改模擬器 prefs plist 會被 cfprefsd 快取隨機蓋回，不可靠；
+      // dart-define 走編譯期常數，確定性 100%（同 GAME_SHOT 模式）。
+      const forced = String.fromEnvironment('SCENE_HOUR');
+      final forcedHour = double.tryParse(forced);
+      if (forcedHour != null) {
+        _previewHour = forcedHour;
+      } else {
+        // 只有 prefs 真的有值才覆蓋，避免洗掉程式裡手動設的預覽值。
+        final v = prefs.getDouble(PrefsKeys.debugSceneHour);
+        if (v != null) _previewHour = v;
+      }
     }
     final fixed = prefs.getString(PrefsKeys.sceneFixedPeriod);
     _fixedPeriod = ScenePeriod.values.asNameMap()[fixed];
