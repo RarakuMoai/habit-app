@@ -795,6 +795,9 @@ class _RoomAmbientPainter extends CustomPainter {
   }
 
   // ── 床頭檯燈暖光暈（呼吸）────────────────────────────────────
+  // 外暈刻意收斂：半徑 0.30w 時光球會吞掉櫃面以下的家具正面＋地板
+  //（「檯燈光照下方太多」），且 additive 疊加在實機 P3/OLED 比模擬器
+  // 截圖更亮。改小半徑＋中心略上移（光偏向燈罩），讓光暈貼著燈本體。
   void _paintLampGlow(
     Canvas canvas,
     double w,
@@ -803,27 +806,27 @@ class _RoomAmbientPainter extends CustomPainter {
     double lamp,
     Offset center,
   ) {
-    final c = Offset(w * center.dx, imgH * center.dy);
+    final c = Offset(w * center.dx, imgH * (center.dy - 0.015));
     final breath = 0.86 + 0.14 * math.sin(t * 0.8);
     const warm = Color(0xFFFFC98A);
     // 外暈大而淡、內暈小而暖，疊出柔和的燈光層次
     canvas.drawCircle(
       c,
-      w * 0.30,
+      w * 0.225,
       Paint()
         ..blendMode = BlendMode.plus
-        ..shader = ui.Gradient.radial(c, w * 0.30, [
-          warm.withValues(alpha: 0.16 * lamp * breath),
+        ..shader = ui.Gradient.radial(c, w * 0.225, [
+          warm.withValues(alpha: 0.115 * lamp * breath),
           warm.withValues(alpha: 0),
         ]),
     );
     canvas.drawCircle(
       c,
-      w * 0.12,
+      w * 0.115,
       Paint()
         ..blendMode = BlendMode.plus
-        ..shader = ui.Gradient.radial(c, w * 0.12, [
-          const Color(0xFFFFE0B0).withValues(alpha: 0.22 * lamp * breath),
+        ..shader = ui.Gradient.radial(c, w * 0.115, [
+          const Color(0xFFFFE0B0).withValues(alpha: 0.19 * lamp * breath),
           const Color(0xFFFFE0B0).withValues(alpha: 0),
         ]),
     );

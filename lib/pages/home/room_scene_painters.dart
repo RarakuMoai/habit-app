@@ -253,19 +253,26 @@ class RoomSceneEffectsPainter extends CustomPainter {
 
     final breath = 0.88 + 0.12 * math.sin(phase * 0.74);
     const warm = Color(0xFFFFC27A);
+    // 桌面光池：貼著櫃面（燈座周圍），不畫到櫃面線以下。
+    // 舊版中心在 0.54*imgH（櫃體正面/地板高度）＝光懸浮在家具前，
+    // 是「檯燈光照下方太多」的主因之一。
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(w * 0.59, imgH * 0.54),
-        width: w * 0.36,
-        height: imgH * 0.12,
+        center: Offset(w * 0.635, imgH * 0.462),
+        width: w * 0.20,
+        height: imgH * 0.045,
       ),
       Paint()
         ..blendMode = BlendMode.plus
-        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 16)
-        ..shader = ui.Gradient.radial(Offset(w * 0.59, imgH * 0.54), w * 0.28, [
-          warm.withValues(alpha: 0.075 * lamp * breath),
-          warm.withValues(alpha: 0),
-        ]),
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 10)
+        ..shader = ui.Gradient.radial(
+          Offset(w * 0.635, imgH * 0.462),
+          w * 0.13,
+          [
+            warm.withValues(alpha: 0.055 * lamp * breath),
+            warm.withValues(alpha: 0),
+          ],
+        ),
     );
 
     final motePaint = Paint()..blendMode = BlendMode.plus;
