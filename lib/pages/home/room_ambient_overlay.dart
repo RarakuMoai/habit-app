@@ -92,6 +92,22 @@ double homeLampIntensity(double h) =>
 double homeDuskIntensity(double h) =>
     _smooth(16.0, 16.8, h) * (1 - _smooth(18.3, 19.2, h));
 
+/// 首頁日光光束的可視強度。早晨（6~9）低角度金光最強、正午轉柔但仍
+/// 清楚可見、14 起收光。實機驗證教訓（2026-07-12）：先前用 smooth(6,12)
+/// 一路壓，07:30 只剩 2% alpha、13:00 也不到 10%，整個白天等於沒有光照；
+/// srcOver 光束的亮度上限就是光束色本身，不會過曝，強度可以放心給足。
+double homeSunShaftStrength(double h) {
+  if (h < 6 || h >= 16) return 0;
+  final rise = _smooth(6.0, 7.0, h); // 日出後快速就位
+  final soften = 1 - 0.35 * _smooth(8.5, 12.0, h); // 正午轉柔（能量補償）
+  final set = 1 - _smooth(14.0, 16.0, h); // 午後收光
+  return 0.85 * rise * soften * set;
+}
+
+/// 首頁夜間月光強度。刻意比其他房間明確，因首頁亮色牆面會吃掉過淡冷光。
+double homeMoonShaftStrength(double h) =>
+    (h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h))) * 0.65;
+
 /// 首頁靜態差分 overlay（燈罩發亮 / 黃昏長影）。
 ///
 /// 與背景圖同一套 cover-by-width + topCenter 版位鋪滿，直接疊在底圖上；
@@ -631,24 +647,12 @@ class _RoomAmbientPainter extends CustomPainter {
     late final double lamp;
     late final double moon;
     if (companionTiming) {
-      final sun = _companionSun(h);
+      final sunShaft = homeSunShaftStrength(h);
       final noon = _smooth(6.0, 12.0, h);
       // 黃昏斜光：與長影差分/光池共用同一條首頁黃昏曲線
       final dusk = homeDuskIntensity(h);
-      if (sun > 0.01) {
-        // (1 - 0.70*noon)＝能量補償：正午光束加寬 9 倍（spreadScale 8）
-        // 又三道 additive 疊加，不補償會把窗簾/牆面 45% 沖到全白
-        //（實測過曝率 45.3%→補償後應 <5%）。與其他頁 shaftStrength 的
-        // (1 - 0.875*dayness) 同一個道理。
-        _paintSunShafts(
-          canvas,
-          w,
-          imgH,
-          t,
-          0.68 * sun * (1 - 0.70 * noon),
-          noon,
-          spreadScale: 8.0,
-        );
+      if (sunShaft > 0.01) {
+        _paintSunShafts(canvas, w, imgH, t, sunShaft, noon, spreadScale: 1.6);
       }
       if (dusk > 0.01) {
         _paintSunShafts(
@@ -656,17 +660,15 @@ class _RoomAmbientPainter extends CustomPainter {
           w,
           imgH,
           t,
-          0.26 * dusk,
+          0.62 * dusk,
           0.22,
           colorOverride: const Color(0xFFFFB36F),
-          spreadScale: 3.2,
+          spreadScale: 1.6,
         );
       }
       // 檯燈與黃昏同步暖起來（16:48 起漸亮）；與燈罩差分共用曲線
       lamp = homeLampIntensity(h);
-      moon =
-          (h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h))) *
-          0.45;
+      moon = homeMoonShaftStrength(h);
     } else {
       // ── 時段強度曲線（連續、平滑）──
       // 窗光：5:30 亮起、晨間最強、白天轉柔、16~19 收掉
@@ -689,12 +691,6 @@ class _RoomAmbientPainter extends CustomPainter {
     }
   }
 
-  double _companionSun(double h) {
-    if (h < 6 || h >= 16) return 0;
-    if (h <= 12) return _smooth(6.0, 12.0, h);
-    return 1 - _smooth(12.0, 16.0, h);
-  }
-
   // ── 窗光光束 + 地板光池 + 塵埃 ──────────────────────────────
   void _paintSunShafts(
     Canvas canvas,
@@ -706,7 +702,15 @@ class _RoomAmbientPainter extends CustomPainter {
     Color? colorOverride,
     double spreadScale = 11.0,
   }) {
-    final color =
+    // 染色 pass 用較飽和的金（srcOver 靠色差表現）；提亮 pass 用淺暖色。
+    final tintColor =
+        colorOverride ??
+        Color.lerp(
+          const Color(0xFFFFB966), // 晨金（飽和）
+          const Color(0xFFFFE7B8), // 晝奶油（飽和）
+          dayness,
+        )!;
+    final liftColor =
         colorOverride ??
         Color.lerp(
           const Color(0xFFFFC388), // 晨金
@@ -715,20 +719,29 @@ class _RoomAmbientPainter extends CustomPainter {
         )!;
     final dir = Offset(1, 0.9) / Offset(1, 0.9).distance;
     final perp = Offset(-dir.dy, dir.dx);
-    final len = w * 0.95;
-    // 白天太陽高 → 光束大幅加寬成一片柔光（晨光 dayness≈0 仍窄而戲劇）。
-    // 調這個係數改白天「範圍」：越大越寬。
+    // 光束落在床鋪就收掉（0.85w）：拉太長會掃過整個房間變成霧。
+    final len = w * 0.85;
+    // 白天太陽高 → 光束稍微加寬，但仍保留三道可辨識的輪廓。
     final spread = 1.0 + spreadScale * dayness;
 
-    // 三道光束沿窗格錯開，亮度微微呼吸（極慢，幾乎察覺不到才高級）
+    // 三道光束沿窗格錯開，亮度微微呼吸（極慢，幾乎察覺不到才高級）。
+    // blend 模式演進（實機兩輪回報的結論，改前先讀）：
+    //   純 plus → 正午在白牆/窗簾大面積 clip 到全白（45% 過曝）；
+    //   純 srcOver → 奶油光疊奶油房間色距趨近 0，整條光束隱形；
+    //   純 screen → 暖色調房間上去飽和變蒼白霧，沒有「金色光」感。
+    // 定案＝雙 pass：srcOver 飽和金負責「暖色染」（上限就是光束色，
+    // 永不過曝），低 alpha plus 負責「提亮」（正午有效值 ≤7% 不會洗白）。
     final beams = <({Offset start, double halfW, double alpha})>[
-      (start: Offset(w * 0.07, imgH * 0.09), halfW: w * 0.030, alpha: 0.18),
-      (start: Offset(w * 0.12, imgH * 0.16), halfW: w * 0.042, alpha: 0.22),
-      (start: Offset(w * 0.17, imgH * 0.24), halfW: w * 0.034, alpha: 0.16),
+      (start: Offset(w * 0.07, imgH * 0.09), halfW: w * 0.027, alpha: 0.30),
+      (start: Offset(w * 0.12, imgH * 0.16), halfW: w * 0.036, alpha: 0.34),
+      (start: Offset(w * 0.17, imgH * 0.24), halfW: w * 0.030, alpha: 0.27),
     ];
     final breath = 0.9 + 0.1 * math.sin(t * 0.35);
-    final blur = Paint()
-      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 9)
+    final tintPaint = Paint()
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7)
+      ..blendMode = BlendMode.srcOver;
+    final liftPaint = Paint()
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7)
       ..blendMode = BlendMode.plus;
 
     for (final b in beams) {
@@ -741,11 +754,22 @@ class _RoomAmbientPainter extends CustomPainter {
         ..lineTo(end.dx - perp.dx * hw * 1.6, end.dy - perp.dy * hw * 1.6)
         ..lineTo(end.dx + perp.dx * hw * 1.6, end.dy + perp.dy * hw * 1.6)
         ..close();
-      blur.shader = ui.Gradient.linear(b.start, end, [
-        color.withValues(alpha: b.alpha * strength * breath),
-        color.withValues(alpha: 0),
-      ]);
-      canvas.drawPath(path, blur);
+      // 中段留 55% 濃度：只給頭尾兩個 stop 時，光束離窗一小段就衰減到
+      // 肉眼閾值以下，等於整條看不見（實機回報的主因之一）。
+      final a0 = b.alpha * strength * breath;
+      const stops = [0.0, 0.5, 1.0];
+      tintPaint.shader = ui.Gradient.linear(b.start, end, [
+        tintColor.withValues(alpha: a0),
+        tintColor.withValues(alpha: a0 * 0.55),
+        tintColor.withValues(alpha: 0),
+      ], stops);
+      liftPaint.shader = ui.Gradient.linear(b.start, end, [
+        liftColor.withValues(alpha: a0 * 0.42),
+        liftColor.withValues(alpha: a0 * 0.42 * 0.55),
+        liftColor.withValues(alpha: 0),
+      ], stops);
+      canvas.drawPath(path, tintPaint);
+      canvas.drawPath(path, liftPaint);
     }
 
     // 塵埃微粒：沿中央光束緩慢漂移 + 各自閃爍
@@ -763,7 +787,7 @@ class _RoomAmbientPainter extends CustomPainter {
       final twinkle = 0.5 + 0.5 * math.sin(t * (0.6 + m.p1 * 0.2) + m.p2);
       // 沿光束尾端淡出，跟光束的衰減一致
       final fade = (1 - s) * strength * twinkle;
-      motePaint.color = color.withValues(alpha: 0.38 * fade);
+      motePaint.color = liftColor.withValues(alpha: 0.45 * fade);
       canvas.drawCircle(pos, m.r, motePaint);
     }
   }
@@ -782,22 +806,46 @@ class _RoomAmbientPainter extends CustomPainter {
       ..lineTo(end.dx - perp.dx * halfW * 1.5, end.dy - perp.dy * halfW * 1.5)
       ..lineTo(end.dx + perp.dx * halfW * 1.5, end.dy + perp.dy * halfW * 1.5)
       ..close();
+    // 雙 pass 同光束：srcOver 冷色染（暖房間上靠色差可見）＋小 plus 提亮。
+    canvas.drawPath(
+      path,
+      Paint()
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 11)
+        ..shader = ui.Gradient.linear(
+          start,
+          end,
+          [
+            const Color(0xFFAAB6E8).withValues(alpha: 0.32 * moon),
+            const Color(0xFFAAB6E8).withValues(alpha: 0.18 * moon),
+            const Color(0x00AAB6E8),
+          ],
+          [0.0, 0.5, 1.0],
+        ),
+    );
     canvas.drawPath(
       path,
       Paint()
         ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 11)
         ..blendMode = BlendMode.plus
-        ..shader = ui.Gradient.linear(start, end, [
-          color.withValues(alpha: 0.07 * moon),
-          color.withValues(alpha: 0),
-        ]),
+        ..shader = ui.Gradient.linear(
+          start,
+          end,
+          [
+            color.withValues(alpha: 0.10 * moon),
+            color.withValues(alpha: 0.06 * moon),
+            color.withValues(alpha: 0),
+          ],
+          [0.0, 0.5, 1.0],
+        ),
     );
   }
 
   // ── 床頭檯燈暖光暈（呼吸）────────────────────────────────────
-  // 外暈刻意收斂：半徑 0.30w 時光球會吞掉櫃面以下的家具正面＋地板
-  //（「檯燈光照下方太多」），且 additive 疊加在實機 P3/OLED 比模擬器
-  // 截圖更亮。改小半徑＋中心略上移（光偏向燈罩），讓光暈貼著燈本體。
+  // 首頁（companionTiming）有「燈罩發亮」差分圖，燈本體已經亮了；painter
+  // 只負責「投出去的光」：燈罩周圍的暖色染（srcOver，不會疊白過曝）＋
+  // 櫃面上的小光池。實機回報教訓：additive 光暈中心又落在燈頸（0.41 是
+  // 燈罩「底緣」），疊在全亮燈罩差分上就是一顆吞掉底座的白色光球。
+  // 其他房間沒有差分圖，維持原本 additive 雙圓光暈（燈亮本體靠它表達）。
   void _paintLampGlow(
     Canvas canvas,
     double w,
@@ -806,6 +854,42 @@ class _RoomAmbientPainter extends CustomPainter {
     double lamp,
     Offset center,
   ) {
+    if (companionTiming) {
+      // 燈罩中心在 lampCenter（燈罩底緣）上方 0.045 圖高處（量自差分圖）。
+      final shade = Offset(w * center.dx, imgH * (center.dy - 0.045));
+      final breath = 0.93 + 0.07 * math.sin(t * 0.8);
+      const warm = Color(0xFFFFC98A);
+      final halo = Paint()
+        ..shader = ui.Gradient.radial(
+          shade,
+          w * 0.155,
+          [
+            warm.withValues(alpha: 0.20 * lamp * breath),
+            warm.withValues(alpha: 0.10 * lamp * breath),
+            warm.withValues(alpha: 0),
+          ],
+          [0.0, 0.55, 1.0],
+        );
+      canvas.drawCircle(shade, w * 0.155, halo);
+      // 櫃面光池：燈座下方一小圈橫橢圓，貼著床頭櫃面，不往地板擴。
+      // 小範圍 plus 才有「燈光落在木頭上」的暖感；範圍小不會養成光球。
+      final pool = Offset(w * center.dx, imgH * (center.dy + 0.065));
+      canvas.save();
+      canvas.translate(pool.dx, pool.dy);
+      canvas.scale(1, 0.42);
+      canvas.drawCircle(
+        Offset.zero,
+        w * 0.105,
+        Paint()
+          ..blendMode = BlendMode.plus
+          ..shader = ui.Gradient.radial(Offset.zero, w * 0.105, [
+            const Color(0xFFFFDFAE).withValues(alpha: 0.12 * lamp),
+            const Color(0xFFFFDFAE).withValues(alpha: 0),
+          ]),
+      );
+      canvas.restore();
+      return;
+    }
     final c = Offset(w * center.dx, imgH * (center.dy - 0.015));
     final breath = 0.86 + 0.14 * math.sin(t * 0.8);
     const warm = Color(0xFFFFC98A);
