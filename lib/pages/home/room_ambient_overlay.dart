@@ -636,7 +636,19 @@ class _RoomAmbientPainter extends CustomPainter {
       // 黃昏斜光：與長影差分/光池共用同一條首頁黃昏曲線
       final dusk = homeDuskIntensity(h);
       if (sun > 0.01) {
-        _paintSunShafts(canvas, w, imgH, t, 0.68 * sun, noon, spreadScale: 8.0);
+        // (1 - 0.70*noon)＝能量補償：正午光束加寬 9 倍（spreadScale 8）
+        // 又三道 additive 疊加，不補償會把窗簾/牆面 45% 沖到全白
+        //（實測過曝率 45.3%→補償後應 <5%）。與其他頁 shaftStrength 的
+        // (1 - 0.875*dayness) 同一個道理。
+        _paintSunShafts(
+          canvas,
+          w,
+          imgH,
+          t,
+          0.68 * sun * (1 - 0.70 * noon),
+          noon,
+          spreadScale: 8.0,
+        );
       }
       if (dusk > 0.01) {
         _paintSunShafts(
