@@ -70,7 +70,7 @@ class _StoryRevealPageState extends State<StoryRevealPage>
       vsync: this,
       duration: const Duration(seconds: 24),
     )..repeat();
-    playFeedback(SfxCue.tumiHappy, haptic: HapticLevel.light);
+    playFeedback(SfxCue.unlock, haptic: HapticLevel.light);
     unawaited(UsageStats.bump(UsageEvents.storyOpen));
     _startPage();
   }

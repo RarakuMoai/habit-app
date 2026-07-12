@@ -155,7 +155,7 @@ class _WardrobePageState extends State<WardrobePage>
     final result = await WardrobeStore.purchaseOutfit(outfit.id);
     if (!mounted) return;
     if (result == PurchaseResult.success) {
-      playFeedback(SfxCue.success);
+      playFeedback(SfxCue.unlock);
       await WardrobeStore.setOutfit(outfit.id);
       MascotPersona.setForContext(
         MascotEmotion.popHappy.assetPath,
@@ -266,7 +266,7 @@ class _WardrobePageState extends State<WardrobePage>
     final result = await WardrobeStore.purchaseTrack(track.id);
     if (!mounted) return;
     if (result == PurchaseResult.success) {
-      playFeedback(SfxCue.success);
+      playFeedback(SfxCue.unlock);
       _toast('已解鎖 ${track.title}');
     } else {
       _reportPurchaseFail(result);

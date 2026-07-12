@@ -9,6 +9,8 @@ enum SfxCue {
   success('assets/sounds/sfx_success.wav', 0.95),
   complete('assets/sounds/sfx_complete.wav', 1.0),
   cancel('assets/sounds/sfx_cancel.wav', 0.9),
+  // 衣櫃購買／回憶揭曉：溫暖木質起音＋短促星光尾音。
+  unlock('assets/sounds/sfx_unlock.wav', 0.85),
   // 兔咪語音（2026-07 新錄音組，取代舊 tumi_mi_*）。
   // 各檔原始響度不齊（RMS -20.8 ~ -28.3 dBFS），用音量係數拉齊到
   // 「輕聲陪伴」水準；歡呼是大事件慶祝，刻意比日常亮一點。
