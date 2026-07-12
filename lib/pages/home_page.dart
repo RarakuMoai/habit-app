@@ -987,6 +987,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
               ),
+              // 靜態差分 overlay（燈罩發亮 / 黃昏長影）：疊底圖上、色罩下，
+              // opacity 走分鐘級時段權重（無動畫幀成本）。
+              if (kRoomAmbienceEnabled)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: bgH,
+                  child: const HomeSceneStaticOverlays(),
+                ),
               Positioned(
                 top: 0,
                 left: 0,

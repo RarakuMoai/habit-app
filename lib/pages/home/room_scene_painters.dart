@@ -5,7 +5,12 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../utils/scene_time.dart';
-import 'room_ambient_overlay.dart' show sceneHourNow, ThrottledSceneTicker;
+import 'room_ambient_overlay.dart'
+    show
+        homeDuskIntensity,
+        homeLampIntensity,
+        sceneHourNow,
+        ThrottledSceneTicker;
 import 'room_metrics.dart';
 
 /// 首頁互動效果層（地板光池 / 檯燈氛圍 / 完成光暈）。
@@ -107,13 +112,11 @@ class RoomSceneEffectsPainter extends CustomPainter {
     return 1 - _smooth(12.0, 16.0, hour);
   }
 
-  // 黃昏地板光池／檯燈氛圍：時間窗與 RoomAmbientOverlay companionTiming
-  // 一致（黃昏核心全程都在、暮→夜交接收掉；燈 16:48 起漸亮）。
-  double _dusk(double hour) =>
-      _smooth(16.0, 16.8, hour) * (1 - _smooth(18.3, 19.2, hour));
+  // 黃昏地板光池／檯燈氛圍：與 RoomAmbientOverlay、差分 overlay 共用
+  // 同一條首頁強度曲線（room_ambient_overlay.dart）。
+  double _dusk(double hour) => homeDuskIntensity(hour);
 
-  double _lamp(double hour) =>
-      hour >= 12 ? _smooth(16.8, 18.0, hour) : (1 - _smooth(5.4, 6.4, hour));
+  double _lamp(double hour) => homeLampIntensity(hour);
 
   void _paintSoftRoomDepth(
     Canvas canvas,

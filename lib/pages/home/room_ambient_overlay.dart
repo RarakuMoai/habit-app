@@ -82,6 +82,70 @@ double _smooth(double a, double b, double x) {
   return t * t * (3 - 2 * t);
 }
 
+/// 首頁檯燈點亮強度（0~1）：16:48 起與黃昏同步漸亮、清晨 5:24~6:24 漸滅。
+/// 程式光暈（painter）與燈罩發亮差分圖（overlay）共用這一條曲線。
+double homeLampIntensity(double h) =>
+    h >= 12 ? _smooth(16.8, 18.0, h) : (1 - _smooth(5.4, 6.4, h));
+
+/// 首頁黃昏強度（0~1）：黃昏核心（~17:00–19:00）全程都在，
+/// 暮→夜交接（18:18–19:12）收掉。斜光、地板光池、長影差分圖共用。
+double homeDuskIntensity(double h) =>
+    _smooth(16.0, 16.8, h) * (1 - _smooth(18.3, 19.2, h));
+
+/// 首頁靜態差分 overlay（燈罩發亮 / 黃昏長影）。
+///
+/// 與背景圖同一套 cover-by-width + topCenter 版位鋪滿，直接疊在底圖上；
+/// opacity 走 [SceneTimeController] 的分鐘級時段權重——沒有動畫幀成本，
+/// ticker 全停時也會跟著分鐘更新。圖檔缺失時 errorBuilder 回退為空層。
+class HomeSceneStaticOverlays extends StatelessWidget {
+  const HomeSceneStaticOverlays({super.key});
+
+  static Widget _cover(String path) {
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Image.asset(
+          path,
+          height: double.infinity,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: ListenableBuilder(
+        listenable: SceneTimeController.instance,
+        builder: (_, _) {
+          final h = SceneTimeController.instance.state.hour;
+          final lamp = homeLampIntensity(h);
+          final dusk = homeDuskIntensity(h);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (dusk > 0.01)
+                Opacity(
+                  opacity: dusk,
+                  child: _cover('assets/scenes/home/home_shadow_dusk.png'),
+                ),
+              if (lamp > 0.01)
+                Opacity(
+                  opacity: lamp,
+                  child: _cover('assets/scenes/home/home_lamp_lit.png'),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// 單一場景動畫時鐘：一條 Ticker 驅動同場景所有動態層（窗景/室內光影/
 /// 互動特效共享相位），完整模式節流 20fps（計劃書 §5.2）。
 /// 由頁面 State 持有並負責 start/stop/dispose：閒置凍結呼叫 [stop]（0fps），
@@ -569,8 +633,8 @@ class _RoomAmbientPainter extends CustomPainter {
     if (companionTiming) {
       final sun = _companionSun(h);
       final noon = _smooth(6.0, 12.0, h);
-      // 黃昏斜光：整個黃昏核心（~17:00–19:00）都在，跟著暮→夜交接收掉
-      final dusk = _smooth(16.0, 16.8, h) * (1 - _smooth(18.3, 19.2, h));
+      // 黃昏斜光：與長影差分/光池共用同一條首頁黃昏曲線
+      final dusk = homeDuskIntensity(h);
       if (sun > 0.01) {
         _paintSunShafts(canvas, w, imgH, t, 0.68 * sun, noon, spreadScale: 8.0);
       }
@@ -586,8 +650,8 @@ class _RoomAmbientPainter extends CustomPainter {
           spreadScale: 3.2,
         );
       }
-      // 檯燈與黃昏同步暖起來（16:48 起漸亮）
-      lamp = h >= 12 ? _smooth(16.8, 18.0, h) : (1 - _smooth(5.4, 6.4, h));
+      // 檯燈與黃昏同步暖起來（16:48 起漸亮）；與燈罩差分共用曲線
+      lamp = homeLampIntensity(h);
       moon =
           (h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h))) *
           0.45;
