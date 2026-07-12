@@ -16,53 +16,30 @@
 //
 // 效能：兩層各自單 Ticker 節流 ~30fps + RepaintBoundary，只重繪自己。
 //
-// 截圖驗證用 debug 覆寫：kDevToolsEnabled 開啟時從 prefs 讀
-// PrefsKeys.debugSceneHour（HomeSceneDebug）；正式版關掉就一律走真實時間。
+// 時間來源：一律走 SceneTimeController（utils/scene_time.dart）——
+// 真實時間 / 使用者固定時段 / dev 預覽覆寫都由它統一；painter 讀
+// state.hour（每分鐘更新），不在 paint() 內讀 DateTime.now()。
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../utils/feature_flags.dart';
-import '../../utils/prefs_keys.dart';
+import '../../utils/scene_time.dart';
 
-/// debug 覆寫（截圖驗證時段用）。kDevToolsEnabled 關掉時一律走真實時間。
-abstract final class HomeSceneDebug {
-  static double? hourOverride;
-
-  static void loadFromPrefs(SharedPreferences prefs) {
-    if (!kDevToolsEnabled) return;
-    // 只有 prefs 真的有值才覆蓋，避免把程式裡手動寫死的預覽值洗掉
-    final v = prefs.getDouble(PrefsKeys.debugSceneHour);
-    if (v != null) hourOverride = v;
-  }
-}
-
-/// 目前場景小時（0~24 連續值）。首頁 _sceneColors/_sceneTint 也用它，
-/// 確保光影層跟色罩/accent 在 debug 覆寫下一致。
-double sceneHourNow() {
-  final override = HomeSceneDebug.hourOverride;
-  if (override != null) return override % 24;
-  final now = DateTime.now();
-  return now.hour + now.minute / 60 + now.second / 3600;
-}
+/// 目前場景小時（0~24 連續值，已含固定時段/預覽覆寫）。首頁
+/// _sceneColors/_sceneTint 也用它，確保光影層跟色罩/accent 一致。
+double sceneHourNow() => SceneTimeController.instance.state.hour;
 
 /// 時段色罩（純時間版；首頁另有「全完成」特例自己處理，故維持自有 _sceneTint）。
-/// 時間分支與首頁 _sceneTint 一致：夜(藍) / 晨(粉金) / 暮(薰衣草) / 白天透明。
+/// 四時段權重連續混色：夜(藍) / 晨(粉金) / 暮(薰衣草) / 白天透明。
 Color sceneTintNow() {
-  final hour = sceneHourNow().floor();
-  if (hour >= 22 || hour < 6) {
-    return const Color(0xFF3F456B).withValues(alpha: 0.12);
-  }
-  if (hour < 9) {
-    return const Color(0xFFFFC4AD).withValues(alpha: 0.10);
-  }
-  if (hour >= 17) {
-    return const Color(0xFFC9A1E8).withValues(alpha: 0.10);
-  }
-  return Colors.transparent;
+  return SceneTimeController.instance.state.blendColor(
+    morning: const Color(0xFFFFC4AD).withValues(alpha: 0.10),
+    day: Colors.transparent,
+    dusk: const Color(0xFFC9A1E8).withValues(alpha: 0.10),
+    night: const Color(0xFF3F456B).withValues(alpha: 0.12),
+  );
 }
 
 /// 全域總開關（快速恢復用）：設 false → 所有套了 [SceneAmbience] 的頁面
@@ -179,8 +156,10 @@ class _WindowBackdropPainter extends CustomPainter {
   final ValueNotifier<double> time;
   final Rect windowRect;
 
+  // repaint 合併分鐘級的時段更新：ticker 被凍結（閒置/省電）時，跨過
+  // 時段交界仍會做單次 repaint 更新配色，不會停格在舊時段。
   _WindowBackdropPainter({required this.time, required this.windowRect})
-    : super(repaint: time);
+    : super(repaint: Listenable.merge([time, SceneTimeController.instance]));
 
   // 夜空星點（窗區座標：x = 區寬比例、y = 區高比例的上半）
   static const _stars = <(double, double, double)>[
@@ -491,7 +470,7 @@ class _RoomAmbientPainter extends CustomPainter {
     required this.lampCenter,
     required this.tint,
     required this.companionTiming,
-  }) : super(repaint: time);
+  }) : super(repaint: Listenable.merge([time, SceneTimeController.instance]));
 
   // 塵埃微粒：固定 seed，沿光束軸向參數化（s = 0~1 位置、off = 垂直偏移）
   static final List<({double s, double off, double r, double p1, double p2})>

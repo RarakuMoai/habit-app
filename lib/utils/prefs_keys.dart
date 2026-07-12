@@ -200,6 +200,10 @@ abstract final class PrefsKeys {
   static const usageDayPrefix = 'usage_day_';
   static String usageDay(String ymd) => '$usageDayPrefix$ymd';
 
+  // ── 四時段場景（utils/scene_time.dart）──────────────────────
+  // 固定場景：ScenePeriod.name（morning/day/dusk/night）；沒有 = 跟隨真實時間
+  static const sceneFixedPeriod = 'scene_fixed_period';
+
   // ── Debug（kDevToolsEnabled 控制讀取；目前 release 也暫時開，正式版會移除）──
   static const debugSceneHour = 'debug_scene_hour'; // double 0~24
   static const debugStartTab = 'debug_start_tab'; // int 啟動分頁 index

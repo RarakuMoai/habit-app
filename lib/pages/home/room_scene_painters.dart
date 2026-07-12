@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../utils/scene_time.dart';
 import 'room_ambient_overlay.dart' show sceneHourNow, ThrottledSceneTicker;
 import 'room_metrics.dart';
 
@@ -55,6 +56,7 @@ class RoomSceneEffectsPainter extends CustomPainter {
   final Color accent;
   final double progress;
   final bool allDone;
+
   /// 開場至今秒數（無界）；12 秒一圈換算成 phase。節流由 [RoomSceneEffects] 的
   /// ticker 負責，這裡只負責把秒數映射成相位。
   final ValueNotifier<double> time;
@@ -64,7 +66,10 @@ class RoomSceneEffectsPainter extends CustomPainter {
     required this.progress,
     required this.allDone,
     required this.time,
-  }) : super(repaint: time);
+  }) : super(
+         // 合併分鐘級時段更新：ticker 凍結時跨交界仍會單次 repaint。
+         repaint: Listenable.merge([time, SceneTimeController.instance]),
+       );
 
   @override
   void paint(Canvas canvas, Size size) {

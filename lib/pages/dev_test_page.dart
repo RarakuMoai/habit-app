@@ -7,6 +7,7 @@ import '../utils/app_restart.dart';
 import '../utils/coin_service.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/scene_time.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 import '../utils/usage_stats.dart';
@@ -143,8 +144,10 @@ class _DevTestPageState extends State<DevTestPage> {
           await prefs.setString(e.key, v as String);
       }
     }
-    // 同步還原場景時段覆寫（靜態值）與 UI 狀態
-    HomeSceneDebug.hourOverride = prefs.getDouble(PrefsKeys.debugSceneHour);
+    // 同步還原場景時段覆寫與 UI 狀態
+    SceneTimeController.instance.setPreviewHour(
+      prefs.getDouble(PrefsKeys.debugSceneHour),
+    );
     bumpFeatureFlags();
     await _load();
     if (!mounted) return;
@@ -156,11 +159,10 @@ class _DevTestPageState extends State<DevTestPage> {
     if (prefs == null) return;
     if (hour == null) {
       await prefs.remove(PrefsKeys.debugSceneHour);
-      HomeSceneDebug.hourOverride = null;
     } else {
       await prefs.setDouble(PrefsKeys.debugSceneHour, hour);
-      HomeSceneDebug.hourOverride = hour;
     }
+    SceneTimeController.instance.setPreviewHour(hour);
     setState(() => _sceneHour = hour);
   }
 
@@ -240,7 +242,8 @@ class _DevTestPageState extends State<DevTestPage> {
                 _card(
                   title: '使用統計（本機匿名）',
                   icon: Icons.query_stats,
-                  description: '只記「事件 → 當日次數」、不上傳（usage_stats.dart）。'
+                  description:
+                      '只記「事件 → 當日次數」、不上傳（usage_stats.dart）。'
                       '這裡看最近 7 天的原始計數。',
                   child: const _UsageStatsViewer(),
                 ),
@@ -611,8 +614,9 @@ class _UsageStatsViewerState extends State<_UsageStatsViewer> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              for (final e in counts.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value)))
+              for (final e
+                  in counts.entries.toList()
+                    ..sort((a, b) => b.value.compareTo(a.value)))
                 Text(
                   '  ${e.key}：${e.value}',
                   style: const TextStyle(fontSize: 12),

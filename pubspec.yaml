@@ -58,6 +58,9 @@ dependency_overrides:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # 場景時間引擎測試用（分鐘 tick / 時鐘跳變模擬）；本來就是 flutter_test
+  # 的遞移相依，宣告出來只為了能直接 import。
+  fake_async: ^1.3.3
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

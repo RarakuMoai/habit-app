@@ -18,6 +18,7 @@ import '../utils/input_formatters.dart';
 import '../utils/logical_date.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/scene_time.dart';
 import '../utils/sfx_service.dart';
 import '../utils/story_store.dart';
 import '../utils/usage_stats.dart';
@@ -110,6 +111,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    // 分鐘級時段更新：讓背景漸層/色罩/accent 跟著時間走
+    //（閒置凍結時也會更新，不會停格在舊時段）。
+    SceneTimeController.instance.addListener(_handleSceneTimeChanged);
     MascotPersona.current.addListener(_handleMascotActivity);
     _celebCtrl = AnimationController(
       vsync: this,
@@ -133,6 +137,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    SceneTimeController.instance.removeListener(_handleSceneTimeChanged);
     MascotPersona.current.removeListener(_handleMascotActivity);
     _sceneIdleTimer?.cancel();
     _celebCtrl.dispose();
@@ -145,9 +150,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _markSceneActive();
   }
 
+  void _handleSceneTimeChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
-    HomeSceneDebug.loadFromPrefs(prefs); // debug 截圖用時段覆寫，release no-op
+    SceneTimeController.instance.loadFromPrefs(prefs); // 固定時段/預覽覆寫
     _dayStartHour = LogicalDate.load(prefs); // 算「今天」前先讀換日設定
     final today = todayString();
     final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
@@ -1130,27 +1139,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // 房間背景圖上的時段色罩（順序與 _sceneColors 一致：全完成 > 夜 > 晨 > 暮）
+  // 房間背景圖上的時段色罩：四時段權重連續混色（無瞬切）；
+  // 「全完成」慶祝罩疊加在時段罩之上，不取代時間狀態。
   Color get _sceneTint {
-    final hour = sceneHourNow();
+    final tint = SceneTimeController.instance.state.blendColor(
+      morning: const Color(0xFFFFE0B8).withValues(alpha: 0.045),
+      day: Colors.transparent,
+      dusk: const Color(0xFFFFB36B).withValues(alpha: 0.075),
+      night: const Color(0xFFFFD7A0).withValues(alpha: 0.055),
+    );
     if (allDone0 && habits.isNotEmpty) {
-      return const Color(0xFFFFF3C4).withValues(alpha: 0.10);
+      return Color.alphaBlend(
+        const Color(0xFFFFF3C4).withValues(alpha: 0.10),
+        tint,
+      );
     }
-    if (hour >= 18 || hour < 6) {
-      return const Color(0xFFFFD7A0).withValues(alpha: 0.055);
-    }
-    if (hour < 8) {
-      return const Color(0xFFFFE0B8).withValues(alpha: 0.045);
-    }
-    if (hour >= 16 && hour < 18) {
-      return const Color(0xFFFFB36B).withValues(alpha: 0.075);
-    }
-    return Colors.transparent;
+    return tint;
   }
 
-  // 場景配色：全完成 > 夜晚暖燈 > 清晨 > 黃昏 > 白天
+  // 場景配色：四時段權重連續混色（晨粉金 / 晝暖白 / 暮金橘 / 夜暖燈）；
+  // 全完成的綠色慶祝主題維持覆蓋（短暫的狀態回饋，優先於時段）。
   ({Color top, Color bottom, Color accent}) get _sceneColors {
-    final hour = sceneHourNow();
     if (allDone0 && habits.isNotEmpty) {
       return (
         top: const Color(0xFFE8F8E5),
@@ -1158,33 +1167,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         accent: const Color(0xFF66BB6A),
       );
     }
-    if (hour >= 18 || hour < 6) {
-      return (
-        top: const Color(0xFFFFF4E8),
-        bottom: const Color(0xFFEED8C4),
-        accent: const Color(0xFFC28A55),
-      );
-    }
-    if (hour < 8) {
-      // 清晨：粉金日出
-      return (
-        top: const Color(0xFFFFF6EA),
-        bottom: const Color(0xFFFFE0C5),
-        accent: const Color(0xFFF08A62),
-      );
-    }
-    if (hour >= 16 && hour < 18) {
-      // 黃昏：陽光收進溫柔金橘
-      return (
-        top: const Color(0xFFFFEACF),
-        bottom: const Color(0xFFF1C9A8),
-        accent: const Color(0xFFC47A52),
-      );
-    }
+    final s = SceneTimeController.instance.state;
     return (
-      top: const Color(0xFFFFF4E0),
-      bottom: const Color(0xFFFFE5C7),
-      accent: const Color(0xFFFF8A50),
+      top: s.blendOpaque(
+        morning: const Color(0xFFFFF6EA),
+        day: const Color(0xFFFFF4E0),
+        dusk: const Color(0xFFFFEACF),
+        night: const Color(0xFFFFF4E8),
+      ),
+      bottom: s.blendOpaque(
+        morning: const Color(0xFFFFE0C5),
+        day: const Color(0xFFFFE5C7),
+        dusk: const Color(0xFFF1C9A8),
+        night: const Color(0xFFEED8C4),
+      ),
+      accent: s.blendOpaque(
+        morning: const Color(0xFFF08A62),
+        day: const Color(0xFFFF8A50),
+        dusk: const Color(0xFFC47A52),
+        night: const Color(0xFFC28A55),
+      ),
     );
   }
 
