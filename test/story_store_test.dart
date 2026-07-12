@@ -193,6 +193,14 @@ void main() {
       }
     }
 
-    expect(storyEventById('first_habit').cover, 'assets/story/first_habit.png');
+    expect(
+      storyEventById('first_habit').cover,
+      'assets/story/first_habit_v2.png',
+    );
+    for (final event in storyCatalog) {
+      expect(event.label, isNotEmpty, reason: '${event.id} 需要收藏分類');
+      expect(event.unlockHint, isNotEmpty, reason: '${event.id} 需要未解鎖提示');
+      expect(event.cover, endsWith('_v2.png'));
+    }
   });
 }

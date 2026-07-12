@@ -86,6 +86,7 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
       body: SafeArea(
         child: Stack(
           children: [
+            const Positioned.fill(child: _PaperBackdrop()),
             PageView.builder(
               controller: _controller,
               itemCount: entries.length,
@@ -97,11 +98,39 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
               ),
             ),
             Positioned(
-              top: 6,
-              right: 8,
+              top: 8,
+              left: 12,
               child: _CircleButton(
-                icon: Icons.close_rounded,
+                icon: Icons.arrow_back_rounded,
                 onTap: () => Navigator.of(context).pop(),
+              ),
+            ),
+            Positioned(
+              top: 13,
+              left: 64,
+              right: 64,
+              child: Column(
+                children: [
+                  Text(
+                    '兔咪回憶本',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppInk.strong.withValues(alpha: 0.86),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    '${_index + 1} / ${entries.length}',
+                    style: TextStyle(
+                      color: kMemoryAccent.withValues(alpha: 0.72),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
             ),
             if (entries.length > 1)
@@ -128,29 +157,55 @@ class _MemorySpread extends StatelessWidget {
     final event = entry.event;
     final multiPage = event.pages.length > 1;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 18, 22, 34),
+      padding: const EdgeInsets.fromLTRB(20, 62, 20, 42),
       child: Column(
         children: [
           Expanded(
             child: Container(
               width: double.infinity,
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
+                color: const Color(0xFFFFFCF7),
+                borderRadius: BorderRadius.circular(26),
                 border: Border.all(
-                  color: kMemoryAccent.withValues(alpha: 0.18),
+                  color: kMemoryAccent.withValues(alpha: 0.20),
                 ),
-                boxShadow: AppShadows.card,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF8B5D3C).withValues(alpha: 0.12),
+                    blurRadius: 26,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Image.asset(
-                entry.page.image,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const _ImageFallback(),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(19),
+                child: Image.asset(
+                  entry.page.image,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const _ImageFallback(),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: kMemoryAccent.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              event.label,
+              style: TextStyle(
+                color: kMemoryAccent.withValues(alpha: 0.95),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
           Text(
             multiPage ? '${event.title}・${entry.pageNo}' : event.title,
             textAlign: TextAlign.center,
@@ -170,12 +225,48 @@ class _MemorySpread extends StatelessWidget {
               letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _CaptionsFadeIn(lines: entry.page.captions),
         ],
       ),
     );
   }
+}
+
+class _PaperBackdrop extends StatelessWidget {
+  const _PaperBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFFF9F0), Color(0xFFF8EBDD)],
+        ),
+      ),
+      child: CustomPaint(painter: _PaperGrainPainter()),
+    );
+  }
+}
+
+class _PaperGrainPainter extends CustomPainter {
+  const _PaperGrainPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFB57A4A).withValues(alpha: 0.04);
+    for (var i = 0; i < 34; i++) {
+      final x = ((i * 71) % 101) / 101 * size.width;
+      final y = ((i * 47) % 97) / 97 * size.height;
+      canvas.drawCircle(Offset(x, y), i.isEven ? 0.8 : 1.2, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PaperGrainPainter oldDelegate) => false;
 }
 
 /// 台詞逐句浮現（掛上畫面時每句依序淡入＋微上浮，錯開一小拍）。
@@ -290,7 +381,7 @@ class _CircleButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           child: Icon(icon, size: 22, color: AppInk.soft),
         ),
       ),

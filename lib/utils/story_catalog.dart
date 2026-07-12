@@ -96,6 +96,12 @@ class StoryEventSpec {
   /// 書籤 / 目錄顯示用的事件名。
   final String title;
 
+  /// 目錄與閱讀器使用的短分類，讓每則回憶有自己的收藏語意。
+  final String label;
+
+  /// 尚未解鎖時顯示的溫和提示；不直接洩漏完整故事。
+  final String unlockHint;
+
   /// 繪本頁（至少一頁）。
   final List<StoryPage> pages;
 
@@ -112,6 +118,8 @@ class StoryEventSpec {
   const StoryEventSpec({
     required this.id,
     required this.title,
+    this.label = '兔咪回憶',
+    this.unlockHint = '和兔咪一起生活，就會遇見這一頁',
     required this.pages,
     required this.trigger,
     this.threshold = 0,
@@ -130,52 +138,60 @@ class StoryEventSpec {
 const List<StoryEventSpec> storyCatalog = [
   StoryEventSpec(
     id: 'first_habit',
-    title: '第一個小習慣',
+    title: '我們的第一頁',
+    label: '初次相遇',
+    unlockHint: '寫下第一個想慢慢做到的小習慣',
     trigger: StoryTrigger.firstHabit,
     pages: [
-      StoryPage('assets/story/first_habit.png', [
-        '這是第一個小小的開始。',
-        '不用急，我會慢慢陪你。',
-        '兔咪把這一天收進書裡。',
+      StoryPage('assets/story/first_habit_v2.png', [
+        '你寫下第一個想做到的小事。',
+        '嗯...原來我們是從這裡開始的。',
+        '這一頁，我會替你收好。',
       ]),
     ],
   ),
   StoryEventSpec(
     id: 'first_all_done',
-    title: '第一次全部完成',
+    title: '燈都亮起來了',
+    label: '小小完成',
+    unlockHint: '第一次完成今天的所有習慣',
     trigger: StoryTrigger.firstAllDone,
     pages: [
-      StoryPage('assets/story/first_all_done.png', [
-        '今天的事情，都被你溫柔地完成了。',
-        '我有看到喔。',
-        '這一頁，想留給努力過的你。',
+      StoryPage('assets/story/first_all_done_v2.png', [
+        '最後一件小事，也亮起來了。',
+        '我有看到你一路做到這裡。',
+        '今天，可以放心休息了。',
       ]),
     ],
   ),
   StoryEventSpec(
     id: 'streak_7',
-    title: '連續第七天',
+    title: '七顆星星的晚上',
+    label: '一起走過',
+    unlockHint: '讓一個習慣連續七天留下足跡',
     trigger: StoryTrigger.habitStreak,
     threshold: 7,
     pages: [
-      StoryPage('assets/story/streak_7.png', [
-        '你已經連續七天了。',
-        '我每天都有等到你。',
-        '兔咪偷偷記了下來。',
-        '這個，想留給你。',
+      StoryPage('assets/story/streak_7_v2.png', [
+        '第一顆星亮起時，我還有點想睡。',
+        '後來，你一天一天地回來。',
+        '數到第七顆時，兔咪完全醒了。',
       ]),
     ],
   ),
   StoryEventSpec(
     id: 'comeback',
-    title: '你回來的這天',
+    title: '門再次打開的日子',
+    label: '重新相遇',
+    unlockHint: '離開一陣子後，再次回到兔咪身邊',
     trigger: StoryTrigger.comeback,
     threshold: 7,
     pages: [
-      StoryPage('assets/story/comeback.png', [
-        '有一陣子沒見了。',
-        '但你回來的時候，我還是在這裡。',
-        '今天，也可以從很小的一步開始。',
+      StoryPage('assets/story/comeback_v2.png', [
+        '門安靜了一陣子。',
+        '但我一直把這一頁留著。',
+        '你回來了。',
+        '嗯...我們就從今天，慢慢再走。',
       ]),
     ],
   ),

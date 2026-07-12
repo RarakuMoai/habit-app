@@ -545,6 +545,7 @@ class _WardrobePageState extends State<WardrobePage>
 
   Widget _buildMemorySection() {
     final entries = StoryStore.unlocked.value;
+    final unlockById = {for (final entry in entries) entry.id: entry};
     return Column(
       key: const ValueKey('memories'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,39 +553,77 @@ class _WardrobePageState extends State<WardrobePage>
         _WardrobeHeader(
           icon: Icons.auto_stories_rounded,
           title: '回憶本',
-          subtitle: entries.isEmpty ? '兔咪會把特別的時刻記下來' : '兔咪替你記得的小事',
-          trailing: '${entries.length}',
+          subtitle: '兔咪替你收好的每一個小小時刻',
+          trailing: '${entries.length}/${storyCatalog.length}',
           color: kMemoryAccent,
         ),
         const SizedBox(height: 12),
-        if (entries.isEmpty)
-          const _MemoryEmpty()
-        else
-          for (var i = 0; i < entries.length; i++)
-            Padding(
-              padding: EdgeInsets.only(
-                bottom: i == entries.length - 1 ? 0 : 12,
-              ),
-              child: _MemoryCard(
-                event: storyEventById(entries[i].id),
-                date: entries[i].date,
-                onTap: () => _openMemory(i),
-              ),
+        if (entries.isEmpty) ...[
+          const _MemoryEmpty(),
+          const SizedBox(height: 18),
+        ],
+        const _MemoryShelfLabel(),
+        const SizedBox(height: 10),
+        for (var i = 0; i < storyCatalog.length; i++)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: i == storyCatalog.length - 1 ? 0 : 12,
             ),
+            child: _MemoryCard(
+              event: storyCatalog[i],
+              unlock: unlockById[storyCatalog[i].id],
+              unread: StoryStore.unread.value.contains(storyCatalog[i].id),
+              onTap: unlockById[storyCatalog[i].id] == null
+                  ? null
+                  : () => _openMemory(
+                      entries.indexWhere((e) => e.id == storyCatalog[i].id),
+                    ),
+            ),
+          ),
       ],
     );
   }
 }
 
-// 回憶本的一則：縮圖 + 事件名 + 解鎖日期，點開進繪本閱讀器。
+class _MemoryShelfLabel extends StatelessWidget {
+  const _MemoryShelfLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          '回憶收藏',
+          style: TextStyle(
+            color: AppInk.strong.withValues(alpha: 0.9),
+            fontSize: 13.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: kMemoryAccent.withValues(alpha: 0.14),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// 回憶本的一則：未解鎖也保留書脊位置，讓收藏進度與下一段故事都看得見。
 class _MemoryCard extends StatelessWidget {
   final StoryEventSpec event;
-  final DateTime date;
-  final VoidCallback onTap;
+  final StoryUnlock? unlock;
+  final bool unread;
+  final VoidCallback? onTap;
 
   const _MemoryCard({
     required this.event,
-    required this.date,
+    required this.unlock,
+    required this.unread,
     required this.onTap,
   });
 
@@ -597,9 +636,9 @@ class _MemoryCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: unlock == null ? const Color(0xFFFFFCF8) : Colors.white,
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
             border: Border.all(color: const Color(0x0A46342B)),
             boxShadow: AppShadows.card,
@@ -608,18 +647,48 @@ class _MemoryCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  color: kMemoryAccent.withValues(alpha: 0.10),
-                  child: Image.asset(
-                    event.cover,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Icon(
-                      Icons.auto_stories_rounded,
-                      color: kMemoryAccent.withValues(alpha: 0.6),
-                      size: 28,
-                    ),
+                child: SizedBox(
+                  width: 76,
+                  height: 76,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.asset(
+                        event.cover,
+                        fit: BoxFit.cover,
+                        color: unlock == null ? const Color(0xFFD8CDC2) : null,
+                        colorBlendMode: unlock == null
+                            ? BlendMode.saturation
+                            : null,
+                        errorBuilder: (_, _, _) => ColoredBox(
+                          color: kMemoryAccent.withValues(alpha: 0.10),
+                          child: Icon(
+                            Icons.auto_stories_rounded,
+                            color: kMemoryAccent.withValues(alpha: 0.6),
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                      if (unlock == null)
+                        ColoredBox(
+                          color: const Color(0xB8F7EEE4),
+                          child: Center(
+                            child: Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.82),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.lock_outline_rounded,
+                                size: 16,
+                                color: kMemoryAccent.withValues(alpha: 0.72),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -628,8 +697,45 @@ class _MemoryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            event.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: kMemoryAccent.withValues(alpha: 0.92),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.7,
+                            ),
+                          ),
+                        ),
+                        if (unread)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFE8C7),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: const Text(
+                              '新回憶',
+                              style: TextStyle(
+                                color: Color(0xFF9B653A),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
                     Text(
-                      event.title,
+                      unlock == null ? '尚未寫下的一頁' : event.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -638,23 +744,33 @@ class _MemoryCard extends StatelessWidget {
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
-                      _memoryDate(date),
+                      unlock == null
+                          ? event.unlockHint
+                          : _memoryDate(unlock!.date),
+                      maxLines: unlock == null ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: kMemoryAccent.withValues(alpha: 0.9),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                        color: unlock == null
+                            ? AppInk.soft.withValues(alpha: 0.76)
+                            : kMemoryAccent.withValues(alpha: 0.9),
+                        fontSize: 11.5,
+                        height: 1.3,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppInk.iconFaint,
-                size: 22,
-              ),
+              if (unlock != null) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppInk.iconFaint,
+                  size: 22,
+                ),
+              ],
             ],
           ),
         ),
@@ -670,7 +786,7 @@ class _MemoryEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
@@ -694,7 +810,7 @@ class _MemoryEmpty extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           const Text(
-            '還沒有回憶',
+            '第一頁，正在等你',
             style: TextStyle(
               color: AppInk.strong,
               fontSize: 15,
@@ -703,7 +819,7 @@ class _MemoryEmpty extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            '兔咪會在你回來的日子裡，\n把特別的時刻悄悄記下來。',
+            '不用特地完成什麼大事。\n你每次開始、完成或再次回來，兔咪都會記得。',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppInk.soft,

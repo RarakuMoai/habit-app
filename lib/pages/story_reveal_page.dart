@@ -154,9 +154,8 @@ class _StoryRevealPageState extends State<StoryRevealPage>
             // 光塵微粒（緩慢上飄 + 呼吸閃爍）。
             AnimatedBuilder(
               animation: _ambient,
-              builder: (_, _) => CustomPaint(
-                painter: _MotesPainter(t: _ambient.value),
-              ),
+              builder: (_, _) =>
+                  CustomPaint(painter: _MotesPainter(t: _ambient.value)),
             ),
             SafeArea(
               child: Padding(
@@ -198,7 +197,29 @@ class _StoryRevealPageState extends State<StoryRevealPage>
     return Column(
       key: key,
       children: [
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
+        AnimatedOpacity(
+          opacity: _imageIn ? 1 : 0,
+          duration: const Duration(milliseconds: 520),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.68),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: kMemoryAccent.withValues(alpha: 0.16)),
+            ),
+            child: Text(
+              '新的回憶・${widget.event.label}',
+              style: TextStyle(
+                color: kMemoryAccent.withValues(alpha: 0.95),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         // 繪本圖：緩緩浮現（淡入 + 上浮 + 些微放大）。
         Expanded(
           child: AnimatedSlide(
@@ -215,19 +236,28 @@ class _StoryRevealPageState extends State<StoryRevealPage>
                 curve: Curves.easeOutCubic,
                 child: Container(
                   width: double.infinity,
+                  padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
+                    color: const Color(0xFFFFFCF7),
+                    borderRadius: BorderRadius.circular(26),
                     border: Border.all(
-                      color: kMemoryAccent.withValues(alpha: 0.18),
+                      color: kMemoryAccent.withValues(alpha: 0.20),
                     ),
-                    boxShadow: AppShadows.card,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF8B5D3C).withValues(alpha: 0.14),
+                        blurRadius: 28,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Image.asset(
-                    page.image,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const _ImageFallback(),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(19),
+                    child: Image.asset(
+                      page.image,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const _ImageFallback(),
+                    ),
                   ),
                 ),
               ),
@@ -390,11 +420,7 @@ class _MotesPainter extends CustomPainter {
           0.35 + 0.5 * _rand(i, 7),
         )!.withValues(alpha: alpha)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.9);
-      canvas.drawCircle(
-        Offset(x * size.width, y * size.height),
-        radius,
-        paint,
-      );
+      canvas.drawCircle(Offset(x * size.width, y * size.height), radius, paint);
     }
   }
 
