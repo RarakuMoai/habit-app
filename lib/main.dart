@@ -35,6 +35,7 @@ import 'utils/tab_catalog.dart';
 import 'utils/usage_stats.dart';
 import 'utils/wardrobe_store.dart';
 import 'utils/weight_records.dart';
+import 'widgets/footprint_coin_reward_overlay.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -400,6 +401,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   bool _loaded = false;
   int _waterReloadTrigger = 0;
   List<String> _tabOrder = const []; // 使用者自訂的底部分頁順序（TabIds 字串）
+  bool _claimingDailyReward = false;
+  int? _rewardAmount;
+  int? _rewardStartBalance;
+  int? _rewardTargetBalance;
 
   @override
   void initState() {
@@ -423,6 +428,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     featureFlagsRevision.removeListener(_loadSettings);
     StoryStore.pendingReveal.removeListener(_onPendingRevealChanged);
     WidgetsBinding.instance.removeObserver(this);
+    CoinService.presentationBalance.value = null;
     super.dispose();
   }
 
@@ -443,26 +449,57 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   // 每日登入獎勵：兔咪報喜。延遲一拍讓開場問候先落地，再換成領獎台詞。
   Future<void> _claimDailyLoginReward() async {
+    if (_claimingDailyReward) return;
+    _claimingDailyReward = true;
+    final startBalance = CoinService.notifier.value;
+    // 先凍結 AppBar 顯示；資料仍立即安全入帳，動畫只負責把舊值數到新值。
+    CoinService.presentationBalance.value = startBalance;
     final reward = await CoinService.claimDailyLogin();
     // 連續登入回憶事件：不論這次有沒有新領（冪等），照登入連勝天數判定
     final prefs = await SharedPreferences.getInstance();
     unawaited(
       StoryEvents.onLoginStreak(prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0),
     );
-    if (reward == null || !mounted) return;
+    if (reward == null || !mounted) {
+      CoinService.presentationBalance.value = null;
+      _claimingDailyReward = false;
+      return;
+    }
     await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
+    if (!mounted) {
+      CoinService.presentationBalance.value = null;
+      _claimingDailyReward = false;
+      return;
+    }
+    final targetBalance = CoinService.notifier.value;
+    setState(() {
+      _rewardAmount = reward.totalAmount;
+      _rewardStartBalance = startBalance;
+      _rewardTargetBalance = targetBalance;
+    });
     final line = reward.graceUsed
-        ? '昨天我幫你看家了～金幣照領，+${reward.amount}！'
+        ? '昨天我幫你看家了～足跡幣照領，+${reward.amount}！'
+        : reward.milestoneAmount > 0
+        ? '一起走到第 ${CoinConfig.loginStreakMilestone} 天了！今天共有 +${reward.totalAmount} 足跡幣。'
         : reward.level >= CoinConfig.loginMaxLevel
-        ? '連續報到 Lv.${reward.level}！今天 +${reward.amount} 金幣。'
-        : '你來了！見面禮 +${reward.amount} 金幣。';
+        ? '連續報到 Lv.${reward.level}！今天 +${reward.amount} 足跡幣。'
+        : '你來了！今天留下 +${reward.amount} 足跡幣。';
     MascotPersona.setForContext(
       MascotEmotion.happy.assetPath,
       MascotContext.allDone,
       speech: line,
       force: true,
     );
+    _claimingDailyReward = false;
+  }
+
+  void _finishRewardAnimation() {
+    if (!mounted) return;
+    setState(() {
+      _rewardAmount = null;
+      _rewardStartBalance = null;
+      _rewardTargetBalance = null;
+    });
   }
 
   // 節日回憶事件：啟動與回前景時用「真實日曆日」檢查（不跟換日設定走，
@@ -485,6 +522,9 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     _storyRevealShowing = true;
     try {
       await Future<void>.delayed(const Duration(milliseconds: 1100));
+      while (mounted && _rewardAmount != null) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
       while (StoryStore.pendingReveal.value.isNotEmpty) {
         if (!mounted) return;
         final id = StoryStore.pendingReveal.value.first;
@@ -809,15 +849,26 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: List.generate(tabs.length, (i) {
-          final tab = tabs[i];
-          return TickerMode(
-            enabled: i == _currentIndex,
-            child: KeyedSubtree(key: ValueKey(tab.id), child: tab.page),
-          );
-        }),
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: List.generate(tabs.length, (i) {
+              final tab = tabs[i];
+              return TickerMode(
+                enabled: i == _currentIndex,
+                child: KeyedSubtree(key: ValueKey(tab.id), child: tab.page),
+              );
+            }),
+          ),
+          if (_rewardAmount case final amount?)
+            FootprintCoinRewardOverlay(
+              amount: amount,
+              startBalance: _rewardStartBalance!,
+              targetBalance: _rewardTargetBalance!,
+              onFinished: _finishRewardAnimation,
+            ),
+        ],
       ),
       bottomNavigationBar: _AdaptiveBottomNav(
         tabs: tabs,

@@ -308,10 +308,12 @@ class _ReviewPageState extends State<ReviewPage> {
                       color: const Color(0xFFE5A327).withValues(alpha: 0.38),
                     ),
                   ),
-                  child: const Icon(
-                    Icons.paid_rounded,
-                    size: 19,
-                    color: Color(0xFFE5A327),
+                  child: Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: Image.asset(
+                      'assets/icon/ui/paw_footprint_coin.png',
+                      filterQuality: FilterQuality.high,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -346,7 +348,7 @@ class _ReviewPageState extends State<ReviewPage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     const Text(
-                      '目前金幣',
+                      '目前足跡幣',
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
@@ -536,7 +538,7 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   String _periodCoinLine(String periodWord, _CoinPeriodStats stats) {
-    final base = '$periodWord金幣 +${stats.earned} · 登入 ${stats.loginDays} 天';
+    final base = '$periodWord獲得 +${stats.earned} 足跡幣 · 登入 ${stats.loginDays} 天';
     return stats.milestones > 0 ? '$base · 獎勵 ${stats.milestones} 次' : base;
   }
 
@@ -572,16 +574,16 @@ class _ReviewPageState extends State<ReviewPage> {
   String _milestoneLine() {
     final milestone = CoinConfig.loginStreakMilestone;
     if (_loginStreak <= 0) {
-      return '登入獎勵會隨等級提高，連續 $milestone 天再 +${CoinConfig.weeklyStreak} 金幣。';
+      return '登入獎勵會隨等級提高，連續 $milestone 天再 +${CoinConfig.weeklyStreak} 足跡幣。';
     }
     final cycleDays = _loginStreak % milestone;
     if (cycleDays == 0) {
       return _earnedMilestoneToday()
-          ? '今天拿到 $milestone 天獎勵 +${CoinConfig.weeklyStreak} 金幣。'
+          ? '今天拿到 $milestone 天獎勵 +${CoinConfig.weeklyStreak} 足跡幣。'
           : '下一輪 $milestone 天獎勵準備開始。';
     }
     final remaining = milestone - cycleDays;
-    return '距離 $milestone 天獎勵還差 $remaining 天（+${CoinConfig.weeklyStreak} 金幣）。';
+    return '距離 $milestone 天獎勵還差 $remaining 天（+${CoinConfig.weeklyStreak} 足跡幣）。';
   }
 
   bool _isWithinCalendarRange(DateTime at, DateTime start, DateTime end) {

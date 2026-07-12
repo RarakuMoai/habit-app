@@ -220,7 +220,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
   Future<void> _clearWeightRecords() async {
     final confirm = await _confirmLongPress(
       title: '清除體重紀錄',
-      message: '會刪除體重歷史紀錄，但保留體重功能開關、連續天數與已得金幣。',
+      message: '會刪除體重歷史紀錄，但保留體重功能開關、連續天數與已得足跡幣。',
       color: Colors.orange,
     );
     if (!confirm) return;
@@ -231,7 +231,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
   Future<void> _clearWaterRecords() async {
     final confirm = await _confirmLongPress(
       title: '清除喝水紀錄',
-      message: '會刪除每日喝水明細，保留每杯容量、每日目標、功能開關與已得金幣。',
+      message: '會刪除每日喝水明細，保留每杯容量、每日目標、功能開關與已得足跡幣。',
       color: Colors.orange,
     );
     if (!confirm) return;
@@ -318,7 +318,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
             color: Colors.orange,
             title: '清除體重紀錄',
             subtitle: _weightCount == 0 ? '目前沒有體重紀錄' : '$_weightCount 筆體重紀錄',
-            detail: '保留功能開關、連續天數與金幣紀錄',
+            detail: '保留功能開關、連續天數與足跡幣紀錄',
             enabled: !_busy && _weightCount > 0,
             onTap: _clearWeightRecords,
           ),
@@ -330,7 +330,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
             subtitle: _waterDayCount == 0
                 ? '目前沒有喝水紀錄'
                 : '$_waterDayCount 天喝水紀錄',
-            detail: '保留每杯容量、每日目標與金幣紀錄',
+            detail: '保留每杯容量、每日目標與足跡幣紀錄',
             enabled: !_busy && _waterDayCount > 0,
             onTap: _clearWaterRecords,
           ),
@@ -811,7 +811,7 @@ class _DeleteWordDialogState extends State<_DeleteWordDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('這會清除所有資料並回到初始狀態，包含習慣、喝水、體重、家庭、金幣、衣櫃與密碼設定。'),
+          const Text('這會清除所有資料並回到初始狀態，包含習慣、喝水、體重、家庭、足跡幣、衣櫃與密碼設定。'),
           const SizedBox(height: 14),
           TextField(
             controller: _ctrl,

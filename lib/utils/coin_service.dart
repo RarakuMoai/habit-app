@@ -62,6 +62,9 @@ class LoginReward {
   /// 本次入帳金幣
   final int amount;
 
+  /// 連續登入里程碑的額外入帳；一般日期為 0。
+  final int milestoneAmount;
+
   /// 這次有沒有用到寬限（昨天缺席但等級保住）—— 給兔咪台詞用
   final bool graceUsed;
 
@@ -69,13 +72,29 @@ class LoginReward {
     required this.level,
     required this.amount,
     required this.graceUsed,
+    this.milestoneAmount = 0,
   });
+
+  int get totalAmount => amount + milestoneAmount;
 }
 
 class CoinService {
   /// 目前餘額（UI 用 ValueListenableBuilder 監聽）。
   /// app 啟動時呼叫 [load] 同步一次，之後每筆異動都會更新。
   static final ValueNotifier<int> notifier = ValueNotifier<int>(0);
+
+  /// 獎勵演出期間暫時顯示的餘額；資料真相仍然是 [notifier]。
+  /// null 表示直接顯示真實餘額。
+  static final ValueNotifier<int?> presentationBalance = ValueNotifier<int?>(
+    null,
+  );
+
+  /// 動畫最後一枚足跡幣入袋時通知 AppBar 圖示回彈。
+  static final ValueNotifier<int> rewardPulse = ValueNotifier<int>(0);
+
+  static int get visibleBalance => presentationBalance.value ?? notifier.value;
+
+  static void pulseRewardIcon() => rewardPulse.value++;
 
   static String _dateStr(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -224,14 +243,20 @@ class CoinService {
     );
     if (awarded == 0) return null;
     // 連續登入滿 N 天的里程碑（靜默入帳；per-day claim 防重複）
+    var milestoneAmount = 0;
     if (loginStreak % CoinConfig.loginStreakMilestone == 0) {
-      await award(
+      milestoneAmount = await award(
         CoinSource.weeklyStreak,
         note: '連續登入 $loginStreak 天',
         now: ts,
       );
     }
-    return LoginReward(level: level, amount: amount, graceUsed: graceUsed);
+    return LoginReward(
+      level: level,
+      amount: amount,
+      graceUsed: graceUsed,
+      milestoneAmount: milestoneAmount,
+    );
   }
 
   // 入帳 + 記帳 + 廣播

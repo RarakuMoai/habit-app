@@ -248,16 +248,16 @@ class _DevTestPageState extends State<DevTestPage> {
                   child: const _UsageStatsViewer(),
                 ),
                 _card(
-                  title: '金幣（測試）',
+                  title: '足跡幣（測試）',
                   icon: Icons.monetization_on_outlined,
-                  description: '直接加金幣方便測試衣櫃購買解鎖；負向「歸零」清空餘額。',
+                  description: '直接加足跡幣方便測試衣櫃購買解鎖；負向「歸零」清空餘額。',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ValueListenableBuilder<int>(
                         valueListenable: CoinService.notifier,
                         builder: (_, coins, _) => Text(
-                          '目前金幣：$coins',
+                          '目前足跡幣：$coins',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,

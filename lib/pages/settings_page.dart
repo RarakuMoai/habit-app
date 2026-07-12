@@ -266,7 +266,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       const SizedBox(height: 10),
                       const Text(
-                        '金幣每日獎勵不受影響，仍以午夜計算。',
+                        '足跡幣每日獎勵不受影響，仍以午夜計算。',
                         style: TextStyle(fontSize: 11, color: AppInk.faint),
                       ),
                     ],

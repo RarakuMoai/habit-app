@@ -119,7 +119,7 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('清除所有資料？'),
-        content: const Text('將清空全部資料（習慣、體重、喝水、家庭、金幣、衣櫃與密碼）並回到初始狀態，此動作無法復原。'),
+        content: const Text('將清空全部資料（習慣、體重、喝水、家庭、足跡幣、衣櫃與密碼）並回到初始狀態，此動作無法復原。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),

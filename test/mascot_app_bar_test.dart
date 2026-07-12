@@ -8,9 +8,10 @@ void main() {
 
   tearDown(() {
     CoinService.notifier.value = 0;
+    CoinService.presentationBalance.value = null;
   });
 
-  testWidgets('足跡金幣鈕超過 999 顯示 999+', (tester) async {
+  testWidgets('足跡幣鈕超過 999 顯示 999+', (tester) async {
     CoinService.notifier.value = 999;
 
     await tester.pumpWidget(
@@ -28,5 +29,21 @@ void main() {
 
     expect(find.text('999'), findsNothing);
     expect(find.text('999+'), findsOneWidget);
+  });
+
+  testWidgets('獎勵演出期間顯示暫存餘額', (tester) async {
+    CoinService.notifier.value = 108;
+    CoinService.presentationBalance.value = 100;
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: Center(child: CoinPill()))),
+    );
+
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('108'), findsNothing);
+
+    CoinService.presentationBalance.value = null;
+    await tester.pump();
+    expect(find.text('108'), findsOneWidget);
   });
 }

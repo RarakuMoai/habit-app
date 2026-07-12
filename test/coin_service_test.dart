@@ -114,6 +114,20 @@ void main() {
       expect(r.amount, CoinConfig.loginRewardAt(CoinConfig.loginMaxLevel));
     });
 
+    test('第 7 天回傳每日與里程碑足跡幣總額', () async {
+      LoginReward? reward;
+      for (var i = 0; i < CoinConfig.loginStreakMilestone; i++) {
+        reward = await CoinService.claimDailyLogin(
+          now: d0612.add(Duration(days: i)),
+        );
+      }
+
+      expect(reward, isNotNull);
+      expect(reward!.milestoneAmount, CoinConfig.weeklyStreak);
+      expect(reward.totalAmount, reward.amount + CoinConfig.weeklyStreak);
+      expect(await CoinService.balance(), greaterThan(reward.totalAmount));
+    });
+
     test('缺席 1 天（寬限內）等級保住', () async {
       await CoinService.claimDailyLogin(now: d0612); // Lv.1
       await CoinService.claimDailyLogin(

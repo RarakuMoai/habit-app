@@ -459,8 +459,8 @@ List<MusicTrackSpec> tracksOfMood(MusicMood mood) =>
 
 String unlockLabel(UnlockType type, int coinPrice) => switch (type) {
   UnlockType.free => '已擁有',
-  UnlockType.coin => '$coinPrice 金幣',
-  UnlockType.subscriberCoin => '訂閱後 $coinPrice 金幣',
+  UnlockType.coin => '$coinPrice 足跡幣',
+  UnlockType.subscriberCoin => '訂閱後 $coinPrice 足跡幣',
 };
 
 /// 把一個「core 兔咪資產路徑」換成目前造型的皮膚版本。

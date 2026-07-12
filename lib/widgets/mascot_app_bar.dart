@@ -178,16 +178,24 @@ class _CoinPillState extends State<CoinPill>
       TweenSequenceItem(tween: Tween(begin: 1.22, end: 1.0), weight: 60),
     ]).animate(CurvedAnimation(parent: _pop, curve: Curves.easeOut));
     CoinService.notifier.addListener(_onCoinChanged);
+    CoinService.rewardPulse.addListener(_onRewardPulse);
   }
 
   @override
   void dispose() {
     CoinService.notifier.removeListener(_onCoinChanged);
+    CoinService.rewardPulse.removeListener(_onRewardPulse);
     _pop.dispose();
     super.dispose();
   }
 
   void _onCoinChanged() {
+    if (mounted && CoinService.presentationBalance.value == null) {
+      _pop.forward(from: 0);
+    }
+  }
+
+  void _onRewardPulse() {
     if (mounted) _pop.forward(from: 0);
   }
 
@@ -195,10 +203,15 @@ class _CoinPillState extends State<CoinPill>
   Widget build(BuildContext context) {
     return ScaleTransition(
       scale: _scale,
-      child: ValueListenableBuilder<int>(
-        valueListenable: CoinService.notifier,
-        builder: (_, coins, _) =>
-            _CoinBalanceButton(coins: coins, onReviewTap: widget.onReviewTap),
+      child: ListenableBuilder(
+        listenable: Listenable.merge([
+          CoinService.notifier,
+          CoinService.presentationBalance,
+        ]),
+        builder: (_, _) => _CoinBalanceButton(
+          coins: CoinService.visibleBalance,
+          onReviewTap: widget.onReviewTap,
+        ),
       ),
     );
   }
@@ -218,7 +231,7 @@ class _CoinBalanceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canOpenReview = onReviewTap != null;
-    final label = canOpenReview ? '足跡與金幣，$coins 金幣' : '金幣 $coins';
+    final label = canOpenReview ? '足跡與足跡幣，$coins 枚足跡幣' : '足跡幣 $coins 枚';
     final button = SizedBox.square(
       dimension: 48,
       child: Material(
@@ -263,7 +276,7 @@ class _CoinBalanceButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: Tooltip(message: '足跡與金幣', child: button),
+      child: Tooltip(message: '足跡與足跡幣', child: button),
     );
   }
 }
@@ -284,9 +297,9 @@ class _PawCoinIcon extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Image.asset(
-          'assets/icon/ui/paw_coin.png',
-          width: 38,
-          height: 38,
+          'assets/icon/ui/paw_footprint_coin.png',
+          width: 35,
+          height: 35,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
         ),

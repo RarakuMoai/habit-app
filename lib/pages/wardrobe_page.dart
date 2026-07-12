@@ -316,10 +316,10 @@ class _WardrobePageState extends State<WardrobePage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('要花 $price 金幣解鎖「$name」嗎？'),
+            Text('要使用 $price 足跡幣解鎖「$name」嗎？'),
             const SizedBox(height: 8),
             Text(
-              affordable ? '目前金幣：$balance' : '目前金幣：$balance（不足）',
+              affordable ? '目前足跡幣：$balance' : '目前足跡幣：$balance（不足）',
               style: TextStyle(
                 color: affordable ? AppInk.soft : Colors.red.shade600,
                 fontSize: 13,
@@ -351,7 +351,7 @@ class _WardrobePageState extends State<WardrobePage>
   void _reportPurchaseFail(PurchaseResult result) {
     playFeedback(SfxCue.cancel);
     _toast(switch (result) {
-      PurchaseResult.needCoins => '金幣不足，先去完成習慣賺金幣吧',
+      PurchaseResult.needCoins => '足跡幣不足，每天回來看看兔咪就能慢慢累積',
       PurchaseResult.needSubscription => '這個項目需要訂閱才能解鎖',
       _ => '無法解鎖',
     });
