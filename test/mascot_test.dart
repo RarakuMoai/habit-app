@@ -63,17 +63,7 @@ void main() {
     final state = MascotPersona.current.value;
     expect(state.assetPath, MascotEmotion.popHappy.assetPath);
     expect(state.bubble, EmotionBubble.star);
-    expect(state.speech, isNull, reason: '充電互動是高頻演出，靠符號與動作就好');
-    expect(
-      MascotPersona.hasVoiceFor(MascotContext.energize),
-      isFalse,
-      reason: '蓄力跳躍不應共用偏高音的歡呼語音',
-    );
-    expect(
-      MascotPersona.hasVoiceFor(MascotContext.allDone),
-      isTrue,
-      reason: '只移除蓄力映射，不影響真正的大慶祝',
-    );
+    expect(state.speech, isNull, reason: '充電互動是高頻演出，靠符號與語音就好');
   });
 
   test('high-frequency contexts stay silent (symbol only, no speech text)', () {

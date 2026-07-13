@@ -221,7 +221,7 @@ const Map<MascotContext, List<String>> _lines = {
   ],
 
   // ── 充電互動（長按蓄力放開）──
-  // speaksFor 為 false，平常只靠星星泡泡＋跳躍動作；
+  // speaksFor 為 false，平常只靠星星泡泡＋歡呼語音；
   // 台詞池備著給之後「明確帶 speech」的場合（登入禮、活動）取用。
   MascotContext.energize: [
     '充飽電了！',
@@ -471,9 +471,10 @@ class MascotPersona {
   /// （睡著/夜晚出聲反而違和，靠 Zzz 泡泡表達就好）。
   static SfxCue? _voiceCueFor(MascotContext ctx) {
     switch (ctx) {
-      // 大慶祝：歡呼（表情 happy / streak 雀躍）
+      // 大慶祝：歡呼（表情 happy / streak 雀躍；充電爆發同款）
       case MascotContext.allDone:
       case MascotContext.streak:
+      case MascotContext.energize:
         return SfxCue.tumiCheer;
       // 輕聲確認：打卡、進度過半、開場招呼（最高頻，選最短促的）
       case MascotContext.completedOne:
@@ -491,17 +492,12 @@ class MascotPersona {
       case MascotContext.emptyHabits:
       case MascotContext.overhydration:
         return SfxCue.tumiQuestion;
-      // 睡著／夜晚不出聲；充電爆發等待低沉柔和的專用動作音，
-      // 不共用偏高音的歡呼語音。
-      case MascotContext.energize:
+      // 睡著中不出聲
       case MascotContext.notStarted:
       case MascotContext.night:
         return null;
     }
   }
-
-  @visibleForTesting
-  static bool hasVoiceFor(MascotContext ctx) => _voiceCueFor(ctx) != null;
 
   static bool _canApply(MascotContext ctx, {required bool force}) {
     if (force) return true;
