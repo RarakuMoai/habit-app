@@ -540,6 +540,7 @@ class _MascotStageState extends State<MascotStage>
     _blinkTimer?.cancel();
     _petBlissTimer?.cancel();
     unawaited(SfxService.instance.stop(SfxCue.tumiCharge));
+    unawaited(SfxService.instance.stop(SfxCue.tumiPet));
     _petCtrl.dispose();
     _breathCtrl.dispose();
     _reactionCtrl.dispose();
@@ -610,7 +611,7 @@ class _MascotStageState extends State<MascotStage>
     _petTotalStroke = 0;
     _petLeanTarget = _headDragAmount(position);
     playHaptic(HapticLevel.selection);
-    unawaited(SfxService.instance.play(SfxCue.tumiPet));
+    unawaited(SfxService.instance.playLoop(SfxCue.tumiPet));
     // 摸滿一小段時間 → 瞇眼享受（有對應差分才會真的換臉）
     _petBlissTimer?.cancel();
     _petBlissTimer = Timer(const Duration(milliseconds: 550), () {
@@ -649,6 +650,7 @@ class _MascotStageState extends State<MascotStage>
   void _endHeadPet() {
     if (!_isPetting) return;
     _isPetting = false;
+    unawaited(SfxService.instance.stop(SfxCue.tumiPet));
     _petLeanTarget = 0;
     _petBlissTimer?.cancel();
     if (_petEyesClosed) setState(() => _petEyesClosed = false);

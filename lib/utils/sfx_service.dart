@@ -27,7 +27,7 @@ enum SfxCue {
   // 兔咪直接互動的動作層：每次動作都回饋；角色語音仍由 MascotPersona CD 控制。
   tumiCharge('assets/sounds/sfx_tumi_charge.wav', 0.62),
   tumiJump('assets/sounds/sfx_tumi_jump.wav', 0.72),
-  tumiPet('assets/sounds/sfx_tumi_pet.wav', 0.82),
+  tumiPet('assets/sounds/sfx_tumi_pet.wav', 0.82), // 摸毛期間無縫循環
   // 桌遊計時器專屬（ElevenLabs 生成、剪裁後 peak 對齊上面同類音效）
   gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人
   gameWarn('assets/sounds/sfx_game_warn.wav', 0.85), // 木質 tick：倒數警示
@@ -85,7 +85,18 @@ class SfxService {
   }
 
   /// [volumeScale] 疊在 cue 預設音量上（0–1），碰撞聲隨力道縮放用。
-  Future<void> play(SfxCue cue, {double volumeScale = 1}) async {
+  Future<void> play(SfxCue cue, {double volumeScale = 1}) =>
+      _play(cue, volumeScale: volumeScale, loop: false);
+
+  /// 持續動作音（目前用於摸毛）：呼叫 [stop] 前會無縫循環。
+  Future<void> playLoop(SfxCue cue, {double volumeScale = 1}) =>
+      _play(cue, volumeScale: volumeScale, loop: true);
+
+  Future<void> _play(
+    SfxCue cue, {
+    required double volumeScale,
+    required bool loop,
+  }) async {
     if (AudioSettingsService.sfxMuted.value) return;
     try {
       if (!_initialized) await init();
@@ -93,6 +104,7 @@ class SfxService {
       if (player == null) return;
       await AppAudioSession.activate();
       await player.stop();
+      await player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
       await player.seek(Duration.zero);
       await player.setVolume(cue.volume * volumeScale.clamp(0.0, 1.0));
       await player.play();
