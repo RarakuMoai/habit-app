@@ -268,7 +268,7 @@ class _DevTestPageState extends State<DevTestPage> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final n in [50, 200, 1000])
+                          for (final n in [1, 5, 10, 100])
                             FilledButton.tonal(
                               onPressed: () => CoinService.debugAdd(n),
                               child: Text('+$n'),

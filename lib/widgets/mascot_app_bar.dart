@@ -290,6 +290,14 @@ class _PawCoinIcon extends StatelessWidget {
   // 實際字級交給下方 FittedBox(contain) 依掌墊框放大填滿，這裡只給基準。
   double get _fontSize => 12.0;
 
+  // 單／雙位數被 FittedBox 放得較大，視覺重心容易往下；三位數較扁，
+  // 反而要稍微往掌墊下緣靠。幅度刻意壓在 1px 左右。
+  double get _labelDy {
+    if (coins < 100) return -0.2;
+    if (coins < 1000) return 1.0;
+    return 0.6;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -313,7 +321,7 @@ class _PawCoinIcon extends StatelessWidget {
           child: Center(
             child: FittedBox(
               child: Transform.translate(
-                offset: const Offset(0, 0.6),
+                offset: Offset(0, _labelDy),
                 child: Text(
                   _label,
                   maxLines: 1,

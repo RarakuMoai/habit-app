@@ -46,4 +46,23 @@ void main() {
     await tester.pump();
     expect(find.text('108'), findsOneWidget);
   });
+
+  testWidgets('單雙位數比三位數稍高，符合掌墊視覺重心', (tester) async {
+    CoinService.notifier.value = 1;
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: Center(child: CoinPill()))),
+    );
+    final oneY = tester.getCenter(find.text('1')).dy;
+
+    CoinService.notifier.value = 10;
+    await tester.pumpAndSettle();
+    final tenY = tester.getCenter(find.text('10')).dy;
+
+    CoinService.notifier.value = 100;
+    await tester.pumpAndSettle();
+    final hundredY = tester.getCenter(find.text('100')).dy;
+
+    expect(oneY, lessThan(hundredY));
+    expect(tenY, lessThan(hundredY));
+  });
 }

@@ -27,6 +27,10 @@ void main() {
 
     expect(find.text('使用統計（本機匿名）'), findsNothing);
     expect(find.text('足跡幣（測試）'), findsOneWidget);
+    for (final amount in [1, 5, 10, 100]) {
+      expect(find.text('+$amount'), findsOneWidget);
+    }
+    expect(find.text('+50'), findsNothing);
 
     final list = find.byType(ListView);
     for (var i = 0; i < 5 && find.text('場景時段').evaluate().isEmpty; i++) {
