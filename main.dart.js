@@ -143384,7 +143384,11 @@ aFm(a){return this.a5v(a,!1)},
 a5t(a){var s=(a.a-126)/96,r=(a.b-120)/105
 return s*s+r*r<=1},
 a55(a){return B.d.R((a.a-126)/94,-1,1)},
-aKa(){var s,r,q=this;++q.cy
+aKa(){var s,r,q=this,p=q.e
+p===$&&A.a()
+s=p.y
+s=s==null?null:s.a
+q.cy=(s==null?0:s)/1000
 s=q.at
 q.at=s+(q.ax-s)*0.16
 r=q.as?1:0
@@ -143393,24 +143397,21 @@ q.ay=s+(r-s)*0.11
 s=q.fr
 B.b.f7(s,new A.b3f(q))
 if(!q.as&&s.length===0&&q.ay<0.01&&Math.abs(q.at)<0.01){q.ay=q.at=0
-s=q.e
-s===$&&A.a()
-s.cV()}},
-asC(a){var s,r,q=this
-q.as=!0
-q.db=q.cy
-q.ch=a.a
-q.cx=q.CW=0
-q.ax=q.a55(a)
+p.cV()}},
+asC(a){var s,r=this,q=r.e
+q===$&&A.a()
+s=q.r
+if(!(s!=null&&s.a!=null)){r.cy=0
+q.nd()}r.as=!0
+r.db=r.cy
+r.ch=a.a
+r.cx=r.CW=0
+r.ax=r.a55(a)
 A.bA(B.L)
 $.kn().ff(B.To)
-s=q.dy
-if(s!=null)s.ao()
-q.dy=A.cc(B.AH,new A.b3b(q))
-s=q.e
-s===$&&A.a()
-r=s.r
-if(!(r!=null&&r.a!=null))s.nd()},
+q=r.dy
+if(q!=null)q.ao()
+r.dy=A.cc(B.AH,new A.b3b(r))},
 aQV(a){var s,r,q=this
 if(!q.as)return
 if(!q.a5v(a,!0)){q.Ge()
@@ -143425,7 +143426,7 @@ q.cx+=r
 if(s>=22){q.CW=0
 s=q.fr
 if(s.length<8){r=q.y
-s.push(new A.zE(a,q.cy,r.hf()*2-1,6+r.hf()*2.5))}A.bA(B.L)}},
+s.push(new A.zE(a,q.cy,r.hf()*2-1,6.5+r.hf()*2.7))}A.bA(B.L)}},
 Ge(){var s,r=this
 if(!r.as)return
 r.as=!1
@@ -143433,7 +143434,7 @@ r.ax=0
 s=r.dy
 if(s!=null)s.ao()
 if(r.dx)r.v(new A.b3e(r))
-if(r.cx>18||r.cy-r.db>27){s=r.a.x
+if(r.cx>18||r.cy-r.db>450){s=r.a.x
 if(s!=null)s.$0()}},
 aHg(){var s,r=this,q=r.fx
 q===$&&A.a()
@@ -143533,7 +143534,7 @@ A.b3d.prototype={
 $0(){return this.a.Q=!1},
 $S:0}
 A.b3f.prototype={
-$1(a){return this.a.cy-a.b>50},
+$1(a){return this.a.cy-a.b>1130},
 $S:901}
 A.b3b.prototype={
 $0(){var s=this.a
@@ -143769,7 +143770,7 @@ if(a1.length===0)return
 s=A.R(this.d,B.a0g,0.72)
 s.toString
 for(r=a1.length,q=this.c,p=0;p<a1.length;a1.length===r||(0,A.J)(a1),++p){o=a1[p]
-n=B.d.R((q-o.b)/50,0,1)
+n=B.d.R((q-o.b)/1130,0,1)
 if(n>=1)continue
 m=B.b_.a1(n)
 l=o.a
@@ -143781,7 +143782,7 @@ h=j?B.dV.a1(n/0.18):1
 j=o.d*h
 g=$.a4()
 f=new A.f7(B.bz,B.b3,B.bV,B.ce,B.bR)
-f.r=s.n(B.d.R(0.85*i,0,1)).gm()
+f.r=s.n(B.d.R(0.92*i,0,1)).gm()
 e=A.bU(g.r)
 g=l+j*0.85
 d=new A.df(k,g)
