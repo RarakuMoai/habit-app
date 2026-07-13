@@ -1,6 +1,6 @@
 # 兔咪好習慣 — 視覺規範
 
-> 習慣頁 2026-06-12 定案，**同日已套用到全部頁面**。
+> 習慣頁 2026-06-12 定案；後續頁面持續以共用 token 收斂。
 > Token 一律集中在 [`lib/utils/app_style.dart`](../lib/utils/app_style.dart)，**不要在頁面裡重新發明**。
 > 全 app `Colors.grey` / 純黑歸零（`lib/dev/` 除外）。
 
@@ -42,13 +42,15 @@
 - 數字/計數類：`AppType.digits`（Baloo 2，height 1.1）做字型對比。
 - ⚠️ **Baloo 2 ascent 特大**，字形在行框內天生偏上 ~1.2pt；膠囊類要**光學置中**
   （見 MascotPill 的 `Transform.translate(0, 1.2)`）。`leadingDistribution` 對它無效（實測像素零變化）。
-- ⚠️ **上架前待辦**：`google_fonts` 是執行期下載，要把 Nunito / Baloo 2 **打包進 assets**（尚未做）。
+- Nunito / Baloo 2 已打包進 assets；不要改回執行期下載字型。
 
-## 動效（特效全在 Flutter 端）
+## 動效
 
 - 打卡勾 = 320ms easeOutCubic 路徑描繪（`_CheckDrawPainter`），列表載入不重播。
 - 進度列 = 漸層填色 + 尾端白心亮點（10px、accent 描邊 2.5）；達標時 900ms 呼吸光暈 `repeat(reverse)`。
-- 兔咪/場景特效（彩帶、星星、光暈、光束）一律 Flutter overlay，CG 只畫純角色。
+- 兔咪互動（呼吸、彈跳、情緒泡泡、完成星光）由 Flutter 負責。
+- 場景環境光、窗景、燈具與家具陰影畫進四時段完整背景，不再由 Flutter 畫光束、
+  燈暈或長影；細節見 `four_period_background_plan.md`。
 
 ## 間距 / 留白
 
@@ -63,4 +65,5 @@
 ## 雷區備忘
 
 - **ListTile**：leading 置中用的是內部算出的內容高度（單行=56），被外層撐高時要設 `minTileHeight` 等於實際高度才會真置中（迴歸測試 `test/habit_card_layout_test.dart`）。
-- **像素級對齊驗證**：截圖後用 PIL 掃顏色範圍量 bbox 中心差（白底膠囊 r,g,b>240；深色文字 <120），比肉眼準。流程見 AI 記憶 `sim-screenshot-workflow`。
+- **像素級對齊驗證**：需要客觀確認時，可從截圖掃目標顏色的 bbox 與中心差；
+  一般視覺調整不必預設啟動像素分析。

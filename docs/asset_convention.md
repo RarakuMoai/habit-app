@@ -2,9 +2,9 @@
 
 > 兔咪好習慣 app 的 PNG 資產統一規則。
 > 走 CG 差分路線後，所有新增 asset 都照此規範丟。
-> 舊路徑（`assets/images/mascot/tumi_*.png`、`assets/images/room/*.png`、`assets/images/water/*.png`）保留到完全遷移完才砍。
+> 實際情緒與路徑以 `lib/utils/mascot.dart` 的 `MascotEmotion` 為單一真相來源。
 
-更新日期：2026-05-26
+更新日期：2026-07-13
 
 ---
 
@@ -13,27 +13,20 @@
 ```
 assets/
   mascot/
-    core/                    # 核心 8 情緒，永遠進 bundle，離線可用
+    core/                    # 正式日常情緒與必要關鍵幀，永遠進 bundle
       tumi_neutral_front.png
-      tumi_sleep.png
-      tumi_expect.png
-      tumi_smile.png
-      tumi_happy.png
-      tumi_streak.png
-      tumi_sad.png
-      tumi_night.png
-    outfit/<outfit>/         # 衣服變化（將來會做的養成系統），可放 CDN
+      tumi_<emotion>.png
+      tumi_<emotion>_blink.png  # 有核准眨眼差分時才加入
+    <outfit>/                # 未來整套造型；資料夾名對應 skinKey
       tumi_<emotion>.png
       ...
   scenes/
-    home/                    # 各頁背景場景，可保留現有 assets/images/room/ 直到正式重組
+    home/                    # 首頁背景與同畫布透明差分
     timer/
     water/
     weight/
     family/
-  fx/                        # 特效圖層（彩帶、星光等），不屬於兔咪本體
-    confetti.png
-    sparkle.png
+  # 星光、情緒泡泡等現行特效由 Flutter 繪製，不需要預設建立 fx/。
 ```
 
 ---
@@ -44,18 +37,25 @@ assets/
 |---|---|---|
 | 核心情緒 | `tumi_sleep.png` | 加 `tumi_` 前綴（在 Finder/檔案總管直接認得），snake_case，全小寫 |
 | 衣服變化 | `chef/tumi_happy.png` | 衣服名當資料夾，內部沿用 `tumi_<情緒>.png` |
-| 場景 | `bedroom_day.png` | `<場景名>_<變體>.png`（不加 tumi 前綴，因為是場景不是兔咪本體） |
+| 四時段場景 | `home_dusk.png` | `<場景名>_<morning|day|dusk|night>.png`；四張同畫布同構圖 |
 | 特效 | `confetti.png` | 直接描述用途 |
 
-8 個情緒檔名固定為（對應 `MascotEmotion` enum）：
+目前 12 個正式情緒（對應 `MascotEmotion` enum）：
 - `neutral_front`
 - `sleep`
+- `wake`
 - `expect`
 - `smile`
 - `happy`
+- `pop_happy`
 - `streak`
 - `sad`
 - `night`
+- `invite`
+- `question`
+
+另有 `tumi_neutral_front_blink.png` 作為中性站姿眨眼關鍵幀；它不是獨立情緒。
+新增或移除狀態時先改 `MascotEmotion`，再同步本文件，不要另立固定數量規則。
 
 ---
 
@@ -65,7 +65,7 @@ assets/
 |---|---|
 | 格式 | **PNG**（透明背景，將來 bundle 痛了再批次轉 WebP） |
 | 兔咪解析度 | **1024 × 1024**（AI 生圖預設大小，剛好對到 mobile 3x retina） |
-| 場景解析度 | **1536 × 1024**（橫向，符合首頁房間目前比例 1024/1536） |
+| 場景解析度 | 現行主場景為 **1122 × 1402** 直向；同頁差分必須與底圖完全同尺寸 |
 | 背景 | 兔咪本體必須**透明背景**（疊在場景上）；場景圖含完整背景 |
 | Alpha | 兔咪 PNG 保留 alpha；iOS app icon 例外（`remove_alpha_ios: true` 自動處理） |
 
@@ -73,7 +73,7 @@ assets/
 
 ## AI 生圖 prompt 共通規格
 
-兔咪 8 情緒必須是**同一隻兔咪**，所以以「正面情緒」當錨點，其他情緒 prompt 都基於它變體。共通要求：
+同一套兔咪情緒必須是**同一隻兔咪**，以核准的正面圖為 edit target 製作局部差分。共通要求：
 
 - 透明背景（`transparent background, isolated subject, no background`）
 - 1024×1024 正方形
@@ -88,9 +88,8 @@ assets/
 
 新增 asset 時的固定 SOP：
 
-1. **使用者**：用 AI 工具生圖
-2. **使用者**：照規範命名（例：`tumi_smile.png`）放進對應資料夾（例：`assets/mascot/core/`）
-3. **Claude**：更新 `pubspec.yaml` 的 assets 區塊（如果是新資料夾）
-4. **Claude**：更新對應 enum / 邏輯把新 asset 接進 app
-5. **使用者**：跑模擬器驗證視覺
-6. 確認後 commit + push
+1. 先用 repo skill `tumi-image-variants` 檢查核准底圖並做局部 edit。
+2. 照規範命名（例：`tumi_smile.png`）放進對應資料夾。
+3. 新增資料夾時更新 `pubspec.yaml`；新增情緒時同步 `MascotEmotion` 與使用情境。
+4. 跑測試並在模擬器／實機驗證身份一致性、透明邊緣與構圖。
+5. 確認後 commit + push

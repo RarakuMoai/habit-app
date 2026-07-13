@@ -1,7 +1,8 @@
 // 場景效能探針：以 10 秒為一個視窗，統計 UI(build) / raster 幀時間的
 // 平均、P95、最大值與超出 16.7ms 預算的幀數，印成 [SCENE_PERF] log。
 //
-// 用途：四時段場景系統（docs/fable5_day_cycle_scene_plan.md）的 Phase 0
+// 用途：記錄舊程式光影場景的效能基準；四時段完整背景遷移完成後可連同
+// docs/scene_perf_baseline.md 一起移除。
 // 效能基準與後續各 Phase 的前後對照。沒有幀時（例如閒置凍結、切到別的
 // 分頁、App 退背景）也會印「0 frames」視窗，用來證明場景真的停在 0fps。
 //

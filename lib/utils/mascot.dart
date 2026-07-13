@@ -17,7 +17,7 @@ import 'sfx_service.dart';
 // 更細的情境之後再靠情緒泡泡 overlay 疊加，不必每種情緒各畫一張）。
 // 快樂梯度＝手的高度：smile(手垂) → happy(手胸前) → popHappy(雙手高舉)。
 // expect 與 happy 共用「手胸前」身體，只差眼睛（圓眼/笑眼）。
-// 狀態盤點見 docs/tumi_character_guide.md 與 assets/mascot/candidates/。
+// 角色原則見 docs/tumi_character_guide.md；正式狀態以本 enum 為單一真相來源。
 enum MascotEmotion {
   neutralFront('neutral_front'), // 站姿中性：待機、招呼
   sleep('sleep'), // 打瞌睡：還沒開始、懶懶等你

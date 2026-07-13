@@ -1,6 +1,7 @@
 # 四時段場景系統 Phase 0：現況盤點與效能基準
 
-對應計劃書：`docs/fable5_day_cycle_scene_plan.md` §8 Phase 0。
+> **舊程式光影基準。** 下一版本改採 `four_period_background_plan.md` 的完整背景方案；
+> 本文暫留作遷移前後比較，所有房間完成後連同 frame probe 一起刪除。
 基準 commit：`fde2985`（+ 工作樹在途修改，與場景無關）。
 
 ## 1. 動畫來源盤點（首頁，改造前）
