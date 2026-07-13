@@ -10,7 +10,6 @@ import '../utils/prefs_keys.dart';
 import '../utils/scene_time.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
-import '../utils/usage_stats.dart';
 import 'home/room_ambient_overlay.dart';
 import 'story_reveal_page.dart';
 
@@ -19,7 +18,7 @@ import 'story_reveal_page.dart';
 /// 由 `kDevToolsEnabled` 控制是否從設定頁進得來（目前 release 也暫時開，
 /// 正式版改回 `kDebugMode` 就會只在 debug build 顯示、release 不讀這些 key）。
 /// 目前提供：
-///  - 場景時段：覆寫 `sceneHourNow()`，讓首頁場景切到早中晚。
+///  - 場景時段：覆寫 `sceneHourNow()`，預覽四個正式時段與交界。
 ///  - 恢復正常：清掉場景時段覆寫（不動真實進度資料）。
 class DevTestPage extends StatefulWidget {
   const DevTestPage({super.key});
@@ -33,13 +32,21 @@ class _DevTestPageState extends State<DevTestPage> {
   double? _sceneHour; // null = 真實時間
   int _dayShift = 0; // 已快轉天數
 
-  // 場景時段預設點
-  static const _presets = <String, double>{
-    '早晨': 8,
-    '中午': 13,
-    '傍晚': 18,
-    '夜晚': 23,
-  };
+  // 核心時段使用 SceneTimeController 的正式錨點，避免兩邊時間再次脫節。
+  static const _periodPresets = <({String label, ScenePeriod period})>[
+    (label: '清晨 06:30', period: ScenePeriod.morning),
+    (label: '白天 13:00', period: ScenePeriod.day),
+    (label: '黃昏 18:30', period: ScenePeriod.dusk),
+    (label: '夜晚 23:00', period: ScenePeriod.night),
+  ];
+
+  // 每段 45 分鐘交界的正中點；smoothstep 此時恰好兩張圖各 50%。
+  static const _transitionPresets = <({String label, double hour})>[
+    (label: '夜→晨 05:22:30', hour: 5.375),
+    (label: '晨→晝 08:22:30', hour: 8.375),
+    (label: '晝→暮 17:22:30', hour: 17.375),
+    (label: '暮→夜 20:22:30', hour: 20.375),
+  ];
 
   // 換日：往前推一天就能觸發真換日的「每日狀態日期標記」
   static const _dayMarkers = <String>[
@@ -240,14 +247,6 @@ class _DevTestPageState extends State<DevTestPage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
                 _card(
-                  title: '使用統計（本機匿名）',
-                  icon: Icons.query_stats,
-                  description:
-                      '只記「事件 → 當日次數」、不上傳（usage_stats.dart）。'
-                      '這裡看最近 7 天的原始計數。',
-                  child: const _UsageStatsViewer(),
-                ),
-                _card(
                   title: '足跡幣（測試）',
                   icon: Icons.monetization_on_outlined,
                   description: '直接加足跡幣方便測試衣櫃購買解鎖；負向「歸零」清空餘額。',
@@ -407,10 +406,14 @@ class _DevTestPageState extends State<DevTestPage> {
                 _card(
                   title: '場景時段',
                   icon: Icons.wb_twilight_outlined,
-                  description: '覆寫場景時間，首頁場景與底部裝飾條會切到對應時段。',
+                  description:
+                      '正式時段：清晨 05–08、白天 08–17、黃昏 17–20、'
+                      '夜晚 20–05；每個起點後 45 分鐘為平滑交界。'
+                      '覆寫會同步套用首頁場景與底部裝飾條。',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _testSubheading('核心時段'),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -420,15 +423,35 @@ class _DevTestPageState extends State<DevTestPage> {
                             _sceneHour == null,
                             () => _setSceneHour(null),
                           ),
-                          for (final e in _presets.entries)
+                          for (final preset in _periodPresets)
                             _choice(
-                              e.key,
-                              _sceneHour == e.value,
-                              () => _setSceneHour(e.value),
+                              preset.label,
+                              _sceneHour ==
+                                  SceneTimeController.periodAnchorHour(
+                                    preset.period,
+                                  ),
+                              () => _setSceneHour(
+                                SceneTimeController.periodAnchorHour(
+                                  preset.period,
+                                ),
+                              ),
                             ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      _testSubheading('交界中點（前後時段各 50%）'),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final preset in _transitionPresets)
+                            _choice(
+                              preset.label,
+                              _sceneHour == preset.hour,
+                              () => _setSceneHour(preset.hour),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       _hourSlider(),
                     ],
                   ),
@@ -489,7 +512,7 @@ class _DevTestPageState extends State<DevTestPage> {
     return Row(
       children: [
         Text(
-          effective.toStringAsFixed(1),
+          _formatClock(effective),
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -500,14 +523,36 @@ class _DevTestPageState extends State<DevTestPage> {
           child: Slider(
             value: effective.clamp(0, 24),
             max: 24,
-            divisions: 48,
-            label: effective.toStringAsFixed(1),
+            divisions: 96,
+            label: _formatClock(effective),
             onChanged: _setSceneHour,
           ),
         ),
       ],
     );
   }
+
+  static String _formatClock(double hour) {
+    final totalSeconds = ((hour % 24) * 3600).round() % (24 * 3600);
+    final h = totalSeconds ~/ 3600;
+    final m = (totalSeconds % 3600) ~/ 60;
+    final s = totalSeconds % 60;
+    final base =
+        '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+    return s == 0 ? base : '$base:${s.toString().padLeft(2, '0')}';
+  }
+
+  Widget _testSubheading(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w800,
+        color: Colors.brown.shade400,
+      ),
+    ),
+  );
 
   // 區塊卡：圓角白卡 + 標題列 + 說明 + 內容，整頁統一語彙。
   Widget _card({
@@ -573,67 +618,6 @@ class _DevTestPageState extends State<DevTestPage> {
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
         color: selected ? color : Colors.grey.shade700,
       ),
-    );
-  }
-}
-
-/// 最近 7 天的本機使用統計原始計數（純檢視，不動資料）。
-class _UsageStatsViewer extends StatefulWidget {
-  const _UsageStatsViewer();
-
-  @override
-  State<_UsageStatsViewer> createState() => _UsageStatsViewerState();
-}
-
-class _UsageStatsViewerState extends State<_UsageStatsViewer> {
-  Future<List<(String, Map<String, int>)>> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    return [
-      for (final day in UsageStats.recordedDays(prefs).take(7))
-        (day, UsageStats.dayCounts(prefs, day)),
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<(String, Map<String, int>)>>(
-      future: _load(),
-      builder: (context, snapshot) {
-        final days = snapshot.data;
-        if (days == null) return const SizedBox(height: 24);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (days.isEmpty)
-              const Text('還沒有任何紀錄。', style: TextStyle(fontSize: 13)),
-            for (final (day, counts) in days) ...[
-              Text(
-                day,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              for (final e
-                  in counts.entries.toList()
-                    ..sort((a, b) => b.value.compareTo(a.value)))
-                Text(
-                  '  ${e.key}：${e.value}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              const SizedBox(height: 6),
-            ],
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => setState(() {}),
-                icon: const Icon(Icons.refresh, size: 16),
-                label: const Text('重新整理'),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }
