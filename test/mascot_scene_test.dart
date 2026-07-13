@@ -18,6 +18,10 @@ void main() {
     );
   });
 
+  test('搓動產生的小愛心延長約 0.3 秒', () {
+    expect(mascotPetHeartLifetime, const Duration(milliseconds: 1130));
+  });
+
   test('集氣、跳躍與摸頭動作音均已收入 asset bundle', () async {
     for (final cue in [SfxCue.tumiCharge, SfxCue.tumiJump, SfxCue.tumiPet]) {
       final data = await rootBundle.load(cue.assetPath);

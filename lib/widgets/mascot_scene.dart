@@ -24,6 +24,12 @@ import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import 'mascot_bubbles.dart';
 
+/// 搓動頭部時從指尖冒出的小愛心壽命；原本約 0.83 秒，延長 0.3 秒。
+@visibleForTesting
+const Duration mascotPetHeartLifetime = Duration(milliseconds: 1130);
+
+const Duration _mascotPetMinimumHold = Duration(milliseconds: 450);
+
 /// 兔咪環境光融合參數（四時段完整背景的房間用）。
 ///
 /// 由頁面依 [SceneTimeState] 權重「算好再傳入」：兔咪層自己不讀時間，
@@ -402,8 +408,8 @@ class _MascotStageState extends State<MascotStage>
   double _lastPetX = 0; // 上次手指 x，累積搓動距離用
   double _strokeAccum = 0; // 距離累積，每滿一段冒一顆愛心
   double _petTotalStroke = 0; // 本次總搓動量（放開時判斷算不算一次摸頭）
-  double _petClock = 0; // 摸頭驅動器的幀時鐘（愛心壽命/摸多久都用它，測試可確定）
-  double _petStartClock = 0;
+  double _petClockMs = 0; // 取自 Ticker elapsed；不受 60/120Hz 螢幕更新率影響
+  double _petStartClockMs = 0;
   bool _petEyesClosed = false; // 摸夠久 → 瞇眼享受（有對應差分才真的換臉）
   Timer? _petBlissTimer;
   final List<_PetHeart> _hearts = [];
@@ -575,11 +581,13 @@ class _MascotStageState extends State<MascotStage>
 
   /// 每幀收斂：彈簧跟手、放開回正、清掉過期愛心；全歸位就停驅動器省電。
   void _petFrame() {
-    _petClock += 1;
+    _petClockMs = (_petCtrl.lastElapsedDuration?.inMicroseconds ?? 0) / 1000.0;
     _petLean += (_petLeanTarget - _petLean) * 0.16;
     final pressTarget = _isPetting ? 1.0 : 0.0;
     _petPress += (pressTarget - _petPress) * 0.11;
-    _hearts.removeWhere((h) => _petClock - h.bornTick > _PetHeart.lifetimeTicks);
+    _hearts.removeWhere(
+      (h) => _petClockMs - h.bornMs > mascotPetHeartLifetime.inMilliseconds,
+    );
     if (!_isPetting &&
         _hearts.isEmpty &&
         _petPress < 0.01 &&
@@ -591,8 +599,12 @@ class _MascotStageState extends State<MascotStage>
   }
 
   void _beginHeadPet(Offset position) {
+    if (!_petCtrl.isAnimating) {
+      _petClockMs = 0;
+      _petCtrl.repeat();
+    }
     _isPetting = true;
-    _petStartClock = _petClock;
+    _petStartClockMs = _petClockMs;
     _lastPetX = position.dx;
     _strokeAccum = 0;
     _petTotalStroke = 0;
@@ -604,7 +616,6 @@ class _MascotStageState extends State<MascotStage>
     _petBlissTimer = Timer(const Duration(milliseconds: 550), () {
       if (mounted && _isPetting) setState(() => _petEyesClosed = true);
     });
-    if (!_petCtrl.isAnimating) _petCtrl.repeat();
   }
 
   void _updateHeadPet(Offset position) {
@@ -625,9 +636,9 @@ class _MascotStageState extends State<MascotStage>
         _hearts.add(
           _PetHeart(
             origin: position,
-            bornTick: _petClock,
+            bornMs: _petClockMs,
             drift: _rng.nextDouble() * 2 - 1,
-            size: 6.0 + _rng.nextDouble() * 2.5,
+            size: 6.5 + _rng.nextDouble() * 2.7,
           ),
         );
       }
@@ -642,7 +653,9 @@ class _MascotStageState extends State<MascotStage>
     _petBlissTimer?.cancel();
     if (_petEyesClosed) setState(() => _petEyesClosed = false);
     // 有真的搓到（或摸了一小段時間）才算一次摸頭，避免誤觸也冒愛心語音
-    final petted = _petTotalStroke > 18 || _petClock - _petStartClock > 27;
+    final petted =
+        _petTotalStroke > 18 ||
+        _petClockMs - _petStartClockMs > _mascotPetMinimumHold.inMilliseconds;
     if (petted) widget.onHeadPet?.call();
   }
 
@@ -903,7 +916,7 @@ class _MascotStageState extends State<MascotStage>
                         CustomPaint(
                           painter: _MascotPetHeartsPainter(
                             hearts: List.of(_hearts),
-                            clock: _petClock,
+                            clockMs: _petClockMs,
                             color: widget.accent,
                           ),
                         ),
@@ -1254,18 +1267,16 @@ class _MascotBurstPainter extends CustomPainter {
 }
 
 /// 一顆摸頭愛心：從指尖冒出、往上飄、左右微晃、淡出。
-/// 壽命用摸頭驅動器的幀時鐘計（不用牆鐘），測試裡才有確定性。
+/// 壽命用摸頭驅動器的 elapsed time 計（不用牆鐘），測試裡才有確定性。
 class _PetHeart {
-  static const double lifetimeTicks = 50; // ~0.83 秒（60fps）
-
   final Offset origin;
-  final double bornTick;
+  final double bornMs;
   final double drift; // 水平漂移個性 -1..1
   final double size;
 
   const _PetHeart({
     required this.origin,
-    required this.bornTick,
+    required this.bornMs,
     required this.drift,
     required this.size,
   });
@@ -1275,12 +1286,12 @@ class _PetHeart {
 /// 讓「摸的回饋」出現在手真正摸到的地方。
 class _MascotPetHeartsPainter extends CustomPainter {
   final List<_PetHeart> hearts;
-  final double clock;
+  final double clockMs;
   final Color color;
 
   _MascotPetHeartsPainter({
     required this.hearts,
-    required this.clock,
+    required this.clockMs,
     required this.color,
   });
 
@@ -1289,10 +1300,8 @@ class _MascotPetHeartsPainter extends CustomPainter {
     if (hearts.isEmpty) return;
     final pink = Color.lerp(color, const Color(0xFFEF8A9C), 0.72)!;
     for (final h in hearts) {
-      final t = ((clock - h.bornTick) / _PetHeart.lifetimeTicks).clamp(
-        0.0,
-        1.0,
-      );
+      final t = ((clockMs - h.bornMs) / mascotPetHeartLifetime.inMilliseconds)
+          .clamp(0.0, 1.0);
       if (t >= 1) continue;
       final eased = Curves.easeOut.transform(t);
       final pos =
@@ -1306,7 +1315,7 @@ class _MascotPetHeartsPainter extends CustomPainter {
         canvas,
         pos,
         h.size * pop,
-        Paint()..color = pink.withValues(alpha: (0.85 * fade).clamp(0.0, 1.0)),
+        Paint()..color = pink.withValues(alpha: (0.92 * fade).clamp(0.0, 1.0)),
       );
     }
   }
@@ -1336,7 +1345,7 @@ class _MascotPetHeartsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MascotPetHeartsPainter old) =>
-      old.clock != clock ||
+      old.clockMs != clockMs ||
       old.hearts.length != hearts.length ||
       old.color != color;
 }
