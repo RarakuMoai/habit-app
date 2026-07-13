@@ -24,6 +24,10 @@ enum SfxCue {
   tumiHappy('assets/sounds/tumi_voice_happy.wav', 0.50),
   tumiQuestion('assets/sounds/tumi_voice_question.wav', 0.58),
   tumiSad('assets/sounds/tumi_voice_sad.wav', 0.85),
+  // 兔咪直接互動的動作層：每次動作都回饋；角色語音仍由 MascotPersona CD 控制。
+  tumiCharge('assets/sounds/sfx_tumi_charge.wav', 0.62),
+  tumiJump('assets/sounds/sfx_tumi_jump.wav', 0.72),
+  tumiPet('assets/sounds/sfx_tumi_pet.wav', 0.82),
   // 桌遊計時器專屬（ElevenLabs 生成、剪裁後 peak 對齊上面同類音效）
   gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人
   gameWarn('assets/sounds/sfx_game_warn.wav', 0.85), // 木質 tick：倒數警示
@@ -41,17 +45,42 @@ class SfxService {
 
   final Map<SfxCue, AudioPlayer> _players = {};
   bool _initialized = false;
+  Future<void>? _initializing;
 
   Future<void> init() async {
     if (_initialized) return;
+    final pending = _initializing;
+    if (pending != null) {
+      await pending;
+      return;
+    }
+    final operation = _initialize();
+    _initializing = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_initializing, operation)) _initializing = null;
+    }
+  }
+
+  Future<void> _initialize() async {
     await AudioSettingsService.instance.init();
     await AppAudioSession.ensureConfigured();
-    for (final cue in SfxCue.values) {
-      final player = AudioPlayer();
-      await player.setAudioSource(AudioSource.asset(cue.assetPath));
-      await player.setVolume(cue.volume);
-      _players[cue] = player;
+    final loaded = <SfxCue, AudioPlayer>{};
+    try {
+      for (final cue in SfxCue.values) {
+        final player = AudioPlayer();
+        loaded[cue] = player;
+        await player.setAudioSource(AudioSource.asset(cue.assetPath));
+        await player.setVolume(cue.volume);
+      }
+    } catch (_) {
+      for (final player in loaded.values) {
+        await player.dispose();
+      }
+      rethrow;
     }
+    _players.addAll(loaded);
     _initialized = true;
   }
 
@@ -72,11 +101,35 @@ class SfxService {
     }
   }
 
+  /// 停掉仍在播放的單一動作音。若該音效正處於首次載入，會等載入完成後
+  /// 立刻停止，避免「提早放開蓄力」卻讓 1.08 秒集氣音繼續播完。
+  Future<void> stop(SfxCue cue) async {
+    try {
+      if (!_initialized) {
+        final pending = _initializing;
+        if (pending == null) return;
+        await pending;
+      }
+      await _players[cue]?.stop();
+    } catch (e) {
+      debugPrint('SFX stop failed: $e');
+    }
+  }
+
   Future<void> dispose() async {
+    final pending = _initializing;
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {
+        // 初始化失敗時沒有可釋放的完整 player 集合，照常清理已知項目。
+      }
+    }
     for (final player in _players.values) {
       await player.dispose();
     }
     _players.clear();
     _initialized = false;
+    _initializing = null;
   }
 }

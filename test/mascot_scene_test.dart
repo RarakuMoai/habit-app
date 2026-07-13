@@ -1,8 +1,10 @@
 // 充電互動（長按蓄力放開）的手勢層測試：
 // 驗證長按/放開/蓄滿自動爆發會觸發 onEnergize，且不搶原本的摸頭手勢。
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/mascot.dart';
+import 'package:habit_app/utils/sfx_service.dart';
 import 'package:habit_app/widgets/mascot_bubbles.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
 
@@ -14,6 +16,13 @@ void main() {
       bubbleSpecFor(EmotionBubble.heart).duration,
       const Duration(milliseconds: 2400),
     );
+  });
+
+  test('集氣、跳躍與摸頭動作音均已收入 asset bundle', () async {
+    for (final cue in [SfxCue.tumiCharge, SfxCue.tumiJump, SfxCue.tumiPet]) {
+      final data = await rootBundle.load(cue.assetPath);
+      expect(data.lengthInBytes, greaterThan(1000), reason: cue.assetPath);
+    }
   });
 
   Future<void> pumpStage(

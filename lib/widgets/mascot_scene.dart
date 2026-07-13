@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/mascot.dart';
+import '../utils/sfx_service.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import 'mascot_bubbles.dart';
@@ -532,6 +533,7 @@ class _MascotStageState extends State<MascotStage>
   void dispose() {
     _blinkTimer?.cancel();
     _petBlissTimer?.cancel();
+    unawaited(SfxService.instance.stop(SfxCue.tumiCharge));
     _petCtrl.dispose();
     _breathCtrl.dispose();
     _reactionCtrl.dispose();
@@ -596,6 +598,7 @@ class _MascotStageState extends State<MascotStage>
     _petTotalStroke = 0;
     _petLeanTarget = _headDragAmount(position);
     playHaptic(HapticLevel.selection);
+    unawaited(SfxService.instance.play(SfxCue.tumiPet));
     // 摸滿一小段時間 → 瞇眼享受（有對應差分才會真的換臉）
     _petBlissTimer?.cancel();
     _petBlissTimer = Timer(const Duration(milliseconds: 550), () {
@@ -660,6 +663,7 @@ class _MascotStageState extends State<MascotStage>
     _chargeOrigin = origin;
     _chargeTickStep = 0;
     playHaptic(HapticLevel.selection);
+    unawaited(SfxService.instance.play(SfxCue.tumiCharge));
     _chargeCtrl.forward(from: 0);
   }
 
@@ -676,6 +680,8 @@ class _MascotStageState extends State<MascotStage>
     _burstPower = 0.35 + 0.65 * _chargeCtrl.value;
     _chargeCtrl.stop();
     _chargeCtrl.value = 0; // 下蹲瞬間釋放成起跳，squash→stretch 的「啵」
+    unawaited(SfxService.instance.stop(SfxCue.tumiCharge));
+    unawaited(SfxService.instance.play(SfxCue.tumiJump));
     playHaptic(_burstPower > 0.7 ? HapticLevel.medium : HapticLevel.light);
     widget.onEnergize?.call();
     _burstCtrl.forward(from: 0);
@@ -684,6 +690,7 @@ class _MascotStageState extends State<MascotStage>
   void _cancelCharge() {
     if (!_isCharging) return;
     _isCharging = false;
+    unawaited(SfxService.instance.stop(SfxCue.tumiCharge));
     _chargeCtrl.animateBack(
       0,
       duration: const Duration(milliseconds: 220),
