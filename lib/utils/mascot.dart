@@ -444,9 +444,10 @@ class MascotPersona {
       bubbleTick: state.bubble == null ? 0 : ++_bubbleSeq,
     );
     final cue = _voiceCueFor(ctx);
-    if (cue != null && !voiceMuted && _voiceAllowed(ctx)) {
+    final now = DateTime.now();
+    if (cue != null && !voiceMuted && _voiceAllowed(ctx, now: now)) {
       unawaited(SfxService.instance.play(cue));
-      _lastVoiceAt = DateTime.now();
+      _markVoicePlayed(ctx, now);
     }
     _holdUntil = DateTime.now().add(_holdDuration);
     _activePriority = _priorityOf(ctx);
@@ -454,17 +455,55 @@ class MascotPersona {
   }
 
   // ── 語音冷卻 ──
-  // 日常互動（點兔咪、摸頭、打卡…）表情照常換，但語音最多每
-  // [_voiceCooldown] 出聲一次，避免連續打卡/狂點兔咪時太吵。
+  // 直接互動（點兔咪、摸頭、蓄力跳躍）使用較短的 7 秒 CD，讓使用者
+  // 確實感受到回應；打卡等日常事件維持 18 秒，兩組互不互相消耗。
   // 大事件（優先度 >= 20：全完成、連勝、撤銷、喝水過量）不受冷卻限制。
-  static const Duration _voiceCooldown = Duration(seconds: 18);
+  static const Duration _directVoiceCooldown = Duration(seconds: 7);
+  static const Duration _routineVoiceCooldown = Duration(seconds: 18);
   static const int _voiceBypassPriority = 20;
-  static DateTime? _lastVoiceAt;
+  static DateTime? _lastDirectVoiceAt;
+  static DateTime? _lastRoutineVoiceAt;
 
-  static bool _voiceAllowed(MascotContext ctx) {
+  static bool _usesDirectVoiceCooldown(MascotContext ctx) {
+    return switch (ctx) {
+      MascotContext.tapReaction ||
+      MascotContext.headPet ||
+      MascotContext.energize => true,
+      _ => false,
+    };
+  }
+
+  static bool _voiceAllowed(MascotContext ctx, {DateTime? now}) {
     if (_priorityOf(ctx) >= _voiceBypassPriority) return true;
-    final last = _lastVoiceAt;
-    return last == null || DateTime.now().difference(last) >= _voiceCooldown;
+    final direct = _usesDirectVoiceCooldown(ctx);
+    final last = direct ? _lastDirectVoiceAt : _lastRoutineVoiceAt;
+    if (last == null) return true;
+    final elapsed = (now ?? DateTime.now()).difference(last);
+    final cooldown = direct ? _directVoiceCooldown : _routineVoiceCooldown;
+    // 系統時間若往回調，不應讓語音被鎖到時鐘追上舊時間為止。
+    return elapsed.isNegative || elapsed >= cooldown;
+  }
+
+  static void _markVoicePlayed(MascotContext ctx, DateTime at) {
+    if (_usesDirectVoiceCooldown(ctx)) {
+      _lastDirectVoiceAt = at;
+    } else {
+      _lastRoutineVoiceAt = at;
+    }
+  }
+
+  @visibleForTesting
+  static bool debugVoiceAllowedAt(MascotContext ctx, DateTime now) =>
+      _voiceAllowed(ctx, now: now);
+
+  @visibleForTesting
+  static void debugMarkVoicePlayedAt(MascotContext ctx, DateTime at) =>
+      _markVoicePlayed(ctx, at);
+
+  @visibleForTesting
+  static void debugResetVoiceCooldowns() {
+    _lastDirectVoiceAt = null;
+    _lastRoutineVoiceAt = null;
   }
 
   /// 情境 → 兔咪語音。回 null 代表這個情境保持安靜

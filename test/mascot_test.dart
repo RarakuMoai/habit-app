@@ -4,12 +4,80 @@ import 'package:habit_app/utils/mascot.dart';
 void main() {
   setUp(() {
     MascotPersona.voiceMuted = true;
+    MascotPersona.debugResetVoiceCooldowns();
     MascotPersona.resetToOpening();
   });
 
   tearDown(() {
+    MascotPersona.debugResetVoiceCooldowns();
     MascotPersona.resetToOpening();
     MascotPersona.voiceMuted = false;
+  });
+
+  test('direct mascot interactions share a seven-second voice cooldown', () {
+    final start = DateTime(2026, 7, 13, 12);
+    MascotPersona.debugMarkVoicePlayedAt(MascotContext.tapReaction, start);
+
+    expect(
+      MascotPersona.debugVoiceAllowedAt(
+        MascotContext.headPet,
+        start.add(const Duration(seconds: 6, milliseconds: 999)),
+      ),
+      isFalse,
+    );
+    expect(
+      MascotPersona.debugVoiceAllowedAt(
+        MascotContext.energize,
+        start.add(const Duration(seconds: 7)),
+      ),
+      isTrue,
+    );
+  });
+
+  test('direct and routine voices use independent cooldowns', () {
+    final start = DateTime(2026, 7, 13, 12);
+    MascotPersona.debugMarkVoicePlayedAt(MascotContext.completedOne, start);
+
+    expect(
+      MascotPersona.debugVoiceAllowedAt(MascotContext.tapReaction, start),
+      isTrue,
+      reason: '剛打卡後仍應能立即回應使用者直接互動',
+    );
+    expect(
+      MascotPersona.debugVoiceAllowedAt(
+        MascotContext.halfDone,
+        start.add(const Duration(seconds: 17, milliseconds: 999)),
+      ),
+      isFalse,
+    );
+    expect(
+      MascotPersona.debugVoiceAllowedAt(
+        MascotContext.halfDone,
+        start.add(const Duration(seconds: 18)),
+      ),
+      isTrue,
+    );
+
+    MascotPersona.debugResetVoiceCooldowns();
+    MascotPersona.debugMarkVoicePlayedAt(MascotContext.headPet, start);
+    expect(
+      MascotPersona.debugVoiceAllowedAt(MascotContext.completedOne, start),
+      isTrue,
+      reason: '摸兔咪也不應吃掉下一次打卡確認聲',
+    );
+  });
+
+  test('important mascot events still bypass voice cooldowns', () {
+    final start = DateTime(2026, 7, 13, 12);
+    MascotPersona.debugMarkVoicePlayedAt(MascotContext.completedOne, start);
+
+    expect(
+      MascotPersona.debugVoiceAllowedAt(
+        MascotContext.undone,
+        start.add(const Duration(seconds: 1)),
+      ),
+      isTrue,
+    );
   });
 
   test('repeated accepted bubble contexts advance the bubble tick', () {
