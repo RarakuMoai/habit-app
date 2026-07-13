@@ -20,6 +20,11 @@ void main() {
       ),
     );
 
+    final coinImage = tester.widget<Image>(find.byType(Image));
+    expect(
+      (coinImage.image as AssetImage).assetName,
+      'assets/icon/ui/paw_footprint_coin_round.png',
+    );
     expect(find.text('999'), findsOneWidget);
     expect(find.text('999+'), findsNothing);
 

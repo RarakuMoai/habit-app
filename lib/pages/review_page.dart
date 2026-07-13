@@ -360,7 +360,7 @@ class _ReviewPageState extends State<ReviewPage> {
                   child: Padding(
                     padding: const EdgeInsets.all(5),
                     child: Image.asset(
-                      'assets/icon/ui/paw_footprint_coin.png',
+                      'assets/icon/ui/paw_footprint_coin_round.png',
                       filterQuality: FilterQuality.high,
                     ),
                   ),

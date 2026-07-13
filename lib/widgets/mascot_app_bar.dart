@@ -305,7 +305,7 @@ class _PawCoinIcon extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Image.asset(
-          'assets/icon/ui/paw_footprint_coin.png',
+          'assets/icon/ui/paw_footprint_coin_round.png',
           width: 35,
           height: 35,
           fit: BoxFit.contain,

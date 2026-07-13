@@ -233,7 +233,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
           child: Transform.scale(
             scale: 0.78 + 0.22 * math.sin(flight * math.pi),
             child: Image.asset(
-              'assets/icon/ui/paw_footprint_coin.png',
+              'assets/icon/ui/paw_footprint_coin_round.png',
               width: coinSize,
               height: coinSize,
               filterQuality: FilterQuality.high,
