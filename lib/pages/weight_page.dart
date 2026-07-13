@@ -1614,13 +1614,9 @@ class _WeightPageState extends State<WeightPage> {
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.white, Colors.orange.withValues(alpha: 0.055)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: AppSurfaces.card,
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
-            border: Border.all(color: Colors.orange.withValues(alpha: 0.13)),
+            border: AppCardStyle.hairline,
             boxShadow: AppShadows.card,
           ),
           child: Row(
@@ -1669,9 +1665,11 @@ class _WeightPageState extends State<WeightPage> {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.82),
+                  color: Colors.orange.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0x0F46342B)),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.10),
+                  ),
                 ),
                 child: Icon(
                   Icons.arrow_forward_rounded,

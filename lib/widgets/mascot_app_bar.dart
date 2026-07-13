@@ -1,7 +1,8 @@
 // 共用 AppBar：透明背景，左 = 日期 pill，右 = 設定按鈕。
 //
 // 所有兔咪頁面共用同一條 header，標題由兔咪 + 背景場景承載，
-// AppBar 只剩兩件套：日期（含日/夜 icon）+ 設定。
+// AppBar 只剩兩件套：日期 + 設定。時段已由完整背景承擔，日期不再重複放
+// 日／夜 icon，避免純裝飾圖示搶走場景焦點。
 //
 // 使用上需要把 Scaffold 設成 `extendBodyBehindAppBar: true`，否則
 // 透明 AppBar 下方會留一塊空白。
@@ -13,11 +14,10 @@ import '../pages/review_page.dart';
 import '../pages/settings_page.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_service.dart';
-import '../utils/scene_time.dart';
 import 'audio_control_button.dart';
 
 class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
-  /// 影響日期 pill icon 顏色（其餘元素統一灰底白字）。
+  /// 頁面識別色（用於音量按鈕）。
   final Color accent;
 
   /// 額外塞在「設定」前面的 actions。
@@ -44,10 +44,6 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    // 與場景同一把尺（SceneTimeController 統一真實時間/固定時段/預覽），
-    // 日期 pill 的日/夜 icon 才不會和場景對不上。
-    final isNight =
-        SceneTimeController.instance.state.dominantPeriod == ScenePeriod.night;
     const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
     final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
 
@@ -57,16 +53,12 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
-      leadingWidth: 160,
+      leadingWidth: 136,
       leading: Padding(
         padding: const EdgeInsets.only(left: 12),
         child: Align(
           alignment: Alignment.centerLeft,
-          child: MascotPill(
-            icon: isNight ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-            label: dateStr,
-            color: accent,
-          ),
+          child: MascotPill(label: dateStr),
         ),
       ),
       title: const SizedBox.shrink(),
@@ -340,18 +332,11 @@ class _PawCoinIcon extends StatelessWidget {
   }
 }
 
-/// 白底圓角小膠囊（日期、連續天數等都用這個）。
+/// 白底圓角小膠囊（日期等簡短場景資訊用）。
 class MascotPill extends StatelessWidget {
-  final IconData icon;
   final String label;
-  final Color color;
 
-  const MascotPill({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
+  const MascotPill({super.key, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -372,8 +357,6 @@ class MascotPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 5),
           // Baloo 2 的 ascent 佔比大，字形在行框內偏上（模擬器實測高
           // 1.2pt），往下平移做光學置中；用 Transform 不影響膠囊高度
           Transform.translate(
