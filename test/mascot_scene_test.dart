@@ -3,13 +3,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/mascot.dart';
+import 'package:habit_app/widgets/mascot_bubbles.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('摸頭主愛心比原版多停留 0.3 秒', () {
+    expect(
+      bubbleSpecFor(EmotionBubble.heart).duration,
+      const Duration(milliseconds: 2400),
+    );
+  });
+
   Future<void> pumpStage(
     WidgetTester tester, {
+    VoidCallback? onChargeStart,
     VoidCallback? onEnergize,
     VoidCallback? onHeadPet,
     MascotSceneLighting? lighting,
@@ -24,6 +33,7 @@ void main() {
               reactionTick: 0,
               onTap: () {},
               onHeadPet: onHeadPet,
+              onChargeStart: onChargeStart,
               onEnergize: onEnergize,
               lighting: lighting,
               // 凍結呼吸/眨眼，避免測試殘留 pending timer
@@ -57,18 +67,25 @@ void main() {
   });
 
   testWidgets('長按蓄力後放開觸發一次 onEnergize', (tester) async {
+    var chargeStarted = 0;
     var energized = 0;
-    await pumpStage(tester, onEnergize: () => energized++);
+    await pumpStage(
+      tester,
+      onChargeStart: () => chargeStarted++,
+      onEnergize: () => energized++,
+    );
 
     final gesture = await tester.startGesture(
       tester.getCenter(find.byType(MascotStage)),
     );
     await tester.pump(const Duration(milliseconds: 600)); // 過長按門檻
+    expect(chargeStarted, 1, reason: '長按成立時應只發一次蓄力回饋');
     await tester.pump(const Duration(milliseconds: 400)); // 蓄一點力
     expect(energized, 0, reason: '蓄力中還不該爆發');
 
     await gesture.up();
     await tester.pump();
+    expect(chargeStarted, 1);
     expect(energized, 1);
 
     await tester.pumpAndSettle(); // 跑完爆發動畫

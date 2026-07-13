@@ -342,7 +342,7 @@ class BubbleSpec {
 final Map<EmotionBubble, BubbleSpec> _specs = {
   // 愛心（摸頭）：心跳脈動＋兩顆小愛心錯開往上飄。
   EmotionBubble.heart: BubbleSpec(
-    duration: const Duration(milliseconds: 2100),
+    duration: const Duration(milliseconds: 2400),
     tint: (_) => const Color(0xFFF26B82),
     motion: const BubbleMotion(rise: 18, pulseAmp: 0.12),
     glyph: const HeartGlyph(),

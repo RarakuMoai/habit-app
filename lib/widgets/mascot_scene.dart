@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/mascot.dart';
+import '../utils/sfx_service.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import 'mascot_bubbles.dart';
@@ -110,6 +111,8 @@ class PersonaScene extends StatelessWidget {
     final effectivePaused = paused || MascotIdleScope.pausedOf(context);
 
     void handleHeadPet() {
+      // 固定動作音不受兔咪語音冷卻影響；短到只像一次柔和觸碰。
+      unawaited(SfxService.instance.play(SfxCue.tap, volumeScale: 0.34));
       final callback = onHeadPet;
       if (callback != null) {
         callback();
@@ -118,7 +121,19 @@ class PersonaScene extends StatelessWidget {
       }
     }
 
+    void handleChargeStart() {
+      // 1 秒柔軟吸入聲，與 1.1 秒蓄力動畫貼合。
+      unawaited(
+        SfxService.instance.play(
+          SfxCue.footprintCoinAbsorb,
+          volumeScale: 0.47,
+        ),
+      );
+    }
+
     void handleEnergize() {
+      // 放開時補短亮音；偶爾出現的歡呼語音仍由 MascotPersona 控制。
+      unawaited(SfxService.instance.play(SfxCue.success, volumeScale: 0.40));
       final callback = onEnergize;
       if (callback != null) {
         callback();
@@ -144,6 +159,7 @@ class PersonaScene extends StatelessWidget {
           reactionTick: reactionTick,
           onTap: onTap,
           onHeadPet: handleHeadPet,
+          onChargeStart: handleChargeStart,
           onEnergize: handleEnergize,
           paused: effectivePaused,
           lighting: lighting,
@@ -182,6 +198,9 @@ class MascotScene extends StatelessWidget {
   /// 充電互動（長按蓄力放開）爆發時的 callback；不需互動可省略。
   final VoidCallback? onEnergize;
 
+  /// 長按手勢成立、開始蓄力時的 callback；供固定動作音等即時回饋。
+  final VoidCallback? onChargeStart;
+
   /// 閒置凍結：暫停兔咪呼吸與眨眼（見 [PersonaScene.paused]）。
   final bool paused;
 
@@ -198,6 +217,7 @@ class MascotScene extends StatelessWidget {
     this.reactionTick = 0,
     this.onTap,
     this.onHeadPet,
+    this.onChargeStart,
     this.onEnergize,
     this.paused = false,
     this.lighting,
@@ -225,6 +245,7 @@ class MascotScene extends StatelessWidget {
             reactionTick: reactionTick,
             onTap: onTap ?? () {},
             onHeadPet: onHeadPet,
+            onChargeStart: onChargeStart,
             onEnergize: onEnergize,
             paused: paused,
             lighting: lighting,
@@ -347,6 +368,9 @@ class MascotStage extends StatefulWidget {
   /// 充電互動：長按蓄力、放開（或蓄滿）爆發的那一刻呼叫。
   final VoidCallback? onEnergize;
 
+  /// 長按成立、開始蓄力的那一刻呼叫。
+  final VoidCallback? onChargeStart;
+
   /// 閒置凍結：暫停呼吸與眨眼（見 [PersonaScene.paused]）。
   final bool paused;
 
@@ -362,6 +386,7 @@ class MascotStage extends StatefulWidget {
     required this.reactionTick,
     required this.onTap,
     this.onHeadPet,
+    this.onChargeStart,
     this.onEnergize,
     this.paused = false,
     this.lighting,
@@ -660,6 +685,7 @@ class _MascotStageState extends State<MascotStage>
     _chargeOrigin = origin;
     _chargeTickStep = 0;
     playHaptic(HapticLevel.selection);
+    widget.onChargeStart?.call();
     _chargeCtrl.forward(from: 0);
   }
 
