@@ -1,4 +1,4 @@
-// 足跡頁冒煙測試：會建、空資料給溫柔語氣、補習慣/週/月可切換。
+// 足跡頁冒煙測試：週/月統計與獨立的補習慣入口。
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,9 +15,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('足跡'), findsOneWidget);
-    expect(find.text('補習慣'), findsOneWidget);
+    expect(find.text('忘了打勾？補上最近的習慣'), findsOneWidget);
     expect(find.text('週'), findsOneWidget);
     expect(find.text('月'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('每日足跡'),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('每日足跡'), findsOneWidget);
     // 沒有習慣紀錄時是陪伴語氣，不是 0 分審判
     expect(find.textContaining('還沒有習慣紀錄'), findsOneWidget);
@@ -29,8 +34,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final walletTop = tester.getTopLeft(find.text('足跡錢包')).dy;
-    final segmentTop = tester.getTopLeft(find.text('補習慣')).dy;
-    expect(walletTop, lessThan(segmentTop));
+    final backfillTop = tester.getTopLeft(find.text('忘了打勾？補上最近的習慣')).dy;
+    final segmentTop = tester.getTopLeft(find.text('週')).dy;
+    expect(walletTop, lessThan(backfillTop));
+    expect(backfillTop, lessThan(segmentTop));
   });
 
   testWidgets('透明 AppBar 使用深色狀態列與返回圖示', (tester) async {
@@ -44,16 +51,16 @@ void main() {
     expect(appBar.actionsIconTheme?.color, AppInk.strong);
   });
 
-  testWidgets('切到「補習慣」會顯示補登視圖', (tester) async {
+  testWidgets('點「補習慣」會進入獨立補登頁', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const MaterialApp(home: ReviewPage()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('補習慣'));
+    await tester.tap(find.text('忘了打勾？補上最近的習慣'));
     await tester.pumpAndSettle();
 
-    // BackfillDayView 的底部說明
-    expect(find.textContaining('不影響金幣與連勝'), findsOneWidget);
+    expect(find.text('補上之前的足跡'), findsOneWidget);
+    expect(find.textContaining('可補昨天起往前 7 天'), findsOneWidget);
   });
 
   testWidgets('切到「月」仍正常渲染', (tester) async {

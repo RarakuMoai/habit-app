@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/timer/game/table_setup_panel.dart';
 import 'package:habit_app/pages/timer/game/table_store.dart';
 import 'package:habit_app/pages/timer/game/table_timer_models.dart';
+import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/widgets/reorder_jiggle.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,12 +14,15 @@ Future<SharedPreferences> pumpPanel(
   WidgetTester tester, {
   void Function(TableTimerConfig)? onChanged,
   TableTimerConfig? initial,
+  List<String>? roster,
+  Size size = const Size(800, 2600),
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   if (initial != null) await TableStore.saveConfig(prefs, initial);
+  if (roster != null) await TableStore.saveRoster(prefs, roster);
   // 拉高視窗讓整份設定不用捲動就看得到（ListView 懶建，摺疊區找不到）
-  tester.view.physicalSize = const Size(800, 2600);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -61,7 +65,7 @@ List<String> savedNames(SharedPreferences prefs) => [
 ];
 
 void main() {
-  testWidgets('第一層只留開局必需：頁首摘要、玩法、順位、時間；進階收合', (tester) async {
+  testWidgets('第一層整合時間提醒，常用內容改為同尺寸彈窗入口', (tester) async {
     await pumpPanel(tester);
 
     // 頁首合併卡：兔咪＋一行本局摘要（舊三格摘要卡已收掉）
@@ -71,19 +75,16 @@ void main() {
 
     expect(find.text('玩法'), findsOneWidget);
     expect(find.text('出場順位'), findsOneWidget);
-    expect(find.text('由上到下輪流出場'), findsOneWidget);
+    expect(find.text('按住蓄色後拖曳調整'), findsOneWidget);
     expect(find.text('每回合時間'), findsOneWidget);
 
-    // 進階設定收合，但收合列常駐生效摘要
-    expect(find.text('更多計時設定'), findsOneWidget);
-    expect(find.text('剩 10 秒提醒 · 手動換人'), findsOneWidget);
-    expect(find.text('倒數提醒'), findsNothing);
-    expect(find.text('超時自動換下一位'), findsNothing);
-    expect(find.text('常用內容'), findsOneWidget);
-    expect(find.text('常用玩家'), findsNothing);
-
-    // 空清單不展示常用組合管理區
-    expect(find.text('常用組合'), findsNothing);
+    // 提醒與回合時間住同一卡片，不再多一層收合。
+    expect(find.text('更多計時設定'), findsNothing);
+    expect(find.text('倒數提醒（秒）'), findsOneWidget);
+    expect(find.text('超時自動換下一位'), findsOneWidget);
+    expect(find.text('常用設定'), findsOneWidget);
+    expect(find.text('常用玩家'), findsOneWidget);
+    expect(find.text('常用組合'), findsOneWidget);
     expect(find.text('儲存目前設定'), findsNothing);
 
     // 預設 4 位玩家 + 順位徽章 1–4，每列一個 ⋯ 選單
@@ -92,30 +93,14 @@ void main() {
       expect(find.text('$i'), findsWidgets);
     }
     expect(find.byIcon(Icons.more_vert_rounded), findsNWidgets(4));
-
-    // 展開「更多計時設定」看得到提醒與自動換人
-    await tester.tap(find.text('更多計時設定'));
-    await tester.pumpAndSettle();
-    expect(find.text('倒數提醒'), findsOneWidget);
-    expect(find.text('超時自動換下一位'), findsOneWidget);
-
-    // 展開「常用內容」看得到常用玩家與儲存組合入口
-    await tester.tap(find.text('常用內容'));
-    await tester.pumpAndSettle();
-    expect(find.text('常用玩家'), findsOneWidget);
-    expect(find.text('＋ 把目前設定存成一組'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_rounded), findsNWidgets(4));
   });
 
-  testWidgets('收合列摘要跟著設定即時更新', (tester) async {
+  testWidgets('超時換人直接顯示並即時更新', (tester) async {
     await pumpPanel(tester);
-    expect(find.text('剩 10 秒提醒 · 手動換人'), findsOneWidget);
-
-    await tester.tap(find.text('更多計時設定'));
-    await tester.pumpAndSettle();
     await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
-
-    expect(find.text('剩 10 秒提醒 · 超時自動換人'), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
   });
 
   testWidgets('自由輪流沒有可調提醒：整個「更多計時設定」不出現', (tester) async {
@@ -126,28 +111,74 @@ void main() {
 
     expect(find.text('更多計時設定'), findsNothing);
     expect(find.text('每回合時間'), findsNothing);
-    expect(find.text('常用內容'), findsOneWidget);
+    expect(find.text('常用設定'), findsOneWidget);
   });
 
-  testWidgets('空清單從「常用內容」存出第一組後，捷徑列出現', (tester) async {
+  testWidgets('空清單從「常用組合」彈窗存出第一組', (tester) async {
     final prefs = await pumpPanel(tester);
 
-    await tester.tap(find.text('常用內容'));
+    await tester.tap(find.text('常用組合'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('＋ 把目前設定存成一組'));
+    await tester.tap(find.text('儲存目前設定'));
     await tester.pumpAndSettle();
     expect(find.text('儲存常用組合'), findsOneWidget);
     await tester.tap(find.text('儲存'));
     await tester.pumpAndSettle();
 
     expect(TableStore.loadPresets(prefs).length, 1);
-    // 捷徑列（含尾端「儲存目前設定」卡）現身，收合區內的入口收掉
     expect(find.text('常用組合'), findsOneWidget);
-    expect(find.text('儲存目前設定'), findsOneWidget);
-    expect(find.text('＋ 把目前設定存成一組'), findsNothing);
+    expect(find.text('1 組'), findsOneWidget);
   });
 
   group('出場順位排序模式', () {
+    testWidgets('名字與鉛筆都能改名；按住會出現蓄色', (tester) async {
+      await pumpPanel(tester);
+
+      await tester.tap(find.text('玩家 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('玩家名字'), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('編輯 玩家 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('玩家名字'), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('玩家 1')),
+      );
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is CustomPaint &&
+              w.painter.runtimeType.toString() == '_PlayerHoldPainter',
+        ),
+        findsOneWidget,
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('同時存入常用玩家會記住上次勾選', (tester) async {
+      final prefs = await pumpPanel(tester);
+
+      await tester.tap(find.byTooltip('編輯 玩家 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('同時存入常用玩家'));
+      await tester.enterText(find.byType(TextField), '阿兔');
+      await tester.tap(find.text('確定'));
+      await tester.pumpAndSettle();
+
+      expect(prefs.getBool(PrefsKeys.gameTableRememberAddToRoster), isTrue);
+      await tester.tap(find.byTooltip('編輯 阿兔'));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.check_box_rounded), findsOneWidget);
+    });
+
     testWidgets('⋯ > 移動 進入排序模式，完成排序退出', (tester) async {
       await pumpPanel(tester);
 
@@ -161,16 +192,16 @@ void main() {
       await pumpJiggling(tester);
       expect(find.text('完成排序'), findsOneWidget);
       expect(find.text('拖曳玩家調整出場順位'), findsOneWidget);
-      // 排序模式中：⋯ 與「新增玩家」收起，換成拖曳提示
-      expect(find.byIcon(Icons.more_vert_rounded), findsNothing);
+      // 排序模式中維持原本 ⋯ 圖示，不切換成另一種符號。
+      expect(find.byIcon(Icons.more_vert_rounded), findsNWidgets(4));
       expect(find.text('新增玩家'), findsNothing);
-      expect(find.byIcon(Icons.drag_indicator_rounded), findsNWidgets(4));
+      expect(find.byIcon(Icons.drag_indicator_rounded), findsNothing);
 
       // 點完成排序後抖動停止，才能 pumpAndSettle
       await tester.tap(find.text('完成排序'));
       await tester.pumpAndSettle();
       expect(find.text('完成排序'), findsNothing);
-      expect(find.text('由上到下輪流出場'), findsOneWidget);
+      expect(find.text('按住蓄色後拖曳調整'), findsOneWidget);
       expect(find.byIcon(Icons.more_vert_rounded), findsNWidgets(4));
       expect(find.text('新增玩家'), findsOneWidget);
     });
@@ -277,24 +308,69 @@ void main() {
       await enterSortMode(tester);
       expect(find.text('完成排序'), findsOneWidget);
 
+      await tester.tap(find.text('常用組合'));
+      await pumpJiggling(tester);
       await tester.tap(find.text('快速局'));
+      await pumpJiggling(tester);
+      expect(find.text('完成排序'), findsOneWidget);
+      await tester.tap(find.text('確認套用'));
       await tester.pumpAndSettle();
       expect(find.text('完成排序'), findsNothing);
     });
+  });
+
+  testWidgets('常用玩家以選取狀態加入本局，並可獨立刪除名單', (tester) async {
+    final prefs = await pumpPanel(tester, roster: ['小兔']);
+
+    await tester.tap(find.text('常用玩家'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('小兔'));
+    await tester.pumpAndSettle();
+    expect(savedNames(prefs), isNot(contains('小兔')));
+    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    await tester.tap(find.text('確認加入（1 位）'));
+    await tester.pumpAndSettle();
+    expect(savedNames(prefs), contains('小兔'));
+
+    await tester.tap(find.text('常用玩家'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('移除 小兔'));
+    await tester.pumpAndSettle();
+    expect(TableStore.loadRoster(prefs), isEmpty);
+  });
+
+  testWidgets('常用內容面板貼齊螢幕底部，短畫面仍可捲到最後一項', (tester) async {
+    await pumpPanel(
+      tester,
+      size: const Size(800, 700),
+      roster: ['玩家甲', '玩家乙', '玩家丙', '玩家丁', '玩家戊', '玩家己'],
+    );
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('常用玩家'));
+    await tester.pumpAndSettle();
+
+    expect(tester.getBottomRight(find.byType(BottomSheet)).dy, 700);
+    await tester.scrollUntilVisible(
+      find.text('新增常用玩家'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('新增常用玩家'), findsOneWidget);
   });
 
   testWidgets('點 chip 即改即存，並回報給入口卡', (tester) async {
     TableTimerConfig? reported;
     final prefs = await pumpPanel(tester, onChanged: (c) => reported = c);
 
-    await tester.tap(find.text('45 秒'));
+    await tester.tap(find.text('2 分'));
     await tester.pumpAndSettle();
 
-    expect(reported?.turnSeconds, 45);
-    expect(TableStore.loadConfig(prefs).turnSeconds, 45);
+    expect(reported?.turnSeconds, 120);
+    expect(TableStore.loadConfig(prefs).turnSeconds, 120);
   });
 
-  testWidgets('倒數提醒遵守 warn < turn：turn 30 秒時沒有「剩 30 秒」', (tester) async {
+  testWidgets('倒數提醒預設只留 5、10 秒', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await TableStore.saveConfig(
@@ -314,12 +390,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 倒數提醒住在收合的「更多計時設定」裡，先展開
-    await tester.tap(find.text('更多計時設定'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('剩 20 秒'), findsOneWidget);
-    expect(find.text('剩 30 秒'), findsNothing); // cap = 29
+    expect(find.text('剩 5 秒'), findsOneWidget);
+    expect(find.text('剩 10 秒'), findsOneWidget);
+    expect(find.text('剩 15 秒'), findsNothing);
+    expect(find.text('剩 20 秒'), findsNothing);
   });
 
   testWidgets('對話框開著時面板被換掉，「新增」仍把常用玩家存進 prefs', (tester) async {
@@ -346,10 +420,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 常用玩家住在收合的「常用內容」裡，先展開
-    await tester.tap(find.text('常用內容'));
+    await tester.tap(find.text('常用玩家'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('＋ 新增'));
+    await tester.tap(find.text('新增常用玩家'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '小兔');
 
@@ -367,7 +440,7 @@ void main() {
   testWidgets('自訂 sheet：步進調整每回合時間並即改即存', (tester) async {
     final prefs = await pumpPanel(tester);
 
-    await tester.tap(find.text('自訂'));
+    await tester.tap(find.text('自訂').first);
     await tester.pumpAndSettle();
     expect(find.text('自訂每回合時間'), findsOneWidget);
 
@@ -381,11 +454,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('1 分 5 秒'), findsWidgets);
 
+    // 加減與手動分秒輸入可並存。
+    await tester.enterText(find.byType(TextFormField).at(0), '2');
+    await tester.enterText(find.byType(TextFormField).at(1), '15');
+
+    // 秒數只接受 0–59；輸入 60 會保留上一個合法值。
+    await tester.enterText(find.byType(TextFormField).at(1), '60');
+    final secondsState = tester.state<FormFieldState<String>>(
+      find.byType(TextFormField).at(1),
+    );
+    expect(secondsState.value, '15');
+
     await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
 
-    expect(TableStore.loadConfig(prefs).turnSeconds, 65);
-    // 值落在預設檔位外：自訂 chip 亮起並顯示目前值
-    expect(find.text('自訂 1 分 5 秒'), findsOneWidget);
+    expect(TableStore.loadConfig(prefs).turnSeconds, 135);
+    expect(prefs.getInt(PrefsKeys.gameTableCustomTurnSeconds), 135);
+    expect(find.text('自訂 2 分 15 秒'), findsOneWidget);
+
+    // 切到預設值後，自訂 chip 仍記得 2:15；再點自訂即可取回。
+    await tester.tap(find.text('1 分').first);
+    await tester.pumpAndSettle();
+    expect(find.text('自訂 2 分 15 秒'), findsOneWidget);
+    await tester.tap(find.text('自訂 2 分 15 秒'));
+    await tester.pumpAndSettle();
+    expect(TableStore.loadConfig(prefs).turnSeconds, 135);
+  });
+
+  testWidgets('倒數提醒自訂固定在第二排並只輸入秒', (tester) async {
+    final prefs = await pumpPanel(tester);
+
+    // 第一顆自訂是每回合時間，第二顆是倒數提醒。
+    await tester.tap(find.text('自訂').at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('自訂倒數提醒'), findsOneWidget);
+    expect(find.byType(TextFormField), findsOneWidget);
+    expect(find.text('提前幾秒提醒'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), '7');
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(TableStore.loadConfig(prefs).warnSeconds, 7);
+    expect(find.text('自訂 7 秒'), findsOneWidget);
   });
 }

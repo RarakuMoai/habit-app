@@ -143,7 +143,8 @@ const List<StoryEventSpec> storyCatalog = [
     unlockHint: '寫下第一個想慢慢做到的小習慣',
     trigger: StoryTrigger.firstHabit,
     pages: [
-      StoryPage('assets/story/first_habit_v2.png', [
+      // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
+      StoryPage('assets/scenes/home/home_bg.png', [
         '你寫下第一個想做到的小事。',
         '嗯...原來我們是從這裡開始的。',
         '這一頁，我會替你收好。',
@@ -157,7 +158,8 @@ const List<StoryEventSpec> storyCatalog = [
     unlockHint: '第一次完成今天的所有習慣',
     trigger: StoryTrigger.firstAllDone,
     pages: [
-      StoryPage('assets/story/first_all_done_v2.png', [
+      // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
+      StoryPage('assets/scenes/family/family_bg.png', [
         '最後一件小事，也亮起來了。',
         '我有看到你一路做到這裡。',
         '今天，可以放心休息了。',
@@ -172,7 +174,8 @@ const List<StoryEventSpec> storyCatalog = [
     trigger: StoryTrigger.habitStreak,
     threshold: 7,
     pages: [
-      StoryPage('assets/story/streak_7_v2.png', [
+      // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
+      StoryPage('assets/scenes/timer/timer_bg.png', [
         '第一顆星亮起時，我還有點想睡。',
         '後來，你一天一天地回來。',
         '數到第七顆時，兔咪完全醒了。',
@@ -187,7 +190,8 @@ const List<StoryEventSpec> storyCatalog = [
     trigger: StoryTrigger.comeback,
     threshold: 7,
     pages: [
-      StoryPage('assets/story/comeback_v2.png', [
+      // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
+      StoryPage('assets/scenes/water/water_bg.png', [
         '門安靜了一陣子。',
         '但我一直把這一頁留著。',
         '你回來了。',

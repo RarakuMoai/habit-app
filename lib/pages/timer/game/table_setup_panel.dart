@@ -1,13 +1,18 @@
 // 「展開狀態」的完整設定面板：桌遊計時器的設定不再藏在彈出 sheet，
 // 展開卡片本身就是設定頁——縮小快速用、展開完整設定。
 //
-// 所有改動即改即存（TableStore）並回報給入口卡（onConfigChanged），
-// 縮小或開局前不需要任何確認步驟；桌遊開局前的調整沒有毀滅性操作。
+// 一般設定即改即存（TableStore）並回報給入口卡（onConfigChanged）；
+// 常用玩家／常用組合因為會一次替換多筆本局設定，先選取、再按確認套用。
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
+import '../../../utils/prefs_keys.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../widgets/app_dialogs.dart';
 import '../../../widgets/hold_repeat_button.dart';
@@ -41,19 +46,17 @@ class _TableSetupPanelState extends State<TableSetupPanel>
   late TableTimerConfig _config;
   late List<String> _roster;
   late List<TablePreset> _presets;
+  int? _customTurnSeconds;
+  int? _customWarnSeconds;
+  int? _customBankSeconds;
 
   /// 出場順位的排序模式：長按整列或 ⋯ > 移動 進入，整列 Q 版抖動、
   /// 即按即拖，點「完成排序」退出（與習慣頁／衣櫃播放清單同一套互動）。
   bool _sortingPlayers = false;
   late final AnimationController _jiggleCtrl;
 
-  /// 進階區收合狀態（不持久化：每次進頁預設收合，回到快速開局視角）。
-  /// 收合列上常駐目前生效規則的摘要，收起也不會讓人不知道現在的設定。
-  bool _moreTimingOpen = false;
-  bool _libraryOpen = false;
-
-  static const _turnPresets = [30, 45, 60, 90, 120, 180, 300];
-  static const _warnPresets = [5, 10, 15, 20, 30];
+  static const _turnPresets = [30, 60, 120, 300];
+  static const _warnPresets = [5, 10];
   static const _bankPresets = [60, 180, 300, 600, 900, 1800];
   static const _incrementPresets = [0, 2, 5, 10];
 
@@ -63,6 +66,27 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     _config = TableStore.loadConfig(widget.prefs);
     _roster = List.of(TableStore.loadRoster(widget.prefs));
     _presets = List.of(TableStore.loadPresets(widget.prefs));
+    _customTurnSeconds = widget.prefs.getInt(
+      PrefsKeys.gameTableCustomTurnSeconds,
+    );
+    _customWarnSeconds = widget.prefs.getInt(
+      PrefsKeys.gameTableCustomWarnSeconds,
+    );
+    _customBankSeconds = widget.prefs.getInt(
+      PrefsKeys.gameTableCustomBankSeconds,
+    );
+    if (_customTurnSeconds == null &&
+        !_turnPresets.contains(_config.turnSeconds)) {
+      _customTurnSeconds = _config.turnSeconds;
+    }
+    if (_customWarnSeconds == null &&
+        !_warnPresets.contains(_config.warnSeconds)) {
+      _customWarnSeconds = _config.warnSeconds;
+    }
+    if (_customBankSeconds == null &&
+        !_bankPresets.contains(_config.bankSeconds)) {
+      _customBankSeconds = _config.bankSeconds;
+    }
     _jiggleCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 620),
@@ -84,6 +108,30 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     TableStore.saveConfig(widget.prefs, fixed);
     widget.onConfigChanged(fixed);
     if (mounted) setState(() {});
+  }
+
+  void _writeCustomTurn(int seconds) {
+    _customTurnSeconds = seconds;
+    unawaited(
+      widget.prefs.setInt(PrefsKeys.gameTableCustomTurnSeconds, seconds),
+    );
+    _apply(_config.copyWith(turnSeconds: seconds));
+  }
+
+  void _writeCustomWarn(int seconds) {
+    _customWarnSeconds = seconds;
+    unawaited(
+      widget.prefs.setInt(PrefsKeys.gameTableCustomWarnSeconds, seconds),
+    );
+    _apply(_config.copyWith(warnSeconds: seconds));
+  }
+
+  void _writeCustomBank(int seconds) {
+    _customBankSeconds = seconds;
+    unawaited(
+      widget.prefs.setInt(PrefsKeys.gameTableCustomBankSeconds, seconds),
+    );
+    _apply(_config.copyWith(bankSeconds: seconds));
   }
 
   void _saveRoster() {
@@ -187,6 +235,8 @@ class _TableSetupPanelState extends State<TableSetupPanel>
 
   Future<void> _renamePlayer(int i) async {
     final player = _config.players[i];
+    final rememberAddToRoster =
+        widget.prefs.getBool(PrefsKeys.gameTableRememberAddToRoster) ?? false;
     final result = await showDialog<_NameInputResult>(
       context: context,
       builder: (_) => _NameInputDialog(
@@ -197,9 +247,15 @@ class _TableSetupPanelState extends State<TableSetupPanel>
         initial: player.name,
         suggestions: _roster,
         askAddToRoster: true,
+        initialAddToRoster: rememberAddToRoster,
       ),
     );
     if (result == null) return;
+
+    await widget.prefs.setBool(
+      PrefsKeys.gameTableRememberAddToRoster,
+      result.addToRoster,
+    );
 
     final next = List.of(_config.players);
     next[i] = player.copyWith(name: result.name);
@@ -389,6 +445,359 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     if (mounted) setState(() {});
   }
 
+  Future<void> _openRosterSheet() async {
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    final selected = _roster
+        .where((name) => _config.players.any((p) => p.name == name))
+        .toSet();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppSurfaces.card,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final keptCount = _config.players
+              .where((player) => !_roster.contains(player.name))
+              .length;
+          final nextCount = keptCount + selected.length;
+          return _librarySheet(
+            title: '常用玩家',
+            subtitle: '先選好這局要用的玩家，再按確認加入',
+            confirmLabel: '確認加入（${selected.length} 位）',
+            onConfirm:
+                nextCount >= TableTimerConfig.minPlayers &&
+                    nextCount <= TableTimerConfig.maxPlayers
+                ? () {
+                    final next = _config.players
+                        .where((player) => !_roster.contains(player.name))
+                        .toList();
+                    for (final name in _roster.where(selected.contains)) {
+                      if (next.any((player) => player.name == name)) continue;
+                      final used = {
+                        for (final player in next) player.colorIndex,
+                      };
+                      var color = 0;
+                      while (used.contains(color) &&
+                          color < TableTheme.seatColors.length - 1) {
+                        color++;
+                      }
+                      next.add(TablePlayer(name: name, colorIndex: color));
+                    }
+                    _apply(_config.copyWith(players: next));
+                    Navigator.pop(ctx);
+                  }
+                : null,
+            children: [
+              for (final name in _roster)
+                _librarySheetRow(
+                  icon: selected.contains(name)
+                      ? Icons.check_circle_rounded
+                      : Icons.person_rounded,
+                  title: name,
+                  selected: selected.contains(name),
+                  onTap: () {
+                    if (selected.contains(name)) {
+                      selected.remove(name);
+                    } else {
+                      selected.add(name);
+                    }
+                    setSheet(() {});
+                  },
+                  trailing: IconButton(
+                    tooltip: '移除 $name',
+                    onPressed: () {
+                      playFeedback(SfxCue.cancel);
+                      selected.remove(name);
+                      _roster.remove(name);
+                      _saveRoster();
+                      setSheet(() {});
+                      if (mounted) setState(() {});
+                    },
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                  ),
+                ),
+              _librarySheetRow(
+                icon: Icons.add_rounded,
+                title: '新增常用玩家',
+                accent: true,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _addRosterName();
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openPresetsSheet() async {
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    TablePreset? selectedPreset;
+    for (final preset in _presets) {
+      if (_isActivePreset(preset)) selectedPreset = preset;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppSurfaces.card,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => _librarySheet(
+          title: '常用組合',
+          subtitle: '先選一組，確認後才會替換本局玩家與時間',
+          confirmLabel: '確認套用',
+          onConfirm: selectedPreset == null
+              ? null
+              : () {
+                  _applyPreset(selectedPreset!);
+                  Navigator.pop(ctx);
+                },
+          children: [
+            for (final preset in _presets)
+              _librarySheetRow(
+                icon: identical(selectedPreset, preset)
+                    ? Icons.check_circle_rounded
+                    : _modeIcon(preset.config.mode),
+                title: preset.name,
+                subtitle:
+                    '${preset.config.activePlayers.length} 人 · ${preset.config.timeSummary}',
+                selected: identical(selectedPreset, preset),
+                onTap: () {
+                  selectedPreset = preset;
+                  setSheet(() {});
+                },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: '改名 ${preset.name}',
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _renamePreset(preset);
+                      },
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                    ),
+                    IconButton(
+                      tooltip: '刪除 ${preset.name}',
+                      onPressed: () {
+                        playFeedback(SfxCue.cancel);
+                        if (identical(selectedPreset, preset)) {
+                          selectedPreset = null;
+                        }
+                        _presets.remove(preset);
+                        _savePresets();
+                        setSheet(() {});
+                        if (mounted) setState(() {});
+                      },
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 19,
+                        color: AppInk.danger,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_presets.length < TablePreset.maxCount)
+              _librarySheetRow(
+                icon: Icons.add_rounded,
+                title: '儲存目前設定',
+                accent: true,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _saveCurrentAsPreset();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _shortMode(TableGameMode mode) => switch (mode) {
+    TableGameMode.party => '多人',
+    TableGameMode.chess => '二人',
+    TableGameMode.free => '自由',
+  };
+
+  Widget _librarySheet({
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+    required String confirmLabel,
+    required VoidCallback? onConfirm,
+  }) => ConstrainedBox(
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+    ),
+    child: SafeArea(
+      top: false,
+      minimum: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppSurfaces.dragHandle,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Column(
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12.5, color: AppInk.soft),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              itemCount: children.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (_, i) => children[i],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: onConfirm,
+                style: FilledButton.styleFrom(
+                  backgroundColor: kGameAccent,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppSurfaces.fill,
+                  disabledForegroundColor: AppInk.faint,
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                child: Text(confirmLabel),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _librarySheetRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+    VoidCallback? onTap,
+    bool accent = false,
+    bool selected = false,
+  }) => Material(
+    color: selected
+        ? Colors.orange.shade50
+        : accent
+        ? kGameAccent.withValues(alpha: 0.10)
+        : AppSurfaces.fill,
+    borderRadius: BorderRadius.circular(14),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? Colors.orange.shade300
+                : accent
+                ? kGameAccent.withValues(alpha: 0.35)
+                : AppSurfaces.divider,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: selected
+                  ? Colors.orange.shade700
+                  : accent
+                  ? kGameAccent
+                  : AppInk.soft,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: selected
+                          ? Colors.orange.shade800
+                          : accent
+                          ? kGameAccent
+                          : AppInk.strong,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppInk.soft,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            ?trailing,
+          ],
+        ),
+      ),
+    ),
+  );
+
   // ── build ────────────────────────────────────────────────
 
   @override
@@ -396,25 +805,11 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     final chess = _config.mode == TableGameMode.chess;
     final free = _config.mode == TableGameMode.free;
 
-    // 水平留白由各區自己包（_padded）：常用組合列要「全出血」，
-    // 卡片才能自然滑出頁緣、不會在頁邊被硬切（SE 撞邊問題）。
-    // 資訊層級（2026-07 減量）：第一層開局必需（頁首摘要、常用組合捷徑、
-    // 玩法、順位、主要時間）常駐；提醒/加秒/自動換人收進「更多計時設定」、
-    // 常用玩家管理收進「常用內容」，收合列常駐生效摘要。
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 4, 0, 14),
       children: [
         _padded([
           _header(),
-          // 空清單不展示管理區：等有組合了才出現捷徑列
-          if (_presets.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _sectionTitle('常用組合'),
-            const SizedBox(height: 8),
-          ],
-        ]),
-        if (_presets.isNotEmpty) _presetStrip(),
-        _padded([
           const SizedBox(height: 20),
           _sectionTitle('玩法'),
           const SizedBox(height: 8),
@@ -430,7 +825,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             '出場順位',
             caption: _sortingPlayers
                 ? '拖曳玩家調整出場順位'
-                : (chess ? '前兩位上場，其餘本局輪空' : '由上到下輪流出場'),
+                : (chess ? '前兩位上場，其餘本局輪空' : '按住蓄色後拖曳調整'),
             trailing: _sortingPlayers
                 ? _tonalChip('完成排序', onTap: _finishSortingPlayers, accent: true)
                 : null,
@@ -459,183 +854,87 @@ class _TableSetupPanelState extends State<TableSetupPanel>
           ],
           if (!free && !_config.usesBank) ...[
             const SizedBox(height: 20),
-            _sectionTitle('每回合時間'),
+            _sectionTitle('每回合時間', caption: '選擇回合長度與倒數提醒'),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in _turnPresets)
-                  _valueChip(
-                    _secondsText(s),
-                    selected: _config.turnSeconds == s,
-                    onTap: () => _apply(_config.copyWith(turnSeconds: s)),
-                  ),
-                _customTimeChip(
-                  presets: _turnPresets,
-                  title: '自訂每回合時間',
-                  step: 5,
-                  min: TableTimerConfig.minTurnSeconds,
-                  max: TableTimerConfig.maxTurnSeconds,
-                  read: () => _config.turnSeconds,
-                  write: (v) => _apply(_config.copyWith(turnSeconds: v)),
-                ),
-              ],
+            _timeAndReminderCard(
+              presets: _turnPresets,
+              current: _config.turnSeconds,
+              onTime: (s) => _apply(_config.copyWith(turnSeconds: s)),
+              custom: _customTimeChip(
+                presets: _turnPresets,
+                title: '自訂每回合時間',
+                step: 5,
+                min: TableTimerConfig.minTurnSeconds,
+                max: TableTimerConfig.maxTurnSeconds,
+                read: () => _config.turnSeconds,
+                write: _writeCustomTurn,
+                remembered: _customTurnSeconds,
+              ),
             ),
           ],
           if (_config.usesBank) ...[
             const SizedBox(height: 20),
-            _sectionTitle('每人總時間'),
+            _sectionTitle('每人總時間', caption: '選擇時間庫與倒數提醒'),
+            const SizedBox(height: 8),
+            _timeAndReminderCard(
+              presets: _bankPresets,
+              current: _config.bankSeconds,
+              onTime: (s) => _apply(_config.copyWith(bankSeconds: s)),
+              custom: _customTimeChip(
+                presets: _bankPresets,
+                title: '自訂每人總時間',
+                step: 30,
+                min: TableTimerConfig.minBankSeconds,
+                max: TableTimerConfig.maxBankSeconds,
+                read: () => _config.bankSeconds,
+                write: _writeCustomBank,
+                remembered: _customBankSeconds,
+              ),
+            ),
+          ],
+          if (_config.usesBank) ...[
+            const SizedBox(height: 14),
+            _sectionTitle('每手加秒（Fischer）'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final s in _bankPresets)
+                for (final s in _incrementPresets)
                   _valueChip(
-                    _secondsText(s),
-                    selected: _config.bankSeconds == s,
-                    onTap: () => _apply(_config.copyWith(bankSeconds: s)),
+                    s == 0 ? '不加秒' : '＋$s 秒',
+                    selected: _config.incrementSeconds == s,
+                    onTap: () => _apply(_config.copyWith(incrementSeconds: s)),
                   ),
-                _customTimeChip(
-                  presets: _bankPresets,
-                  title: '自訂每人總時間',
-                  step: 30,
-                  min: TableTimerConfig.minBankSeconds,
-                  max: TableTimerConfig.maxBankSeconds,
-                  read: () => _config.bankSeconds,
-                  write: (v) => _apply(_config.copyWith(bankSeconds: v)),
-                ),
               ],
             ),
           ],
-          // 自由輪流沒有提醒/加秒/自動換人可調，整個收合區直接不出現
-          if (!free) ...[
-            const SizedBox(height: 24),
-            _foldSection(
-              title: '更多計時設定',
-              summary: _moreTimingSummary,
-              open: _moreTimingOpen,
-              onToggle: () =>
-                  setState(() => _moreTimingOpen = !_moreTimingOpen),
-              children: [
-                if (_config.usesBank) ...[
-                  _sectionTitle(
-                    '每手加秒（Fischer）',
-                    caption: '時間用盡＝旗倒直接分勝負；走完一手可加回幾秒',
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final s in _incrementPresets)
-                        _valueChip(
-                          s == 0 ? '不加秒' : '＋$s 秒',
-                          selected: _config.incrementSeconds == s,
-                          onTap: () =>
-                              _apply(_config.copyWith(incrementSeconds: s)),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                ],
-                // 倒數提醒只給預設檔位（不開自訂）：超過上限的檔位自動藏起，
-                // 不需要另外用文字解釋「要比回合時間短」。
-                _sectionTitle('倒數提醒'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final s in _warnPresets)
-                      if (s <= _config.warnCap)
-                        _valueChip(
-                          '剩 $s 秒',
-                          selected: _config.warnSeconds == s,
-                          onTap: () => _apply(_config.copyWith(warnSeconds: s)),
-                        ),
-                  ],
-                ),
-                if (!_config.usesBank) ...[
-                  const SizedBox(height: 10),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => _apply(
-                      _config.copyWith(autoAdvance: !_config.autoAdvance),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '超時自動換下一位',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppInk.strong,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  '關閉時超時會亮紅等待，點一下才換人',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    color: AppInk.soft,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: _config.autoAdvance,
-                            activeTrackColor: kGameAccent,
-                            onChanged: (v) =>
-                                _apply(_config.copyWith(autoAdvance: v)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+          if (!free && !_config.usesBank) ...[
+            const SizedBox(height: 12),
+            _autoAdvanceRow(),
           ],
-          SizedBox(height: free ? 24 : 12),
-          _foldSection(
-            title: '常用內容',
-            summary: _librarySummary,
-            open: _libraryOpen,
-            onToggle: () => setState(() => _libraryOpen = !_libraryOpen),
+          const SizedBox(height: 24),
+          _sectionTitle('常用設定', caption: '需要時再打開，不佔用開局畫面'),
+          const SizedBox(height: 8),
+          Row(
             children: [
-              _sectionTitle('常用玩家', caption: '改玩家名字時可以一鍵帶入'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final name in _roster) _rosterChip(name),
-                  _tonalChip('＋ 新增', onTap: _addRosterName, accent: true),
-                ],
-              ),
-              // 還沒有任何常用組合時，儲存入口住這裡（主流程不擺空管理區）
-              if (_presets.isEmpty) ...[
-                const SizedBox(height: 20),
-                _sectionTitle('常用組合', caption: '把玩家＋模式＋時間存成一組，下次一鍵套用'),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _tonalChip(
-                    '＋ 把目前設定存成一組',
-                    onTap: _saveCurrentAsPreset,
-                    accent: true,
-                  ),
+              Expanded(
+                child: _libraryButton(
+                  icon: Icons.people_alt_rounded,
+                  title: '常用玩家',
+                  detail: _roster.isEmpty ? '尚未新增' : '${_roster.length} 位',
+                  onTap: _openRosterSheet,
                 ),
-              ],
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _libraryButton(
+                  icon: Icons.bookmarks_rounded,
+                  title: '常用組合',
+                  detail: _presets.isEmpty ? '尚未儲存' : '${_presets.length} 組',
+                  onTap: _openPresetsSheet,
+                ),
+              ),
             ],
           ),
         ]),
@@ -643,81 +942,169 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     );
   }
 
-  /// 收合列摘要：目前生效的提醒／換人（或 Fischer）規則。
-  String get _moreTimingSummary {
-    final warn = '剩 ${_config.warnSeconds} 秒提醒';
-    if (_config.usesBank) {
-      final inc = _config.incrementSeconds;
-      return '${inc > 0 ? 'Fischer +$inc 秒' : '不加秒'} · $warn';
-    }
-    return '$warn · ${_config.autoAdvance ? '超時自動換人' : '手動換人'}';
+  Widget _timeAndReminderCard({
+    required List<int> presets,
+    required int current,
+    required ValueChanged<int> onTime,
+    required Widget custom,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppSurfaces.fill,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppSurfaces.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final s in presets)
+                _valueChip(
+                  _secondsText(s),
+                  selected: current == s,
+                  onTap: () => onTime(s),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerLeft, child: custom),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+          const Text(
+            '倒數提醒（秒）',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color: AppInk.soft,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final s in _warnPresets)
+                if (s <= _config.warnCap)
+                  _valueChip(
+                    '剩 $s 秒',
+                    selected: _config.warnSeconds == s,
+                    onTap: () => _apply(_config.copyWith(warnSeconds: s)),
+                  ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _customTimeChip(
+              presets: _warnPresets,
+              title: '自訂倒數提醒',
+              step: 1,
+              min: TableTimerConfig.minWarnSeconds,
+              max: _config.warnCap,
+              read: () => _config.warnSeconds,
+              write: _writeCustomWarn,
+              remembered: _customWarnSeconds,
+              secondsOnly: true,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  String get _librarySummary =>
-      _roster.isEmpty ? '常用玩家與組合' : '常用玩家 ${_roster.length} 位';
-
-  /// 收合區：標題＋生效摘要常駐，點整列展開/收起。
-  Widget _foldSection({
-    required String title,
-    required String summary,
-    required bool open,
-    required VoidCallback onToggle,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            playHaptic(HapticLevel.selection);
-            onToggle();
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            decoration: BoxDecoration(
-              color: AppSurfaces.fill,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppSurfaces.divider),
-            ),
-            child: Row(
+  Widget _autoAdvanceRow() => InkWell(
+    borderRadius: BorderRadius.circular(14),
+    onTap: () => _apply(_config.copyWith(autoAdvance: !_config.autoAdvance)),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13.5,
+                  '超時自動換下一位',
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: AppInk.strong,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    summary,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 12, color: AppInk.soft),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                AnimatedRotation(
-                  turns: open ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 20,
-                    color: AppInk.iconFaint,
-                  ),
+                Text(
+                  '關閉時會等待手動換人',
+                  style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
               ],
             ),
           ),
+          Switch(
+            value: _config.autoAdvance,
+            activeTrackColor: kGameAccent,
+            onChanged: (v) => _apply(_config.copyWith(autoAdvance: v)),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _libraryButton({
+    required IconData icon,
+    required String title,
+    required String detail,
+    required VoidCallback onTap,
+  }) => Material(
+    color: AppSurfaces.fill,
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppSurfaces.divider),
         ),
-        if (open) ...[const SizedBox(height: 14), ...children],
-      ],
-    );
-  }
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: kGameAccent),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                  Text(
+                    detail,
+                    style: const TextStyle(fontSize: 11.5, color: AppInk.soft),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 19,
+              color: AppInk.iconFaint,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   /// 區段內容的水平留白（常用組合列以外都走這裡）。
   Widget _padded(List<Widget> children) => Padding(
@@ -833,6 +1220,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
 
   /// 橫向卡片列（全出血，自帶 20 水平 padding，卡片滑得出頁緣）：
   /// 每張卡＝一組快照（點卡套用、⋯ 或長按管理），尾端固定「儲存目前設定」。
+  // ignore: unused_element, retained as the compact card renderer for future wide layouts.
   Widget _presetStrip() {
     return SizedBox(
       height: 76,
@@ -1034,7 +1422,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               animation: _jiggleCtrl,
               enabled: _sortingPlayers,
               seed: identityHashCode(_config.players[i]),
-              child: _playerRow(i, chess: chess),
+              child: _PlayerHoldFill(
+                sorting: _sortingPlayers,
+                child: _playerRow(i, chess: chess),
+              ),
             ),
           ),
       ],
@@ -1053,7 +1444,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
           label: chess
               ? '第 ${i + 1} 位 ${p.name}，${benched ? '本局輪空' : '本局上場'}'
               : '第 ${i + 1} 位 ${p.name}',
-          hint: _sortingPlayers ? '拖曳調整出場順位' : '點一下改名，長按拖曳排序',
+          hint: _sortingPlayers ? '拖曳調整出場順位' : '點名字或鉛筆改名，按住蓄色後拖曳排序',
           child: Container(
             decoration: BoxDecoration(
               color: AppSurfaces.fill,
@@ -1080,9 +1471,25 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 4),
+                if (!_sortingPlayers)
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 40,
+                    ),
+                    tooltip: '編輯 ${p.name}',
+                    onPressed: () => _renamePlayer(i),
+                    icon: const Icon(
+                      Icons.edit_rounded,
+                      size: 17,
+                      color: kGameAccent,
+                    ),
+                  ),
                 Expanded(
                   child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
                     onTap: _sortingPlayers ? null : () => _renamePlayer(i),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 9),
@@ -1116,27 +1523,16 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                     ),
                   ),
                 ),
-                if (_sortingPlayers)
-                  // 排序模式的拖曳提示：整列可拖，圖示只是視覺錨點
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    child: Icon(
-                      Icons.drag_indicator_rounded,
-                      size: 18,
-                      color: AppInk.iconFaint,
-                    ),
-                  )
-                else
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: '改名、移動或移除',
-                    onPressed: () => _playerMenu(i),
-                    icon: const Icon(
-                      Icons.more_vert_rounded,
-                      size: 20,
-                      color: AppInk.iconFaint,
-                    ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: _sortingPlayers ? '拖曳調整順位' : '改名、移動或移除',
+                  onPressed: _sortingPlayers ? null : () => _playerMenu(i),
+                  icon: const Icon(
+                    Icons.more_vert_rounded,
+                    size: 20,
+                    color: AppInk.iconFaint,
                   ),
+                ),
               ],
             ),
           ),
@@ -1175,7 +1571,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                 Icon(icon, size: 20, color: sel ? Colors.white : AppInk.soft),
                 const SizedBox(height: 3),
                 Text(
-                  mode.label,
+                  _shortMode(mode),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
@@ -1273,8 +1669,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     return r == 0 ? '$m 分' : '$m 分 $r 秒';
   }
 
-  /// 「自訂」chip：值落在預設檔位外時亮起並直接顯示目前值，
-  /// 點了開步進 sheet（同番茄鐘慣例：純步進器、不出鍵盤）。
+  /// 「自訂」chip 會獨立記住上次設定；切回預設檔位後仍可一鍵取回。
   Widget _customTimeChip({
     required List<int> presets,
     required String title,
@@ -1283,25 +1678,34 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     required int max,
     required int Function() read,
     required ValueChanged<int> write,
+    required int? remembered,
+    bool secondsOnly = false,
   }) {
     final value = read();
     final custom = !presets.contains(value);
+    final shown = custom ? value : remembered;
     return _valueChip(
-      custom ? '自訂 ${_secondsText(value)}' : '自訂',
+      shown == null
+          ? '自訂'
+          : '自訂 ${secondsOnly ? '$shown 秒' : _secondsText(shown)}',
       selected: custom,
-      onTap: () => _openCustomTimeSheet(
-        title: title,
-        step: step,
-        min: min,
-        max: max,
-        read: read,
-        write: write,
-      ),
+      onTap: () {
+        if (!custom && remembered != null) write(remembered);
+        _openCustomTimeSheet(
+          title: title,
+          step: step,
+          min: min,
+          max: max,
+          read: read,
+          write: write,
+          secondsOnly: secondsOnly,
+        );
+      },
     );
   }
 
-  /// 自訂時間 sheet：大字目前值＋按住連發的 ±step、「完成」固定在底。
-  /// 改值走 _apply 即改即存，關掉 sheet 不需要任何確認。
+  /// 自訂時間 sheet：大字目前值＋按住連發的 ±step＋分秒輸入。
+  /// 加減即時記憶；手動輸入由底部「完成」統一記住並套用。
   Future<void> _openCustomTimeSheet({
     required String title,
     required int step,
@@ -1309,21 +1713,51 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     required int max,
     required int Function() read,
     required ValueChanged<int> write,
+    bool secondsOnly = false,
   }) async {
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    final initial = read();
+    var typedMinutes = '${initial ~/ 60}';
+    var typedSeconds = secondsOnly ? '$initial' : '${initial % 60}';
+
+    void syncInputs(int value) {
+      typedMinutes = '${value ~/ 60}';
+      typedSeconds = secondsOnly ? '$value' : '${value % 60}';
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
           final v = read();
           void change(int next) {
-            write(next.clamp(min, max));
+            final value = next.clamp(min, max);
+            write(value);
+            syncInputs(value);
             setSheet(() {});
           }
 
+          void applyTyped() {
+            if (secondsOnly) {
+              change(int.tryParse(typedSeconds) ?? min);
+              FocusScope.of(ctx).unfocus();
+              return;
+            }
+            final minutes = int.tryParse(typedMinutes) ?? 0;
+            final seconds = (int.tryParse(typedSeconds) ?? 0).clamp(0, 59);
+            change(minutes * 60 + seconds);
+            FocusScope.of(ctx).unfocus();
+          }
+
           return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              MediaQuery.viewInsetsOf(ctx).bottom + 16,
+            ),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: AppSurfaces.card,
@@ -1374,7 +1808,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                             width: 150,
                             child: Center(
                               child: Text(
-                                _secondsText(v),
+                                secondsOnly ? '$v 秒' : _secondsText(v),
                                 style: AppType.digits(
                                   fontSize: 30,
                                   color: AppInk.strong,
@@ -1392,17 +1826,93 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '每格 ${_secondsText(step)}，按住可以快轉',
+                        '每格 ${secondsOnly ? '$step 秒' : _secondsText(step)}，按住可以快轉',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppInk.soft,
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      if (secondsOnly)
+                        TextFormField(
+                          key: ValueKey('seconds-only-$v'),
+                          initialValue: typedSeconds,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(2),
+                            _MaxIntInputFormatter(max),
+                          ],
+                          textAlign: TextAlign.center,
+                          decoration: const InputDecoration(
+                            labelText: '提前幾秒提醒',
+                            suffixText: '秒',
+                            isDense: true,
+                          ),
+                          onChanged: (value) => typedSeconds = value,
+                          onFieldSubmitted: (_) => applyTyped(),
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                key: ValueKey('minutes-$v'),
+                                initialValue: typedMinutes,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(2),
+                                ],
+                                textAlign: TextAlign.center,
+                                decoration: const InputDecoration(
+                                  labelText: '分',
+                                  isDense: true,
+                                ),
+                                onChanged: (value) => typedMinutes = value,
+                                onFieldSubmitted: (_) => applyTyped(),
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 10),
+                              child: Text(
+                                ':',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppInk.soft,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: TextFormField(
+                                key: ValueKey('seconds-$v'),
+                                initialValue: typedSeconds,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(2),
+                                  const _MaxIntInputFormatter(59),
+                                ],
+                                textAlign: TextAlign.center,
+                                decoration: const InputDecoration(
+                                  labelText: '秒',
+                                  isDense: true,
+                                ),
+                                onChanged: (value) => typedSeconds = value,
+                                onFieldSubmitted: (_) => applyTyped(),
+                              ),
+                            ),
+                          ],
+                        ),
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: () => Navigator.pop(ctx),
+                          onPressed: () {
+                            applyTyped();
+                            Navigator.pop(ctx);
+                          },
                           style: FilledButton.styleFrom(
                             backgroundColor: kGameAccent,
                             foregroundColor: Colors.white,
@@ -1526,6 +2036,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     );
   }
 
+  // ignore: unused_element, retained for compact inline contexts.
   Widget _rosterChip(String name) {
     return Container(
       padding: const EdgeInsets.only(left: 13, right: 6, top: 4, bottom: 4),
@@ -1564,6 +2075,142 @@ class _TableSetupPanelState extends State<TableSetupPanel>
         ],
       ),
     );
+  }
+}
+
+/// 與習慣卡相同的長按蓄色回饋：短點不留痕，按住一秒填滿時剛好由
+/// [ReorderHoldDragListener] 接手拖曳。只負責視覺，不攔截任何按鈕手勢。
+class _PlayerHoldFill extends StatefulWidget {
+  final bool sorting;
+  final Widget child;
+
+  const _PlayerHoldFill({required this.sorting, required this.child});
+
+  @override
+  State<_PlayerHoldFill> createState() => _PlayerHoldFillState();
+}
+
+class _PlayerHoldFillState extends State<_PlayerHoldFill>
+    with SingleTickerProviderStateMixin {
+  static const _startDelay = Duration(milliseconds: 130);
+  late final AnimationController _controller;
+  Timer? _timer;
+  Offset? _origin;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: kReorderHoldDelay - _startDelay,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_PlayerHoldFill oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sorting && !oldWidget.sorting) _clear();
+  }
+
+  void _down(PointerDownEvent e) {
+    if (widget.sorting) return;
+    _origin = e.localPosition;
+    _timer?.cancel();
+    _timer = Timer(_startDelay, () {
+      if (mounted) _controller.forward(from: 0);
+    });
+  }
+
+  void _clear() {
+    _timer?.cancel();
+    if (_controller.value > 0 && !widget.sorting) {
+      _controller.reverse();
+    } else {
+      _controller.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.opaque,
+    onPointerDown: _down,
+    onPointerUp: (_) => _clear(),
+    onPointerCancel: (_) => _clear(),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Stack(
+        children: [
+          widget.child,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (_, _) => _controller.value == 0
+                    ? const SizedBox.shrink()
+                    : CustomPaint(
+                        painter: _PlayerHoldPainter(
+                          progress: _controller.value,
+                          origin: _origin,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _PlayerHoldPainter extends CustomPainter {
+  final double progress;
+  final Offset? origin;
+
+  const _PlayerHoldPainter({required this.progress, required this.origin});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final o = origin ?? Offset(size.width / 2, size.height / 2);
+    final maxRadius = [
+      o.distance,
+      (o - Offset(size.width, 0)).distance,
+      (o - Offset(0, size.height)).distance,
+      (o - Offset(size.width, size.height)).distance,
+    ].reduce(math.max);
+    final p = progress.clamp(0.0, 1.0);
+    canvas.drawCircle(
+      o,
+      maxRadius * Curves.easeOut.transform(p),
+      Paint()
+        ..color = kGameAccent.withValues(alpha: 0.15 * math.min(1.0, p * 4)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PlayerHoldPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.origin != origin;
+}
+
+class _MaxIntInputFormatter extends TextInputFormatter {
+  final int max;
+
+  const _MaxIntInputFormatter(this.max);
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+    final value = int.tryParse(newValue.text);
+    return value != null && value <= max ? newValue : oldValue;
   }
 }
 
@@ -1621,6 +2268,7 @@ class _NameInputDialog extends StatefulWidget {
 
   /// 顯示「同時存入常用玩家」勾選（玩家改名用）。
   final bool askAddToRoster;
+  final bool initialAddToRoster;
 
   const _NameInputDialog({
     required this.title,
@@ -1630,6 +2278,7 @@ class _NameInputDialog extends StatefulWidget {
     this.initial = '',
     this.suggestions = const [],
     this.askAddToRoster = false,
+    this.initialAddToRoster = false,
   });
 
   @override
@@ -1640,7 +2289,13 @@ class _NameInputDialogState extends State<_NameInputDialog> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.initial,
   );
-  bool _addToRoster = false;
+  late bool _addToRoster;
+
+  @override
+  void initState() {
+    super.initState();
+    _addToRoster = widget.initialAddToRoster;
+  }
 
   @override
   void dispose() {

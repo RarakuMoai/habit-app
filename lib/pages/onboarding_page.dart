@@ -29,6 +29,7 @@ const List<({String emoji, String name, bool freq})> _kOnboardingHabits = [
   (emoji: '📖', name: '閱讀', freq: true),
   (emoji: '🌅', name: '早起', freq: false),
   (emoji: '🏃', name: '運動', freq: true),
+  (emoji: '🥗', name: '飲食控制', freq: false),
   (emoji: '🧘', name: '冥想', freq: true),
   (emoji: '🌙', name: '早睡', freq: false),
 ];

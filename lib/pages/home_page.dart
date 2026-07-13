@@ -551,9 +551,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     String name, {
     Duration duration = const Duration(seconds: 2),
   }) {
+    // 注意：這裡不加 _mascotReactionTick——彈跳是「正向」動作語彙，
+    // 這條路目前只給撤銷打卡的 sad 用，難過還跳起來會很突兀；
+    // 換圖動畫＋汗滴泡泡＋語音已足夠承載這個時刻。
     setState(() {
       _transientMascot = name;
-      _mascotReactionTick++;
     });
     _syncMascotToPersona();
     Future.delayed(duration, () {

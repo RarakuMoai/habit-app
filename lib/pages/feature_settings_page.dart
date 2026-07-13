@@ -8,6 +8,7 @@ import '../utils/app_style.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/tab_catalog.dart';
+import '../utils/water_habit_link.dart';
 import '../utils/weight_records.dart';
 
 // 功能開關頁：集中管理各頁籤的顯示開關
@@ -190,8 +191,15 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                   subtitle: '顯示底部喝水頁籤',
                   value: _waterEnabled,
                   onChanged: (v) async {
-                    setState(() => _waterEnabled = v);
+                    if (_prefs != null) {
+                      if (v) {
+                        await WaterHabitLink.ensureHabit(_prefs!);
+                      } else {
+                        await WaterHabitLink.removeHabit(_prefs!);
+                      }
+                    }
                     await _saveBool(PrefsKeys.waterEnabled, v);
+                    if (mounted) setState(() => _waterEnabled = v);
                   },
                 ),
 

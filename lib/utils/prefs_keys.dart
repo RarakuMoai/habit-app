@@ -99,6 +99,11 @@ abstract final class PrefsKeys {
   static const gameTableConfig = 'game_table_config'; // 設定快照 JSON（含玩家）
   static const gameTableRoster = 'game_table_roster'; // 常用玩家名單 JSON
   static const gameTablePresets = 'game_table_presets'; // 常用組合 JSON 清單
+  static const gameTableRememberAddToRoster =
+      'game_table_remember_add_to_roster'; // 改名時記住「同時存入常用玩家」
+  static const gameTableCustomTurnSeconds = 'game_table_custom_turn_seconds';
+  static const gameTableCustomWarnSeconds = 'game_table_custom_warn_seconds';
+  static const gameTableCustomBankSeconds = 'game_table_custom_bank_seconds';
   static const gameTableDiceCount = 'game_table_dice_count'; // 骰盤顆數 1–6
 
   // ── 功能開關 ─────────────────────────────────────────────

@@ -3,7 +3,7 @@
 // 狀態定位（2026-07 UX 改版）：
 // - 縮小（兔咪面板展開）＝快速面板：看目前設定、一鍵開局、需要才進設定。
 // - 展開（兔咪面板收合）＝完整設定頁：玩家順位/時間/倒數提醒/常用組合
-//   全部住在卡片裡（TableSetupPanel），底部固定「完成＋開始對局」。
+//   全部住在卡片裡（TableSetupPanel），底部只保留「開始對局」。
 // - 完整遊玩體驗在 push 進去的全螢幕桌面模式（TableStagePage）。
 // - 不開對局也能「只骰骰子」：直達兔咪骰子屋（DiceTrayPage）。
 import 'package:flutter/material.dart';
@@ -78,12 +78,6 @@ class _GameTimerState extends State<GameTimer> {
     MascotPanelPrefs.requestCollapsed();
   }
 
-  /// 展開狀態的「完成」：設定收工，收回縮小的快速面板。
-  void _collapseDone() {
-    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
-    MascotPanelPrefs.requestExpanded();
-  }
-
   String get _oneLineSummary =>
       '${_config.mode.label} · ${_config.activePlayers.length} 人 · '
       '${_config.timeSummary}';
@@ -126,50 +120,14 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
-  /// 底部固定列：設定完成的兩個出口——收起、或直接開局。
+  /// 底部固定列只留真正會推進流程的「開始對局」。
   Widget _footerBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppSurfaces.divider)),
       ),
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: _doneButton()),
-          const SizedBox(width: 10),
-          Expanded(flex: 3, child: _startButton(height: 54)),
-        ],
-      ),
-    );
-  }
-
-  /// 完成鈕：中性 tonal——footer 只留一顆彩色 CTA（開始對局）。
-  Widget _doneButton() {
-    return Material(
-      color: AppSurfaces.fill,
-      shape: const StadiumBorder(side: BorderSide(color: AppSurfaces.divider)),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: _collapseDone,
-        child: const SizedBox(
-          height: 54,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check_rounded, size: 20, color: AppInk.soft),
-              SizedBox(width: 6),
-              Text(
-                '完成',
-                style: TextStyle(
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w900,
-                  color: AppInk.strong,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: _startButton(height: 54),
     );
   }
 

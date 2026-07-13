@@ -24,6 +24,7 @@ import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
 import 'utils/feature_flags.dart';
+import 'utils/logical_date.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
@@ -34,6 +35,7 @@ import 'utils/story_store.dart';
 import 'utils/tab_catalog.dart';
 import 'utils/usage_stats.dart';
 import 'utils/wardrobe_store.dart';
+import 'utils/water_habit_link.dart';
 import 'utils/weight_records.dart';
 import 'widgets/footprint_coin_reward_overlay.dart';
 
@@ -552,16 +554,15 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     }
   }
 
-  String _todayString() {
-    final now = DateTime.now();
-    final m = now.month.toString().padLeft(2, '0');
-    final d = now.day.toString().padLeft(2, '0');
-    return '${now.year}-$m-$d';
-  }
+  // 「今天」一律走邏輯日（預設凌晨 4 點換日）：喝水/體重/習慣歷史的
+  // 紀錄槽都是邏輯日，這裡若用日曆日，凌晨 0–4 點會寫錯天的 key，
+  // 造成打勾被喝水頁的達標回報彈回（金幣判重在 CoinService 內走日曆日，不受影響）。
+  String _todayString(SharedPreferences prefs) => LogicalDate.today(prefs);
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final today = _todayString();
+    await WaterHabitLink.reconcile(prefs);
+    final today = _todayString(prefs);
     final weightRecordedToday = await hasSavedWeightRecordForDate(prefs, today);
     // 開關/排序改變前先記住目前選的分頁 id，重組後盡量回到同一頁，
     // 避免重排後 _currentIndex 指向別的分頁（看起來像跳頁）。
@@ -601,7 +602,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   Future<void> _handleWaterGoal(bool reached) async {
     final prefs = await SharedPreferences.getInstance();
     if (reached) {
-      await prefs.setString(PrefsKeys.waterGoalDate, _todayString());
+      await prefs.setString(PrefsKeys.waterGoalDate, _todayString(prefs));
       // 當日喝水達標 +金幣（每日一次，service 內建防重複）
       await CoinService.award(CoinSource.waterGoal, note: '喝水達標');
     } else {
@@ -619,7 +620,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   Future<void> _refreshWeightHabitAutoComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    final done = await hasSavedWeightRecordForDate(prefs, _todayString());
+    final done = await hasSavedWeightRecordForDate(prefs, _todayString(prefs));
     if (!mounted) return;
     setState(() => _weightHabitAutoComplete = done);
   }
@@ -687,7 +688,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final cupMl = prefs.getInt(PrefsKeys.waterCupMl) ?? 250;
     final goalMl = prefs.getInt(PrefsKeys.waterGoalMl) ?? 2000;
     final waterGoal = (goalMl / cupMl).ceil();
-    final today = _todayString();
+    final today = _todayString(prefs);
     final todayKey = PrefsKeys.waterDay(today);
     final savedKey = PrefsKeys.waterSaved(today);
     final entriesKey = PrefsKeys.waterEntries(today);

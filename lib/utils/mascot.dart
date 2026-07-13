@@ -51,6 +51,20 @@ enum MascotEmotion {
     }
     return null;
   }
+
+  // 摸頭「瞇眼享受」通用差分（tumi_pet_bliss.png，手垂＋幸福瞇眼）。
+  // 圖檔進 repo 後把這個旗標改 true 即全表情生效；在那之前回退到
+  // 該情緒的眨眼閉眼差分（目前只有中性站姿有）。
+  // 穿造型（skin 路徑）時同眨眼規則：查不到就不閉眼，不會破圖。
+  static const bool _petBlissReady = false;
+
+  /// 被摸夠久時的「瞇眼享受」差分；回 null 代表這張立繪摸了不閉眼。
+  static String? petBlissAssetForPath(String assetPath) {
+    if (_petBlissReady && assetPath.startsWith('assets/mascot/core/')) {
+      return 'assets/mascot/core/tumi_pet_bliss.png';
+    }
+    return blinkAssetForPath(assetPath);
+  }
 }
 
 // 兔咪陪伴情境。每個情境對應一組台詞與預設情緒。
@@ -68,6 +82,8 @@ enum MascotContext {
   tapReaction,
   // 摸兔咪頭時的反應
   headPet,
+  // 充電互動：長按兔咪蓄力、放開（或蓄滿）爆發大跳
+  energize,
   // 還沒有任何習慣時（空狀態）
   emptyHabits,
   // 喝水過量警告（>=4L/day，醫學上「過量但還沒到水中毒」灰色地帶）
@@ -102,6 +118,7 @@ enum EmotionBubble {
         return EmotionBubble.note;
       case MascotContext.allDone:
       case MascotContext.streak:
+      case MascotContext.energize:
         return EmotionBubble.star;
       case MascotContext.undone:
         return EmotionBubble.sweat;
@@ -131,6 +148,8 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.night: MascotEmotion.night,
   MascotContext.tapReaction: MascotEmotion.neutralFront,
   MascotContext.headPet: MascotEmotion.smile,
+  // 充電爆發：雙手高舉雀躍，正好接住「蓄力→放開」的演出弧線
+  MascotContext.energize: MascotEmotion.popHappy,
   // 空狀態用「伸手邀請」姿勢，比中性更主動地邀使用者新增第一個習慣
   MascotContext.emptyHabits: MascotEmotion.invite,
   // 喝水過量改用「歪頭疑問」溫柔提醒，而非心疼的 sad
@@ -199,6 +218,16 @@ const Map<MascotContext, List<String>> _lines = {
     '再一下下也可以。',
     '我有點開心。',
     '好，我乖乖的。',
+  ],
+
+  // ── 充電互動（長按蓄力放開）──
+  // speaksFor 為 false，平常只靠星星泡泡＋歡呼語音；
+  // 台詞池備著給之後「明確帶 speech」的場合（登入禮、活動）取用。
+  MascotContext.energize: [
+    '充飽電了！',
+    '嗯！力氣滿滿。',
+    '謝謝你幫我打氣。',
+    '整個人都輕起來了。',
   ],
 
   // ── 還沒新增任何習慣（空狀態） ──
@@ -276,6 +305,7 @@ class MascotLines {
       case MascotContext.halfDone:
       case MascotContext.tapReaction:
       case MascotContext.headPet:
+      case MascotContext.energize:
         return false;
       case MascotContext.openApp:
       case MascotContext.notStarted:
@@ -441,9 +471,10 @@ class MascotPersona {
   /// （睡著/夜晚出聲反而違和，靠 Zzz 泡泡表達就好）。
   static SfxCue? _voiceCueFor(MascotContext ctx) {
     switch (ctx) {
-      // 大慶祝：歡呼（表情 happy / streak 雀躍）
+      // 大慶祝：歡呼（表情 happy / streak 雀躍；充電爆發同款）
       case MascotContext.allDone:
       case MascotContext.streak:
+      case MascotContext.energize:
         return SfxCue.tumiCheer;
       // 輕聲確認：打卡、進度過半、開場招呼（最高頻，選最短促的）
       case MascotContext.completedOne:
@@ -490,6 +521,7 @@ class MascotPersona {
       case MascotContext.completedOne:
         return 10;
       case MascotContext.headPet:
+      case MascotContext.energize:
         return 6;
       case MascotContext.tapReaction:
       case MascotContext.openApp:

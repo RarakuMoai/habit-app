@@ -19,7 +19,7 @@ void main() {
   final today = LogicalDate.dayOf(DateTime.now(), LogicalDate.defaultHour);
   final yesterday = _fmt(today.subtract(const Duration(days: 1)));
 
-  testWidgets('列出每日習慣、排除每週與連動、勾選寫入昨天歷史', (tester) async {
+  testWidgets('列出每日與喝水習慣、排除每週、勾選寫入昨天歷史', (tester) async {
     SharedPreferences.setMockInitialValues({
       PrefsKeys.habits: jsonEncode([
         {
@@ -46,12 +46,10 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HabitBackfillPage()));
     await tester.pumpAndSettle();
 
-    // 每日非連動習慣列出；每週與喝水不列為可勾項
+    // 每日習慣與喝水列出；每週習慣不列為可勾項。
     expect(find.text('閱讀'), findsOneWidget);
     expect(find.text('每週運動'), findsNothing);
-    // 喝水是連動習慣 → 不在可勾清單，但底部出現導去提示
-    expect(find.text('喝足夠的水'), findsNothing);
-    expect(find.text('喝水、體重的補登請到各自的頁面'), findsOneWidget);
+    expect(find.text('喝足夠的水'), findsOneWidget);
 
     // 勾「閱讀」→ 寫進昨天的歷史
     await tester.tap(find.text('閱讀'));
@@ -63,6 +61,44 @@ void main() {
     // 再點一次取消 → 從歷史移除、key 清掉
     await tester.tap(find.text('閱讀'));
     await tester.pumpAndSettle();
+    expect(HabitHistory.doneIdsOn(prefs, yesterday), isEmpty);
+  });
+
+  testWidgets('補喝水寫入合格量，取消後還原原紀錄', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.waterGoalMl: 1800,
+      PrefsKeys.waterCupMl: 300,
+      PrefsKeys.habits: jsonEncode([
+        {
+          'id': 'h_water',
+          'name': '喝足夠的水',
+          'frequency': 'daily',
+          'createdAt': '2020-01-01',
+        },
+      ]),
+      PrefsKeys.waterEntries(yesterday):
+          '[{"ml":300,"kind":"cup","at":"2026-01-01T08:00:00.000"}]',
+    });
+
+    await tester.pumpWidget(const MaterialApp(home: HabitBackfillPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('喝足夠的水'));
+    await tester.pumpAndSettle();
+
+    var prefs = await SharedPreferences.getInstance();
+    var entries =
+        jsonDecode(prefs.getString(PrefsKeys.waterEntries(yesterday))!)
+            as List<dynamic>;
+    expect((entries.single as Map<String, dynamic>)['ml'], 1800);
+    expect(HabitHistory.doneIdsOn(prefs, yesterday), contains('h_water'));
+
+    await tester.tap(find.text('喝足夠的水'));
+    await tester.pumpAndSettle();
+    prefs = await SharedPreferences.getInstance();
+    entries =
+        jsonDecode(prefs.getString(PrefsKeys.waterEntries(yesterday))!)
+            as List<dynamic>;
+    expect((entries.single as Map<String, dynamic>)['ml'], 300);
     expect(HabitHistory.doneIdsOn(prefs, yesterday), isEmpty);
   });
 
@@ -91,5 +127,18 @@ void main() {
 
     final prefs = await SharedPreferences.getInstance();
     expect(HabitHistory.doneIdsOn(prefs, yesterday), contains('h_floss'));
+  });
+
+  testWidgets('日期列固定只有昨天起往前七天', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const MaterialApp(home: HabitBackfillPage()));
+    await tester.pumpAndSettle();
+
+    final strip = find.byKey(const ValueKey('backfill-date-strip'));
+    expect(strip, findsOneWidget);
+    expect(
+      find.descendant(of: strip, matching: find.byType(GestureDetector)),
+      findsNWidgets(7),
+    );
   });
 }

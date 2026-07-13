@@ -1,8 +1,7 @@
 // 足跡 / 回顧：以陪伴語氣回看一段時間做了多少。
 //
-// 頂部 [補習慣 / 週 / 月]：
-// - 補習慣 = 日視圖（可勾、可補；沿用 BackfillDayView）。
-// - 週 / 月 = 唯讀的溫柔摘要 + 極簡長條，可用 ← → 翻到過去的週/月。
+// 頂部只保留 [週 / 月] 唯讀統計；「補習慣」從 AppBar 進入獨立頁，
+// 避免與統計的期間切換混在一起。
 //
 // 領域：習慣、喝水、番茄鐘、運動（各自有功能開關才顯示）。語氣刻意不打分、
 // 不紅綠燈；數字只是「兔咪替你記得」。彙總邏輯在 utils/review_stats.dart。
@@ -27,16 +26,16 @@ const Color _cardBorder = Color(0xFFEADBC8);
 const Color _success = Color(0xFF74A65A);
 
 class ReviewPage extends StatefulWidget {
-  /// 進來預設停在哪個分頁：0=補習慣 1=週 2=月。首頁入口預設「週」。
+  /// 進來預設停在哪個分頁：0=週 1=月。
   final int initialSegment;
-  const ReviewPage({super.key, this.initialSegment = 1});
+  const ReviewPage({super.key, this.initialSegment = 0});
 
   @override
   State<ReviewPage> createState() => _ReviewPageState();
 }
 
 class _ReviewPageState extends State<ReviewPage> {
-  late int _seg = widget.initialSegment.clamp(0, 2);
+  late int _seg = widget.initialSegment.clamp(0, 1);
   int _offset = 0; // 0=當前週/月，-1=上一個…
 
   SharedPreferences? _prefs;
@@ -139,11 +138,11 @@ class _ReviewPageState extends State<ReviewPage> {
     return DateTime(t.year, t.month + _offset);
   }
 
-  DateTime get _periodStart => _seg == 1 ? _weekStart : _monthStart;
+  DateTime get _periodStart => _seg == 0 ? _weekStart : _monthStart;
 
   DateTime get _periodEnd {
     final start = _periodStart;
-    if (_seg == 1) return start.add(const Duration(days: 6));
+    if (_seg == 0) return start.add(const Duration(days: 6));
     return DateTime(
       start.year,
       start.month + 1,
@@ -151,7 +150,7 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   List<String> get _periodDates {
-    if (_seg == 1) {
+    if (_seg == 0) {
       final start = _weekStart;
       final end = start.add(const Duration(days: 6));
       return _range(start, end.isAfter(_today) ? _today : end);
@@ -165,7 +164,7 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   String get _periodLabel {
-    if (_seg == 1) {
+    if (_seg == 0) {
       final s = _weekStart;
       final e = s.add(const Duration(days: 6));
       final suffix = _offset == 0 ? '（本週）' : '';
@@ -215,20 +214,72 @@ class _ReviewPageState extends State<ReviewPage> {
             : Column(
                 children: [
                   _buildCoinWalletCard(),
+                  _buildBackfillEntry(),
                   _buildSegmentBar(),
-                  Expanded(
-                    child: _seg == 0
-                        ? const BackfillDayView()
-                        : _buildPeriodView(),
-                  ),
+                  Expanded(child: _buildPeriodView()),
                 ],
               ),
       ),
     );
   }
 
+  void _openBackfill() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const HabitBackfillPage()));
+  }
+
+  Widget _buildBackfillEntry() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      child: Material(
+        color: const Color(0xFFFFF3E8),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          onTap: _openBackfill,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: Border.all(color: const Color(0xFFF3C49E)),
+            ),
+            child: const Row(
+              children: [
+                _BackfillIcon(),
+                SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '忘了打勾？補上最近的習慣',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        '可補昨天起往前 7 天，不補發足跡幣與連勝',
+                        style: TextStyle(fontSize: 11.5, color: AppInk.soft),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 6),
+                Icon(Icons.chevron_right_rounded, color: Color(0xFFD77942)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSegmentBar() {
-    const labels = ['補習慣', '週', '月'];
+    const labels = ['週', '月'];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Container(
@@ -271,11 +322,9 @@ class _ReviewPageState extends State<ReviewPage> {
 
   Widget _buildCoinWalletCard() {
     final todayAmount = _todayLoginAmount();
-    final periodStats = _seg == 0 ? null : _coinPeriodStats();
-    final periodWord = _seg == 1 ? '本週' : '本月';
-    final periodLine = _seg == 0
-        ? '補登只補足跡，不補發金幣。'
-        : _periodCoinLine(periodWord, periodStats!);
+    final periodStats = _coinPeriodStats();
+    final periodWord = _seg == 0 ? '本週' : '本月';
+    final periodLine = _periodCoinLine(periodWord, periodStats);
     final levelText = _loginLevel <= 0 ? '-' : 'Lv.$_loginLevel';
 
     return Padding(
@@ -662,7 +711,7 @@ class _ReviewPageState extends State<ReviewPage> {
 
   Widget _buildFootprintCard() {
     final days = _periodFootprints();
-    final leadingBlanks = _seg == 2 ? _periodStart.weekday - 1 : 0;
+    final leadingBlanks = _seg == 1 ? _periodStart.weekday - 1 : 0;
     return _Card(
       icon: Icons.timeline_rounded,
       color: _success,
@@ -728,7 +777,7 @@ class _ReviewPageState extends State<ReviewPage> {
               ),
               const SizedBox(width: 10),
               Text(
-                _seg == 1 ? '週回顧' : '月回顧',
+                _seg == 0 ? '週回顧' : '月回顧',
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
@@ -1306,6 +1355,27 @@ class _FootprintMarker extends StatelessWidget {
       );
     }
     return const SizedBox(height: 12);
+  }
+}
+
+class _BackfillIcon extends StatelessWidget {
+  const _BackfillIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF8A50).withValues(alpha: 0.14),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.edit_calendar_rounded,
+        size: 21,
+        color: Color(0xFFD77942),
+      ),
+    );
   }
 }
 

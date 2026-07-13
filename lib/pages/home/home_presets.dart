@@ -36,6 +36,7 @@ const List<HomePreset> kHomePresets = [
   HomePreset('閱讀', '📖', null, null, 0, true),
   HomePreset('早起', '🌅'),
   HomePreset('運動', '🏃', null, null, 0, true),
+  HomePreset('飲食控制', '🥗'),
   HomePreset('喝足夠的水', '💧', PrefsKeys.waterEnabled, '選取後自動開啟喝水頁籤'),
   HomePreset('體重紀錄', '⚖️', PrefsKeys.weightTrackingEnabled, '選取後自動開啟體重頁籤'),
   HomePreset('冥想', '🧘', null, null, 0, true),

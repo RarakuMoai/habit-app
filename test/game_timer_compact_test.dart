@@ -29,20 +29,21 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    // 500 高 ≥ 門檻：完整設定頁（底部有「完成」）
-    expect(find.text('完成'), findsOneWidget);
+    // 500 高 ≥ 門檻：完整設定頁（底部只有開始對局，沒有多餘完成鈕）
+    expect(find.text('完成'), findsNothing);
+    expect(find.text('兔咪遊戲桌'), findsOneWidget);
 
     // 鍵盤彈出：高度被壓到 200、原始 viewInsets 同步墊高 → 仍是設定頁
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     height.value = 200;
     await tester.pumpAndSettle();
-    expect(find.text('完成'), findsOneWidget);
+    expect(find.text('兔咪遊戲桌'), findsOneWidget);
 
     // 鍵盤收起：Scaffold 會把高度還回來（實機上兩者永遠一起變）
     tester.view.viewInsets = FakeViewPadding.zero;
     height.value = 500;
     await tester.pumpAndSettle();
-    expect(find.text('完成'), findsOneWidget);
+    expect(find.text('兔咪遊戲桌'), findsOneWidget);
 
     // 沒有鍵盤、高度真的只剩 200（兔咪面板展開）：才換成縮小卡
     height.value = 200;

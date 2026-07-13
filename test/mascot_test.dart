@@ -57,12 +57,22 @@ void main() {
     expect(state.bubbleTick, greaterThan(0));
   });
 
+  test('energize bursts into pop-happy with a star bubble', () {
+    expect(MascotPersona.interact(MascotContext.energize, force: true), isTrue);
+
+    final state = MascotPersona.current.value;
+    expect(state.assetPath, MascotEmotion.popHappy.assetPath);
+    expect(state.bubble, EmotionBubble.star);
+    expect(state.speech, isNull, reason: '充電互動是高頻演出，靠符號與語音就好');
+  });
+
   test('high-frequency contexts stay silent (symbol only, no speech text)', () {
     for (final ctx in [
       MascotContext.completedOne,
       MascotContext.halfDone,
       MascotContext.tapReaction,
       MascotContext.headPet,
+      MascotContext.energize,
     ]) {
       expect(MascotPersona.interact(ctx, force: true), isTrue);
       expect(

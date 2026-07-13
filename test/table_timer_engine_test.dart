@@ -211,6 +211,12 @@ void main() {
     expect(decoded[0].config.turnSeconds, 90);
     expect(decoded[1].config.mode, TableGameMode.chess);
 
+    // 舊版自動長名稱縮短；使用者自訂名稱（上面的「家庭拉密」）不受影響。
+    final legacy = TablePreset.encodeList([
+      TablePreset(name: '多人桌遊 4 人 · 每回合 1 分', config: cfg()),
+    ]);
+    expect(TablePreset.decodeList(legacy).single.name, '多人');
+
     expect(TablePreset.decodeList(null), isEmpty);
     expect(TablePreset.decodeList('oops'), isEmpty);
     expect(TablePreset.decodeList('{"v":1,"items":"nope"}'), isEmpty);

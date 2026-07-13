@@ -242,8 +242,14 @@ class TablePreset {
 
   const TablePreset({required this.name, required this.config});
 
-  /// 快照的預設命名：「多人桌遊 4 人 · 每回合 1 分」。
-  static String defaultName(TableTimerConfig c) =>
+  /// 名稱只負責辨識玩法；人數與時間由 UI 的系統摘要顯示，避免重複。
+  static String defaultName(TableTimerConfig c) => switch (c.mode) {
+    TableGameMode.party => '多人',
+    TableGameMode.chess => '二人',
+    TableGameMode.free => '自由',
+  };
+
+  static String _legacyDefaultName(TableTimerConfig c) =>
       '${c.mode.label} ${c.activePlayers.length} 人 · ${c.timeSummary}';
 
   static String encodeList(List<TablePreset> presets) => jsonEncode({
@@ -264,14 +270,24 @@ class TablePreset {
       if (items is! List) return const [];
       return [
         for (final e in items)
-          if (e is Map && e['name'] is String && e['config'] is String)
-            TablePreset(
-              name: e['name'] as String,
-              config: TableTimerConfig.decode(e['config'] as String),
-            ),
+          if (e is Map<Object?, Object?> &&
+              e['name'] is String &&
+              e['config'] is String)
+            _decodePreset(e),
       ].take(maxCount).toList();
     } catch (_) {
       return const [];
     }
+  }
+
+  static TablePreset _decodePreset(Map<Object?, Object?> e) {
+    final config = TableTimerConfig.decode(e['config'] as String);
+    final savedName = e['name'] as String;
+    return TablePreset(
+      name: savedName == _legacyDefaultName(config)
+          ? defaultName(config)
+          : savedName,
+      config: config,
+    );
   }
 }

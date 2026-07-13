@@ -4,7 +4,8 @@
 // 真相，這裡若改今天會被首頁的歷史同步覆寫）。每天列出的習慣是用 createdAt /
 // 刪除墓碑算出「那天當時實際存在」的條目（見 HabitHistory.dailyHabitsAsOf）。
 //
-// 喝水 / 體重是連動習慣，真相在各自的頁面，這裡不在此補（底部提示導去）。
+// 喝水習慣可在此補登，勾選後以設定的當日合格量寫入喝水紀錄；
+// 體重本身已有明確的日期補登功能，因此不在這裡重複顯示。
 // 補登只更新歷史紀錄，刻意不發金幣、不動連勝（避免回頭刷獎）。
 import 'dart:convert';
 
@@ -16,14 +17,13 @@ import '../utils/app_style.dart';
 import '../utils/habit_history.dart';
 import '../utils/logical_date.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/water_entries.dart';
+import '../utils/water_habit_link.dart';
 import '../utils/weight_records.dart';
 
-const String _kWaterHabitName = '喝足夠的水';
+bool _isWeightLinkedHabit(String? name) => isWeightHabitName(name);
 
-bool _isLinkedHabit(String? name) =>
-    name == _kWaterHabitName || isWeightHabitName(name);
-
-/// 補打勾的整頁版（標題列 + 日視圖）。日視圖本身也內嵌在「足跡」頁的「補習慣」分頁。
+/// 補打勾的獨立整頁版（標題列 + 日視圖）。
 class HabitBackfillPage extends StatelessWidget {
   const HabitBackfillPage({super.key});
 
@@ -57,7 +57,7 @@ class HabitBackfillPage extends StatelessWidget {
   }
 }
 
-/// 補打勾的日視圖（日期條 + 當天習慣勾選）。可單獨用，也內嵌在足跡頁。
+/// 補打勾的日視圖（日期條 + 當天習慣勾選）。
 class BackfillDayView extends StatefulWidget {
   const BackfillDayView({super.key});
 
@@ -98,14 +98,9 @@ class _BackfillDayViewState extends State<BackfillDayView> {
     final today = LogicalDate.dayOf(DateTime.now(), dayStart);
     final yesterday = today.subtract(const Duration(days: 1));
 
-    // 最早可補到「最早建立的習慣」，但最多回看 60 天，避免清單過長。
-    final earliest = _earliestCreated();
-    final floor = yesterday.subtract(const Duration(days: 59));
-    var start = earliest ?? yesterday.subtract(const Duration(days: 13));
-    if (start.isBefore(floor)) start = floor;
-    if (start.isAfter(yesterday)) start = yesterday;
-
-    final span = yesterday.difference(start).inDays;
+    // 固定只能補昨天起往前七天（例：週六看週五～上週六）。
+    final start = yesterday.subtract(const Duration(days: 6));
+    const span = 6;
     final dates = [
       for (var i = 0; i <= span; i++) _fmt(start.add(Duration(days: i))),
     ];
@@ -148,23 +143,6 @@ class _BackfillDayViewState extends State<BackfillDayView> {
     }
   }
 
-  DateTime? _earliestCreated() {
-    String? earliest;
-    void consider(Object? v) {
-      if (v is String && v.isNotEmpty) {
-        if (earliest == null || v.compareTo(earliest!) < 0) earliest = v;
-      }
-    }
-
-    for (final h in _habits) {
-      consider(h['createdAt']);
-    }
-    for (final t in _tombstones) {
-      consider(t['createdAt']);
-    }
-    return earliest == null ? null : DateTime.tryParse(earliest!);
-  }
-
   void _selectDate(String date) {
     final prefs = _prefs;
     if (prefs == null) return;
@@ -178,6 +156,14 @@ class _BackfillDayViewState extends State<BackfillDayView> {
     final prefs = _prefs;
     final date = _selected;
     if (prefs == null || date == null) return;
+    final habit = HabitHistory.dailyHabitsAsOf(
+      activeHabits: _habits,
+      tombstones: _tombstones,
+      date: date,
+    ).where((h) => h['id'] == id).firstOrNull;
+    if (habit?['name'] == waterHabitName) {
+      await _setWaterGoalForDate(prefs, date, done: done);
+    }
     await HabitHistory.setDoneOn(prefs, date, id, done: done);
     setState(() {
       if (done) {
@@ -191,6 +177,53 @@ class _BackfillDayViewState extends State<BackfillDayView> {
         _activeDays.add(date);
       }
     });
+  }
+
+  Future<void> _setWaterGoalForDate(
+    SharedPreferences prefs,
+    String date, {
+    required bool done,
+  }) async {
+    final entriesKey = PrefsKeys.waterEntries(date);
+    final savedEntriesKey = PrefsKeys.waterEntriesSaved(date);
+    final cupMl = prefs.getInt(PrefsKeys.waterCupMl) ?? 250;
+    final goalMl = prefs.getInt(PrefsKeys.waterGoalMl) ?? 2000;
+    if (done) {
+      final current = prefs.getString(entriesKey);
+      final legacy = legacyWaterEntries(
+        cups: prefs.getInt(PrefsKeys.waterDay(date)) ?? 0,
+        extraMl: prefs.getInt(PrefsKeys.waterExtra(date)) ?? 0,
+        cupMl: cupMl,
+      );
+      await prefs.setString(
+        savedEntriesKey,
+        current ?? encodeWaterEntries(legacy),
+      );
+      final at = DateTime.tryParse(date)?.add(const Duration(hours: 12));
+      await prefs.setString(
+        entriesKey,
+        encodeWaterEntries([WaterEntry.custom(goalMl, at: at)]),
+      );
+      await prefs.setInt(PrefsKeys.waterDay(date), 0);
+      await prefs.setInt(PrefsKeys.waterExtra(date), goalMl);
+      return;
+    }
+
+    final restored = parseWaterEntries(
+      prefs.getString(savedEntriesKey),
+      maxEntryMl: 12000,
+    );
+    if (restored.isEmpty) {
+      await prefs.remove(entriesKey);
+    } else {
+      await prefs.setString(entriesKey, encodeWaterEntries(restored));
+    }
+    final cups = restored.where((entry) => entry.kind == 'cup').toList();
+    final cupTotal = cups.fold<int>(0, (sum, entry) => sum + entry.ml);
+    final total = restored.fold<int>(0, (sum, entry) => sum + entry.ml);
+    await prefs.setInt(PrefsKeys.waterDay(date), cups.length);
+    await prefs.setInt(PrefsKeys.waterExtra(date), total - cupTotal);
+    await prefs.remove(savedEntriesKey);
   }
 
   // ── 顯示用 ───────────────────────────────────────────────
@@ -224,6 +257,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
     return SizedBox(
       height: 76,
       child: ListView.separated(
+        key: const ValueKey('backfill-date-strip'),
         controller: _stripCtrl,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -300,9 +334,8 @@ class _BackfillDayViewState extends State<BackfillDayView> {
       date: date,
     );
     final editable = all
-        .where((h) => !_isLinkedHabit(h['name'] as String?))
+        .where((h) => !_isWeightLinkedHabit(h['name'] as String?))
         .toList();
-    final hasLinked = all.any((h) => _isLinkedHabit(h['name'] as String?));
     final p = _parts(date);
 
     return ListView(
@@ -323,14 +356,6 @@ class _BackfillDayViewState extends State<BackfillDayView> {
           _buildEmpty('這天還沒有每日習慣')
         else
           ...editable.map(_buildHabitRow),
-        if (hasLinked)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 14, 4, 0),
-            child: Text(
-              '喝水、體重的補登請到各自的頁面',
-              style: TextStyle(fontSize: 12.5, color: AppInk.faint),
-            ),
-          ),
       ],
     );
   }
@@ -445,7 +470,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
         child: Text(
-          '補登只是補上紀錄，不影響金幣與連勝。',
+          '可補昨天起往前 7 天；補登不影響足跡幣與連勝。',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11.5, color: AppInk.faint),
         ),
