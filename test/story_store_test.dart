@@ -195,12 +195,16 @@ void main() {
 
     expect(
       storyEventById('first_habit').cover,
-      'assets/scenes/home/home_bg.png',
+      'assets/scenes/home/home_day.webp',
     );
     for (final event in storyCatalog) {
       expect(event.label, isNotEmpty, reason: '${event.id} 需要收藏分類');
       expect(event.unlockHint, isNotEmpty, reason: '${event.id} 需要未解鎖提示');
-      expect(event.cover, endsWith('.png'));
+      expect(
+        event.cover,
+        anyOf(endsWith('.png'), endsWith('.webp')),
+        reason: '${event.id} 封面需為打包圖片格式',
+      );
     }
   });
 }

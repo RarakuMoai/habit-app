@@ -144,7 +144,7 @@ const List<StoryEventSpec> storyCatalog = [
     trigger: StoryTrigger.firstHabit,
     pages: [
       // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
-      StoryPage('assets/scenes/home/home_bg.png', [
+      StoryPage('assets/scenes/home/home_day.webp', [
         '你寫下第一個想做到的小事。',
         '嗯...原來我們是從這裡開始的。',
         '這一頁，我會替你收好。',

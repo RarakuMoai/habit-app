@@ -28,10 +28,15 @@ enum ScenePeriod { morning, day, dusk, night }
 /// 四時段交接視窗（小時，起點/終點各為前一時段權重 1→0 的 smoothstep 區間）。
 /// 全 App 唯一門檻定義：任何層要判斷時段一律經由 [SceneTimeState] 權重，
 /// 不得另寫 if (hour >= …) 分桶。
-const double kNightToMorningStart = 5.5, kNightToMorningEnd = 6.5;
-const double kMorningToDayStart = 9.0, kMorningToDayEnd = 10.0;
-const double kDayToDuskStart = 16.0, kDayToDuskEnd = 17.0;
-const double kDuskToNightStart = 18.75, kDuskToNightEnd = 19.75;
+///
+/// 正式時段（2026-07-13 使用者定案）：清晨 05–08、白天 08–17、
+/// 黃昏 17–20、夜晚 20–05。交接設計成「整點開始、45 分鐘完成」：
+/// 每個時段的起點正是房間開始變化的一刻（05:00 天光初現、17:00 檯燈
+/// 與晚霞漸起、20:00 夜幕落下），且任一時段在自己的官方區間外永遠是 0。
+const double kNightToMorningStart = 5.0, kNightToMorningEnd = 5.75;
+const double kMorningToDayStart = 8.0, kMorningToDayEnd = 8.75;
+const double kDayToDuskStart = 17.0, kDayToDuskEnd = 17.75;
+const double kDuskToNightStart = 20.0, kDuskToNightEnd = 20.75;
 
 double _smoothstep(double a, double b, double x) {
   final t = ((x - a) / (b - a)).clamp(0.0, 1.0);
@@ -170,6 +175,25 @@ class SceneTimeState {
   /// 量化到「屬於哪一分鐘」後比較（refresh 每分鐘一次，秒級差異不觸發 notify）。
   bool visuallyEquals(SceneTimeState other) =>
       (hour * 60).floor() == (other.hour * 60).floor();
+
+  /// 完整背景 crossfade 用的圖層配方：底圖（不透明）＋疊圖（淡入中）。
+  ///
+  /// 交接視窗內恰好只有相鄰兩個時段權重非 0：底圖 = 淡出方維持不透明、
+  /// 疊圖 = 淡入方以自身權重當 opacity——兩張構圖一致時這是無亮度凹陷
+  /// 的 dissolve。純時段回傳 (該時段, null, 0)。
+  ({ScenePeriod base, ScenePeriod? overlay, double overlayOpacity})
+  get layerBlend {
+    const cycle = ScenePeriod.values; // morning → day → dusk → night → 回頭
+    for (var i = 0; i < cycle.length; i++) {
+      final a = cycle[i];
+      final b = cycle[(i + 1) % cycle.length];
+      final wb = weight(b);
+      if (weight(a) > 0 && wb > 0) {
+        return (base: a, overlay: b, overlayOpacity: wb);
+      }
+    }
+    return (base: dominantPeriod, overlay: null, overlayOpacity: 0);
+  }
 }
 
 /// 單一場景時間 controller（singleton）。所有場景層讀同一份 [state]；
@@ -200,11 +224,11 @@ class SceneTimeController extends ChangeNotifier with WidgetsBindingObserver {
   double? get previewHour => _previewHour;
   ScenePeriod? get fixedPeriod => _fixedPeriod;
 
-  /// 固定時段的代表小時（各時段核心時間的中段）。
+  /// 固定時段的代表小時（各時段「純權重 1」區間的舒適中段）。
   static double periodAnchorHour(ScenePeriod p) => switch (p) {
-    ScenePeriod.morning => 7.5,
+    ScenePeriod.morning => 6.5,
     ScenePeriod.day => 13.0,
-    ScenePeriod.dusk => 17.8,
+    ScenePeriod.dusk => 18.5,
     ScenePeriod.night => 23.0,
   };
 

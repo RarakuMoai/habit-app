@@ -31,17 +31,43 @@ void main() {
       expect(SceneTimeState.fromHour(23.0).dominantPeriod, ScenePeriod.night);
     });
 
-    test('交界區間兩時段共存且互補（18:45–19:45 黃昏→夜）', () {
-      final s = SceneTimeState.fromHour(19.25); // 交界正中
+    test('交界區間兩時段共存且互補（20:00–20:45 黃昏→夜）', () {
+      final s = SceneTimeState.fromHour(20.375); // 交界正中
       expect(s.duskWeight, closeTo(0.5, 1e-9));
       expect(s.nightWeight, closeTo(0.5, 1e-9));
       expect(s.morningWeight, 0);
       expect(s.dayWeight, 0);
     });
 
+    test('正式時段邊界：官方區間外的時段權重必為 0', () {
+      // 清晨 05–08 / 白天 08–17 / 黃昏 17–20 / 夜晚 20–05
+      expect(SceneTimeState.fromHour(4.99).morningWeight, 0);
+      expect(SceneTimeState.fromHour(4.99).nightWeight, closeTo(1, 1e-9));
+      expect(SceneTimeState.fromHour(7.99).dayWeight, 0);
+      expect(SceneTimeState.fromHour(16.99).duskWeight, 0);
+      expect(SceneTimeState.fromHour(19.99).nightWeight, 0);
+    });
+
+    test('layerBlend：純時段單圖、交界回傳相鄰底圖+疊圖', () {
+      final pure = SceneTimeState.fromHour(13.0).layerBlend;
+      expect(pure.base, ScenePeriod.day);
+      expect(pure.overlay, isNull);
+      expect(pure.overlayOpacity, 0);
+
+      final mid = SceneTimeState.fromHour(17.375).layerBlend; // 晝→暮正中
+      expect(mid.base, ScenePeriod.day);
+      expect(mid.overlay, ScenePeriod.dusk);
+      expect(mid.overlayOpacity, closeTo(0.5, 1e-9));
+
+      final wrap = SceneTimeState.fromHour(5.375).layerBlend; // 夜→晨（跨序）
+      expect(wrap.base, ScenePeriod.night);
+      expect(wrap.overlay, ScenePeriod.morning);
+      expect(wrap.overlayOpacity, closeTo(0.5, 1e-9));
+    });
+
     test('計劃書指定檢查點無跳變（相鄰一分鐘權重差 < 0.05）', () {
-      // 05:30/06:00/09:30/16:30/18:30/19:30/23:59/00:00
-      for (final h in [5.5, 6.0, 9.5, 16.5, 18.5, 19.5, 23.983, 0.0]) {
+      // 交界正中與交界外緣、跨午夜
+      for (final h in [5.4, 6.0, 8.4, 16.5, 17.4, 20.4, 23.983, 0.0]) {
         final a = SceneTimeState.fromHour(h);
         final b = SceneTimeState.fromHour((h + 1 / 60) % 24);
         for (final p in ScenePeriod.values) {
@@ -82,7 +108,7 @@ void main() {
     });
 
     test('blendOpaque / blendValue 在交界取中間值', () {
-      final s = SceneTimeState.fromHour(19.25); // 黃昏/夜 各 0.5
+      final s = SceneTimeState.fromHour(20.375); // 黃昏/夜 各 0.5
       final v = s.blendValue(morning: 0, day: 0, dusk: 1.0, night: 0.5);
       expect(v, closeTo(0.75, 1e-9));
       final c = s.blendOpaque(

@@ -12,6 +12,7 @@ void main() {
     WidgetTester tester, {
     VoidCallback? onEnergize,
     VoidCallback? onHeadPet,
+    MascotSceneLighting? lighting,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -24,6 +25,7 @@ void main() {
               onTap: () {},
               onHeadPet: onHeadPet,
               onEnergize: onEnergize,
+              lighting: lighting,
               // 凍結呼吸/眨眼，避免測試殘留 pending timer
               paused: true,
             ),
@@ -32,6 +34,27 @@ void main() {
       ),
     );
   }
+
+  testWidgets('環境光參數只濾兔咪本體，中性路徑不增加濾鏡', (tester) async {
+    await pumpStage(tester);
+    expect(find.byType(ColorFiltered), findsNothing);
+
+    await pumpStage(
+      tester,
+      lighting: const MascotSceneLighting(
+        colorMatrix: <double>[
+          1.02, 0, 0, 0, 5, //
+          0, 0.96, 0, 0, 1, //
+          0, 0, 0.90, 0, -4, //
+          0, 0, 0, 1, 0,
+        ],
+        shadowColor: Color(0xFF6F4529),
+        shadowOpacity: 0.25,
+        shadowDx: -6,
+      ),
+    );
+    expect(find.byType(ColorFiltered), findsOneWidget);
+  });
 
   testWidgets('長按蓄力後放開觸發一次 onEnergize', (tester) async {
     var energized = 0;

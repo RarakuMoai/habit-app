@@ -24,6 +24,7 @@ import '../utils/story_store.dart';
 import '../utils/usage_stats.dart';
 import '../utils/weight_records.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/four_period_background.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -35,6 +36,14 @@ import 'home/home_presets.dart';
 import 'home/room_ambient_overlay.dart';
 import 'home/room_metrics.dart';
 import 'home/room_scene_painters.dart';
+import 'home/scene_air_layer.dart';
+
+/// 首頁兔咪環境融合的驗收開關；預設開啟。
+/// A/B 截圖可傳 `--dart-define=SCENE_MASCOT_FUSION=false` 取得中性對照。
+const bool _kHomeMascotFusionEnabled = bool.fromEnvironment(
+  'SCENE_MASCOT_FUSION',
+  defaultValue: true,
+);
 
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
@@ -71,8 +80,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late Animation<double> _celebScale;
   // 進度列尾端亮點的呼吸光暈（達標時 repeat，未達標停在 0）
   late AnimationController _glowCtrl;
-  // 首頁場景的低調流動光效改由 RoomSceneEffects 自帶 30fps 節流 ticker 驅動，
-  // 不再需要本頁持有 AnimationController（也就沒有 full-rate 重繪 / 漏 RepaintBoundary）。
+  // 場景微動與完成星光共用下方 20fps SceneAnimationClock；本頁不再為每層
+  // 各建 AnimationController，避免重複排幀。
   // 編輯模式所有卡片共用的抖動驅動（一條 ticker，各卡片用不同相位）。
   // 不放在每張卡上，避免被拖曳 reparent 時帶著正在跑的 ticker 撞 element 生命週期。
   late AnimationController _jiggleCtrl;
@@ -83,16 +92,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _editMode = false;
 
   // ── 首頁裝飾動畫的閒置凍結（省電 / 降溫）─────────────────────
-  // 窗景 / 室內光影 / 場景流光是每幀重繪、且每幀跑 MaskFilter.blur 的層，
-  // 停在首頁不互動時持續算繪會讓 GPU 一直滿載、機身發熱。沒人在操作時就
-  // 凍結這些層，一有觸碰立刻恢復——觀感無損（沒人看才停）。
-  // 兔咪本體呼吸不在此列：成本低且是情緒主體，保持活著。
+  // 背景 crossfade 不需逐幀動畫；塵埃／星光與兔咪呼吸仍會排幀。停在首頁
+  // 不互動 20 秒後全部凍結，一有觸碰立即恢復。
   static const Duration _sceneIdleDelay = Duration(seconds: 20);
   Timer? _sceneIdleTimer;
   bool _sceneIdle = false;
   // 追蹤本頁是否為當前可見分頁（外層 TickerMode），切回來時喚醒場景。
   bool _wasVisible = true;
-  // 單一場景動畫時鐘：窗景/室內光影/互動特效三層共享（20fps；§5.2）。
+  // 單一場景動畫時鐘：空氣層與完成特效共享（20fps；§5.2）。
   // 切分頁/退背景由外層 TickerMode 靜音；閒置凍結由下面兩個 hook 停啟。
   late final SceneAnimationClock _sceneClock;
 
@@ -956,49 +963,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           child: Stack(
             children: [
-              // 窗外景：墊在背景圖之下，透過挖掉的窗玻璃露出來。
-              // 三個動態層都掛 kRoomAmbienceEnabled 總開關：關掉＝純背景圖。
-              if (kRoomAmbienceEnabled)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: bgH,
-                  // 閒置時凍結：共享場景時鐘 stop（0fps），TickerMode 保險。
-                  child: TickerMode(
-                    enabled: !_sceneIdle,
-                    child: WindowBackdrop(clock: _sceneClock.time),
-                  ),
-                ),
+              // 四時段完整背景：天色/窗光/檯燈/長影全部由圖承擔，交界走
+              // SceneTimeController 分鐘級 crossfade（無動畫幀成本）。
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
                 height: bgH,
-                child: ClipRect(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Image.asset(
-                      // 窗玻璃挖透明的版本（原圖保留為 home_bg.png）
-                      'assets/scenes/home/home_bg_glassless.png',
-                      height: double.infinity,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                    ),
-                  ),
-                ),
+                child: const FourPeriodBackground(assets: kHomePeriodAssets),
               ),
-              // 靜態差分 overlay（燈罩發亮 / 黃昏長影）：疊底圖上、色罩下，
-              // opacity 走分鐘級時段權重（無動畫幀成本）。
-              if (kRoomAmbienceEnabled)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: bgH,
-                  child: const HomeSceneStaticOverlays(),
-                ),
+              // 全完成慶祝罩（時段氛圍已由背景圖承擔，這層只剩狀態回饋）。
               Positioned(
                 top: 0,
                 left: 0,
@@ -1009,32 +983,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   color: _sceneTint,
                 ),
               ),
-              // 動態光影層：窗光/塵埃/檯燈暈，讓靜態房間活起來
-              if (kRoomAmbienceEnabled)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: bgH,
-                  // 最吃 GPU 的層（每幀 MaskFilter.blur）：閒置時一起凍結。
-                  child: TickerMode(
-                    enabled: !_sceneIdle,
-                    child: RoomAmbientOverlay(
-                      companionTiming: true,
-                      clock: _sceneClock.time,
-                    ),
-                  ),
+              // 空氣層：清晨窗光塵埃＋夜晚星光眨眼（20fps 共享時鐘，
+              // 閒置凍結一起停）。
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: bgH,
+                child: TickerMode(
+                  enabled: !_sceneIdle,
+                  child: SceneAirLayer(clock: _sceneClock.time),
                 ),
-              // 互動狀態效果（完成星光、場景柔光）：最吃 GPU 的全螢幕 blur 層，
-              // 與窗景/光影層共享單一 20fps 場景時鐘，閒置時一起凍結。
-              if (kRoomAmbienceEnabled)
+              ),
+              // 全完成的星光慶祝層：只在全完成時掛載。
+              if (allDone0 && habits.isNotEmpty)
                 Positioned.fill(
                   child: TickerMode(
                     enabled: !_sceneIdle,
                     child: RoomSceneEffects(
                       accent: colors.accent,
                       progress: sceneProgress.clamp(0.0, 1.0),
-                      allDone: allDone0 && habits.isNotEmpty,
                       clock: _sceneClock.time,
                     ),
                   ),
@@ -1065,6 +1033,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           onTap: _onMascotTap,
           onHeadPet: _onMascotHeadPet,
           paused: _sceneIdle, // 閒置時連兔咪呼吸/眨眼一起凍結 → 畫面全靜止
+          // 四時段色溫＋接地影融合；compile-time 開關只供首頁核准前 A/B。
+          lighting: _kHomeMascotFusionEnabled ? _mascotLighting : null,
         ),
       ),
       child: _habitCardContent(
@@ -1168,22 +1138,60 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // 房間背景圖上的時段色罩：四時段權重連續混色（無瞬切）；
-  // 「全完成」慶祝罩疊加在時段罩之上，不取代時間狀態。
+  // 房間背景上的慶祝色罩：時段氛圍已由四時段完整背景承擔（計劃書原則：
+  // 圖畫好的不再堆色罩），這層只保留「全完成」的暖光狀態回饋。
   Color get _sceneTint {
-    final tint = SceneTimeController.instance.state.blendColor(
-      morning: const Color(0xFFFFE0B8).withValues(alpha: 0.045),
-      day: Colors.transparent,
-      dusk: const Color(0xFFFFB36B).withValues(alpha: 0.075),
-      night: const Color(0xFFFFD7A0).withValues(alpha: 0.055),
-    );
     if (allDone0 && habits.isNotEmpty) {
-      return Color.alphaBlend(
-        const Color(0xFFFFF3C4).withValues(alpha: 0.10),
-        tint,
-      );
+      return const Color(0xFFFFF3C4).withValues(alpha: 0.10);
     }
-    return tint;
+    return Colors.transparent;
+  }
+
+  /// 兔咪環境光融合：與背景同一份 SceneTimeState 權重算出色溫/接地影，
+  /// 同一次 rebuild 更新（分鐘級），兔咪才不會像貼在圖上的 PNG。
+  MascotSceneLighting get _mascotLighting {
+    final s = SceneTimeController.instance.state;
+    // 色溫（白平衡式 scale+offset）：清晨粉金、白天中性、黃昏琥珀、
+    // 夜晚燈暖微暗。量刻意小——目標是「坐進光線裡」，不是換一隻兔子。
+    final rs = s.blendValue(morning: 1.02, day: 1, dusk: 1.04, night: 0.97);
+    final gs = s.blendValue(morning: 0.99, day: 1, dusk: 0.965, night: 0.915);
+    final bs = s.blendValue(morning: 0.965, day: 1, dusk: 0.90, night: 0.86);
+    final ro = s.blendValue(morning: 5, day: 0, dusk: 8, night: 7);
+    final go = s.blendValue(morning: 1, day: 0, dusk: 1, night: 2);
+    final bo = s.blendValue(morning: 0, day: 0, dusk: -4, night: -2);
+    final isIdentity =
+        (rs - 1).abs() < 0.004 &&
+        (gs - 1).abs() < 0.004 &&
+        (bs - 1).abs() < 0.004 &&
+        ro.abs() < 0.5 &&
+        go.abs() < 0.5 &&
+        bo.abs() < 0.5;
+    return MascotSceneLighting(
+      // 白天核心 = null（零成本路徑，不掛 ColorFiltered）。
+      colorMatrix: isIdentity
+          ? null
+          : <double>[
+              rs, 0, 0, 0, ro, //
+              0, gs, 0, 0, go, //
+              0, 0, bs, 0, bo, //
+              0, 0, 0, 1, 0,
+            ],
+      // 接地影：清晨窗光從左（影偏右、較實）；白天柔散射；黃昏夜晚
+      // 檯燈在右（影偏左、夜裡燈近影最實）。
+      shadowColor: s.blendOpaque(
+        morning: const Color(0xFF6B4B38),
+        day: const Color(0xFF5B4436),
+        dusk: const Color(0xFF6F4529),
+        night: const Color(0xFF4E4238),
+      ),
+      shadowOpacity: s.blendValue(
+        morning: 0.26,
+        day: 0.22,
+        dusk: 0.25,
+        night: 0.28,
+      ),
+      shadowDx: s.blendValue(morning: 7, day: 0, dusk: -6, night: -9),
+    );
   }
 
   // 場景配色：四時段權重連續混色（晨粉金 / 晝暖白 / 暮金橘 / 夜暖燈）；

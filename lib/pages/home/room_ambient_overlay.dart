@@ -1,17 +1,18 @@
-// 首頁臥室背景的動態層，分上下兩塊：
+// 房間背景的程序化光影層（**非首頁**的兔咪頁仍在用；首頁已改
+// widgets/four_period_background.dart 的四時段完整背景，不再走這裡）。
 //
 //   [WindowBackdrop]（墊在背景圖之下）
-//     窗外景。背景圖用 home_bg_glassless.png（窗玻璃已挖透明、窗框窗櫺
+//     窗外景。背景圖用 *_glassless.png（窗玻璃已挖透明、窗框窗櫺
 //     原圖像素全保留），這層只畫「洞後面的世界」：時段天空、日月、
 //     星星、雲、灌木剪影。畫的範圍略大於玻璃開口，其餘被原圖蓋住，
 //     所以完全不存在補畫窗櫺 / 對齊的問題。
 //
 //   [RoomAmbientOverlay]（疊在背景圖 + 時段色罩之上）
-//     室內光影。晨/晝窗光斜射光束 + 塵埃微粒 + 地板光池；
-//     暮/夜床頭檯燈暖光暈（呼吸）；深夜極淡冷色月光。
+//     室內光影。晨/晝窗光斜射光束 + 塵埃微粒；暮/夜床頭檯燈暖光暈
+//     （呼吸）；深夜極淡冷色月光。
 //
 // 所有強度都用連續 hour 的 smoothstep 開關，時段交界不跳變。
-// 幾何錨點對齊 home_bg 內容（BoxFit.cover + topCenter，圖檔長寬比 0.8
+// 幾何錨點對齊背景圖內容（BoxFit.cover + topCenter，圖檔長寬比 0.8
 // → 顯示高度 = 寬度 / 0.8）；座標一律用 (寬度比例, 顯示圖高比例) 表達。
 //
 // 效能：兩層各自單 Ticker 節流 ~30fps + RepaintBoundary，只重繪自己。
@@ -19,6 +20,10 @@
 // 時間來源：一律走 SceneTimeController（utils/scene_time.dart）——
 // 真實時間 / 使用者固定時段 / dev 預覽覆寫都由它統一；painter 讀
 // state.hour（每分鐘更新），不在 paint() 內讀 DateTime.now()。
+//
+// 首頁核准四時段完整背景後，其他有窗房間會逐間補四張圖並改用
+// FourPeriodBackground；全部完成時整個檔案（連同 *_glassless 資產）
+// 可以刪除（見 docs/four_period_background_plan.md 退出方式）。
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -80,86 +85,6 @@ class SceneAmbience {
 double _smooth(double a, double b, double x) {
   final t = ((x - a) / (b - a)).clamp(0.0, 1.0);
   return t * t * (3 - 2 * t);
-}
-
-/// 首頁檯燈點亮強度（0~1）：16:48 起與黃昏同步漸亮、清晨 5:24~6:24 漸滅。
-/// 程式光暈（painter）與燈罩發亮差分圖（overlay）共用這一條曲線。
-double homeLampIntensity(double h) =>
-    h >= 12 ? _smooth(16.8, 18.0, h) : (1 - _smooth(5.4, 6.4, h));
-
-/// 首頁黃昏強度（0~1）：黃昏核心（~17:00–19:00）全程都在，
-/// 暮→夜交接（18:18–19:12）收掉。斜光、地板光池、長影差分圖共用。
-double homeDuskIntensity(double h) =>
-    _smooth(16.0, 16.8, h) * (1 - _smooth(18.3, 19.2, h));
-
-/// 首頁日光光束的可視強度。早晨（6~9）低角度金光最強、正午轉柔但仍
-/// 清楚可見、14 起收光。實機驗證教訓（2026-07-12）：先前用 smooth(6,12)
-/// 一路壓，07:30 只剩 2% alpha、13:00 也不到 10%，整個白天等於沒有光照；
-/// srcOver 光束的亮度上限就是光束色本身，不會過曝，強度可以放心給足。
-double homeSunShaftStrength(double h) {
-  if (h < 6 || h >= 16) return 0;
-  final rise = _smooth(6.0, 7.0, h); // 日出後快速就位
-  final soften = 1 - 0.35 * _smooth(8.5, 12.0, h); // 正午轉柔（能量補償）
-  final set = 1 - _smooth(14.0, 16.0, h); // 午後收光
-  return 0.85 * rise * soften * set;
-}
-
-/// 首頁夜間月光強度。刻意比其他房間明確，因首頁亮色牆面會吃掉過淡冷光。
-double homeMoonShaftStrength(double h) =>
-    (h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h))) * 0.65;
-
-/// 首頁靜態差分 overlay（燈罩發亮 / 黃昏長影）。
-///
-/// 與背景圖同一套 cover-by-width + topCenter 版位鋪滿，直接疊在底圖上；
-/// opacity 走 [SceneTimeController] 的分鐘級時段權重——沒有動畫幀成本，
-/// ticker 全停時也會跟著分鐘更新。圖檔缺失時 errorBuilder 回退為空層。
-class HomeSceneStaticOverlays extends StatelessWidget {
-  const HomeSceneStaticOverlays({super.key});
-
-  static Widget _cover(String path) {
-    return ClipRect(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Image.asset(
-          path,
-          height: double.infinity,
-          width: double.infinity,
-          fit: BoxFit.cover,
-          alignment: Alignment.topCenter,
-          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: ListenableBuilder(
-        listenable: SceneTimeController.instance,
-        builder: (_, _) {
-          final h = SceneTimeController.instance.state.hour;
-          final lamp = homeLampIntensity(h);
-          final dusk = homeDuskIntensity(h);
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              if (dusk > 0.01)
-                Opacity(
-                  opacity: dusk,
-                  child: _cover('assets/scenes/home/home_shadow_dusk.png'),
-                ),
-              if (lamp > 0.01)
-                Opacity(
-                  opacity: lamp,
-                  child: _cover('assets/scenes/home/home_lamp_lit.png'),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 }
 
 /// 單一場景動畫時鐘：一條 Ticker 驅動同場景所有動態層（窗景/室內光影/
@@ -553,13 +478,8 @@ class RoomAmbientOverlay extends StatefulWidget {
   /// 預設為首頁床頭燈位置，所以首頁 `const RoomAmbientOverlay()` 行為不變。
   final Offset? lampCenter;
 
-  /// 是否在光影層內畫「時段色罩」。首頁自己用 AnimatedContainer 畫色罩
-  /// （還含全完成特例），所以維持 false；其他頁設 true 由本層代畫。
+  /// 是否在光影層內畫「時段色罩」；設 true 由本層代畫。
   final bool tint;
-
-  /// 首頁陪伴感光影時序：6 點日光起、12 點最強、16 點收光，
-  /// 16~18 點黃昏，夜晚以暖桌燈為主。預設 false，避免影響其他頁。
-  final bool companionTiming;
 
   /// 共享場景時鐘（見 [SceneAnimationClock]）；null = 自建 30fps ticker。
   final ValueNotifier<double>? clock;
@@ -568,7 +488,6 @@ class RoomAmbientOverlay extends StatefulWidget {
     super.key,
     this.lampCenter = const Offset(0.645, 0.41),
     this.tint = false,
-    this.companionTiming = false,
     this.clock,
   });
 
@@ -593,7 +512,6 @@ class _RoomAmbientOverlayState extends State<RoomAmbientOverlay>
             time: sceneTime,
             lampCenter: widget.lampCenter,
             tint: widget.tint,
-            companionTiming: widget.companionTiming,
           ),
         ),
       ),
@@ -605,13 +523,11 @@ class _RoomAmbientPainter extends CustomPainter {
   final ValueNotifier<double> time;
   final Offset? lampCenter;
   final bool tint;
-  final bool companionTiming;
 
   _RoomAmbientPainter({
     required this.time,
     required this.lampCenter,
     required this.tint,
-    required this.companionTiming,
   }) : super(repaint: Listenable.merge([time, SceneTimeController.instance]));
 
   // 塵埃微粒：固定 seed，沿光束軸向參數化（s = 0~1 位置、off = 垂直偏移）
@@ -644,45 +560,22 @@ class _RoomAmbientPainter extends CustomPainter {
       }
     }
 
-    late final double lamp;
-    late final double moon;
-    if (companionTiming) {
-      final sunShaft = homeSunShaftStrength(h);
-      final noon = _smooth(6.0, 12.0, h);
-      // 黃昏斜光：與長影差分/光池共用同一條首頁黃昏曲線
-      final dusk = homeDuskIntensity(h);
-      if (sunShaft > 0.01) {
-        _paintSunShafts(canvas, w, imgH, t, sunShaft, noon, spreadScale: 1.6);
-      }
-      if (dusk > 0.01) {
-        _paintSunShafts(
-          canvas,
-          w,
-          imgH,
-          t,
-          0.62 * dusk,
-          0.22,
-          colorOverride: const Color(0xFFFFB36F),
-          spreadScale: 1.6,
-        );
-      }
-      // 檯燈與黃昏同步暖起來（16:48 起漸亮）；與燈罩差分共用曲線
-      lamp = homeLampIntensity(h);
-      moon = homeMoonShaftStrength(h);
-    } else {
-      // ── 時段強度曲線（連續、平滑）──
-      // 窗光：5:30 亮起、晨間最強、白天轉柔、16~19 收掉
-      final shaft = _smooth(5.5, 7.5, h) * (1 - _smooth(16.0, 18.8, h));
-      final dayness = _smooth(7.5, 11.0, h); // 0 = 晨金, 1 = 晝奶油
-      final shaftStrength = shaft * (1.0 - 0.875 * dayness);
-      if (shaftStrength > 0.01) {
-        _paintSunShafts(canvas, w, imgH, t, shaftStrength, dayness);
-      }
-      // 檯燈：傍晚 16:30 漸亮、清晨 5~6:30 漸滅（跨日分段）
-      lamp = h >= 12 ? _smooth(16.5, 18.0, h) : (1 - _smooth(5.0, 6.5, h));
-      // 月光：22 點後 / 清晨 5 點前的極淡冷色窗光
-      moon = h >= 12 ? _smooth(21.0, 22.8, h) : (1 - _smooth(4.0, 5.5, h));
+    // ── 時段強度曲線（連續、平滑）──
+    // 窗光：5:30 亮起、晨間最強、白天轉柔、16~19 收掉
+    final shaft = _smooth(5.5, 7.5, h) * (1 - _smooth(16.0, 18.8, h));
+    final dayness = _smooth(7.5, 11.0, h); // 0 = 晨金, 1 = 晝奶油
+    final shaftStrength = shaft * (1.0 - 0.875 * dayness);
+    if (shaftStrength > 0.01) {
+      _paintSunShafts(canvas, w, imgH, t, shaftStrength, dayness);
     }
+    // 檯燈：傍晚 16:30 漸亮、清晨 5~6:30 漸滅（跨日分段）
+    final lamp = h >= 12
+        ? _smooth(16.5, 18.0, h)
+        : (1 - _smooth(5.0, 6.5, h));
+    // 月光：22 點後 / 清晨 5 點前的極淡冷色窗光
+    final moon = h >= 12
+        ? _smooth(21.0, 22.8, h)
+        : (1 - _smooth(4.0, 5.5, h));
 
     if (moon > 0.01) _paintMoonShaft(canvas, w, imgH, moon);
     final lc = lampCenter;
@@ -698,31 +591,25 @@ class _RoomAmbientPainter extends CustomPainter {
     double imgH,
     double t,
     double strength,
-    double dayness, {
-    Color? colorOverride,
-    double spreadScale = 11.0,
-  }) {
+    double dayness,
+  ) {
     // 染色 pass 用較飽和的金（srcOver 靠色差表現）；提亮 pass 用淺暖色。
-    final tintColor =
-        colorOverride ??
-        Color.lerp(
-          const Color(0xFFFFB966), // 晨金（飽和）
-          const Color(0xFFFFE7B8), // 晝奶油（飽和）
-          dayness,
-        )!;
-    final liftColor =
-        colorOverride ??
-        Color.lerp(
-          const Color(0xFFFFC388), // 晨金
-          const Color(0xFFFFEFCF), // 晝奶油
-          dayness,
-        )!;
+    final tintColor = Color.lerp(
+      const Color(0xFFFFB966), // 晨金（飽和）
+      const Color(0xFFFFE7B8), // 晝奶油（飽和）
+      dayness,
+    )!;
+    final liftColor = Color.lerp(
+      const Color(0xFFFFC388), // 晨金
+      const Color(0xFFFFEFCF), // 晝奶油
+      dayness,
+    )!;
     final dir = Offset(1, 0.9) / Offset(1, 0.9).distance;
     final perp = Offset(-dir.dy, dir.dx);
     // 光束落在床鋪就收掉（0.85w）：拉太長會掃過整個房間變成霧。
     final len = w * 0.85;
     // 白天太陽高 → 光束稍微加寬，但仍保留三道可辨識的輪廓。
-    final spread = 1.0 + spreadScale * dayness;
+    final spread = 1.0 + 11.0 * dayness;
 
     // 三道光束沿窗格錯開，亮度微微呼吸（極慢，幾乎察覺不到才高級）。
     // blend 模式演進（實機兩輪回報的結論，改前先讀）：
@@ -841,11 +728,7 @@ class _RoomAmbientPainter extends CustomPainter {
   }
 
   // ── 床頭檯燈暖光暈（呼吸）────────────────────────────────────
-  // 首頁（companionTiming）有「燈罩發亮」差分圖，燈本體已經亮了；painter
-  // 只負責「投出去的光」：燈罩周圍的暖色染（srcOver，不會疊白過曝）＋
-  // 櫃面上的小光池。實機回報教訓：additive 光暈中心又落在燈頸（0.41 是
-  // 燈罩「底緣」），疊在全亮燈罩差分上就是一顆吞掉底座的白色光球。
-  // 其他房間沒有差分圖，維持原本 additive 雙圓光暈（燈亮本體靠它表達）。
+  // 這些房間沒有燈亮差分圖，燈亮本體靠 additive 雙圓光暈表達。
   void _paintLampGlow(
     Canvas canvas,
     double w,
@@ -854,42 +737,6 @@ class _RoomAmbientPainter extends CustomPainter {
     double lamp,
     Offset center,
   ) {
-    if (companionTiming) {
-      // 燈罩中心在 lampCenter（燈罩底緣）上方 0.045 圖高處（量自差分圖）。
-      final shade = Offset(w * center.dx, imgH * (center.dy - 0.045));
-      final breath = 0.93 + 0.07 * math.sin(t * 0.8);
-      const warm = Color(0xFFFFC98A);
-      final halo = Paint()
-        ..shader = ui.Gradient.radial(
-          shade,
-          w * 0.155,
-          [
-            warm.withValues(alpha: 0.20 * lamp * breath),
-            warm.withValues(alpha: 0.10 * lamp * breath),
-            warm.withValues(alpha: 0),
-          ],
-          [0.0, 0.55, 1.0],
-        );
-      canvas.drawCircle(shade, w * 0.155, halo);
-      // 櫃面光池：燈座下方一小圈橫橢圓，貼著床頭櫃面，不往地板擴。
-      // 小範圍 plus 才有「燈光落在木頭上」的暖感；範圍小不會養成光球。
-      final pool = Offset(w * center.dx, imgH * (center.dy + 0.065));
-      canvas.save();
-      canvas.translate(pool.dx, pool.dy);
-      canvas.scale(1, 0.42);
-      canvas.drawCircle(
-        Offset.zero,
-        w * 0.105,
-        Paint()
-          ..blendMode = BlendMode.plus
-          ..shader = ui.Gradient.radial(Offset.zero, w * 0.105, [
-            const Color(0xFFFFDFAE).withValues(alpha: 0.12 * lamp),
-            const Color(0xFFFFDFAE).withValues(alpha: 0),
-          ]),
-      );
-      canvas.restore();
-      return;
-    }
     final c = Offset(w * center.dx, imgH * (center.dy - 0.015));
     final breath = 0.86 + 0.14 * math.sin(t * 0.8);
     const warm = Color(0xFFFFC98A);
@@ -918,7 +765,5 @@ class _RoomAmbientPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RoomAmbientPainter old) =>
-      old.lampCenter != lampCenter ||
-      old.tint != tint ||
-      old.companionTiming != companionTiming;
+      old.lampCenter != lampCenter || old.tint != tint;
 }

@@ -23,6 +23,40 @@ import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import 'mascot_bubbles.dart';
 
+/// 兔咪環境光融合參數（四時段完整背景的房間用）。
+///
+/// 由頁面依 [SceneTimeState] 權重「算好再傳入」：兔咪層自己不讀時間，
+/// 跟背景 crossfade 同一次 rebuild 更新，不會出現圖已換色、兔咪還停在
+/// 上一分鐘的錯拍。不傳（null）= 中性，其他頁行為與原本完全相同。
+@immutable
+class MascotSceneLighting {
+  /// 色溫濾鏡（`ColorFilter.matrix` 的 20 值，白平衡式 scale+offset）；
+  /// null = 不套濾鏡（白天核心＝零成本路徑）。
+  final List<double>? colorMatrix;
+
+  /// 接地影的環境色（會再與頁面 accent 輕混，維持既有質感）。
+  final Color shadowColor;
+
+  /// 接地影基準不透明度（中性 0.24；光源越近/越低角度影子越實）。
+  final double shadowOpacity;
+
+  /// 接地影橫向偏移 px（正 = 影子往右 = 光從左來）。跳躍時會放大
+  /// 偏移，側光下「人起影跑」的方向感更明顯。
+  final double shadowDx;
+
+  const MascotSceneLighting({
+    this.colorMatrix,
+    required this.shadowColor,
+    required this.shadowOpacity,
+    this.shadowDx = 0,
+  });
+
+  static const MascotSceneLighting neutral = MascotSceneLighting(
+    shadowColor: Color(0xFF5B4436),
+    shadowOpacity: 0.24,
+  );
+}
+
 class MascotIdleScope extends InheritedWidget {
   final bool paused;
 
@@ -57,6 +91,9 @@ class PersonaScene extends StatelessWidget {
   /// 一有互動由上層轉回 false 即恢復。
   final bool paused;
 
+  /// 環境光融合（見 [MascotSceneLighting]）；null = 中性。
+  final MascotSceneLighting? lighting;
+
   const PersonaScene({
     super.key,
     required this.accent,
@@ -65,6 +102,7 @@ class PersonaScene extends StatelessWidget {
     this.onHeadPet,
     this.onEnergize,
     this.paused = false,
+    this.lighting,
   });
 
   @override
@@ -108,6 +146,7 @@ class PersonaScene extends StatelessWidget {
           onHeadPet: handleHeadPet,
           onEnergize: handleEnergize,
           paused: effectivePaused,
+          lighting: lighting,
         ),
       ),
     );
@@ -146,6 +185,9 @@ class MascotScene extends StatelessWidget {
   /// 閒置凍結：暫停兔咪呼吸與眨眼（見 [PersonaScene.paused]）。
   final bool paused;
 
+  /// 環境光融合（見 [MascotSceneLighting]）；null = 中性。
+  final MascotSceneLighting? lighting;
+
   const MascotScene({
     super.key,
     required this.asset,
@@ -158,6 +200,7 @@ class MascotScene extends StatelessWidget {
     this.onHeadPet,
     this.onEnergize,
     this.paused = false,
+    this.lighting,
   });
 
   @override
@@ -184,6 +227,7 @@ class MascotScene extends StatelessWidget {
             onHeadPet: onHeadPet,
             onEnergize: onEnergize,
             paused: paused,
+            lighting: lighting,
           ),
         ),
       ],
@@ -306,6 +350,9 @@ class MascotStage extends StatefulWidget {
   /// 閒置凍結：暫停呼吸與眨眼（見 [PersonaScene.paused]）。
   final bool paused;
 
+  /// 環境光融合（見 [MascotSceneLighting]）；null = 中性。
+  final MascotSceneLighting? lighting;
+
   const MascotStage({
     super.key,
     required this.asset,
@@ -317,6 +364,7 @@ class MascotStage extends StatefulWidget {
     this.onHeadPet,
     this.onEnergize,
     this.paused = false,
+    this.lighting,
   });
 
   @override
@@ -785,19 +833,27 @@ class _MascotStageState extends State<MascotStage>
             // 地面陰影：依離地高度同步縮小變淡 → 「離開地面」的感覺。
             // 位置 bottom 要對到兔咪 CG 圖裡腳的位置（1024×1024 畫布，腳在 ~80%）
             // 點擊小跳與充電大跳各自歸一化再相乘，互不干擾原本手感。
+            final lighting = widget.lighting ?? MascotSceneLighting.neutral;
             final liftProgress = (-tapLift / 10).clamp(0.0, 1.0);
             final burstLiftProgress = (-burstLift / 42).clamp(0.0, 1.0);
+            final maxLift = math.max(liftProgress, burstLiftProgress);
             final shadowScale =
                 ui.lerpDouble(1, 0.88, liftProgress)! *
                 ui.lerpDouble(1, 0.78, burstLiftProgress)!;
             final shadowOpacity =
-                ui.lerpDouble(0.24, 0.13, liftProgress)! *
+                ui.lerpDouble(
+                  lighting.shadowOpacity,
+                  lighting.shadowOpacity * 0.54,
+                  liftProgress,
+                )! *
                 ui.lerpDouble(1, 0.55, burstLiftProgress)!;
             final shadowColor = Color.lerp(
-              const Color(0xFF5B4436),
+              lighting.shadowColor,
               widget.accent,
               0.12,
             )!;
+            // 側光時「人起影跑」：身體離地越高，影子往光源反方向再滑一點。
+            final shadowDx = lighting.shadowDx * (1 + 0.6 * maxLift);
             return Stack(
               alignment: Alignment.center,
               children: [
@@ -808,15 +864,18 @@ class _MascotStageState extends State<MascotStage>
                   left: 0,
                   right: 0,
                   child: Center(
-                    child: Transform.scale(
-                      scaleX: shadowScale,
-                      child: SizedBox(
-                        width: 158,
-                        height: 38,
-                        child: CustomPaint(
-                          painter: _MascotGroundShadowPainter(
-                            color: shadowColor,
-                            opacity: shadowOpacity,
+                    child: Transform.translate(
+                      offset: Offset(shadowDx, 0),
+                      child: Transform.scale(
+                        scaleX: shadowScale,
+                        child: SizedBox(
+                          width: 158,
+                          height: 38,
+                          child: CustomPaint(
+                            painter: _MascotGroundShadowPainter(
+                              color: shadowColor,
+                              opacity: shadowOpacity,
+                            ),
                           ),
                         ),
                       ),
@@ -918,7 +977,17 @@ class _MascotStageState extends State<MascotStage>
                   alignment: Alignment.bottomCenter,
                   child: bunny,
                 ),
-                child: _buildBunnyImage(),
+                // 環境色溫（清晨粉金/黃昏琥珀/夜晚燈暖微暗）套在兔咪
+                // 本體（含眨眼/瞇眼差分）上；白天 colorMatrix 為 null，
+                // 走零成本路徑。互動特效（星星/愛心/泡泡）不濾色。
+                child: widget.lighting?.colorMatrix == null
+                    ? _buildBunnyImage()
+                    : ColorFiltered(
+                        colorFilter: ColorFilter.matrix(
+                          widget.lighting!.colorMatrix!,
+                        ),
+                        child: _buildBunnyImage(),
+                      ),
               ),
             ),
           ),
