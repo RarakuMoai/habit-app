@@ -18,6 +18,7 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'utils/app_restart.dart';
 import 'utils/app_style.dart';
+import 'utils/audio_asset_cache.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_playlist.dart';
 import 'utils/bgm_service.dart';
@@ -67,6 +68,14 @@ Future<_StartupState> _loadStartupState() async {
   await WardrobeStore.load();
   // 回憶本（特殊事件）已解鎖狀態載進全域 notifier
   await StoryStore.load();
+  // just_audio 會按 asset 路徑保留抽出後的檔案；音檔原地更新時，正式版的
+  // App container 仍在，可能繼續播放舊快取。版本落後時在任何 player 建立前
+  // 清一次；失敗不擋啟動，且不寫入版本，所以下次冷啟動會再試。
+  try {
+    await AudioAssetCache.ensureCurrent(prefs);
+  } catch (e, st) {
+    debugPrint('Audio asset cache refresh failed: $e\n$st');
+  }
   await AudioSettingsService.instance.init();
   // 初始化本機通知（計時頁倒數結束鈴用）；權限到第一次排通知才會跳 dialog
   await NotificationService.init();

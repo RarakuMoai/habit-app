@@ -26,6 +26,9 @@
 - 不要 `await _player.play()`；使用 `unawaited(_player.play())`，再分開驗證狀態。
 - AOT 冷啟動需要 `_engageCheck` 的 pause → play 重試，確認 `playing == true` 後才淡入。
 - `AppAudioSession` 只 configure 一次，之後只 `setActive(true)`。
+- 原地替換任何音訊 asset（路徑／檔名不變）時，必須遞增
+  `AudioAssetCache.currentVersion`；`just_audio` 會依路徑保留裝置端抽出快取，版本號
+  讓新版第一次冷啟動只清一次音訊快取，不影響習慣與其他使用者資料。
 - 音訊問題使用 `flutter run --profile` 驗證；debug 時序不足以代表 release。
 
 ## 兔咪素材與演出

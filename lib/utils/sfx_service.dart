@@ -27,7 +27,8 @@ enum SfxCue {
   // 兔咪直接互動的動作層：每次動作都回饋；角色語音仍由 MascotPersona CD 控制。
   tumiCharge('assets/sounds/sfx_tumi_charge.wav', 0.62),
   tumiJump('assets/sounds/sfx_tumi_jump.wav', 0.72),
-  tumiPet('assets/sounds/sfx_tumi_pet.wav', 0.82), // 摸毛期間無縫循環
+  // 只取 swish 最前方乾淨毛茸段，首尾交叉淡化成 0.64 秒無縫循環。
+  tumiPet('assets/sounds/sfx_tumi_pet.wav', 0.78),
   // 桌遊計時器專屬（ElevenLabs 生成、剪裁後 peak 對齊上面同類音效）
   gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人
   gameWarn('assets/sounds/sfx_game_warn.wav', 0.85), // 木質 tick：倒數警示

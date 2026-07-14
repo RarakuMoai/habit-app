@@ -174,6 +174,7 @@ abstract final class PrefsKeys {
   static const musicMuted = 'music_muted';
   static const sfxMuted = 'sfx_muted';
   static const legacyBgmMuted = 'bgm_muted'; // 舊版名稱，僅遷移用
+  static const audioAssetCacheVersion = 'audio_asset_cache_version';
 
   // ── 衣櫃 / 音樂盒 ───────────────────────────────────────
   static const wardrobeSelectedOutfit = 'wardrobe_selected_outfit';
