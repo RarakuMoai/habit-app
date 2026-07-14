@@ -17,6 +17,8 @@
 
 - 修改後做與風險相稱的檢查；Flutter 程式至少跑 `flutter analyze`，相關測試優先，
   準備提交前再視改動範圍跑完整 `flutter test`。
+- Codex 禁止對實體 iPhone / iPad 執行安裝、啟動或 `flutter run`（包含有線與無線）；
+  需要執行環境時只使用 Mac 上的 iOS 模擬器，實機驗證由使用者本人處理。
 - 每次 commit 後自動執行 `git push`，不需再詢問使用者；若執行環境要求外部操作
   授權，依環境規則處理。
 - 不手動執行完工通知腳本。通知交給 Codex CLI 的 `notify` hook，避免重複通知。
