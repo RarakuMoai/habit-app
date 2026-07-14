@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/mascot.dart';
+import 'package:habit_app/utils/sfx_service.dart';
 
 void main() {
   setUp(() {
@@ -78,6 +79,17 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('simple taps use a 70 percent question and 30 percent confirm mix', () {
+    final cues = [
+      for (var bucket = 0; bucket < 10; bucket++)
+        MascotPersona.debugTapVoiceCueForBucket(bucket),
+    ];
+
+    expect(cues.where((cue) => cue == SfxCue.tumiQuestion), hasLength(7));
+    expect(cues.where((cue) => cue == SfxCue.tumiConfirm), hasLength(3));
+    expect(cues.toSet(), {SfxCue.tumiQuestion, SfxCue.tumiConfirm});
   });
 
   test('repeated accepted bubble contexts advance the bubble tick', () {

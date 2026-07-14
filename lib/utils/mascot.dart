@@ -370,6 +370,8 @@ class MascotState {
 }
 
 class MascotPersona {
+  static final Random _voiceRandom = Random();
+
   static final ValueNotifier<MascotState> current = ValueNotifier<MascotState>(
     MascotState(MascotEmotion.neutralFront.assetPath, '嗯...你來了。'),
   );
@@ -506,6 +508,21 @@ class MascotPersona {
     _lastRoutineVoiceAt = null;
   }
 
+  @visibleForTesting
+  static SfxCue debugTapVoiceCueForBucket(int bucket) {
+    if (bucket < 0 || bucket >= 10) {
+      throw RangeError.range(bucket, 0, 9, 'bucket');
+    }
+    return _tapVoiceCue(bucket: bucket);
+  }
+
+  /// 單點以疑問聲為主，偶爾用確認聲回應「我在」；其他語音保留給
+  /// 摸頭、蓄力與關鍵事件，避免互動語意混在一起。
+  static SfxCue _tapVoiceCue({int? bucket}) {
+    final resolvedBucket = bucket ?? _voiceRandom.nextInt(10);
+    return resolvedBucket < 7 ? SfxCue.tumiQuestion : SfxCue.tumiConfirm;
+  }
+
   /// 情境 → 兔咪語音。回 null 代表這個情境保持安靜
   /// （睡著/夜晚出聲反而違和，靠 Zzz 泡泡表達就好）。
   static SfxCue? _voiceCueFor(MascotContext ctx) {
@@ -526,8 +543,10 @@ class MascotPersona {
       // 難過：撤銷（表情 sad）
       case MascotContext.undone:
         return SfxCue.tumiSad;
-      // 疑問：點兔咪、空狀態、喝水過量（表情 neutral / invite / question 歪頭）
+      // 單點：70% 疑問／30% 輕聲確認，保留慢熱感也避免每次都一樣。
       case MascotContext.tapReaction:
+        return _tapVoiceCue();
+      // 疑問：空狀態、喝水過量（表情 invite / question 歪頭）
       case MascotContext.emptyHabits:
       case MascotContext.overhydration:
         return SfxCue.tumiQuestion;
