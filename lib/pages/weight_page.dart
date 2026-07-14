@@ -1121,24 +1121,19 @@ class _WeightPageState extends State<WeightPage> {
                         ),
                         todayRec != null
                             ? Container(
-                                padding: const EdgeInsets.all(16),
+                                key: const ValueKey('today-weight-card'),
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  13,
+                                  14,
+                                  13,
+                                ),
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.white,
-                                      Colors.orange.withValues(alpha: 0.055),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
+                                  color: AppSurfaces.card,
                                   borderRadius: BorderRadius.circular(
                                     AppCardStyle.radius,
                                   ),
-                                  border: Border.all(
-                                    color: Colors.orange.withValues(
-                                      alpha: 0.13,
-                                    ),
-                                  ),
+                                  border: AppCardStyle.hairline,
                                   boxShadow: AppShadows.card,
                                 ),
                                 child: _buildStatGrid(todayRec),
@@ -1684,8 +1679,8 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  // 今日數據：體重大字 hero + 與上一筆的差值，其餘指標走小格子
-  // （BMI/BMR 缺資料時顯示友善提示）
+  // 今日數據：體重是唯一主角；差值緊跟在下方說清楚比較基準，
+  // 其餘指標收成緊湊摘要，讓面板縮小時仍能一次看完整張卡。
   Widget _buildStatGrid(Map<String, dynamic> rec) {
     final weight = (rec['weight'] as num).toDouble();
     final fat = rec['body_fat'] != null
@@ -1694,57 +1689,40 @@ class _WeightPageState extends State<WeightPage> {
     final bmi = _calcBMI(weight);
     final bmr = _calcBMR(weight);
     final tdee = _calcTDEE(weight);
-    final hintMessages = <String>[
-      if (bmi == null || bmr == null) '請至設定補充身高、生日或性別以計算 BMI / BMR',
-      if (_activityLevel.isEmpty && bmr != null) '補上每週運動天數，就能估算 TDEE',
-    ];
+    final hintMessage = bmi == null || bmr == null
+        ? '補齊身高、生日與性別，可顯示更多指標'
+        : _activityLevel.isEmpty
+        ? '設定活動量後，可顯示 TDEE'
+        : null;
     final bmiCat = bmi == null ? null : _bmiCategory(bmi);
     final delta = _deltaBefore(rec);
 
     final items = <_StatItem>[
-      if (fat != null)
-        _StatItem(
-          label: '體脂率',
-          value: '${_fmt(fat)} %',
-          icon: Icons.water_drop_rounded,
-          iconColor: const Color(0xFF4FA8C7),
-        ),
+      if (fat != null) _StatItem(label: '體脂率', value: _fmt(fat), suffix: '%'),
       if (bmi != null)
         _StatItem(
           label: 'BMI',
           value: _fmt(bmi),
           sub: bmiCat!.$1,
           subColor: bmiCat.$2,
-          icon: Icons.monitor_weight_rounded,
-          iconColor: const Color(0xFFEF8E4E),
         ),
       if (bmr != null)
-        _StatItem(
-          label: 'BMR',
-          value: '${_fmt(bmr, decimal: 0)} kcal',
-          icon: Icons.local_fire_department_rounded,
-          iconColor: const Color(0xFFFF7043),
-        ),
+        _StatItem(label: 'BMR', value: _fmt(bmr, decimal: 0), suffix: 'kcal'),
       if (tdee != null)
-        _StatItem(
-          label: 'TDEE',
-          value: '${_fmt(tdee, decimal: 0)} kcal',
-          icon: Icons.bolt_rounded,
-          iconColor: const Color(0xFFF2A93B),
-        ),
+        _StatItem(label: 'TDEE', value: _fmt(tdee, decimal: 0), suffix: 'kcal'),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── 體重 hero：大數字 + 單位 + 差值膠囊 ──
+        // ── 體重 hero：主數字與比較資訊固定靠左，避免差值漂在卡片右側 ──
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
               _fmtWeight(weight),
               style: AppType.digits(
-                fontSize: 40,
+                fontSize: 36,
                 fontWeight: FontWeight.w800,
                 color: AppInk.strong,
               ),
@@ -1761,141 +1739,81 @@ class _WeightPageState extends State<WeightPage> {
                 ),
               ),
             ),
-            const Spacer(),
-            if (delta != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: _DeltaPill(
-                  delta: delta,
-                  color: _deltaColor(delta, weight - delta),
-                  text: _deltaText(delta),
-                ),
-              ),
           ],
         ),
-        if (items.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.45,
-            children: items
-                .map(
-                  (item) => Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFAF7F2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        // 小圖示泡泡：每個指標一個識別色，掃一眼就分得開
-                        Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: item.iconColor.withValues(alpha: 0.13),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            item.icon,
-                            size: 16,
-                            color: item.iconColor,
-                          ),
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                item.label,
-                                style: const TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppInk.soft,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      item.value,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppType.digits(
-                                        fontSize: 15.5,
-                                        color: AppInk.strong,
-                                      ),
-                                    ),
-                                  ),
-                                  if (item.sub != null) ...[
-                                    const SizedBox(width: 5),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 1,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: item.subColor!.withValues(
-                                          alpha: 0.12,
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        item.sub!,
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: item.subColor,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
+        if (delta != null) ...[
+          const SizedBox(height: 3),
+          _DeltaPill(delta: delta, text: _deltaText(delta), unit: _wLabel),
         ],
-        if (hintMessages.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          ...hintMessages.map(
-            (message) => Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    size: 13,
-                    color: AppInk.iconFaint,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: const TextStyle(fontSize: 11, color: AppInk.faint),
-                    ),
-                  ),
-                ],
+        if (items.isNotEmpty) ...[
+          const SizedBox(height: 9),
+          _buildTodayMetricSummary(items),
+        ],
+        if (hintMessage != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 13,
+                color: AppInk.iconFaint,
               ),
-            ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  hintMessage,
+                  maxLines: 2,
+                  style: const TextStyle(fontSize: 11, color: AppInk.faint),
+                ),
+              ),
+            ],
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildTodayMetricSummary(List<_StatItem> items) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final useTwoColumns =
+            items.length > 2 &&
+            (constraints.maxWidth < 252 || textScale > 1.15);
+        final columnCount = useTwoColumns ? 2 : items.length;
+        final rows = <Widget>[];
+
+        for (var start = 0; start < items.length; start += columnCount) {
+          if (rows.isNotEmpty) {
+            rows.add(const Divider(height: 1, color: AppSurfaces.divider));
+          }
+          rows.add(
+            Row(
+              children: [
+                for (var slot = 0; slot < columnCount; slot++) ...[
+                  if (slot > 0)
+                    Container(width: 1, height: 34, color: AppSurfaces.divider),
+                  Expanded(
+                    child: start + slot < items.length
+                        ? _CompactWeightStat(item: items[start + slot])
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          key: const ValueKey('today-weight-metrics'),
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppSurfaces.fill,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: rows),
+        );
+      },
     );
   }
 
@@ -2582,59 +2500,155 @@ class _ChartData {
   });
 }
 
-// 今日數據卡片的格子資料模型
+// 今日數據卡片的摘要資料模型
 class _StatItem {
   final String label;
   final String value;
+  final String? suffix;
   final String? sub; // 數值旁的小標籤（例：BMI 分類）
   final Color? subColor;
-  final IconData icon;
-  final Color iconColor;
   const _StatItem({
     required this.label,
     required this.value,
-    required this.icon,
-    required this.iconColor,
+    this.suffix,
     this.sub,
     this.subColor,
   });
 }
 
-// 差值膠囊：箭頭 + 數字（今日 hero 用；持平時顯示 — ）
+class _CompactWeightStat extends StatelessWidget {
+  final _StatItem item;
+
+  const _CompactWeightStat({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final semantics = [
+      item.label,
+      item.value,
+      if (item.suffix != null) item.suffix!,
+      if (item.sub != null) item.sub!,
+    ].join(' ');
+
+    return Semantics(
+      label: semantics,
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: AppInk.soft,
+              ),
+            ),
+            const SizedBox(height: 1),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    item.value,
+                    style: AppType.digits(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppInk.strong,
+                    ),
+                  ),
+                  if (item.suffix != null) ...[
+                    const SizedBox(width: 2),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 1),
+                      child: Text(
+                        item.suffix!,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: AppInk.soft,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (item.sub != null) ...[
+                    const SizedBox(width: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 1),
+                      child: Text(
+                        item.sub!,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: item.subColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 差值膠囊：明寫「較上次」與單位，不再讓裸箭頭／裸數字漂在主數字右側。
 class _DeltaPill extends StatelessWidget {
   final double delta;
-  final Color color;
   final String text;
+  final String unit;
   const _DeltaPill({
     required this.delta,
-    required this.color,
     required this.text,
+    required this.unit,
   });
 
   @override
   Widget build(BuildContext context) {
     final flat = delta.abs() < 0.05;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            flat
-                ? Icons.remove_rounded
-                : delta < 0
-                ? Icons.south_rounded
-                : Icons.north_rounded,
-            size: 12,
-            color: color,
-          ),
-          const SizedBox(width: 2),
-          Text(text, style: AppType.digits(color: color)),
-        ],
+    final label = flat ? '較上次持平' : '較上次 ${delta > 0 ? '+' : '-'}$text $unit';
+    return Semantics(
+      key: const ValueKey('weight-delta'),
+      label: '體重$label',
+      excludeSemantics: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppSurfaces.fill,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppSurfaces.divider),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              flat
+                  ? Icons.horizontal_rule_rounded
+                  : delta < 0
+                  ? Icons.trending_down_rounded
+                  : Icons.trending_up_rounded,
+              size: 13,
+              color: AppInk.soft,
+            ),
+            const SizedBox(width: 3),
+            Transform.translate(
+              offset: const Offset(0, 1.2),
+              child: Text(
+                label,
+                style: AppType.digits(fontSize: 11.5, color: AppInk.soft),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
