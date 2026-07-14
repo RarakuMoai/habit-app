@@ -90,6 +90,8 @@ class MascotIdleScope extends InheritedWidget {
 class PersonaScene extends StatelessWidget {
   final Color accent;
   final int reactionTick;
+
+  /// 點擊兔咪的自訂行為；未提供時走共用的 [MascotContext.tapReaction]。
   final VoidCallback? onTap;
   final VoidCallback? onHeadPet;
   final VoidCallback? onEnergize;
@@ -115,6 +117,15 @@ class PersonaScene extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectivePaused = paused || MascotIdleScope.pausedOf(context);
+
+    void handleTap() {
+      final callback = onTap;
+      if (callback != null) {
+        callback();
+      } else {
+        MascotPersona.interact(MascotContext.tapReaction);
+      }
+    }
 
     void handleHeadPet() {
       final callback = onHeadPet;
@@ -149,7 +160,7 @@ class PersonaScene extends StatelessWidget {
           bubble: state.bubble,
           bubbleTick: state.bubbleTick,
           reactionTick: reactionTick,
-          onTap: onTap,
+          onTap: handleTap,
           onHeadPet: handleHeadPet,
           onEnergize: handleEnergize,
           paused: effectivePaused,
