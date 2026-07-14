@@ -93,8 +93,9 @@ abstract final class TableTheme {
     ),
   );
 
-  /// AI 生成的家庭遊戲桌 CG（2026-07 兔咪遊戲桌融合）。
-  static const String tableAsset = 'assets/scenes/game/game_family_table_bg.png';
+  /// AI 生成的直向家庭遊戲桌 CG；比例貼近手機全螢幕，對局與獨立骰盤共用。
+  static const String tableAsset =
+      'assets/scenes/game/game_family_table_bg_v2.jpg';
 
   /// 疊在 CG 上的極淡鼠尾草收邊：聚焦中央，不把畫面壓暗。
   static BoxDecoration feltVignette() => const BoxDecoration(

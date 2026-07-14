@@ -25,31 +25,30 @@ import 'dice_world.dart';
 import 'table_timer_theme.dart';
 
 /// 兔咪骰子屋：不開對局、只想骰骰子時的獨立全螢幕頁
-/// （入口卡「只骰骰子」直達）。骰盤刻意保留深色墊的質感，
-/// 這裡鋪一層深色絨布當底，overlay 原樣復用。
+/// （入口卡「只骰骰子」直達）。底層與正式對局共用家庭遊戲桌，
+/// overlay 再鋪深色霧面，保留骰盤對比與操作辨識度。
 class DiceTrayPage extends StatelessWidget {
   const DiceTrayPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF19110B),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -0.15),
-                radius: 1.25,
-                colors: [Color(0xFF33261C), Color(0xFF19110B)],
+      backgroundColor: TableTheme.feltEdge,
+      body: DecoratedBox(
+        decoration: TableTheme.feltBackground(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const RepaintBoundary(
+              child: Image(
+                image: AssetImage(TableTheme.tableAsset),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
               ),
             ),
-          ),
-          DiceTrayOverlay(
-            onClose: () => Navigator.of(context).maybePop(),
-          ),
-        ],
+            DiceTrayOverlay(onClose: () => Navigator.of(context).maybePop()),
+          ],
+        ),
       ),
     );
   }
@@ -180,9 +179,11 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
   Widget build(BuildContext context) {
     return Positioned.fill(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        // 家庭桌仍要讀得出來，只做足以讓骰子與白字浮起的柔焦／壓暗；
+        // 原本 70% 深色絨布遮罩會把新版 CG 幾乎整張吃掉。
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
         child: ColoredBox(
-          color: const Color(0xB31A120C),
+          color: const Color(0x991A120C),
           child: LayoutBuilder(
             builder: (context, box) {
               // 物理牆內縮：頂部避開顆數列、底部避開擲骰鈕區，

@@ -1,12 +1,33 @@
 // 遊戲入口卡的縮小門檻：鍵盤彈出（原始 viewInsets 墊高）時不准把
 // 完整設定頁換成縮小卡——否則設定頁 state 連同輸入對話框的存檔一起
 // 被銷毀（常用玩家/組合存不進去、改名無效、畫面捲回頂部）。
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/pages/timer/game/table_timer_theme.dart';
 import 'package:habit_app/pages/timer/game_timer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('直向家庭遊戲桌背景已收入 asset bundle', () async {
+    final data = await rootBundle.load(TableTheme.tableAsset);
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    addTearDown(() {
+      frame.image.dispose();
+      codec.dispose();
+    });
+
+    expect(frame.image.width, 1320);
+    expect(frame.image.height, 2731);
+  });
+
   testWidgets('鍵盤彈出壓縮高度時，完整設定頁不換成縮小卡', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(800, 1400);
