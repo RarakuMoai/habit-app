@@ -87,7 +87,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     _landed = true;
     CoinService.presentationBalance.value = widget.targetBalance;
     CoinService.pulseRewardIcon();
-    unawaited(SfxService.instance.play(SfxCue.footprintCoinLandSoft));
+    unawaited(SfxService.instance.play(SfxCue.footprintCoinReward));
     playHaptic(HapticLevel.light);
   }
 

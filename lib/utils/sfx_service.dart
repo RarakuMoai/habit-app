@@ -11,11 +11,9 @@ enum SfxCue {
   cancel('assets/sounds/sfx_cancel.wav', 0.9),
   // 衣櫃購買／回憶揭曉：溫暖木質起音＋短促星光尾音。
   unlock('assets/sounds/sfx_unlock.wav', 0.85),
-  // 每日足跡幣：先用柔軟吸入聲，命中時再疊一個短落袋聲。
+  // 每日足跡幣：先用柔軟吸入聲，命中時再疊 POKA03 的短促獲得聲。
   footprintCoinAbsorb('assets/sounds/sfx_footprint_coin_absorb.wav', 0.72),
-  footprintCoinLandSoft('assets/sounds/sfx_footprint_coin_land_1.wav', 0.68),
-  // 保留第二個 ElevenLabs 候選，成品實機聽感不合時可直接切換。
-  footprintCoinLandAlt('assets/sounds/sfx_footprint_coin_land_2.wav', 0.68),
+  footprintCoinReward('assets/sounds/sfx_footprint_coin_reward.wav', 0.50),
   // 兔咪語音（2026-07 新錄音組，取代舊 tumi_mi_*）。
   // 各檔原始響度不齊（RMS -20.8 ~ -28.3 dBFS），用音量係數拉齊到
   // 「輕聲陪伴」水準；歡呼是大事件慶祝，刻意比日常亮一點。
@@ -25,6 +23,7 @@ enum SfxCue {
   tumiQuestion('assets/sounds/tumi_voice_question.wav', 0.58),
   tumiSad('assets/sounds/tumi_voice_sad.wav', 0.85),
   // 兔咪直接互動的動作層：每次動作都回饋；角色語音仍由 MascotPersona CD 控制。
+  // falling3 配合 1.1 秒集氣時序裁切淡出；jump12 裁掉尾端靜音。
   tumiCharge('assets/sounds/sfx_tumi_charge.wav', 0.62),
   tumiJump('assets/sounds/sfx_tumi_jump.wav', 0.72),
   // 只取 swish 最前方乾淨毛茸段，首尾交叉淡化成 0.64 秒無縫循環。

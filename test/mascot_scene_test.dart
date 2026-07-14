@@ -29,6 +29,11 @@ void main() {
     }
   });
 
+  test('足跡幣獲得音已收入 asset bundle', () async {
+    final data = await rootBundle.load(SfxCue.footprintCoinReward.assetPath);
+    expect(data.lengthInBytes, greaterThan(1000));
+  });
+
   Future<void> pumpStage(
     WidgetTester tester, {
     VoidCallback? onEnergize,
