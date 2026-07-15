@@ -43,6 +43,10 @@ double _smoothstep(double a, double b, double x) {
   return t * t * (3 - 2 * t);
 }
 
+/// 目前場景小時（0~24 連續值，已含固定時段/預覽覆寫）。
+/// 只給「離散用途」（文案/情緒分桶）；視覺一律用 [SceneTimeState] 權重。
+double sceneHourNow() => SceneTimeController.instance.state.hour;
+
 /// 某一刻的場景時間狀態（不可變）。權重總和恆為 1。
 @immutable
 class SceneTimeState {

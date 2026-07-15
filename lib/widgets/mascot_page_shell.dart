@@ -23,7 +23,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../pages/home/room_ambient_overlay.dart';
 import '../pages/home/room_metrics.dart';
 
 import '../utils/mascot.dart';
@@ -132,7 +131,8 @@ class _MascotPageShellState extends State<MascotPageShell> {
       builder: (ctx, constraints) {
         // 場景高走「寬度錨點」（14PM 時 == 舊的 5/11×可用高，零位移）；
         // 再套 kSceneRegionMaxFraction 護欄，避免「寬>高」的退化面把卡片推出畫面。
-        final anchored = widget.sceneHeight ??
+        final anchored =
+            widget.sceneHeight ??
             homeSceneRegionHeight(MediaQuery.of(ctx).size.width);
         final mascotMaxH = math.min(
           anchored,
@@ -184,22 +184,26 @@ class _MascotPageShellState extends State<MascotPageShell> {
   }
 }
 
-class _AutoPausingTickerMode extends StatefulWidget {
+/// 閒置自動凍結：一段時間沒有互動（MascotVisualActivity 沒被戳）就用
+/// TickerMode 把子樹動畫全停（0fps），一有互動立刻恢復。
+/// 場景層（四時段空氣層等）共用這一套省電規則。
+class AutoPausingTickerMode extends StatefulWidget {
   final Widget child;
   final bool enabled;
   final Duration delay;
 
-  const _AutoPausingTickerMode({
+  const AutoPausingTickerMode({
+    super.key,
     required this.child,
-    required this.enabled,
-    required this.delay,
+    this.enabled = true,
+    this.delay = const Duration(seconds: 20),
   });
 
   @override
-  State<_AutoPausingTickerMode> createState() => _AutoPausingTickerModeState();
+  State<AutoPausingTickerMode> createState() => _AutoPausingTickerModeState();
 }
 
-class _AutoPausingTickerModeState extends State<_AutoPausingTickerMode> {
+class _AutoPausingTickerModeState extends State<AutoPausingTickerMode> {
   Timer? _timer;
   bool _paused = false;
 
@@ -211,7 +215,7 @@ class _AutoPausingTickerModeState extends State<_AutoPausingTickerMode> {
   }
 
   @override
-  void didUpdateWidget(covariant _AutoPausingTickerMode oldWidget) {
+  void didUpdateWidget(covariant AutoPausingTickerMode oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.enabled != widget.enabled ||
         oldWidget.delay != widget.delay) {
@@ -259,73 +263,26 @@ class _AutoPausingTickerModeState extends State<_AutoPausingTickerMode> {
 /// 場景背景圖 wrapper：BoxFit.cover + 從頂部對齊（兔咪會疊在中下方，
 /// 場景上方比較重要要露出來）。給 [MascotPageShell.sceneBackground] 用。
 ///
-/// 傳 [ambience] 並在 [kRoomAmbienceEnabled] 為 true 時，會在背景圖上疊一層
-/// 時段光影（晨/暮/夜光束、塵埃、檯燈暈、時段色罩）——跟首頁同一套。
-/// 不傳 ambience（或總開關關閉）就是純背景圖，行為與原本完全相同。
+/// 沒有四時段圖組的房間（衣櫃/體重）用這個單圖版；有四時段圖組的
+/// 房間改用 widgets/scene_rooms.dart 的 [FourPeriodRoomScene]。
 class MascotSceneBackground extends StatelessWidget {
   final String assetPath;
-  final SceneAmbience? ambience;
-  final bool autoPauseAmbience;
-  final Duration ambienceIdleDelay;
 
-  const MascotSceneBackground(
-    this.assetPath, {
-    super.key,
-    this.ambience,
-    this.autoPauseAmbience = true,
-    this.ambienceIdleDelay = const Duration(seconds: 20),
-  });
+  const MascotSceneBackground(this.assetPath, {super.key});
 
-  // 場景圖 wrapper（cover + topCenter）。errorBuilder 讓「去背圖還沒到位」時
-  // 安全回退到指定圖，不崩也不破版。
-  static Widget _cover(String path, {Widget Function()? fallback}) {
+  @override
+  Widget build(BuildContext context) {
     return ClipRect(
       child: Align(
         alignment: Alignment.topCenter,
         child: Image.asset(
-          path,
+          assetPath,
           height: double.infinity,
           width: double.infinity,
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
-          errorBuilder: fallback == null ? null : (_, _, _) => fallback(),
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final amb = ambience;
-    if (!kRoomAmbienceEnabled || amb == null) return _cover(assetPath);
-
-    // 背景層：有窗景就「動態天空 + 去背圖」，否則純原圖。
-    final Widget background;
-    if (amb.hasWindow) {
-      background = Stack(
-        fit: StackFit.expand,
-        children: [
-          // 後面墊動態時段天空；前面去背圖玻璃透明處露出天空。
-          WindowBackdrop(windowRect: amb.windowRect!),
-          // 去背圖未到位 → 回退原圖（不透明，蓋住天空＝看起來如常）。
-          _cover(amb.glasslessAsset!, fallback: () => _cover(assetPath)),
-        ],
-      );
-    } else {
-      background = _cover(assetPath);
-    }
-
-    final scene = Stack(
-      fit: StackFit.expand,
-      children: [
-        background,
-        RoomAmbientOverlay(lampCenter: amb.lampCenter, tint: amb.tint),
-      ],
-    );
-    return _AutoPausingTickerMode(
-      enabled: autoPauseAmbience,
-      delay: ambienceIdleDelay,
-      child: scene,
     );
   }
 }

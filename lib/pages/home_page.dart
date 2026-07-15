@@ -29,14 +29,15 @@ import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/scene_air_layer.dart';
+import '../widgets/scene_clock.dart';
+import '../widgets/scene_rooms.dart';
 import 'home/greeting_banner.dart';
 import 'home/habit_card.dart';
 import 'home/habit_sheets.dart';
 import 'home/home_presets.dart';
-import 'home/room_ambient_overlay.dart';
 import 'home/room_metrics.dart';
 import 'home/room_scene_painters.dart';
-import 'home/scene_air_layer.dart';
 
 /// 首頁兔咪環境融合的驗收開關；預設開啟。
 /// A/B 截圖可傳 `--dart-define=SCENE_MASCOT_FUSION=false` 取得中性對照。
@@ -970,7 +971,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 left: 0,
                 right: 0,
                 height: bgH,
-                child: const FourPeriodBackground(assets: kHomePeriodAssets),
+                child: FourPeriodBackground(assets: FourPeriodRoom.home.assets),
               ),
               // 全完成慶祝罩（時段氛圍已由背景圖承擔，這層只剩狀態回饋）。
               Positioned(
@@ -992,7 +993,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 height: bgH,
                 child: TickerMode(
                   enabled: !_sceneIdle,
-                  child: SceneAirLayer(clock: _sceneClock.time),
+                  child: SceneAirLayer(
+                    clock: _sceneClock.time,
+                    spec: FourPeriodRoom.home.air,
+                  ),
                 ),
               ),
               // 全完成的星光慶祝層：只在全完成時掛載。
@@ -1033,8 +1037,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           onTap: _onMascotTap,
           onHeadPet: _onMascotHeadPet,
           paused: _sceneIdle, // 閒置時連兔咪呼吸/眨眼一起凍結 → 畫面全靜止
-          // 四時段色溫＋接地影融合；compile-time 開關只供首頁核准前 A/B。
-          lighting: _kHomeMascotFusionEnabled ? _mascotLighting : null,
+          // 四時段色溫＋接地影融合；compile-time 開關只供 A/B 對照。
+          lightGeometry: _kHomeMascotFusionEnabled
+              ? FourPeriodRoom.home.light
+              : null,
         ),
       ),
       child: _habitCardContent(
@@ -1145,53 +1151,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return const Color(0xFFFFF3C4).withValues(alpha: 0.10);
     }
     return Colors.transparent;
-  }
-
-  /// 兔咪環境光融合：與背景同一份 SceneTimeState 權重算出色溫/接地影，
-  /// 同一次 rebuild 更新（分鐘級），兔咪才不會像貼在圖上的 PNG。
-  MascotSceneLighting get _mascotLighting {
-    final s = SceneTimeController.instance.state;
-    // 色溫（白平衡式 scale+offset）：清晨粉金、白天中性、黃昏琥珀、
-    // 夜晚燈暖微暗。量刻意小——目標是「坐進光線裡」，不是換一隻兔子。
-    final rs = s.blendValue(morning: 1.02, day: 1, dusk: 1.04, night: 0.97);
-    final gs = s.blendValue(morning: 0.99, day: 1, dusk: 0.965, night: 0.915);
-    final bs = s.blendValue(morning: 0.965, day: 1, dusk: 0.90, night: 0.86);
-    final ro = s.blendValue(morning: 5, day: 0, dusk: 8, night: 7);
-    final go = s.blendValue(morning: 1, day: 0, dusk: 1, night: 2);
-    final bo = s.blendValue(morning: 0, day: 0, dusk: -4, night: -2);
-    final isIdentity =
-        (rs - 1).abs() < 0.004 &&
-        (gs - 1).abs() < 0.004 &&
-        (bs - 1).abs() < 0.004 &&
-        ro.abs() < 0.5 &&
-        go.abs() < 0.5 &&
-        bo.abs() < 0.5;
-    return MascotSceneLighting(
-      // 白天核心 = null（零成本路徑，不掛 ColorFiltered）。
-      colorMatrix: isIdentity
-          ? null
-          : <double>[
-              rs, 0, 0, 0, ro, //
-              0, gs, 0, 0, go, //
-              0, 0, bs, 0, bo, //
-              0, 0, 0, 1, 0,
-            ],
-      // 接地影：清晨窗光從左（影偏右、較實）；白天柔散射；黃昏夜晚
-      // 檯燈在右（影偏左、夜裡燈近影最實）。
-      shadowColor: s.blendOpaque(
-        morning: const Color(0xFF6B4B38),
-        day: const Color(0xFF5B4436),
-        dusk: const Color(0xFF6F4529),
-        night: const Color(0xFF4E4238),
-      ),
-      shadowOpacity: s.blendValue(
-        morning: 0.26,
-        day: 0.22,
-        dusk: 0.25,
-        night: 0.28,
-      ),
-      shadowDx: s.blendValue(morning: 7, day: 0, dusk: -6, night: -9),
-    );
   }
 
   // 場景配色：四時段權重連續混色（晨粉金 / 晝暖白 / 暮金橘 / 夜暖燈）；

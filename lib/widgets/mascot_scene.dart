@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/mascot.dart';
+import '../utils/scene_time.dart';
 import '../utils/sfx_service.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
@@ -64,6 +65,88 @@ class MascotSceneLighting {
   );
 }
 
+/// 房間光源幾何：四時段的接地影偏移／強度，依「這個房間的窗與檯燈
+/// 在哪」逐房設定（註冊表見 widgets/scene_rooms.dart）。
+///
+/// 色溫刻意**不做**成房間參數——同一顆太陽、同一種黃昏，四時段色溫
+/// 全 App 一致（見 [mascotLightingForScene]），房間只決定影子往哪跑。
+/// 這也是「新造型零調整」的關鍵：融合只跟時間與房間有關，跟兔咪
+/// 身上穿什麼無關。
+@immutable
+class RoomLightGeometry {
+  /// 各時段接地影橫向偏移 px（正 = 影子往右 = 光源在左）。
+  final double morningDx, dayDx, duskDx, nightDx;
+
+  /// 各時段接地影基準不透明度（光源越近／角度越低影子越實）。
+  final double morningOpacity, dayOpacity, duskOpacity, nightOpacity;
+
+  const RoomLightGeometry({
+    required this.morningDx,
+    required this.dayDx,
+    required this.duskDx,
+    required this.nightDx,
+    this.morningOpacity = 0.26,
+    this.dayOpacity = 0.22,
+    this.duskOpacity = 0.24,
+    this.nightOpacity = 0.24,
+  });
+}
+
+/// 由場景時段權重算出兔咪環境光。
+///
+/// 色溫（白平衡式 scale+offset）：清晨粉金、白天中性、黃昏琥珀、夜晚
+/// 燈暖微暗；量刻意小——目標是「坐進光線裡」，不是換一隻兔子。因為
+/// 濾鏡乘在「當下顯示的任何兔咪圖」上（含造型皮膚與表情差分），
+/// 新造型不需要任何逐圖調整。接地影的方向與濃度吃 [geometry]。
+MascotSceneLighting mascotLightingForScene(
+  SceneTimeState s,
+  RoomLightGeometry geometry,
+) {
+  final rs = s.blendValue(morning: 1.02, day: 1, dusk: 1.04, night: 0.97);
+  final gs = s.blendValue(morning: 0.99, day: 1, dusk: 0.965, night: 0.915);
+  final bs = s.blendValue(morning: 0.965, day: 1, dusk: 0.90, night: 0.86);
+  final ro = s.blendValue(morning: 5, day: 0, dusk: 8, night: 7);
+  final go = s.blendValue(morning: 1, day: 0, dusk: 1, night: 2);
+  final bo = s.blendValue(morning: 0, day: 0, dusk: -4, night: -2);
+  final isIdentity =
+      (rs - 1).abs() < 0.004 &&
+      (gs - 1).abs() < 0.004 &&
+      (bs - 1).abs() < 0.004 &&
+      ro.abs() < 0.5 &&
+      go.abs() < 0.5 &&
+      bo.abs() < 0.5;
+  return MascotSceneLighting(
+    // 白天核心 = null（零成本路徑，不掛 ColorFiltered）。
+    colorMatrix: isIdentity
+        ? null
+        : <double>[
+            rs, 0, 0, 0, ro, //
+            0, gs, 0, 0, go, //
+            0, 0, bs, 0, bo, //
+            0, 0, 0, 1, 0,
+          ],
+    // 接地影環境色（全房間共用的暖木調；會再與頁面 accent 輕混）。
+    shadowColor: s.blendOpaque(
+      morning: const Color(0xFF6B4B38),
+      day: const Color(0xFF5B4436),
+      dusk: const Color(0xFF6F4529),
+      night: const Color(0xFF4E4238),
+    ),
+    shadowOpacity: s.blendValue(
+      morning: geometry.morningOpacity,
+      day: geometry.dayOpacity,
+      dusk: geometry.duskOpacity,
+      night: geometry.nightOpacity,
+    ),
+    shadowDx: s.blendValue(
+      morning: geometry.morningDx,
+      day: geometry.dayDx,
+      dusk: geometry.duskDx,
+      night: geometry.nightDx,
+    ),
+  );
+}
+
 class MascotIdleScope extends InheritedWidget {
   final bool paused;
 
@@ -101,7 +184,14 @@ class PersonaScene extends StatelessWidget {
   final bool paused;
 
   /// 環境光融合（見 [MascotSceneLighting]）；null = 中性。
+  /// 一般頁面用 [lightGeometry] 就好；這個參數留給需要自己控制
+  /// 重算時機／做 A/B 的頁面（例如首頁）。
   final MascotSceneLighting? lighting;
+
+  /// 房間光源幾何：給了就自動跟著 [SceneTimeController]（分鐘級）
+  /// 算出四時段色溫＋接地影，頁面不需要自己監聽時間。
+  /// 與 [lighting] 同時給時以 [lighting] 為準。
+  final RoomLightGeometry? lightGeometry;
 
   const PersonaScene({
     super.key,
@@ -112,10 +202,29 @@ class PersonaScene extends StatelessWidget {
     this.onEnergize,
     this.paused = false,
     this.lighting,
+    this.lightGeometry,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 自動融合：跟著場景時間分鐘級重算（與背景 crossfade 同一個
+    // notify，不會出現背景已變色、兔咪還停在上一分鐘的錯拍）。
+    if (lighting == null && lightGeometry != null) {
+      return ListenableBuilder(
+        listenable: SceneTimeController.instance,
+        builder: (_, _) => _buildScene(
+          context,
+          mascotLightingForScene(
+            SceneTimeController.instance.state,
+            lightGeometry!,
+          ),
+        ),
+      );
+    }
+    return _buildScene(context, lighting);
+  }
+
+  Widget _buildScene(BuildContext context, MascotSceneLighting? lighting) {
     final effectivePaused = paused || MascotIdleScope.pausedOf(context);
 
     void handleTap() {
@@ -780,8 +889,7 @@ class _MascotStageState extends State<MascotStage>
           _beginCharge(details.localPosition);
         }
       },
-      onLongPressMoveUpdate: (details) =>
-          _updateCharge(details.localPosition),
+      onLongPressMoveUpdate: (details) => _updateCharge(details.localPosition),
       onLongPressEnd: (_) => _releaseCharge(),
       onLongPressCancel: _cancelCharge,
       behavior: HitTestBehavior.opaque,
@@ -837,7 +945,8 @@ class _MascotStageState extends State<MascotStage>
             final charge = _chargeCtrl.value;
             final chargeEase = Curves.easeInOut.transform(charge);
             final chargeSquash = 0.06 * chargeEase;
-            final chargeWobble = math.sin(charge * math.pi * 7) * 0.010 * charge;
+            final chargeWobble =
+                math.sin(charge * math.pi * 7) * 0.010 * charge;
             final chargeSink = 6.0 * chargeEase;
 
             // 爆發大跳：拋物線離地（高度 ∝ 蓄力量）＋沿速度方向拉長，
@@ -965,10 +1074,7 @@ class _MascotStageState extends State<MascotStage>
                           (1 + chargeSquash * 0.55) *
                           burstScaleX,
                       scaleY:
-                          tapSy *
-                          petScaleY *
-                          (1 - chargeSquash) *
-                          burstScaleY,
+                          tapSy * petScaleY * (1 - chargeSquash) * burstScaleY,
                       child: child,
                     ),
                   ),
@@ -1186,13 +1292,15 @@ class _MascotChargePainter extends CustomPainter {
       final dist = ui.lerpDouble(m.dist, 16, Curves.easeIn.transform(t))!;
       final angle = m.angle + t * 0.9; // 微螺旋，比直線聚攏更有「吸入」感
       final pos =
-          center + Offset(math.cos(angle) * dist, math.sin(angle) * dist * 0.82);
+          center +
+          Offset(math.cos(angle) * dist, math.sin(angle) * dist * 0.82);
       final opacity =
           math.sin(math.pi * t) * (0.25 + 0.75 * progress).clamp(0.0, 1.0);
       canvas.drawCircle(
         pos,
         m.size * (0.7 + 0.5 * progress),
-        Paint()..color = glow.withValues(alpha: (0.75 * opacity).clamp(0.0, 1.0)),
+        Paint()
+          ..color = glow.withValues(alpha: (0.75 * opacity).clamp(0.0, 1.0)),
       );
     }
   }

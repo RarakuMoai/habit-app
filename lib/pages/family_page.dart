@@ -16,6 +16,7 @@ import '../utils/sfx_service.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/scene_rooms.dart';
 import 'family/add_children_sheet.dart';
 import 'family/child_home_page.dart';
 import 'family/family_auth.dart';
@@ -24,7 +25,6 @@ import 'family/family_store.dart';
 import 'family/family_widgets.dart';
 import 'family/parent_management_page.dart';
 import 'family/parent_pin_recovery.dart';
-import 'home/room_ambient_overlay.dart';
 import 'home/room_metrics.dart';
 
 // ── 家庭主頁（小孩選擇畫面）──
@@ -144,15 +144,7 @@ class _FamilyPageState extends State<FamilyPage> {
                   left: 0,
                   right: 0,
                   height: roomSceneHeight(MediaQuery.of(context).size.width),
-                  child: const MascotSceneBackground(
-                    'assets/scenes/family/family_bg.png',
-                    ambience: SceneAmbience(
-                      tint: true,
-                      glasslessAsset:
-                          'assets/scenes/family/family_bg_glassless.png',
-                      windowRect: Rect.fromLTRB(0.004, 0.0, 0.166, 0.258),
-                    ),
-                  ),
+                  child: const FourPeriodRoomScene(room: FourPeriodRoom.family),
                 ),
                 SafeArea(
                   child: MascotPageShell(
@@ -161,6 +153,7 @@ class _FamilyPageState extends State<FamilyPage> {
                     // 卡片線，空狀態內容是可捲動的邀請卡，不需要額外高度。
                     scene: PersonaScene(
                       accent: Theme.of(context).colorScheme.primary,
+                      lightGeometry: FourPeriodRoom.family.light,
                     ),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 260),

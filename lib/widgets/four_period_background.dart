@@ -43,14 +43,6 @@ class FourPeriodAssets {
   };
 }
 
-/// 首頁（習慣頁）的四時段背景。
-const FourPeriodAssets kHomePeriodAssets = FourPeriodAssets(
-  morning: 'assets/scenes/home/home_morning.webp',
-  day: 'assets/scenes/home/home_day.webp',
-  dusk: 'assets/scenes/home/home_dusk.webp',
-  night: 'assets/scenes/home/home_night.webp',
-);
-
 class FourPeriodBackground extends StatelessWidget {
   final FourPeriodAssets assets;
 

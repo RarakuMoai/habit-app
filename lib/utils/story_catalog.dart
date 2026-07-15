@@ -159,7 +159,7 @@ const List<StoryEventSpec> storyCatalog = [
     trigger: StoryTrigger.firstAllDone,
     pages: [
       // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
-      StoryPage('assets/scenes/family/family_bg.png', [
+      StoryPage('assets/scenes/family/family_day.webp', [
         '最後一件小事，也亮起來了。',
         '我有看到你一路做到這裡。',
         '今天，可以放心休息了。',
@@ -175,7 +175,7 @@ const List<StoryEventSpec> storyCatalog = [
     threshold: 7,
     pages: [
       // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
-      StoryPage('assets/scenes/timer/timer_bg.png', [
+      StoryPage('assets/scenes/timer/timer_day.webp', [
         '第一顆星亮起時，我還有點想睡。',
         '後來，你一天一天地回來。',
         '數到第七顆時，兔咪完全醒了。',
@@ -191,7 +191,7 @@ const List<StoryEventSpec> storyCatalog = [
     threshold: 7,
     pages: [
       // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
-      StoryPage('assets/scenes/water/water_bg.png', [
+      StoryPage('assets/scenes/water/water_day.webp', [
         '門安靜了一陣子。',
         '但我一直把這一頁留著。',
         '你回來了。',

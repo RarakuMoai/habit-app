@@ -5,7 +5,7 @@ import '../../utils/app_style.dart';
 import '../../widgets/audio_control_button.dart';
 import '../../widgets/mascot_page_shell.dart';
 import '../../widgets/mascot_scene.dart';
-import '../home/room_ambient_overlay.dart';
+import '../../widgets/scene_rooms.dart';
 import '../home/room_metrics.dart';
 import '../settings_page.dart';
 import 'family_models.dart';
@@ -82,19 +82,15 @@ class ChildHomePage extends StatelessWidget {
             left: 0,
             right: 0,
             height: roomSceneHeight(MediaQuery.of(context).size.width),
-            child: const MascotSceneBackground(
-              'assets/scenes/family/family_bg.png',
-              ambience: SceneAmbience(
-                tint: true,
-                glasslessAsset: 'assets/scenes/family/family_bg_glassless.png',
-                windowRect: Rect.fromLTRB(0.004, 0.0, 0.166, 0.258),
-              ),
-            ),
+            child: const FourPeriodRoomScene(room: FourPeriodRoom.family),
           ),
           SafeArea(
             child: MascotPageShell(
               accent: accent,
-              scene: PersonaScene(accent: accent),
+              scene: PersonaScene(
+                accent: accent,
+                lightGeometry: FourPeriodRoom.family.light,
+              ),
               child: ChildHomePanel(
                 children: children,
                 initialIndex: initialIndex,

@@ -17,7 +17,7 @@ import '../utils/water_entries.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
-import 'home/room_ambient_overlay.dart';
+import '../widgets/scene_rooms.dart';
 import 'home/room_metrics.dart';
 
 const Color _kInk = Color(0xFF17657A);
@@ -638,19 +638,15 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
               left: 0,
               right: 0,
               height: roomSceneHeight(MediaQuery.of(context).size.width),
-              child: const MascotSceneBackground(
-                'assets/scenes/water/water_bg.png',
-                ambience: SceneAmbience(
-                  tint: true,
-                  glasslessAsset: 'assets/scenes/water/water_bg_glassless.png',
-                  windowRect: Rect.fromLTRB(0.017, 0.0, 0.238, 0.29),
-                ),
-              ),
+              child: const FourPeriodRoomScene(room: FourPeriodRoom.water),
             ),
             SafeArea(
               child: MascotPageShell(
                 accent: _kInk,
-                scene: const PersonaScene(accent: _kInk),
+                scene: PersonaScene(
+                  accent: _kInk,
+                  lightGeometry: FourPeriodRoom.water.light,
+                ),
                 child: LayoutBuilder(
                   builder: (context, box) {
                     // 面板展開時卡片只剩約半屏高，summary 卡＋節點列＋控制列

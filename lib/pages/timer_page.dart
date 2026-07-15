@@ -17,8 +17,8 @@ import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/scene_rooms.dart';
 import '../widgets/timer_ring_painter.dart';
-import 'home/room_ambient_overlay.dart';
 import 'home/room_metrics.dart';
 import 'timer/exercise_timer.dart';
 import 'timer/game_timer.dart';
@@ -608,22 +608,16 @@ class _TimerPageState extends State<TimerPage>
             right: 0,
             height: roomSceneHeight(MediaQuery.of(context).size.width),
             child: const RepaintBoundary(
-              // 試做：套用首頁同款時段光影（光束/塵埃/時段色罩）。
-              // 翻車就把 ambience 拿掉、或關 kRoomAmbienceEnabled 總開關。
-              child: MascotSceneBackground(
-                'assets/scenes/timer/timer_bg.png',
-                ambience: SceneAmbience(
-                  tint: true,
-                  glasslessAsset: 'assets/scenes/timer/timer_bg_glassless.png',
-                  windowRect: Rect.fromLTRB(0.006, 0.0, 0.23, 0.265),
-                ),
-              ),
+              child: FourPeriodRoomScene(room: FourPeriodRoom.timer),
             ),
           ),
           SafeArea(
             child: MascotPageShell(
               accent: color,
-              scene: PersonaScene(accent: color),
+              scene: PersonaScene(
+                accent: color,
+                lightGeometry: FourPeriodRoom.timer.light,
+              ),
               child: Column(
                 children: [
                   const SizedBox(height: 6),

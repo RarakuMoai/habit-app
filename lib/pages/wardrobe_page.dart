@@ -381,7 +381,7 @@ class _WardrobePageState extends State<WardrobePage>
             right: 0,
             height: roomSceneHeight(MediaQuery.of(context).size.width),
             child: const MascotSceneBackground(
-              'assets/scenes/wardrobe/wardrobe_bg.png',
+              'assets/scenes/wardrobe/wardrobe_bg.webp',
             ),
           ),
           SafeArea(

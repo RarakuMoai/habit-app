@@ -10,7 +10,6 @@ import '../utils/prefs_keys.dart';
 import '../utils/scene_time.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
-import 'home/room_ambient_overlay.dart';
 import 'story_reveal_page.dart';
 
 /// 開發者測試頁。

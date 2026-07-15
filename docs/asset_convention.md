@@ -37,7 +37,7 @@ assets/
 |---|---|---|
 | 核心情緒 | `tumi_sleep.png` | 加 `tumi_` 前綴（在 Finder/檔案總管直接認得），snake_case，全小寫 |
 | 衣服變化 | `chef/tumi_happy.png` | 衣服名當資料夾，內部沿用 `tumi_<情緒>.png` |
-| 四時段場景 | `home_dusk.png` | `<場景名>_<morning|day|dusk|night>.png`；四張同畫布同構圖 |
+| 四時段場景 | `home_dusk.webp` | `<場景名>_<morning|day|dusk|night>.webp`；四張同畫布同構圖，WebP q95（1122×1402 原圖 ~2.2MB → ~0.3MB，暗部漸層 2× 放大無色帶） |
 | 特效 | `confetti.png` | 直接描述用途 |
 
 目前 12 個正式情緒（對應 `MascotEmotion` enum）：
@@ -63,7 +63,7 @@ assets/
 
 | 項目 | 規範 |
 |---|---|
-| 格式 | **PNG**（透明背景，將來 bundle 痛了再批次轉 WebP） |
+| 格式 | 兔咪等透明資產 **PNG**；不透明的場景背景 **WebP q95**（首頁/喝水/計時/家庭/衣櫃已採用） |
 | 兔咪解析度 | **1024 × 1024**（AI 生圖預設大小，剛好對到 mobile 3x retina） |
 | 場景解析度 | 現行主場景為 **1122 × 1402** 直向；同頁差分必須與底圖完全同尺寸 |
 | 背景 | 兔咪本體必須**透明背景**（疊在場景上）；場景圖含完整背景 |

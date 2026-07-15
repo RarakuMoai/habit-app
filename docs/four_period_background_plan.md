@@ -101,3 +101,25 @@ FABLE5 完成後請提供：
 本輪只做首頁。請以你的最佳判斷自由設計時間交界、兔咪融合、陰影、塵埃與視覺生命感，
 同時實測效能與耗電。完成自查與必要對照後，再交給我核准是否推廣到其他有窗房間。
 ```
+
+## 現況（2026-07-15 更新，可由 repo 證實）
+
+- **首頁已通過**（使用者確認品質優秀），並已推廣到喝水、計時、家庭
+  （含孩童首頁）三個有窗房間；衣櫃換新單圖背景（無四時段需求）。
+- 架構落點：
+  - 房間註冊表 `lib/widgets/scene_rooms.dart`（四時段圖組＋光源幾何＋
+    空氣層幾何的單一真相來源；新增房間流程見檔頭）。
+  - 背景 crossfade `lib/widgets/four_period_background.dart`；
+    空氣層 `lib/widgets/scene_air_layer.dart`；
+    時鐘 `lib/widgets/scene_clock.dart`。
+  - 兔咪融合：`mascotLightingForScene`（mascot_scene.dart）——色溫全域
+    一致、接地影幾何逐房設定；`PersonaScene(lightGeometry:)` 自動跟時間。
+    融合乘在任何立繪上，**新造型零調整**。
+  - 圖檔一律 WebP q95、`<場景>_<morning|day|dusk|night>.webp`
+    （見 asset_convention）。
+- 已刪除的舊架構：`room_ambient_overlay.dart`（WindowBackdrop／
+  RoomAmbientOverlay／SceneAmbience／程序化光束塵埃檯燈）、各房
+  `*_glassless` 與舊單圖資產。`RoomSceneEffects` 只剩全完成慶祝層。
+- 尚未收尾：體重房沒有四時段圖（維持單圖）；`SCENE_MASCOT_FUSION`
+  A/B 旗標與 `scene_perf_baseline.md`＋frame probe 待全部有窗房間
+  完美通過後一併清除。

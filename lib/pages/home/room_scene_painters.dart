@@ -8,7 +8,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import 'room_ambient_overlay.dart' show ThrottledSceneTicker;
+import '../../widgets/scene_clock.dart' show ThrottledSceneTicker;
 import 'room_metrics.dart';
 
 /// 首頁「全完成」慶祝層（光暈＋星光）。
