@@ -315,6 +315,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void showGreeting(SharedPreferences prefs, String? lastOpen) {
+    // 每日登入獎勵演出（慶祝頁＋金幣飛行）進行中就不疊問候橫幅：
+    // 橫幅走全域 Overlay 會蓋在慶祝頁上；慶祝頁本身就是當天的迎接，
+    // pop 後的兔咪報喜台詞會接手問候。
+    if (CoinService.dailyRewardShowing.value) return;
     showGreetingBanner(buildGreetingMessage(lastOpen));
   }
 

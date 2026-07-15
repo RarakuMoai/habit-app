@@ -8,7 +8,8 @@ import '../utils/app_style.dart';
 import '../utils/coin_service.dart';
 import '../utils/sfx_service.dart';
 
-/// 每日登入足跡幣演出：幣從畫面中段散開，再沿弧線吸入 AppBar 餘額。
+/// 每日登入足跡幣演出：幣從底部（慶祝頁 CTA 的位置）爆出，
+/// 沿弧線升起後吸入 AppBar 餘額——接在 LoginStreakPage pop 之後演。
 class FootprintCoinRewardOverlay extends StatefulWidget {
   const FootprintCoinRewardOverlay({
     super.key,
@@ -201,14 +202,15 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
       endAt,
       curve: Curves.easeInCubic,
     ).transform(_controller.value);
+    // 起點聚在底部 CTA 一帶（慶祝頁按鈕位置），控制點錯開讓幣扇形升起。
     final start = Offset(
-      size.width * (0.19 + index * 0.103),
-      size.height * (0.53 + (index.isEven ? -0.035 : 0.035)),
+      size.width * (0.335 + index * 0.055),
+      size.height * (0.84 + (index.isEven ? -0.012 : 0.012)),
     );
     final target = Offset(size.width - 134, safeTop + kToolbarHeight / 2);
     final control = Offset(
-      start.dx + (target.dx - start.dx) * (0.35 + index * 0.025),
-      math.min(start.dy, target.dy) - 70 - index * 7,
+      start.dx + (target.dx - start.dx) * (0.08 + index * 0.05),
+      size.height * (0.40 - index * 0.018),
     );
     final oneMinus = 1 - flight;
     final point = Offset(

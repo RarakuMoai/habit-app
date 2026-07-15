@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'pages/family_page.dart';
 import 'pages/home_page.dart';
+import 'pages/login_streak_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/story_reveal_page.dart';
 import 'pages/timer_page.dart';
@@ -413,6 +414,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   int _waterReloadTrigger = 0;
   List<String> _tabOrder = const []; // 使用者自訂的底部分頁順序（TabIds 字串）
   bool _claimingDailyReward = false;
+  bool _loginCelebrating = false; // 慶祝頁還在畫面上（揭曉佇列要等它）
   int? _rewardAmount;
   int? _rewardStartBalance;
   int? _rewardTargetBalance;
@@ -440,6 +442,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     StoryStore.pendingReveal.removeListener(_onPendingRevealChanged);
     WidgetsBinding.instance.removeObserver(this);
     CoinService.presentationBalance.value = null;
+    CoinService.dailyRewardShowing.value = false;
     super.dispose();
   }
 
@@ -458,27 +461,46 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     }
   }
 
-  // 每日登入獎勵：兔咪報喜。延遲一拍讓開場問候先落地，再換成領獎台詞。
+  // 每日登入獎勵：先推全螢幕慶祝頁（兔咪＋連續天數舞台），看完 pop 回來
+  // 才輪到金幣飛行吸入 AppBar ＋ 兔咪報喜台詞，整段演出有起點也有收尾。
   Future<void> _claimDailyLoginReward() async {
     if (_claimingDailyReward) return;
     _claimingDailyReward = true;
     final startBalance = CoinService.notifier.value;
     // 先凍結 AppBar 顯示；資料仍立即安全入帳，動畫只負責把舊值數到新值。
     CoinService.presentationBalance.value = startBalance;
+    // 演出旗標先舉起來（首頁問候橫幅看到會讓路）；沒獎勵馬上放下。
+    CoinService.dailyRewardShowing.value = true;
     final reward = await CoinService.claimDailyLogin();
     // 連續登入回憶事件：不論這次有沒有新領（冪等），照登入連勝天數判定
     final prefs = await SharedPreferences.getInstance();
-    unawaited(
-      StoryEvents.onLoginStreak(prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0),
-    );
+    final loginStreak = prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0;
+    unawaited(StoryEvents.onLoginStreak(loginStreak));
     if (reward == null || !mounted) {
       CoinService.presentationBalance.value = null;
+      CoinService.dailyRewardShowing.value = false;
       _claimingDailyReward = false;
       return;
     }
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    // 讓開場第一幀先落地，再亮慶祝舞台。
+    await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!mounted) {
       CoinService.presentationBalance.value = null;
+      CoinService.dailyRewardShowing.value = false;
+      _claimingDailyReward = false;
+      return;
+    }
+    _loginCelebrating = true;
+    try {
+      await Navigator.of(
+        context,
+      ).push(LoginStreakPage.route(streak: loginStreak, reward: reward));
+    } finally {
+      _loginCelebrating = false;
+    }
+    if (!mounted) {
+      CoinService.presentationBalance.value = null;
+      CoinService.dailyRewardShowing.value = false;
       _claimingDailyReward = false;
       return;
     }
@@ -505,6 +527,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   }
 
   void _finishRewardAnimation() {
+    CoinService.dailyRewardShowing.value = false;
     if (!mounted) return;
     setState(() {
       _rewardAmount = null;
@@ -533,7 +556,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     _storyRevealShowing = true;
     try {
       await Future<void>.delayed(const Duration(milliseconds: 1100));
-      while (mounted && _rewardAmount != null) {
+      while (mounted && (_rewardAmount != null || _loginCelebrating)) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
       while (StoryStore.pendingReveal.value.isNotEmpty) {

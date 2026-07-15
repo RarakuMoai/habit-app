@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_restart.dart';
+import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/scene_time.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
+import 'login_streak_page.dart';
 import 'story_reveal_page.dart';
 
 /// 開發者測試頁。
@@ -280,6 +282,75 @@ class _DevTestPageState extends State<DevTestPage> {
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+                _card(
+                  title: '每日登入慶祝（預覽）',
+                  icon: Icons.celebration_outlined,
+                  description: '免跨日直接看慶祝頁的排版與演出；不動任何登入/金幣狀態。',
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (label, streak, reward) in [
+                        (
+                          '第一天',
+                          1,
+                          const LoginReward(
+                            level: 1,
+                            amount: CoinConfig.loginBase,
+                            graceUsed: false,
+                          ),
+                        ),
+                        (
+                          '一般日（第 3 天）',
+                          3,
+                          const LoginReward(
+                            level: 3,
+                            amount: CoinConfig.loginBase + 2,
+                            graceUsed: false,
+                          ),
+                        ),
+                        (
+                          '寬限日（第 5 天）',
+                          5,
+                          const LoginReward(
+                            level: 4,
+                            amount: CoinConfig.loginBase + 3,
+                            graceUsed: true,
+                          ),
+                        ),
+                        (
+                          '里程碑日（第 7 天）',
+                          7,
+                          const LoginReward(
+                            level: 6,
+                            amount: CoinConfig.loginBase + 5,
+                            graceUsed: false,
+                            milestoneAmount: CoinConfig.weeklyStreak,
+                          ),
+                        ),
+                        (
+                          '滿級（第 45 天）',
+                          45,
+                          const LoginReward(
+                            level: 6,
+                            amount: CoinConfig.loginBase + 5,
+                            graceUsed: false,
+                          ),
+                        ),
+                      ])
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                          onPressed: () => Navigator.of(context).push(
+                            LoginStreakPage.route(
+                              streak: streak,
+                              reward: reward,
+                            ),
+                          ),
+                          label: Text(label),
+                        ),
                     ],
                   ),
                 ),

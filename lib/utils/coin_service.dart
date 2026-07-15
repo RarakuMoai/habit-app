@@ -92,6 +92,13 @@ class CoinService {
   /// 動畫最後一枚足跡幣入袋時通知 AppBar 圖示回彈。
   static final ValueNotifier<int> rewardPulse = ValueNotifier<int>(0);
 
+  /// 每日登入獎勵演出（慶祝頁＋金幣飛行）進行中。
+  /// 首頁問候橫幅走全域 Overlay 會蓋在慶祝頁上，看到這個旗標就讓路——
+  /// 慶祝頁本身就是當天的迎接，pop 後兔咪報喜台詞會接手問候。
+  static final ValueNotifier<bool> dailyRewardShowing = ValueNotifier<bool>(
+    false,
+  );
+
   static int get visibleBalance => presentationBalance.value ?? notifier.value;
 
   static void pulseRewardIcon() => rewardPulse.value++;
