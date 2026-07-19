@@ -240,8 +240,8 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
 }
 
 // 「底部分頁順序」的點選排序。兩大設計目標：
-// 1) 排版完全鏡像真實底部列（main.dart 的 _AdaptiveBottomNav）——2~5 個分頁
-//    單排、6 個以上自動拆成上下兩排，前段在下排、後段在上排。
+// 1) 排版完全鏡像真實底部列（main.dart 的 _AdaptiveBottomNav）——一般手機
+//    的 6 個分頁維持單排，只有每格不足共用門檻時才拆成上下兩排。
 // 2) 互動改成「按鈕進排序、點選即移動」：點右上「排序」進入排序狀態，
 //    點一個圖示把它選起來、再點目標位置就立刻移過去，不必長按也不必拖。
 class _BottomBarReorder extends StatefulWidget {
@@ -355,8 +355,11 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
   @override
   Widget build(BuildContext context) {
     final n = widget.metas.length;
-    // 與 main.dart 的 _AdaptiveBottomNav 規則一字不差：n>5 才換兩排。
-    final isTwoRow = n > 5;
+    // 用真實底部導覽可用的螢幕寬度判斷，不被設定頁本身 24px 留白誤導。
+    final isTwoRow = bottomNavUsesTwoRows(
+      width: MediaQuery.sizeOf(context).width,
+      itemCount: n,
+    );
     final columnCount = isTwoRow ? (n / 2).ceil() : n;
     final rowCount = isTwoRow ? 2 : 1;
     final cellH = isTwoRow ? 52.0 : 62.0;

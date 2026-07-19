@@ -44,6 +44,71 @@ void main() {
     });
   });
 
+  group('chrome 修正版 sceneRegionHeightAnchored（2026-07-15）', () {
+    const seWidth = 375.0;
+    const seStatusBar = 20.0; // SE 狀態列（頁面 context 的 padding.top）
+    const seShellMaxH = 519.0;
+
+    test('14PM（狀態列 59）：chrome 相消 == 純寬度錨點 → 零位移', () {
+      expect(
+        sceneRegionHeightAnchored(kBaseWidth, kBaseStatusBarTop),
+        closeTo(homeSceneRegionHeight(kBaseWidth), 1e-9),
+      );
+    });
+
+    test('SE：卡片線的螢幕 Y（chrome+場景區）跟 14PM 同一個寬度比例', () {
+      final seCardLine =
+          seStatusBar + kSceneAppBarHeight +
+          sceneRegionHeightAnchored(seWidth, seStatusBar);
+      final baseCardLine =
+          kBaseChromeTop + sceneRegionHeightAnchored(kBaseWidth, kBaseStatusBarTop);
+      expect(seCardLine / seWidth, closeTo(baseCardLine / kBaseWidth, 1e-9));
+    });
+
+    test('SE：chrome 修正比純寬度錨點高（卡片下移，兔咪不再站地毯上緣）', () {
+      expect(
+        sceneRegionHeightAnchored(seWidth, seStatusBar),
+        greaterThan(homeSceneRegionHeight(seWidth)),
+      );
+    });
+
+    test('SE：chrome 修正後護欄仍不觸發（邊界僅 ~5pt，動常數會 fail）', () {
+      expect(
+        sceneRegionHeightAnchored(seWidth, seStatusBar),
+        lessThan(seShellMaxH * kSceneRegionMaxFraction),
+      );
+    });
+  });
+
+  group('mascotStageScale 場景兔咪寬度縮放', () {
+    test('14PM：縮放 == 1.0（零位移）', () {
+      expect(
+        mascotStageScale(
+          maxWidth: kBaseWidth,
+          maxHeight: homeSceneRegionHeight(kBaseWidth),
+        ),
+        closeTo(1.0, 1e-9),
+      );
+    });
+
+    test('SE：跟背景同一個寬度比例 375/430（高度封頂不搶先）', () {
+      expect(
+        mascotStageScale(
+          maxWidth: 375,
+          maxHeight: sceneRegionHeightAnchored(375, 20),
+        ),
+        closeTo(375 / 430, 1e-9),
+      );
+    });
+
+    test('widget test 800×600 退化面：被場景區高封頂，兔咪不爆出護欄區', () {
+      const cappedRegion = 544.0 * kSceneRegionMaxFraction; // 326.4
+      final s = mascotStageScale(maxWidth: 800, maxHeight: cappedRegion);
+      expect(s, lessThan(800 / 430)); // 寬度比例被封頂
+      expect(252 * s, lessThan(cappedRegion)); // 縮放後仍在場景區內
+    });
+  });
+
   group('kSceneRegionMaxFraction 護欄在真機永不觸發（零位移保證）', () {
     test('14PM：寬度錨點場景區 < 護欄 → 護欄不生效、基準不動', () {
       expect(

@@ -34,6 +34,21 @@ class WeightPage extends StatefulWidget {
 
 enum _WeightSheetField { weight, fat }
 
+/// 體重頁自己的暖珊瑚色系：從浴室背景的木色／粉橘取色，避免散落不同的
+/// Material orange shades。健康狀態只用低飽和輔色，不把數字做成警告燈。
+abstract final class _WeightColors {
+  static const accent = Color(0xFFFF8A4C);
+  static const accentStrong = Color(0xFFD86536);
+  static const accentSoft = Color(0xFFFFF0E4);
+  static const accentWash = Color(0xFFFFF8F1);
+  static const coral = Color(0xFFF27A5B);
+  static const sage = Color(0xFF5E9E68);
+  static const sageSoft = Color(0xFFEEF7EF);
+  static const blue = Color(0xFF5C8FA6);
+  static const danger = Color(0xFFB65B55);
+  static const pageBackground = Color(0xFFFFF8F0);
+}
+
 class _WeightPageState extends State<WeightPage> {
   // 所有體重紀錄（按日期降序）
   List<Map<String, dynamic>> _records = [];
@@ -198,10 +213,10 @@ class _WeightPageState extends State<WeightPage> {
 
   // BMI 分類（衛福部標準）：過輕／正常／過重／肥胖
   (String, Color) _bmiCategory(double bmi) {
-    if (bmi < 18.5) return ('過輕', Colors.blue.shade400);
-    if (bmi < 24) return ('正常', Colors.green.shade500);
-    if (bmi < 27) return ('過重', Colors.orange.shade600);
-    return ('肥胖', Colors.red.shade400);
+    if (bmi < 18.5) return ('過輕', _WeightColors.blue);
+    if (bmi < 24) return ('正常', _WeightColors.sage);
+    if (bmi < 27) return ('過重', _WeightColors.accentStrong);
+    return ('肥胖', _WeightColors.danger);
   }
 
   // 本週週一到週日的 DateTime 列表（x=0~6 對應週一~週日）
@@ -332,7 +347,9 @@ class _WeightPageState extends State<WeightPage> {
                   '$day',
                   style: AppType.digits(
                     fontSize: 10,
-                    color: day == now.day ? Colors.orange : AppInk.faint,
+                    color: day == now.day
+                        ? _WeightColors.accentStrong
+                        : AppInk.faint,
                     fontWeight: day == now.day
                         ? FontWeight.w800
                         : FontWeight.w600,
@@ -373,7 +390,7 @@ class _WeightPageState extends State<WeightPage> {
                         (d.year == now.year &&
                             d.month == now.month &&
                             d.day == now.day)
-                        ? Colors.orange
+                        ? _WeightColors.accentStrong
                         : AppInk.faint,
                   ),
                 ),
@@ -409,7 +426,7 @@ class _WeightPageState extends State<WeightPage> {
                 labels[idx],
                 style: TextStyle(
                   fontSize: 11,
-                  color: isToday ? Colors.orange : AppInk.faint,
+                  color: isToday ? _WeightColors.accentStrong : AppInk.faint,
                   fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -468,7 +485,7 @@ class _WeightPageState extends State<WeightPage> {
     final t = _targetWeight;
     if (t == null) return AppInk.soft;
     final toward = (t - prevWeight) * diff > 0;
-    return toward ? Colors.green.shade600 : Colors.orange.shade700;
+    return toward ? _WeightColors.sage : _WeightColors.accentStrong;
   }
 
   // 差值顯示字串（顯示單位、永遠帶 1 位小數的絕對值）
@@ -697,11 +714,11 @@ class _WeightPageState extends State<WeightPage> {
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppSurfaces.card,
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.orange.withValues(alpha: 0.18),
+                          color: _WeightColors.accent.withValues(alpha: 0.18),
                           blurRadius: 24,
                           offset: const Offset(0, 10),
                         ),
@@ -733,14 +750,14 @@ class _WeightPageState extends State<WeightPage> {
                                       width: 36,
                                       height: 36,
                                       decoration: BoxDecoration(
-                                        color: Colors.orange.withValues(
+                                        color: _WeightColors.accent.withValues(
                                           alpha: 0.12,
                                         ),
                                         borderRadius: BorderRadius.circular(13),
                                       ),
                                       child: const Icon(
                                         Icons.monitor_weight_rounded,
-                                        color: Colors.orange,
+                                        color: _WeightColors.accent,
                                         size: 20,
                                       ),
                                     ),
@@ -793,7 +810,7 @@ class _WeightPageState extends State<WeightPage> {
                                       initial: selectedDate,
                                       firstDate: DateTime(2000),
                                       lastDate: DateTime.now(),
-                                      accent: Colors.orange,
+                                      accent: _WeightColors.accent,
                                       title: '選擇紀錄日期',
                                     );
                                     if (picked != null) {
@@ -892,12 +909,12 @@ class _WeightPageState extends State<WeightPage> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.12),
+                  color: _WeightColors.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: const Icon(
                   Icons.calendar_today_rounded,
-                  color: Colors.orange,
+                  color: _WeightColors.accent,
                   size: 17,
                 ),
               ),
@@ -924,7 +941,7 @@ class _WeightPageState extends State<WeightPage> {
   void _showRecordActions(Map<String, dynamic> rec) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppSurfaces.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -944,7 +961,10 @@ class _WeightPageState extends State<WeightPage> {
             ),
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.edit_outlined, color: Colors.orange),
+              leading: const Icon(
+                Icons.edit_outlined,
+                color: _WeightColors.accentStrong,
+              ),
               title: const Text('編輯'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -952,8 +972,8 @@ class _WeightPageState extends State<WeightPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('刪除', style: TextStyle(color: Colors.red)),
+              leading: const Icon(Icons.delete_outline, color: AppInk.danger),
+              title: const Text('刪除', style: TextStyle(color: AppInk.danger)),
               onTap: () {
                 Navigator.pop(ctx);
                 _confirmDelete(rec);
@@ -983,7 +1003,7 @@ class _WeightPageState extends State<WeightPage> {
               Navigator.pop(ctx);
               _deleteRecord(rec);
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppInk.danger),
             child: const Text('刪除'),
           ),
         ],
@@ -991,7 +1011,7 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  // 目標體重進度條（若未設定目標或無紀錄則回傳 null）
+  // 目標體重摘要（嵌在今日主卡底部；若未設定目標或無紀錄則回傳 null）
   Widget? _buildTargetProgress() {
     if (_targetWeight == null || _records.isEmpty) return null;
 
@@ -1010,14 +1030,16 @@ class _WeightPageState extends State<WeightPage> {
     final isGoalReached = rawProgress >= 1.0;
     final diff = (latestWeight - target).abs();
 
-    final barColor = isGoalReached ? Colors.green.shade500 : Colors.orange;
+    final barColor = isGoalReached ? _WeightColors.sage : _WeightColors.accent;
     return Container(
-      padding: const EdgeInsets.all(16),
+      key: const ValueKey('weight-target-progress'),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppCardStyle.radius),
-        border: AppCardStyle.hairline,
-        boxShadow: AppShadows.card,
+        color: isGoalReached
+            ? _WeightColors.sageSoft
+            : _WeightColors.accentWash,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: barColor.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1027,39 +1049,47 @@ class _WeightPageState extends State<WeightPage> {
               Icon(
                 isGoalReached ? Icons.emoji_events_rounded : Icons.flag_rounded,
                 color: barColor,
-                size: 18,
+                size: 17,
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   isGoalReached
-                      ? '目標：${_fmtWeight(target)} $_wLabel　已達成！'
-                      : '目標：${_fmtWeight(target)} $_wLabel，還差 ${_fmtWeight(diff)} $_wLabel',
+                      ? '目標 ${_fmtWeight(target)} $_wLabel · 已達成'
+                      : '目標 ${_fmtWeight(target)} $_wLabel',
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
                     color: AppInk.strong,
-                    height: 1.3,
                   ),
                 ),
               ),
+              if (!isGoalReached)
+                Text(
+                  '還差 ${_fmtWeight(diff)} $_wLabel',
+                  style: AppType.digits(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: _WeightColors.accentStrong,
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 7),
           // 漸層進度條 + 尾端白心亮點（同首頁進度列語彙）
           _GradientProgressBar(value: progress, accent: barColor),
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           // 起始與目標標籤
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 '起始 ${_fmtWeight(initialWeight)} $_wLabel',
-                style: const TextStyle(fontSize: 11, color: AppInk.faint),
+                style: const TextStyle(fontSize: 10.5, color: AppInk.soft),
               ),
               Text(
                 '目標 ${_fmtWeight(target)} $_wLabel',
-                style: const TextStyle(fontSize: 11, color: AppInk.faint),
+                style: const TextStyle(fontSize: 10.5, color: AppInk.soft),
               ),
             ],
           ),
@@ -1085,8 +1115,11 @@ class _WeightPageState extends State<WeightPage> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFFFF8F0),
-      appBar: MascotAppBar(accent: Colors.orange, onSettingsReturn: _loadData),
+      backgroundColor: _WeightColors.pageBackground,
+      appBar: MascotAppBar(
+        accent: _WeightColors.accent,
+        onSettingsReturn: _loadData,
+      ),
       // 不用 FAB：核心動作鈕（記錄今天／更新今日）釘在捲動區外的最上方，
       // 跟習慣頁「新增習慣」一致，常駐明顯、不被捲動蓋掉。
       body: Stack(
@@ -1103,8 +1136,12 @@ class _WeightPageState extends State<WeightPage> {
           ),
           SafeArea(
             child: MascotPageShell(
-              accent: Colors.orange,
-              scene: const PersonaScene(accent: Colors.orange),
+              accent: _WeightColors.accent,
+              sceneHeight: sceneRegionHeightAnchored(
+                MediaQuery.of(context).size.width,
+                MediaQuery.of(context).padding.top,
+              ),
+              scene: const PersonaScene(accent: _WeightColors.accent),
               // 核心動作鈕釘在捲動區外（與習慣頁「新增習慣」一致）：
               // 永遠在最上面明顯處，不會因捲動而消失。
               child: Column(
@@ -1117,7 +1154,7 @@ class _WeightPageState extends State<WeightPage> {
                         const HabitSectionHeader(
                           label: '今日數據',
                           icon: Icons.today_rounded,
-                          color: Colors.orange,
+                          color: _WeightColors.accent,
                         ),
                         todayRec != null
                             ? Container(
@@ -1136,28 +1173,49 @@ class _WeightPageState extends State<WeightPage> {
                                   border: AppCardStyle.hairline,
                                   boxShadow: AppShadows.card,
                                 ),
-                                child: _buildStatGrid(todayRec),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildStatGrid(todayRec),
+                                    if (targetProgressWidget != null) ...[
+                                      const SizedBox(height: 10),
+                                      targetProgressWidget,
+                                    ],
+                                  ],
+                                ),
                               )
                             : _buildTodayEmptyCard(),
 
-                        // 今日數字之後緊接目標，閱讀順序是「現在 → 要去哪裡」。
-                        if (targetProgressWidget != null) ...[
+                        // 今天尚未記錄、但已有歷史資料時，仍保留目標摘要。
+                        if (todayRec == null &&
+                            targetProgressWidget != null) ...[
                           const SizedBox(height: 12),
-                          targetProgressWidget,
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppSurfaces.card,
+                              borderRadius: BorderRadius.circular(
+                                AppCardStyle.radius,
+                              ),
+                              border: AppCardStyle.hairline,
+                              boxShadow: AppShadows.flat,
+                            ),
+                            child: targetProgressWidget,
+                          ),
                         ],
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
 
                         // ── 趨勢圖卡片（範圍切換 + 折線圖） ──
                         const HabitSectionHeader(
                           label: '趨勢',
                           icon: Icons.show_chart_rounded,
-                          color: Colors.orange,
+                          color: _WeightColors.accent,
                         ),
                         Container(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppSurfaces.card,
                             borderRadius: BorderRadius.circular(
                               AppCardStyle.radius,
                             ),
@@ -1172,61 +1230,85 @@ class _WeightPageState extends State<WeightPage> {
                                   _rangeSelector(),
                                   const Spacer(),
                                   if (chartData.spots.isNotEmpty)
-                                    _chartCountPill(chartData.spots.length),
+                                    Text(
+                                      '${chartData.spots.length} 筆紀錄',
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppInk.soft,
+                                      ),
+                                    ),
                                 ],
                               ),
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 12),
                               // 無資料時顯示友善提示，否則顯示折線圖
-                              chartData.spots.isEmpty
-                                  ? SizedBox(
-                                      height: 158,
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.show_chart,
-                                              size: 36,
-                                              color: Colors.orange.shade200,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            const Text(
-                                              '此區間沒有紀錄',
-                                              style: TextStyle(
-                                                color: AppInk.faint,
-                                                fontSize: 14,
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) =>
+                                    FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
+                                child: chartData.spots.isEmpty
+                                    ? SizedBox(
+                                        key: ValueKey(
+                                          'weight-chart-empty-$_chartRangeIndex',
+                                        ),
+                                        height: 158,
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.show_chart,
+                                                size: 36,
+                                                color: _WeightColors.accent
+                                                    .withValues(alpha: 0.38),
                                               ),
+                                              const SizedBox(height: 8),
+                                              const Text(
+                                                '此區間沒有紀錄',
+                                                style: TextStyle(
+                                                  color: AppInk.faint,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                    : SizedBox(
+                                        key: ValueKey(
+                                          'weight-chart-$_chartRangeIndex-${chartData.spots.length}',
+                                        ),
+                                        height: 174,
+                                        child: Column(
+                                          children: [
+                                            _chartInsightRow(chartData),
+                                            const SizedBox(height: 6),
+                                            Expanded(
+                                              child: _buildLineChart(chartData),
                                             ),
                                           ],
                                         ),
                                       ),
-                                    )
-                                  : SizedBox(
-                                      height: 158,
-                                      child: Column(
-                                        children: [
-                                          _chartSummaryRow(chartData),
-                                          const SizedBox(height: 8),
-                                          Expanded(
-                                            child: _buildLineChart(chartData),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                              ),
                             ],
                           ),
                         ),
 
                         // ── 歷史紀錄列表 ──
                         if (_records.isNotEmpty) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 20),
                           const HabitSectionHeader(
                             label: '歷史紀錄',
                             icon: Icons.history_rounded,
-                            color: Colors.orange,
+                            color: _WeightColors.accent,
                           ),
-                          ..._records.map(_buildHistoryTile),
+                          _buildHistoryList(),
                         ],
                       ],
                     ),
@@ -1280,7 +1362,7 @@ class _WeightPageState extends State<WeightPage> {
         maxY: yAxis.max,
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => Colors.orange.shade600,
+            getTooltipColor: (_) => _WeightColors.accentStrong,
             tooltipRoundedRadius: 10,
             fitInsideHorizontally: true,
             fitInsideVertically: true,
@@ -1310,8 +1392,8 @@ class _WeightPageState extends State<WeightPage> {
             curveSmoothness: 0.3,
             // 避免單調資料間的曲線過衝出現假波峰
             preventCurveOverShooting: true,
-            gradient: LinearGradient(
-              colors: [Colors.orange.shade300, Colors.deepOrange.shade400],
+            gradient: const LinearGradient(
+              colors: [_WeightColors.accent, _WeightColors.coral],
             ),
             barWidth: 3,
             dotData: FlDotData(
@@ -1323,8 +1405,8 @@ class _WeightPageState extends State<WeightPage> {
                   color: Colors.white,
                   strokeWidth: isLatest ? 2.6 : 2,
                   strokeColor: isLatest
-                      ? Colors.deepOrange.shade400
-                      : Colors.deepOrange.shade300,
+                      ? _WeightColors.coral
+                      : _WeightColors.accent,
                 );
               },
             ),
@@ -1334,8 +1416,8 @@ class _WeightPageState extends State<WeightPage> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.orange.withValues(alpha: 0.18),
-                  Colors.orange.withValues(alpha: 0.0),
+                  _WeightColors.accent.withValues(alpha: 0.18),
+                  _WeightColors.accent.withValues(alpha: 0.0),
                 ],
               ),
             ),
@@ -1344,7 +1426,7 @@ class _WeightPageState extends State<WeightPage> {
         gridData: FlGridData(
           drawVerticalLine: false,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.orange.shade100.withValues(alpha: 0.6),
+            color: _WeightColors.accent.withValues(alpha: 0.16),
             strokeWidth: 1,
             dashArray: [4, 4],
           ),
@@ -1354,7 +1436,7 @@ class _WeightPageState extends State<WeightPage> {
             if (targetLine != null)
               HorizontalLine(
                 y: targetLine,
-                color: Colors.green.shade400,
+                color: _WeightColors.sage,
                 strokeWidth: 1.5,
                 dashArray: [6, 4],
                 label: HorizontalLineLabel(
@@ -1362,7 +1444,7 @@ class _WeightPageState extends State<WeightPage> {
                   padding: const EdgeInsets.only(left: 4, bottom: 2),
                   style: TextStyle(
                     fontSize: 10,
-                    color: Colors.green.shade600,
+                    color: _WeightColors.sage,
                     fontWeight: FontWeight.w600,
                   ),
                   labelResolver: (_) => '目標',
@@ -1412,7 +1494,7 @@ class _WeightPageState extends State<WeightPage> {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF7F2),
+        color: _WeightColors.accentWash,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -1431,7 +1513,7 @@ class _WeightPageState extends State<WeightPage> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: selected
                   ? BoxDecoration(
-                      color: Colors.white,
+                      color: AppSurfaces.card,
                       borderRadius: BorderRadius.circular(9),
                       border: AppCardStyle.hairline,
                       boxShadow: AppShadows.flat,
@@ -1442,7 +1524,7 @@ class _WeightPageState extends State<WeightPage> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? Colors.orange.shade800 : AppInk.soft,
+                  color: selected ? _WeightColors.accentStrong : AppInk.soft,
                 ),
               ),
             ),
@@ -1496,104 +1578,71 @@ class _WeightPageState extends State<WeightPage> {
     return _fmt(value, decimal: decimals);
   }
 
-  Widget _chartCountPill(int count) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAF7F2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        '$count 筆',
-        style: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w800,
-          color: AppInk.soft,
-        ),
-      ),
-    );
-  }
-
-  Widget _chartSummaryRow(_ChartData chartData) {
+  // 一句話說明區間變化；最新體重已在主卡，不在圖表上方重複一次。
+  Widget _chartInsightRow(_ChartData chartData) {
     final spots = chartData.spots;
-    final latest = spots.last.y;
     final first = spots.first.y;
-    final diff = latest - first;
+    final diff = spots.last.y - first;
     final low = spots.map((s) => s.y).reduce(math.min);
     final high = spots.map((s) => s.y).reduce(math.max);
-    final diffColor = diff.abs() < 0.05
-        ? AppInk.soft
-        : _deltaColor(diff, first);
-    final diffIcon = diff.abs() < 0.05
+    final hasChange = spots.length > 1 && diff.abs() >= 0.05;
+    final color = hasChange ? _deltaColor(diff, first) : AppInk.soft;
+    final icon = spots.length == 1
+        ? Icons.add_location_alt_rounded
+        : !hasChange
         ? Icons.remove_rounded
         : diff < 0
         ? Icons.south_rounded
         : Icons.north_rounded;
+    final insight = spots.length == 1
+        ? '這個區間的第一筆紀錄'
+        : !hasChange
+        ? '這段時間大致持平'
+        : '這段時間變化 ${diff > 0 ? '+' : '-'}${_deltaText(diff)} $_wLabel';
+    final range = '範圍 ${_fmt(low)}–${_fmt(high)} $_wLabel';
 
-    return Row(
-      children: [
-        Expanded(
-          child: _chartMetricPill(
-            label: '最新',
-            value: '${_fmt(latest)} $_wLabel',
-            icon: Icons.place_rounded,
-            color: Colors.deepOrange.shade400,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _chartMetricPill(
-            label: '變化',
-            value: '${diff >= 0 ? '+' : '-'}${_deltaText(diff)} $_wLabel',
-            icon: diffIcon,
-            color: diffColor,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _chartMetricPill(
-            label: '範圍',
-            value: '${_fmt(low)}-${_fmt(high)}',
-            icon: Icons.unfold_more_rounded,
-            color: const Color(0xFF66BB6A),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _chartMetricPill({
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
+    return Semantics(
+      key: const ValueKey('weight-chart-insight'),
+      label: '$insight，$range',
+      excludeSemantics: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 15, color: color),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
               child: Text(
-                '$label $value',
+                insight,
                 maxLines: 1,
-                style: AppType.digits(
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w800,
-                  color: color,
+                  color: AppInk.strong,
                 ),
               ),
             ),
-          ),
-        ],
+            if (constraints.maxWidth >= 300) ...[
+              const SizedBox(width: 8),
+              Text(
+                range,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppInk.soft,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -1620,12 +1669,12 @@ class _WeightPageState extends State<WeightPage> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.12),
+                  color: _WeightColors.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
                   Icons.monitor_weight_rounded,
-                  color: Colors.orange,
+                  color: _WeightColors.accent,
                   size: 25,
                 ),
               ),
@@ -1660,16 +1709,16 @@ class _WeightPageState extends State<WeightPage> {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.08),
+                  color: _WeightColors.accent.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.10),
+                    color: _WeightColors.accent.withValues(alpha: 0.10),
                   ),
                 ),
                 child: Icon(
                   Icons.arrow_forward_rounded,
                   size: 17,
-                  color: Colors.orange.shade700,
+                  color: _WeightColors.accentStrong,
                 ),
               ),
             ],
@@ -1707,9 +1756,19 @@ class _WeightPageState extends State<WeightPage> {
           subColor: bmiCat.$2,
         ),
       if (bmr != null)
-        _StatItem(label: 'BMR', value: _fmt(bmr, decimal: 0), suffix: 'kcal'),
+        _StatItem(
+          label: 'BMR',
+          value: _fmt(bmr, decimal: 0),
+          suffix: 'kcal',
+          secondary: true,
+        ),
       if (tdee != null)
-        _StatItem(label: 'TDEE', value: _fmt(tdee, decimal: 0), suffix: 'kcal'),
+        _StatItem(
+          label: 'TDEE',
+          value: _fmt(tdee, decimal: 0),
+          suffix: 'kcal',
+          secondary: true,
+        ),
     ];
 
     return Column(
@@ -1817,9 +1876,31 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
+  // 歷史資料共用一張表面，單筆以分隔線區分；避免長列表變成重複陰影卡片牆。
+  Widget _buildHistoryList() {
+    return DecoratedBox(
+      key: const ValueKey('weight-history-list'),
+      decoration: BoxDecoration(
+        color: AppSurfaces.card,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: AppCardStyle.hairline,
+        boxShadow: AppShadows.card,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        child: Column(
+          children: [
+            for (var i = 0; i < _records.length; i++)
+              _buildHistoryTile(_records[i], isLast: i == _records.length - 1),
+          ],
+        ),
+      ),
+    );
+  }
+
   // 歷史紀錄單筆 tile
   // 長按或向左滑動（endToStart）皆呼叫操作選單（編輯／刪除）
-  Widget _buildHistoryTile(Map<String, dynamic> rec) {
+  Widget _buildHistoryTile(Map<String, dynamic> rec, {required bool isLast}) {
     final weight = (rec['weight'] as num).toDouble();
     final fat = rec['body_fat'] != null
         ? (rec['body_fat'] as num).toDouble()
@@ -1837,107 +1918,114 @@ class _WeightPageState extends State<WeightPage> {
         _showRecordActions(rec);
         return false;
       },
-      // 左滑時顯示的背景提示（橘底 + 更多圖示）
+      // 左滑時顯示的背景提示（淡珊瑚底 + 更多圖示）
       background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        color: _WeightColors.accentSoft,
+        child: const Icon(
+          Icons.more_horiz,
+          color: _WeightColors.accentStrong,
+          size: 26,
         ),
-        child: Icon(Icons.more_horiz, color: Colors.orange.shade400, size: 26),
       ),
       child: GestureDetector(
         onLongPress: () => _showRecordActions(rec),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppCardStyle.radius),
-            border: AppCardStyle.hairline,
-            boxShadow: AppShadows.flat,
-          ),
-          child: Row(
-            children: [
-              // 日期與時間
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
                 children: [
-                  Text(
-                    _shortDateLabel(date),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppInk.strong,
-                    ),
-                  ),
-                  Text(
-                    time,
-                    style: const TextStyle(fontSize: 11, color: AppInk.faint),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              // 體重（含與更早一筆的差值）、體脂、BMI
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  // 日期與時間
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (delta != null && delta.abs() >= 0.05) ...[
-                        Icon(
-                          delta < 0 ? Icons.south_rounded : Icons.north_rounded,
-                          size: 11,
-                          color: _deltaColor(delta, weight - delta),
-                        ),
-                        Text(
-                          _deltaText(delta),
-                          style: AppType.digits(
-                            fontSize: 11,
-                            color: _deltaColor(delta, weight - delta),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
                       Text(
-                        '${_fmtWeight(weight)} $_wLabel',
-                        style: AppType.digits(
-                          fontSize: 16,
+                        _shortDateLabel(date),
+                        style: const TextStyle(
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                           color: AppInk.strong,
                         ),
                       ),
+                      Text(
+                        time,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppInk.soft,
+                        ),
+                      ),
                     ],
                   ),
-                  Row(
+                  const Spacer(),
+                  // 體重（含與更早一筆的差值）、體脂、BMI
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      if (fat != null) ...[
-                        Text(
-                          '體脂 ${_fmt(fat)}%',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppInk.soft,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (delta != null && delta.abs() >= 0.05) ...[
+                            Icon(
+                              delta < 0
+                                  ? Icons.south_rounded
+                                  : Icons.north_rounded,
+                              size: 11,
+                              color: _deltaColor(delta, weight - delta),
+                            ),
+                            Text(
+                              _deltaText(delta),
+                              style: AppType.digits(
+                                fontSize: 11,
+                                color: _deltaColor(delta, weight - delta),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            '${_fmtWeight(weight)} $_wLabel',
+                            style: AppType.digits(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppInk.strong,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (bmi != null)
-                        Text(
-                          'BMI ${_fmt(bmi)}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppInk.soft,
-                          ),
-                        ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          if (fat != null) ...[
+                            Text(
+                              '體脂 ${_fmt(fat)}%',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppInk.soft,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          if (bmi != null)
+                            Text(
+                              'BMI ${_fmt(bmi)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppInk.soft,
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            if (!isLast)
+              const Padding(
+                padding: EdgeInsets.only(left: 16),
+                child: Divider(height: 1, color: AppSurfaces.divider),
+              ),
+          ],
         ),
       ),
     );
@@ -1973,9 +2061,9 @@ class _WeightInputCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: hasError
-              ? Colors.red.shade300
+              ? AppInk.danger.withValues(alpha: 0.58)
               : active
-              ? Colors.orange.withValues(alpha: 0.46)
+              ? _WeightColors.accent.withValues(alpha: 0.46)
               : const Color(0x0A46342B),
           width: active || hasError ? 1.4 : 1,
         ),
@@ -1992,7 +2080,7 @@ class _WeightInputCard extends StatelessWidget {
                   value: value,
                   suffix: unitLabel,
                   active: active,
-                  color: Colors.orange,
+                  color: _WeightColors.accent,
                   placeholder: '輸入體重',
                   onTap: onTap,
                 ),
@@ -2005,7 +2093,7 @@ class _WeightInputCard extends StatelessWidget {
                     onTrigger: onIncrease,
                     child: const _SheetRoundButton(
                       icon: Icons.add_rounded,
-                      color: Colors.orange,
+                      color: _WeightColors.accent,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2013,7 +2101,7 @@ class _WeightInputCard extends StatelessWidget {
                     onTrigger: onDecrease,
                     child: const _SheetRoundButton(
                       icon: Icons.remove_rounded,
-                      color: Colors.orange,
+                      color: _WeightColors.accent,
                     ),
                   ),
                 ],
@@ -2025,7 +2113,7 @@ class _WeightInputCard extends StatelessWidget {
             Text(
               errorText!,
               style: TextStyle(
-                color: Colors.red.shade700,
+                color: AppInk.danger,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -2061,7 +2149,7 @@ class _BodyFatInputCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: hasError
-              ? Colors.red.shade300
+              ? AppInk.danger.withValues(alpha: 0.58)
               : active
               ? accent.withValues(alpha: 0.46)
               : const Color(0x0A46342B),
@@ -2103,7 +2191,7 @@ class _BodyFatInputCard extends StatelessWidget {
                   Text(
                     errorText!,
                     style: TextStyle(
-                      color: Colors.red.shade700,
+                      color: AppInk.danger,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2141,7 +2229,7 @@ class _NumericDisplayBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasValue = value.trim().isNotEmpty;
     return Material(
-      color: active ? color.withValues(alpha: 0.08) : Colors.white,
+      color: active ? color.withValues(alpha: 0.08) : AppSurfaces.card,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -2239,7 +2327,7 @@ class _WeightSheetKeypad extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFFF7EC),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.12)),
+        border: Border.all(color: _WeightColors.accent.withValues(alpha: 0.12)),
       ),
       child: Column(
         children: [
@@ -2325,7 +2413,7 @@ class _WeightKeyButton extends StatelessWidget {
     final bg = enabled
         ? muted
               ? const Color(0xFFFFFCF8)
-              : Colors.white
+              : AppSurfaces.card
         : const Color(0xFFF2E9E1);
     return Material(
       color: Colors.transparent,
@@ -2333,8 +2421,8 @@ class _WeightKeyButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(13),
-        splashColor: Colors.orange.withValues(alpha: 0.10),
-        highlightColor: Colors.orange.withValues(alpha: 0.06),
+        splashColor: _WeightColors.accent.withValues(alpha: 0.10),
+        highlightColor: _WeightColors.accent.withValues(alpha: 0.06),
         child: Ink(
           height: 40,
           decoration: BoxDecoration(
@@ -2342,7 +2430,7 @@ class _WeightKeyButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(13),
             border: Border.all(
               color: enabled
-                  ? Colors.orange.withValues(alpha: muted ? 0.08 : 0.13)
+                  ? _WeightColors.accent.withValues(alpha: muted ? 0.08 : 0.13)
                   : const Color(0x0A46342B),
             ),
             boxShadow: enabled && !muted ? AppShadows.flat : null,
@@ -2378,7 +2466,7 @@ class _SheetSaveButton extends StatelessWidget {
       child: FilledButton.icon(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.orange,
+          backgroundColor: _WeightColors.accent,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(
@@ -2434,17 +2522,19 @@ class _TodayActionButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.orange.withValues(alpha: 0.15),
-          highlightColor: Colors.orange.withValues(alpha: 0.08),
+          splashColor: _WeightColors.accent.withValues(alpha: 0.15),
+          highlightColor: _WeightColors.accent.withValues(alpha: 0.08),
           child: Ink(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFFFFF8EC), Color(0xFFFFEFDA)],
+                colors: [_WeightColors.accentWash, _WeightColors.accentSoft],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+              border: Border.all(
+                color: _WeightColors.accent.withValues(alpha: 0.35),
+              ),
               boxShadow: AppShadows.flat,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -2455,7 +2545,7 @@ class _TodayActionButton extends StatelessWidget {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade400,
+                    color: _WeightColors.accent,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, size: 16, color: Colors.white),
@@ -2467,7 +2557,7 @@ class _TodayActionButton extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.orange.shade800,
+                      color: _WeightColors.accentStrong,
                       fontWeight: FontWeight.w800,
                       fontSize: 14,
                     ),
@@ -2507,12 +2597,14 @@ class _StatItem {
   final String? suffix;
   final String? sub; // 數值旁的小標籤（例：BMI 分類）
   final Color? subColor;
+  final bool secondary;
   const _StatItem({
     required this.label,
     required this.value,
     this.suffix,
     this.sub,
     this.subColor,
+    this.secondary = false,
   });
 }
 
@@ -2542,10 +2634,10 @@ class _CompactWeightStat extends StatelessWidget {
               item.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
-                color: AppInk.soft,
+                color: item.secondary ? AppInk.faint : AppInk.soft,
               ),
             ),
             const SizedBox(height: 1),
@@ -2558,9 +2650,11 @@ class _CompactWeightStat extends StatelessWidget {
                   Text(
                     item.value,
                     style: AppType.digits(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppInk.strong,
+                      fontSize: item.secondary ? 13.5 : 15,
+                      fontWeight: item.secondary
+                          ? FontWeight.w700
+                          : FontWeight.w800,
+                      color: item.secondary ? AppInk.soft : AppInk.strong,
                     ),
                   ),
                   if (item.suffix != null) ...[
@@ -2569,10 +2663,10 @@ class _CompactWeightStat extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 1),
                       child: Text(
                         item.suffix!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: AppInk.soft,
+                          color: item.secondary ? AppInk.faint : AppInk.soft,
                         ),
                       ),
                     ),

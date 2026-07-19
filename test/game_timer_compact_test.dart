@@ -1,6 +1,5 @@
-// 遊戲入口卡的縮小門檻：鍵盤彈出（原始 viewInsets 墊高）時不准把
-// 完整設定頁換成縮小卡——否則設定頁 state 連同輸入對話框的存檔一起
-// 被銷毀（常用玩家/組合存不進去、改名無效、畫面捲回頂部）。
+// 遊戲入口以明確的「準備／設定」狀態切換，不再把設定生命週期綁在高度。
+// 鍵盤、兔咪面板或視窗尺寸改變都不能銷毀正在編輯的設定頁。
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -28,7 +27,7 @@ void main() {
     expect(frame.image.height, 2731);
   });
 
-  testWidgets('鍵盤彈出壓縮高度時，完整設定頁不換成縮小卡', (tester) async {
+  testWidgets('進入設定後，高度與鍵盤改變都不會退出設定頁', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1.0;
@@ -50,26 +49,36 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    // 500 高 ≥ 門檻：完整設定頁（底部只有開始對局，沒有多餘完成鈕）
+    // 預設是一致的準備畫面，不會因為高度夠大就直接顯示整份設定。
     expect(find.text('完成'), findsNothing);
+    expect(find.text('準備開局'), findsOneWidget);
+    expect(find.text('設定'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.tune_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('完成'), findsOneWidget);
     expect(find.text('兔咪遊戲桌'), findsOneWidget);
 
-    // 鍵盤彈出：高度被壓到 200、原始 viewInsets 同步墊高 → 仍是設定頁
+    // 鍵盤彈出：高度被壓到 200，仍是同一個設定頁。
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     height.value = 200;
     await tester.pumpAndSettle();
-    expect(find.text('兔咪遊戲桌'), findsOneWidget);
+    expect(find.text('完成'), findsOneWidget);
 
-    // 鍵盤收起：Scaffold 會把高度還回來（實機上兩者永遠一起變）
+    // 鍵盤收起並恢復高度，設定狀態不變。
     tester.view.viewInsets = FakeViewPadding.zero;
     height.value = 500;
     await tester.pumpAndSettle();
-    expect(find.text('兔咪遊戲桌'), findsOneWidget);
+    expect(find.text('完成'), findsOneWidget);
 
-    // 沒有鍵盤、高度真的只剩 200（兔咪面板展開）：才換成縮小卡
+    // 沒有鍵盤、高度真的只剩 200，也不會用尺寸猜測使用者意圖。
     height.value = 200;
     await tester.pumpAndSettle();
+    expect(find.text('完成'), findsOneWidget);
+
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
     expect(find.text('完成'), findsNothing);
-    expect(find.text('設定'), findsOneWidget);
+    expect(find.text('準備開局'), findsOneWidget);
   });
 }

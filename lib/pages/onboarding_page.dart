@@ -1213,16 +1213,16 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // ── 畫面5：番茄鐘功能引導 ──
+  // ── 畫面5：專注計時功能引導 ──
   Widget _buildPage5() {
     return _featureIntroPage(
-      bubble: '專心的時候，我幫你顧著時間。\n要先開著番茄鐘嗎？',
+      bubble: '專心的時候，我幫你顧著時間。\n要先開著專注計時嗎？',
       acceptLabel: '好，開著',
       onAccept: () {
         setState(() => _timerEnabled = true);
         _nextPage(playSound: false);
       },
-      declineName: '番茄鐘',
+      declineName: '專注計時',
       onDeclineConfirmed: () {
         setState(() => _timerEnabled = false);
         _nextPage(playSound: false);

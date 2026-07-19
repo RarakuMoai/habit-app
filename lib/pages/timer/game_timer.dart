@@ -1,9 +1,9 @@
 // 「遊戲」計時入口卡：兔咪遊戲桌的兩種面貌。
 //
 // 狀態定位（2026-07 UX 改版）：
-// - 縮小（兔咪面板展開）＝快速面板：看目前設定、一鍵開局、需要才進設定。
-// - 展開（兔咪面板收合）＝完整設定頁：玩家順位/時間/倒數提醒/常用組合
-//   全部住在卡片裡（TableSetupPanel），底部只保留「開始對局」。
+// - 預設＝與專注／運動／節拍器一致的準備畫面：看設定、一鍵開局。
+// - 點「設定」才進完整設定頁；設定狀態不再綁兔咪面板高度，鍵盤或版面改變
+//   都不會銷毀正在編輯的 TableSetupPanel。
 // - 完整遊玩體驗在 push 進去的全螢幕桌面模式（TableStagePage）。
 // - 不開對局也能「只骰骰子」：直達兔咪骰子屋（DiceTrayPage）。
 import 'package:flutter/material.dart';
@@ -13,6 +13,7 @@ import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/mascot.dart';
 import '../../utils/sfx_service.dart';
+import '../../widgets/timer_mode_frame.dart';
 import 'game/dice_tray.dart';
 import 'game/table_setup_panel.dart';
 import 'game/table_stage_page.dart';
@@ -30,13 +31,9 @@ class GameTimer extends StatefulWidget {
 }
 
 class _GameTimerState extends State<GameTimer> {
-  // 完整設定頁需要的最小高度：Pro Max「面板展開」時內容區約 320，
-  // 一定要落在門檻之下（否則設定頁被塞進小空間硬剪斷）；
-  // 各機型「面板收合」後至少 ~410。
-  static const double _compactHeight = 380;
-
   SharedPreferences? _prefs;
   TableTimerConfig _config = TableTimerConfig.fallback();
+  bool _showSetup = false;
 
   @override
   void initState() {
@@ -72,10 +69,16 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
-  /// 縮小狀態的「調整設定」：把卡片拉開＝進入完整設定頁。
+  /// 進入完整設定頁，同時收起兔咪面板騰出足夠空間。
   void _expandToSetup() {
     playFeedback(SfxCue.tap);
+    setState(() => _showSetup = true);
     MascotPanelPrefs.requestCollapsed();
+  }
+
+  void _finishSetup() {
+    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+    setState(() => _showSetup = false);
   }
 
   String get _oneLineSummary =>
@@ -84,26 +87,12 @@ class _GameTimerState extends State<GameTimer> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        // 判斷縮小門檻時把鍵盤高度加回來：鍵盤彈出會把卡片壓過門檻，
-        // 若因此切成縮小卡，設定頁 state（連同輸入對話框按確定後的
-        // 存檔）會整個被銷毀——「常用玩家存不進去、改名無效、畫面
-        // 捲回頂部」全是這條路（2026-07-10 修）。Scaffold 已吃掉
-        // viewInsets，直接讀 View 原始值；且必須在 LayoutBuilder 的
-        // builder 裡讀——GameTimer 是 const 建構，鍵盤出現時只有
-        // 這個 builder 會因約束變化重跑，外層 build 不會。
-        final view = View.of(context);
-        final keyboard = view.viewInsets.bottom / view.devicePixelRatio;
-        if (box.maxHeight + keyboard < _compactHeight) return _buildCompact();
-        return _buildFull();
-      },
-    );
+    return _showSetup ? _buildSetup() : _buildReady();
   }
 
-  // ── 展開狀態：完整設定頁 ──────────────────────────────────
+  // ── 完整設定頁 ───────────────────────────────────────────
 
-  Widget _buildFull() {
+  Widget _buildSetup() {
     final prefs = _prefs;
     if (prefs == null) return const SizedBox.shrink();
     return Column(
@@ -113,10 +102,225 @@ class _GameTimerState extends State<GameTimer> {
             prefs: prefs,
             onConfigChanged: (c) => setState(() => _config = c),
             onDice: _openDice,
+            onDone: _finishSetup,
           ),
         ),
         _footerBar(),
       ],
+    );
+  }
+
+  // ── 共用準備畫面 ─────────────────────────────────────────
+
+  Widget _buildReady() {
+    return TimerModeFrame(
+      heroBuilder: (context, size) => _tableHero(size),
+      status: const TimerStatusPill(
+        stateKey: 'ready',
+        color: kGameAccent,
+        icon: Icons.groups_rounded,
+        label: '準備開局',
+      ),
+      progress: _playerDots(),
+      controls: TimerControlCluster(
+        accent: kGameAccent,
+        primaryIcon: Icons.play_arrow_rounded,
+        onPrimary: _prefs == null ? null : _startGame,
+        leading: TimerSecondaryAction(
+          icon: Icons.tune_rounded,
+          label: '設定',
+          onTap: _expandToSetup,
+        ),
+        trailing: TimerSecondaryAction(
+          icon: Icons.casino_rounded,
+          label: '骰子',
+          onTap: _openDice,
+        ),
+      ),
+      statusLine: Text(
+        _oneLineSummary,
+        style: const TextStyle(
+          color: AppInk.soft,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      quickPicker: _configBar(),
+    );
+  }
+
+  Widget _tableHero(double size) {
+    final icon = switch (_config.mode) {
+      TableGameMode.party => Icons.rotate_right_rounded,
+      TableGameMode.chess => Icons.grid_view_rounded,
+      TableGameMode.free => Icons.all_inclusive_rounded,
+    };
+    return SizedBox.square(
+      dimension: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFF8E8), Color(0xFFE5F2E8)],
+          ),
+          border: Border.all(color: kGameAccent.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+              color: kGameAccent.withValues(alpha: 0.18),
+              blurRadius: size * 0.12,
+              offset: Offset(0, size * 0.035),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(size * 0.18),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: kGameAccent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 30, color: kGameAccent),
+                ),
+                const SizedBox(height: 9),
+                const Text(
+                  '兔咪遊戲桌',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${_config.activePlayers.length} 位玩家',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: kGameAccentDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _playerDots() {
+    final count = _config.activePlayers.length;
+    return SizedBox(
+      height: 16,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < count; i++)
+            Container(
+              width: 10,
+              height: 10,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: TableTheme.seatColor(
+                  _config.activePlayers[i].colorIndex,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _configBar() {
+    return Container(
+      height: 52,
+      margin: const EdgeInsets.symmetric(horizontal: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(18),
+        border: AppCardStyle.hairline,
+        boxShadow: AppShadows.flat,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _configFact(
+              Icons.videogame_asset_rounded,
+              '玩法',
+              _config.mode.label,
+            ),
+          ),
+          const VerticalDivider(
+            width: 12,
+            indent: 10,
+            endIndent: 10,
+            color: AppSurfaces.divider,
+          ),
+          Expanded(
+            child: _configFact(
+              Icons.groups_rounded,
+              '玩家',
+              '${_config.activePlayers.length} 人',
+            ),
+          ),
+          const VerticalDivider(
+            width: 12,
+            indent: 10,
+            endIndent: 10,
+            color: AppSurfaces.divider,
+          ),
+          Expanded(
+            child: _configFact(Icons.timer_outlined, '時間', _config.timeSummary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _configFact(IconData icon, String label, String value) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 17, color: kGameAccent),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppInk.soft,
+                ),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: AppInk.strong,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -174,115 +378,6 @@ class _GameTimerState extends State<GameTimer> {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── 縮小狀態：快速面板（看設定、直接開局）──────────────────
-
-  Widget _buildCompact() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    'assets/icon/tabs/game_timer.png',
-                    width: 48,
-                    height: 48,
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '兔咪遊戲桌',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: AppInk.strong,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _oneLineSummary,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppInk.soft,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _compactChipButton(
-                    icon: Icons.tune_rounded,
-                    label: '設定',
-                    onTap: _expandToSetup,
-                  ),
-                  const SizedBox(width: 8),
-                  _compactChipButton(
-                    icon: Icons.casino_rounded,
-                    label: '骰子',
-                    onTap: _openDice,
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 160,
-                    child: _startButton(height: 46, fontSize: 15),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _compactChipButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: AppSurfaces.fill,
-      shape: const StadiumBorder(side: BorderSide(color: AppSurfaces.divider)),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: SizedBox(
-            height: 46,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 18, color: AppInk.soft),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w900,
-                    color: AppInk.strong,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),

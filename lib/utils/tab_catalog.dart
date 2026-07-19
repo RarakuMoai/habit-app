@@ -22,6 +22,13 @@ class TabMeta {
   const TabMeta(this.id, this.icon, this.label);
 }
 
+/// 底部導覽的換排規則。六個分頁在一般手機寬度維持單排，只有窄到每格
+/// 不足 54px 才改為兩排。主畫面與設定預覽共用，避免兩邊排版不一致。
+const double kBottomNavMinCellWidth = 54;
+
+bool bottomNavUsesTwoRows({required double width, required int itemCount}) =>
+    itemCount > 5 && width / itemCount < kBottomNavMinCellWidth;
+
 /// 預設順序：使用者沒自訂排序時的 fallback，也決定「新啟用但還沒排過」的
 /// 分頁附加在尾端的先後。圖示用底部列實際顯示的實心版本。
 const List<TabMeta> kTabCatalog = [

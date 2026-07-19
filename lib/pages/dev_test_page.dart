@@ -37,16 +37,16 @@ class _DevTestPageState extends State<DevTestPage> {
   static const _periodPresets = <({String label, ScenePeriod period})>[
     (label: '清晨 06:30', period: ScenePeriod.morning),
     (label: '白天 13:00', period: ScenePeriod.day),
-    (label: '黃昏 18:30', period: ScenePeriod.dusk),
+    (label: '黃昏 17:30', period: ScenePeriod.dusk),
     (label: '夜晚 23:00', period: ScenePeriod.night),
   ];
 
-  // 每段 45 分鐘交界的正中點；smoothstep 此時恰好兩張圖各 50%。
+  // 各交界的正中點；smoothstep 此時恰好兩張圖各 50%。
   static const _transitionPresets = <({String label, double hour})>[
-    (label: '夜→晨 05:22:30', hour: 5.375),
-    (label: '晨→晝 08:22:30', hour: 8.375),
-    (label: '晝→暮 17:22:30', hour: 17.375),
-    (label: '暮→夜 20:22:30', hour: 20.375),
+    (label: '夜→晨 04:37:30', hour: 4.625),
+    (label: '晨→晝 08:37:30', hour: 8.625),
+    (label: '晝→暮 16:30:00', hour: 16.5),
+    (label: '暮→夜 18:37:30', hour: 18.625),
   ];
 
   // 換日：往前推一天就能觸發真換日的「每日狀態日期標記」
@@ -477,8 +477,8 @@ class _DevTestPageState extends State<DevTestPage> {
                   title: '場景時段',
                   icon: Icons.wb_twilight_outlined,
                   description:
-                      '正式時段：清晨 05–08、白天 08–17、黃昏 17–20、'
-                      '夜晚 20–05；每個起點後 45 分鐘為平滑交界。'
+                      '完整時段：清晨 05:00、白天 09:00、黃昏 17:00、'
+                      '夜晚 19:00；16:00 開始轉黃昏，其餘交界為 45 分鐘。'
                       '覆寫會同步套用首頁場景與底部裝飾條。',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,7 +532,7 @@ class _DevTestPageState extends State<DevTestPage> {
                   description:
                       '把每日狀態日期推前一天，按下後會自動刷新並跑真正的換日：'
                       '習慣勾選清空、streak 重算、登入獎勵重開。'
-                      '喝水/番茄鐘累計按真實日期存、不歸零。目前已快轉 $_dayShift 天。',
+                      '喝水／專注計時累計按真實日期存、不歸零。目前已快轉 $_dayShift 天。',
                   child: Row(
                     children: [
                       Expanded(

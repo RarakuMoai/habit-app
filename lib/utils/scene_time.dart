@@ -29,14 +29,14 @@ enum ScenePeriod { morning, day, dusk, night }
 /// 全 App 唯一門檻定義：任何層要判斷時段一律經由 [SceneTimeState] 權重，
 /// 不得另寫 if (hour >= …) 分桶。
 ///
-/// 正式時段（2026-07-13 使用者定案）：清晨 05–08、白天 08–17、
-/// 黃昏 17–20、夜晚 20–05。交接設計成「整點開始、45 分鐘完成」：
-/// 每個時段的起點正是房間開始變化的一刻（05:00 天光初現、17:00 檯燈
-/// 與晚霞漸起、20:00 夜幕落下），且任一時段在自己的官方區間外永遠是 0。
-const double kNightToMorningStart = 5.0, kNightToMorningEnd = 5.75;
-const double kMorningToDayStart = 8.0, kMorningToDayEnd = 8.75;
-const double kDayToDuskStart = 17.0, kDayToDuskEnd = 17.75;
-const double kDuskToNightStart = 20.0, kDuskToNightEnd = 20.75;
+/// 正式交界（2026-07-19 使用者定案）：05:00 完整清晨、09:00 完整
+/// 白天、16:00 開始轉黃昏且 17:00 完整黃昏、19:00 完整夜晚。
+/// 清晨、白天與夜晚交界維持 45 分鐘；白天至黃昏用 60 分鐘，讓下午
+/// 光線提早暖起但不會在 16:00 前就已經完全進入黃昏。
+const double kNightToMorningStart = 4.25, kNightToMorningEnd = 5.0;
+const double kMorningToDayStart = 8.25, kMorningToDayEnd = 9.0;
+const double kDayToDuskStart = 16.0, kDayToDuskEnd = 17.0;
+const double kDuskToNightStart = 18.25, kDuskToNightEnd = 19.0;
 
 double _smoothstep(double a, double b, double x) {
   final t = ((x - a) / (b - a)).clamp(0.0, 1.0);
@@ -232,7 +232,7 @@ class SceneTimeController extends ChangeNotifier with WidgetsBindingObserver {
   static double periodAnchorHour(ScenePeriod p) => switch (p) {
     ScenePeriod.morning => 6.5,
     ScenePeriod.day => 13.0,
-    ScenePeriod.dusk => 18.5,
+    ScenePeriod.dusk => 17.5,
     ScenePeriod.night => 23.0,
   };
 

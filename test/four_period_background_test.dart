@@ -75,7 +75,7 @@ void main() {
   });
 
   testWidgets('白天至黃昏交界以相鄰兩張圖平滑交疊', (tester) async {
-    await pumpAt(tester, DateTime(2026, 7, 13, 17, 22, 30));
+    await pumpAt(tester, DateTime(2026, 7, 13, 16, 30));
 
     expect(assetNames(tester), [
       FourPeriodRoom.home.assets.day,
@@ -88,7 +88,7 @@ void main() {
   });
 
   testWidgets('跨序夜晚至清晨交界仍使用相鄰圖層', (tester) async {
-    await pumpAt(tester, DateTime(2026, 7, 13, 5, 22, 30));
+    await pumpAt(tester, DateTime(2026, 7, 13, 4, 37, 30));
 
     expect(assetNames(tester), [
       FourPeriodRoom.home.assets.night,

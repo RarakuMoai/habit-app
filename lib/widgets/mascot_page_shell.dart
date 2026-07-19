@@ -49,9 +49,11 @@ class MascotPageShell extends StatefulWidget {
   /// 把手 & 陰影主色，依頁面切換。
   final Color accent;
 
-  /// 兔咪場景區固定高度（px）。傳 null（預設）時用「跟螢幕寬等比」的
-  /// [homeSceneRegionHeight]，讓卡片頂緣對齊地毯線、兔咪踩在地板上
-  /// （見 home/room_metrics.dart）；所有兔咪頁共用這個預設，機型間才一致。
+  /// 兔咪場景區固定高度（px）。七個兔咪頁一律傳
+  /// [sceneRegionHeightAnchored]（頁面 context 的寬度＋狀態列高），讓卡片
+  /// 頂緣／兔咪腳在每台機器都對齊背景圖同一條地毯線。傳 null 時退回純寬度
+  /// 錨點 [homeSceneRegionHeight]（不含 chrome 修正；shell 在 SafeArea 內
+  /// 量不到狀態列，只能由頁面傳入）。見 home/room_metrics.dart。
   final double? sceneHeight;
 
   /// 收合時保留的「偷看」高度，預設 20。

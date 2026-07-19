@@ -30,22 +30,35 @@ abstract final class PrefsKeys {
   static String coinClaim(String source, String date) =>
       '$coinClaimPrefix${source}_$date';
 
-  // ── 計時頁：專注（番茄鐘）──────────────────────────────────
+  // ── 計時頁：專注計時器 ─────────────────────────────────────
   static const timerFocusMinutes = 'timer_focus_minutes';
   static const timerShortBreakMinutes = 'timer_short_break_minutes';
   static const timerLongBreakMinutes = 'timer_long_break_minutes';
   static const timerLongBreakEnabled = 'timer_long_break_enabled'; // 結尾長休息
-  static const timerRounds = 'timer_rounds'; // 一節幾顆番茄（1–8）
-  // 上次選的方案：0/1/2=預設組、3=自訂（重開 app 記憶用）。
+  static const timerRounds = 'timer_rounds'; // 一次循環的專注回合數（1–8）
+  // 上次選的快捷方案：0=經典、1=深度、2=輕量、3=自訂。
   static const timerSelectedPreset = 'timer_selected_preset';
-  // 自訂改為 3 個可命名槽。槽0 向後相容上面舊的 focus/short/rounds key。
+  // 四個快捷方案都是可編輯的；預設名稱只代表初始值。
+  static String timerFocusProfileName(int i) => 'timer_focus_profile_${i}_name';
+  static String timerFocusProfileFocus(int i) =>
+      'timer_focus_profile_${i}_focus';
+  static String timerFocusProfileShort(int i) =>
+      'timer_focus_profile_${i}_short';
+  static String timerFocusProfileRounds(int i) =>
+      'timer_focus_profile_${i}_rounds';
+  static String timerFocusProfileLong(int i) => 'timer_focus_profile_${i}_long';
+  static String timerFocusProfileLongEnabled(int i) =>
+      'timer_focus_profile_${i}_long_enabled';
+
+  // 舊版自訂槽 key 保留供資料遷移與降版相容。
   static String timerCustomFocus(int i) => 'timer_custom_${i}_focus';
   static String timerCustomShort(int i) => 'timer_custom_${i}_short';
   static String timerCustomRounds(int i) => 'timer_custom_${i}_rounds';
   static String timerCustomName(int i) => 'timer_custom_${i}_name';
   static const timerCustomSlot = 'timer_custom_slot'; // 目前生效的自訂槽 0–2
 
-  // 帶日期的今日統計（date 格式 yyyy-MM-dd）
+  // 帶日期的今日統計（date 格式 yyyy-MM-dd）。timerTomatoes 是舊儲存名稱，
+  // 為了保留既有紀錄不改 key；畫面上統一稱為「專注回合」。
   static const timerTomatoesPrefix = 'timer_tomatoes_';
   static const timerFocusMinutesDayPrefix = 'timer_focus_min_';
 

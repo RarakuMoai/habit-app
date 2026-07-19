@@ -3,7 +3,7 @@
 // 頂部只保留 [週 / 月] 唯讀統計；「補習慣」從 AppBar 進入獨立頁，
 // 避免與統計的期間切換混在一起。
 //
-// 領域：習慣、喝水、番茄鐘、運動（各自有功能開關才顯示）。語氣刻意不打分、
+// 領域：習慣、喝水、專注、運動（各自有功能開關才顯示）。語氣刻意不打分、
 // 不紅綠燈；數字只是「兔咪替你記得」。彙總邏輯在 utils/review_stats.dart。
 import 'dart:convert';
 
@@ -509,7 +509,7 @@ class _ReviewPageState extends State<ReviewPage> {
             color: const Color(0xFFEF7A5A),
             title: '專注',
             review: ReviewStats.focus(prefs, dates: dates),
-            unitWord: '顆',
+            unitWord: '回合',
             emptyText: '這段時間還沒有專注紀錄',
           ),
           const SizedBox(height: 12),

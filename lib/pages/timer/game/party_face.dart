@@ -251,7 +251,10 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
     );
   }
 
-  /// 盤中央：目前玩家名 + 巨大時間 + 狀態小字。
+  /// 盤中央：「現在輪到」 + 大玩家名 + 巨大時間。
+  ///
+  /// 手機會平放在桌中央，玩家名必須比一般手持 UI 大；長名允許
+  /// 排兩行，不用過小的字硬塞在單行裡。
   Widget _dialContent(double dial, Color accent, Color seat, bool ready) {
     final String timeText;
     final String? statusText;
@@ -289,28 +292,42 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
     }
 
     return SizedBox(
-      width: dial * 0.72,
+      width: dial * 0.76,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Text(
+            ready ? '第一位' : '現在輪到',
+            style: const TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5,
+              color: TableTheme.tableInkFaint,
+            ),
+          ),
+          SizedBox(height: dial * 0.012),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _dot(seat, 12),
-              const SizedBox(width: 8),
+              _dot(seat, 14),
+              const SizedBox(width: 10),
               Flexible(
                 child: Text(
                   engine.currentPlayer.name,
-                  maxLines: 1,
+                  key: const ValueKey('game-current-player-name'),
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: TableTheme.nameStyle(fontSize: dial * 0.082),
+                  style: TableTheme.nameStyle(
+                    fontSize: (dial * 0.105).clamp(30.0, 38.0),
+                  ).copyWith(height: 1.0),
                 ),
               ),
             ],
           ),
-          SizedBox(height: dial * 0.008),
+          SizedBox(height: dial * 0.012),
           SizedBox(
-            height: dial * 0.40,
+            height: dial * 0.36,
             child: FittedBox(child: time),
           ),
           if (statusText != null)
@@ -404,42 +421,78 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   }
 
   Widget _nextPlayerLine() {
-    if (engine.phase == TablePhase.ready) return const SizedBox(height: 22);
     final next = engine.nextPlayer;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text(
-          '下一位',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: TableTheme.tableInkFaint,
+    final nextColor = TableTheme.seatColor(next.colorIndex);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 360, minHeight: 68),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppSurfaces.card.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: nextColor.withValues(alpha: 0.30)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x148D6E63),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: nextColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '下一位',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      color: TableTheme.tableInkFaint,
+                    ),
+                  ),
+                  SizedBox(height: 1),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 20,
+                    color: TableTheme.tableInkFaint,
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  next.name,
+                  key: const ValueKey('game-next-player-name'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 23,
+                    height: 1.05,
+                    fontWeight: FontWeight.w900,
+                    color: TableTheme.tableInkStrong,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _dot(nextColor, 12),
+            ],
           ),
         ),
-        const SizedBox(width: 8),
-        const Icon(
-          Icons.arrow_right_alt_rounded,
-          size: 20,
-          color: TableTheme.tableInkFaint,
-        ),
-        const SizedBox(width: 8),
-        _dot(TableTheme.seatColor(next.colorIndex), 10),
-        const SizedBox(width: 6),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 180),
-          child: Text(
-            next.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: TableTheme.tableInkSoft,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -456,7 +509,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
         child: const Text(
           '準備好了就點桌面開始',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 15.5,
             fontWeight: FontWeight.w800,
             color: TableTheme.tableInkStrong,
           ),
@@ -468,7 +521,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
         const Text(
           '走完了就點桌面，換下一位',
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 14.5,
             fontWeight: FontWeight.w700,
             color: TableTheme.tableInkFaint,
           ),

@@ -1,5 +1,5 @@
 // 兔咪場景共用元件：把首頁那組「兔咪 + 對話框 + 互動動畫」抽成可共用 widget，
-// 讓其他頁面（番茄鐘、喝水、體重、家庭）能套用同樣的呈現。
+// 讓其他頁面（專注計時、喝水、體重、家庭）能套用同樣的呈現。
 //
 // 主要對外 API：
 //   - [MascotScene]：兔咪 + 對話框組合，直接餵給 [MascotPageShell] 的 scene。
@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../pages/home/room_metrics.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/mascot.dart';
@@ -344,17 +345,29 @@ class MascotScene extends StatelessWidget {
           ),
         Align(
           alignment: const Alignment(0, 0.92),
-          child: MascotStage(
-            asset: asset,
-            accent: accent,
-            bubble: bubble,
-            bubbleTick: bubbleTick,
-            reactionTick: reactionTick,
-            onTap: onTap ?? () {},
-            onHeadPet: onHeadPet,
-            onEnergize: onEnergize,
-            paused: paused,
-            lighting: lighting,
+          // 兔咪跟背景同一個寬度縮放（14PM == 1.0 零位移；SE 縮到 ~0.87
+          // 才不會相對房間過大）。以 bottomCenter 為錨，腳的落點不因縮放
+          // 改變；Transform 會連 hit test 一起變換，手勢座標不受影響。
+          child: LayoutBuilder(
+            builder: (context, box) => Transform.scale(
+              scale: mascotStageScale(
+                maxWidth: box.maxWidth,
+                maxHeight: box.maxHeight,
+              ),
+              alignment: Alignment.bottomCenter,
+              child: MascotStage(
+                asset: asset,
+                accent: accent,
+                bubble: bubble,
+                bubbleTick: bubbleTick,
+                reactionTick: reactionTick,
+                onTap: onTap ?? () {},
+                onHeadPet: onHeadPet,
+                onEnergize: onEnergize,
+                paused: paused,
+                lighting: lighting,
+              ),
+            ),
           ),
         ),
       ],
@@ -514,6 +527,7 @@ class _MascotStageState extends State<MascotStage>
   // 情緒會眨；其他情緒 timer 照走但跳過，等換回有差分的圖自然恢復。
   final math.Random _rng = math.Random();
   Timer? _blinkTimer;
+  Timer? _blinkStepTimer;
   bool _eyesClosed = false;
 
   // ── 摸頭（頭上搓動）──
@@ -604,27 +618,42 @@ class _MascotStageState extends State<MascotStage>
     _blinkTimer?.cancel();
     if (widget.paused) return; // 閒置凍結時不排下一次眨眼
     // 人類眨眼間隔大約 2~6 秒，取隨機避免機械感
-    _blinkTimer = Timer(
-      Duration(milliseconds: 2400 + _rng.nextInt(3200)),
-      () async {
-        if (!mounted) return;
-        if (MascotEmotion.blinkAssetForPath(widget.asset) != null) {
-          await _blinkOnce();
-          // 偶爾連眨兩下，更像活的
-          if (mounted && _rng.nextDouble() < 0.22) {
-            await Future<void>.delayed(const Duration(milliseconds: 140));
-            if (mounted) await _blinkOnce();
-          }
-        }
-        if (mounted) _scheduleNextBlink();
-      },
-    );
+    _blinkTimer = Timer(Duration(milliseconds: 2400 + _rng.nextInt(3200)), () {
+      if (!mounted) return;
+      if (MascotEmotion.blinkAssetForPath(widget.asset) != null) {
+        _blinkOnce(
+          onDone: () {
+            // 偶爾連眨兩下，更像活的。
+            if (_rng.nextDouble() < 0.22) {
+              _blinkStepTimer = Timer(
+                const Duration(milliseconds: 140),
+                () => _blinkOnce(onDone: _scheduleNextBlink),
+              );
+            } else {
+              _scheduleNextBlink();
+            }
+          },
+        );
+      } else {
+        _scheduleNextBlink();
+      }
+    });
   }
 
-  Future<void> _blinkOnce() async {
+  void _blinkOnce({required VoidCallback onDone}) {
+    if (!mounted || widget.paused) return;
     setState(() => _eyesClosed = true);
-    await Future<void>.delayed(const Duration(milliseconds: 130));
-    if (mounted) setState(() => _eyesClosed = false);
+    _blinkStepTimer?.cancel();
+    _blinkStepTimer = Timer(const Duration(milliseconds: 130), () {
+      if (!mounted || widget.paused) return;
+      setState(() => _eyesClosed = false);
+      onDone();
+    });
+  }
+
+  void _cancelBlinkTimers() {
+    _blinkTimer?.cancel();
+    _blinkStepTimer?.cancel();
   }
 
   @override
@@ -645,7 +674,7 @@ class _MascotStageState extends State<MascotStage>
       if (widget.paused) {
         // 閒置凍結：停呼吸、取消眨眼，畫面靜止省電。
         _breathCtrl.stop();
-        _blinkTimer?.cancel();
+        _cancelBlinkTimers();
         _eyesClosed = false; // 不要定格在閉眼；隨即重建會套用
       } else {
         // 恢復：重新開始呼吸與眨眼。
@@ -657,7 +686,7 @@ class _MascotStageState extends State<MascotStage>
 
   @override
   void dispose() {
-    _blinkTimer?.cancel();
+    _cancelBlinkTimers();
     _petBlissTimer?.cancel();
     unawaited(SfxService.instance.stop(SfxCue.tumiCharge));
     unawaited(SfxService.instance.stop(SfxCue.tumiPet));

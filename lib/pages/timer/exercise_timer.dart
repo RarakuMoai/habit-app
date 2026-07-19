@@ -17,10 +17,12 @@ import '../../utils/sfx_service.dart';
 import '../../utils/timer_mutex.dart';
 import '../../utils/wake_guard.dart';
 import '../../widgets/hold_repeat_button.dart';
+import '../../widgets/scroll_continuation_area.dart';
+import '../../widgets/timer_mode_frame.dart';
 import '../../widgets/timer_ring_painter.dart';
 
 // 計時頁「運動」模式：間歇訓練計時器。
-// 引擎沿用番茄鐘那套 wall-clock（用 endTime 反推剩餘）＋背景回來補算多階段
+// 引擎沿用專注計時的 wall-clock（用 endTime 反推剩餘）＋背景回來補算多階段
 // ＋鏈式通知，所以鎖屏也準。五種子模式（Tabata / HIIT / EMOM / 重訓 / 超慢跑），
 // 階段序列：準備 →（暖身）→ [運動 → 休息]×回合 → 完成。
 
@@ -194,7 +196,7 @@ class ExerciseTimer extends StatefulWidget {
 
 class ExerciseTimerState extends State<ExerciseTimer>
     with WidgetsBindingObserver, TickerProviderStateMixin {
-  // 通知 id 區段（與番茄鐘 1001..1006 分開）
+  // 通知 id 區段（與專注計時 1001..1006 分開）
   static const int _notifIdBase = 1100;
   static const int _maxNotifs = 40;
   static const Duration _tickerInterval = Duration(milliseconds: 100);
@@ -532,7 +534,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   // 階段倒數最後 3 秒嗶提示（3→2→1 各一次，第 1 秒那聲較強）。
-  // 沿用節拍器預設短音（溫和鼓聲）；番茄鐘不呼叫，所以只有運動會嗶。
+  // 沿用節拍器預設短音（溫和鼓聲）；專注計時不呼叫，所以只有運動會嗶。
   void _maybeCountdownCue(int remaining) {
     if (!_isRunning || remaining < 1 || remaining > 3) return;
     if (remaining == _lastCueSec) return;
@@ -778,8 +780,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
   void _reset() {
     _stopTicker();
     _cancelAllNotifs();
+    _breath.reset();
     setState(() {
       _isRunning = false;
+      _seq = const [];
       _phase = _ExPhase.idle;
       _round = 1;
       _idx = 0;
@@ -840,15 +844,13 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   void _selectKind(ExerciseKind k) {
-    // 與番茄鐘一致：跑到一半或暫停中都鎖住，要先 reset 歸零才能換，
+    // 與專注計時一致：跑到一半或暫停中都鎖住，要先 reset 歸零才能換，
     // 避免暫停時手滑點到別的模式而無聲清掉當前進度。
     if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('請先按「重設」歸零，才能切換模式喔')),
-        );
+        ..showSnackBar(const SnackBar(content: Text('請先按「重設」歸零，才能切換模式喔')));
       return;
     }
     if (k == _kind) return;
@@ -925,228 +927,43 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
   @override
   Widget build(BuildContext context) {
-    // 與專注模式相同：保留原本完整/緊湊兩個端點排版，中間用「圓盤共用滑動」
-    // 連續交接。
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final h = constraints.maxHeight;
-        // 超矮（SE + 六分頁兩列導覽 + 面板展開）：緊湊版的圓點/種類列也
-        // 塞不下，切到只留圓盤＋主控制的超緊湊版（同專注模式）。
-        if (h < 230) return _buildUltraCompactLayout(h);
-        final t = Curves.easeInOutCubic.transform(_smoothRange(390, 520, h));
-        if (t <= 0) return _buildCompactLayout(h);
-        if (t >= 1) return _buildFullLayout();
-        return _blendTimerLayouts(h, t);
-      },
-    );
-  }
-
-  // 圓盤滑動定位（與專注模式同一組常數）。
-  static const Alignment _kFullRingAlign = Alignment(0.0, -0.32);
-  static const Alignment _kCompactRingAlign = Alignment(-0.46, -0.16);
-
-  // 圓盤共用滑動：交接過程中圓盤是「單一」元件，連續在緊湊（左側、較小）↔
-  // 完整（中央、較大）間滑動＋縮放；周邊錯開淡入淡出。兩端 (t=0/1) 用真實排版。
-  Widget _blendTimerLayouts(double height, double t) {
-    final fullHeight = math.max(height, 520.0);
-    final ringSize = 170 + (246 - 170) * t;
-    final ringAlign = Alignment.lerp(_kCompactRingAlign, _kFullRingAlign, t)!;
-    // 不重疊錯開淡入淡出 + 看不見就不建（同專注模式，降低每幀 saveLayer/build）。
-    final compactOpacity = Curves.easeIn.transform((1 - 2 * t).clamp(0.0, 1.0));
-    final fullOpacity = Curves.easeIn.transform((2 * t - 1).clamp(0.0, 1.0));
-    return ClipRect(
-      child: Stack(
-        children: [
-          if (compactOpacity > 0.01)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Opacity(
-                  opacity: compactOpacity,
-                  child: _buildCompactLayout(height, showRing: false),
-                ),
-              ),
-            ),
-          if (fullOpacity > 0.01)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Opacity(
-                  opacity: fullOpacity,
-                  child: OverflowBox(
-                    minHeight: fullHeight,
-                    maxHeight: fullHeight,
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      height: fullHeight,
-                      child: _buildFullLayout(showRing: false),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: RepaintBoundary(
-                child: Align(alignment: ringAlign, child: _buildRing(ringSize)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static double _smoothRange(double start, double end, double value) {
-    final t = ((value - start) / (end - start)).clamp(0.0, 1.0);
-    return t * t * (3 - 2 * t);
-  }
-
-  // 完整版面：對齊專注模式的「徽章 → 圓盤 → 控制 → 狀態 → 預設 → 統計」節奏。
-  Widget _buildFullLayout({bool showRing = true}) {
-    return Column(
-      children: [
-        const SizedBox(height: 8),
-        _phaseChip(),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: _buildExerciseDots(),
-        ),
-        Expanded(
-          child: Center(
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final ring = math.min(math.min(c.maxWidth, c.maxHeight), 246.0);
-                return showRing
-                    ? _buildRing(ring)
-                    : SizedBox.square(dimension: ring);
-              },
-            ),
-          ),
-        ),
-        _controlsRow(),
-        const SizedBox(height: 10),
-        Text(
-          _statusLine(),
-          style: const TextStyle(
-            color: AppInk.soft,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _kindPicker(),
-        const SizedBox(height: 12),
-        _statsBar(),
-        const SizedBox(height: 10),
-      ],
-    );
-  }
-
-  // 緊湊版面：跟專注模式一樣讓圓盤與控制並排，面板展開時仍好按。
-  // 超緊湊版面（高度連緊湊版都放不下）：圓盤＋狀態＋主控制並排，
-  // 圓點與種類列讓位；把面板上拉即可回到緊湊/完整版（同專注模式）。
-  Widget _buildUltraCompactLayout(double h) {
-    final ringSize = (h - 12).clamp(80.0, 150.0);
-    return Center(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildRing(ringSize),
-          const SizedBox(width: 18),
-          // 高度不足時右欄等比縮小，任何高度都不溢出。
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: h),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _phaseChip(small: true),
-                  const SizedBox(height: 8),
-                  _controlsRow(compact: true),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactLayout(double h, {bool showRing = true}) {
-    final ringSize = (h - 110).clamp(110.0, 170.0);
-    return Column(
-      children: [
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              showRing
-                  ? _buildRing(ringSize)
-                  : SizedBox.square(dimension: ringSize),
-              const SizedBox(width: 22),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _phaseChip(small: true),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _buildExerciseDots(),
-                  ),
-                  const SizedBox(height: 14),
-                  _controlsRow(compact: true),
-                ],
-              ),
-            ],
-          ),
-        ),
-        _kindPicker(),
-        const SizedBox(height: 12),
-      ],
-    );
-  }
-
-  Widget _phaseChip({bool small = false}) {
     final color = _phaseColor;
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 350),
-      switchInCurve: Curves.easeOutBack,
-      switchOutCurve: Curves.easeIn,
-      transitionBuilder: (child, anim) =>
-          ScaleTransition(scale: anim, child: child),
-      child: Container(
-        key: ValueKey(_phase),
-        padding: EdgeInsets.symmetric(
-          horizontal: small ? 12 : 16,
-          vertical: small ? 6 : 8,
+    return TimerModeFrame(
+      heroBuilder: (context, size) => _buildRing(size),
+      status: TimerStatusPill(
+        stateKey: _phase,
+        color: color,
+        icon: _phaseIcon,
+        label: _phaseLabel,
+      ),
+      progress: _buildExerciseDots(),
+      controls: TimerControlCluster(
+        accent: color,
+        primaryIcon: _isRunning
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded,
+        onPrimary: _startPause,
+        leading: TimerSecondaryAction(
+          icon: _idle ? Icons.tune_rounded : Icons.replay_rounded,
+          label: _idle ? '設定' : '重設',
+          onTap: _idle ? _openSettingsSheet : _reset,
         ),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.20)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.12),
-              blurRadius: 14,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(_phaseIcon, size: small ? 15 : 17, color: color),
-            SizedBox(width: small ? 5 : 7),
-            Text(
-              _phaseLabel,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w800,
-                fontSize: small ? 13 : 15.5,
-              ),
-            ),
-          ],
+        trailing: TimerSecondaryAction(
+          icon: Icons.skip_next_rounded,
+          label: '跳過',
+          onTap: _idle ? null : _skip,
         ),
       ),
+      statusLine: Text(
+        _statusLine(),
+        style: const TextStyle(
+          color: AppInk.soft,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      quickPicker: _kindPicker(),
+      footer: _todaySessions > 0 ? _statsBar() : null,
     );
   }
 
@@ -1181,6 +998,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
               height: 16,
               child: Center(
                 child: AnimatedContainer(
+                  key: ValueKey(
+                    'exercise-progress-$i-${active ? 'filled' : 'empty'}',
+                  ),
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutBack,
                   width: active ? 11 : 9,
@@ -1311,9 +1131,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
-  // 子模式選擇列（執行中鎖定），位置與專注模式的預設列對齊。
-  // 固定高度槽：與專注 _buildPresetRow 的 _pickerRowHeight 等高（兩處數值務必一致），
-  // 切換模式時版面不位移。
+  // 子模式選擇列（執行中鎖定）。專注方案已收進設定頁，運動仍保留這排，
+  // 因為 Tabata／HIIT 等是需要快速切換的運動種類，不只是時間預設。
   static const double _pickerRowHeight = 52;
 
   Widget _kindPicker() {
@@ -1467,8 +1286,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
           );
         },
         child: TweenAnimationBuilder<double>(
-          // 換階段時用 _idx 重建，從 0 起新進度，避免進度弧由滿「倒帶」回 0
-          key: ValueKey(_idx),
+          // 階段與序號一起辨識這一圈。重設回 idle 時即使同為 idx 0，
+          // 也會建立新動畫，避免沿用舊進度時短暫空白或倒帶。
+          key: ValueKey((_phase, _idx)),
           tween: Tween(begin: 0, end: _progress),
           duration: const Duration(milliseconds: 180),
           builder: (context, p, child) => CustomPaint(
@@ -1554,206 +1374,62 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
-  Widget _controlsRow({bool compact = false}) {
-    // 待機時左鈕＝設定（此時才會調參數）；進行/暫停時左鈕＝重設。
-    // 右鈕＝跳過當前階段，待機時淡化停用。
-    final gap = compact ? 16.0 : 24.0;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _sideButton(
-          icon: _idle ? Icons.tune_rounded : Icons.replay_rounded,
-          label: _idle ? '設定' : '重設',
-          onTap: _idle ? _openSettingsSheet : _reset,
-          size: compact ? 44 : 54,
-        ),
-        SizedBox(width: gap),
-        // 主鈕較大；下方補一格與側鈕文字同高的留白，三顆圓心對齊
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _mainButton(_phaseColor, size: compact ? 62 : 78),
-            const SizedBox(height: _sideLabelGap + _sideLabelHeight),
-          ],
-        ),
-        SizedBox(width: gap),
-        _sideButton(
-          icon: Icons.skip_next_rounded,
-          label: '跳過',
-          onTap: _idle ? () {} : _skip,
-          faded: _idle,
-          size: compact ? 44 : 54,
-        ),
-      ],
-    );
-  }
-
-  Widget _mainButton(Color color, {double size = 78}) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 15,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: Material(
-        color: color,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: _startPause,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                transitionBuilder: (child, anim) =>
-                    ScaleTransition(scale: anim, child: child),
-                child: Icon(
-                  _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  key: ValueKey(_isRunning),
-                  color: Colors.white,
-                  size: size * 0.5,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 圓鈕下方掛一行小文字，避免單看圖示猜不出意圖（與番茄鐘一致）
-  static const double _sideLabelGap = 6;
-  static const double _sideLabelHeight = 16;
-  Widget _sideButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool faded = false,
-    double size = 54,
-  }) {
-    return Opacity(
-      opacity: faded ? 0.35 : 1,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
-              border: Border.fromBorderSide(
-                const BorderSide(color: Color(0x0A46342B)),
-              ),
-              boxShadow: AppShadows.flat,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                onTap: onTap,
-                customBorder: const CircleBorder(),
-                child: SizedBox(
-                  width: size,
-                  height: size,
-                  child: Icon(icon, color: AppInk.soft, size: size * 0.42),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: _sideLabelGap),
-          SizedBox(
-            height: _sideLabelHeight,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: AppInk.soft,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _statsBar() {
-    final hasAny = _todaySessions > 0;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: 50, // 與專注統計列等高，切換模式不位移（兩處需一致）
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: hasAny ? 0.92 : 0.72),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: hasAny
-              ? const Color(0xFF26A69A).withValues(alpha: 0.16)
-              : const Color(0x0A46342B),
+          color: const Color(0xFF26A69A).withValues(alpha: 0.16),
         ),
         boxShadow: AppShadows.flat,
       ),
-      child: hasAny
-          ? Row(
-              children: [
-                Expanded(
-                  child: _statPill(
-                    icon: Icons.local_fire_department_rounded,
-                    label: '今日運動',
-                    value: '×$_todaySessions',
-                    color: const Color(0xFFFF8A50),
+      child: Row(
+        children: [
+          Expanded(
+            child: _statPill(
+              icon: Icons.local_fire_department_rounded,
+              label: '今日運動',
+              value: '×$_todaySessions',
+              color: const Color(0xFFFF8A50),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _statPill(
+              icon: Icons.timer_rounded,
+              label: '累計',
+              value: '$_todayMinutes 分',
+              color: const Color(0xFF26A69A),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Tooltip(
+            message: '清除今日運動統計',
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: _clearTodayStats,
+                customBorder: const CircleBorder(),
+                child: const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 17,
+                    color: AppInk.faint,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _statPill(
-                    icon: Icons.timer_rounded,
-                    label: '累計',
-                    value: '$_todayMinutes 分',
-                    color: const Color(0xFF26A69A),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Tooltip(
-                  message: '清除今日運動統計',
-                  child: Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      onTap: _clearTodayStats,
-                      customBorder: const CircleBorder(),
-                      child: const SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: Icon(
-                          Icons.delete_outline_rounded,
-                          size: 17,
-                          color: AppInk.faint,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : const Center(
-              child: Text(
-                '今天還沒動，選個模式開始吧',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppInk.soft,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2154,7 +1830,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: SingleChildScrollView(
+                      child: ScrollContinuationArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,

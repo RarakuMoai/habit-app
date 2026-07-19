@@ -1,15 +1,18 @@
-// 每日登入慶祝頁：兔咪站上暖金放射光舞台，報告連續登入天數。
+// 每日登入慶祝頁：兔咪在「足跡報到卡」上蓋章報到。
 //
-// 呈現節奏：光芒舞台淡入 → 兔咪浮現 → 大數字彈出 → 7 天進度格逐格亮
-// → 今日格打勾（里程碑日兔咪歡呼＋禮物格 +20）→ 台詞與 CTA 亮起。
+// 敘事＝蓋章打卡（足跡幣本來就是腳印，蓋腳印章是這個 app 自己的隱喻）：
+// 兔咪浮現 → 報到卡滑入（過往腳印已蓋在卡上）→ 木柄印章懸停在今日格上方
+// → 「啪」蓋下（震動＋漣漪＋金腳印現身；里程碑日兔咪歡呼＋整卡發光）
+// → 印章抬離、「連續第 N 天」墨印落款 → 台詞與 CTA 亮起。
 // 點畫面任意處可一次亮完（不強迫等演出）。
 //
 // 誰來開這一頁：MainPage 的 _claimDailyLoginReward 領到獎勵後 push；
 // pop 之後才輪到金幣飛行吸入 AppBar（幣從本頁 CTA 的位置爆出，接得上）。
 // 開發者頁的「預覽」直接 push、不動任何狀態。
 //
-// 兔咪圖暫用歡呼姿 tumi_streak.png；「抱大足跡幣」差分生好後換 _mascotAsset。
-// 光芒/光塵全在 Flutter 端畫（CG 只畫純角色，特效重用）。
+// 兔咪圖暫用歡呼姿 tumi_streak.png；「兔咪拿印章」差分生好後換 _mascotAsset，
+// 印章道具屆時可改與角色合體。光芒/光塵/印章/墨印全在 Flutter 端畫
+//（CG 只畫純角色，特效重用）。
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -62,18 +65,32 @@ const _kNumberInk = Color(0xFF7A4A17);
 const _kSlotGold = Color(0xFFEDAD3F);
 const _kCtaGold = Color(0xFFEFB44F);
 const _kCtaInk = Color(0xFF4A3312);
+// 印章道具：木柄＋深棕章座＋沾金印泥（插畫慣例的簡潔向量質感）。
+const _kStampWoodLight = Color(0xFFC89158);
+const _kStampWoodDark = Color(0xFF96652F);
+const _kStampBaseTop = Color(0xFF8A5A2B);
+const _kStampBaseBottom = Color(0xFF6E4A1F);
+const _kStampInkGold = Color(0xFFD79A2F);
+// 報到卡空格：虛線圈（等著被蓋滿）。
+const _kSlotDash = Color(0xFFD9BE93);
+const _kSlotEmptyFill = Color(0xFFF9F0DD);
 
 class _LoginStreakPageState extends State<LoginStreakPage>
     with SingleTickerProviderStateMixin {
   static const _mascotAsset = 'assets/mascot/core/tumi_streak.png';
+  static const _coinAsset = 'assets/icon/ui/paw_footprint_coin.png';
 
-  // 光芒旋轉／光塵／提示呼吸共用的環境時鐘（0→1 循環）。
+  // 光芒旋轉／光塵／懸停呼吸共用的環境時鐘（0→1 循環）。
   late final AnimationController _ambient;
 
-  // 演出階段：0 無 → 1 兔咪 → 2 數字 → 3 進度卡 → 4 今日格打勾 → 5 全亮。
+  // 演出階段：0 無 → 1 兔咪 → 2 報到卡 → 3 印章懸停 → 4 印章壓下
+  // → 5 印章抬離＋墨印落款 → 6 全亮。
   int _step = 0;
+
+  // 印章接觸瞬間（壓下後約 150ms）：腳印現身／漣漪／音效震動以此為準。
+  bool _impact = false;
+  bool _impactPlayed = false;
   final List<Timer> _timers = [];
-  bool _todayCheckPlayed = false;
 
   bool get _isMilestoneDay => widget.reward.milestoneAmount > 0;
 
@@ -105,11 +122,12 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_reduceMotion && _step < 5) {
+    if (_reduceMotion && _step < 6) {
       _cancelTimers();
       _ambient.stop();
-      _step = 5;
-      _todayCheckPlayed = true; // 靜態呈現：不補打勾音效
+      _step = 6;
+      _impact = true;
+      _impactPlayed = true; // 靜態呈現：不補蓋章音效
     }
   }
 
@@ -128,31 +146,39 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   }
 
   void _startShow() {
-    const steps = [120, 480, 820, 1120, 1420];
+    const steps = [150, 420, 900, 1300, 1780, 2150];
     for (var i = 0; i < steps.length; i++) {
       _timers.add(
         Timer(Duration(milliseconds: steps[i]), () {
-          if (mounted) setState(() => _advanceTo(i + 1));
+          if (mounted) setState(() => _step = i + 1);
         }),
       );
     }
+    // 壓下動畫約 150ms 後底面接觸卡面＝真正的「啪」。
+    _timers.add(
+      Timer(const Duration(milliseconds: 1450), () {
+        if (mounted) setState(_markImpact);
+      }),
+    );
   }
 
-  void _advanceTo(int step) {
-    _step = step;
-    if (step >= 4 && !_todayCheckPlayed) {
-      _todayCheckPlayed = true;
-      playFeedback(SfxCue.success, haptic: HapticLevel.light);
-      // 里程碑日是大事件：疊兔咪歡呼。
-      if (_isMilestoneDay) playFeedback(SfxCue.tumiCheer);
-    }
+  void _markImpact() {
+    _impact = true;
+    if (_impactPlayed) return;
+    _impactPlayed = true;
+    playFeedback(SfxCue.success, haptic: HapticLevel.medium);
+    // 里程碑日是大事件：疊兔咪歡呼。
+    if (_isMilestoneDay) playFeedback(SfxCue.tumiCheer);
   }
 
   /// 點畫面任意處：一次亮完，不強迫等演出。
   void _fastForward() {
-    if (_step >= 5) return;
+    if (_step >= 6) return;
     _cancelTimers();
-    setState(() => _advanceTo(5));
+    setState(() {
+      _step = 6;
+      _markImpact();
+    });
     playHaptic(HapticLevel.selection);
   }
 
@@ -207,9 +233,9 @@ class _LoginStreakPageState extends State<LoginStreakPage>
                 child: Column(
                   children: [
                     Expanded(child: _buildMascot(compact)),
-                    _buildStreakNumber(compact),
-                    SizedBox(height: compact ? 12 : 20),
-                    _buildCycleCard(compact),
+                    _buildStreakSeal(compact),
+                    SizedBox(height: compact ? 10 : 16),
+                    _buildStampCard(compact),
                     SizedBox(height: compact ? 10 : 16),
                     _buildCaption(),
                     SizedBox(height: compact ? 10 : 16),
@@ -269,90 +295,169 @@ class _LoginStreakPageState extends State<LoginStreakPage>
     );
   }
 
-  Widget _buildStreakNumber(bool compact) {
-    final shown = _step >= 2;
+  /// 「連續第 N 天」墨印落款：像蓋在紙上的橡皮章（微傾斜、粗框），
+  /// 出現時由大縮小＝壓上去的力道。取代舊版的巨大置中數字。
+  Widget _buildStreakSeal(bool compact) {
+    final shown = _step >= 5;
     return Semantics(
       label: '連續登入 ${widget.streak} 天，今日足跡幣 +${widget.reward.totalAmount}',
-      child: AnimatedScale(
-        scale: shown ? 1 : 0.55,
-        duration: const Duration(milliseconds: 520),
-        curve: Curves.easeOutBack,
-        child: AnimatedOpacity(
-          opacity: shown ? 1 : 0,
-          duration: const Duration(milliseconds: 380),
-          child: Column(
-            children: [
-              Text(
-                '${widget.streak}',
-                style: AppType.digits(
-                  fontSize: compact ? 62 : 78,
-                  fontWeight: FontWeight.w800,
-                  color: _kNumberInk,
-                ).copyWith(
-                  shadows: const [
-                    Shadow(color: Colors.white, blurRadius: 18),
-                    Shadow(
-                      color: Color(0x338B5D3C),
-                      blurRadius: 2,
-                      offset: Offset(0, 2),
+      child: AnimatedOpacity(
+        opacity: shown ? 1 : 0,
+        duration: const Duration(milliseconds: 200),
+        child: AnimatedScale(
+          scale: shown ? 1 : 1.55,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          child: Transform.rotate(
+            angle: -0.05,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _kNumberInk.withValues(alpha: 0.78),
+                  width: 2.4,
+                ),
+              ),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: '連續第 '),
+                    TextSpan(
+                      text: '${widget.streak}',
+                      style: AppType.digits(
+                        fontSize: compact ? 26 : 31,
+                        fontWeight: FontWeight.w800,
+                        color: _kNumberInk,
+                      ),
                     ),
+                    const TextSpan(text: ' 天'),
                   ],
                 ),
-              ),
-              Text(
-                '天連續報到',
                 style: TextStyle(
-                  color: _kDeepGold.withValues(alpha: 0.92),
-                  fontSize: compact ? 14 : 16,
+                  color: _kNumberInk,
+                  fontSize: compact ? 15 : 17,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 4,
+                  letterSpacing: 3,
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCycleCard(bool compact) {
-    final shown = _step >= 3;
+  Widget _buildStampCard(bool compact) {
+    final shown = _step >= 2;
     final milestone = CoinConfig.loginStreakMilestone;
+    final round = (widget.streak - 1) ~/ milestone + 1;
     return AnimatedOpacity(
       opacity: shown ? 1 : 0,
       duration: const Duration(milliseconds: 420),
       child: AnimatedSlide(
-        offset: shown ? Offset.zero : const Offset(0, 0.12),
+        offset: shown ? Offset.zero : const Offset(0, 0.14),
         duration: const Duration(milliseconds: 420),
         curve: Curves.easeOutCubic,
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: compact ? 10 : 14,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: _kRayGold.withValues(alpha: 0.55)),
-            boxShadow: AppShadows.card,
-          ),
-          child: Row(
-            children: [
-              for (var day = 1; day <= milestone; day++) ...[
-                if (day > 1) const SizedBox(width: 6),
-                Expanded(child: _buildDaySlot(day, compact)),
+        child: _impactDip(
+          child: Container(
+            padding: EdgeInsets.fromLTRB(14, compact ? 8 : 11, 14, compact ? 10 : 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _kRayGold.withValues(alpha: 0.55)),
+              boxShadow: [
+                ...AppShadows.card,
+                // 里程碑日蓋滿整卡：暖金光暈慶祝。
+                if (_impact && _isMilestoneDay)
+                  BoxShadow(
+                    color: _kSlotGold.withValues(alpha: 0.45),
+                    blurRadius: 26,
+                    spreadRadius: 2,
+                  ),
               ],
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      '兔咪報到卡',
+                      style: TextStyle(
+                        color: _kDeepGold,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const Spacer(),
+                    // 走到第二輪以後亮出輪數：老朋友的小勳章。
+                    if (round >= 2)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: _kRayGold.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        child: Text(
+                          '第 $round 輪',
+                          style: AppType.digits(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: _kDeepGold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                SizedBox(height: compact ? 7 : 9),
+                // 旁白唸整體進度就好，格子裡的日數字/圖示不逐一唸。
+                Semantics(
+                  label: '本輪已報到 $_cycleDay 天，滿 $milestone 天有加碼',
+                  child: ExcludeSemantics(
+                    child: Row(
+                      children: [
+                        for (var day = 1; day <= milestone; day++) ...[
+                          if (day > 1) const SizedBox(width: 6),
+                          Expanded(child: _buildDaySlot(day, compact)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// 蓋章瞬間整張卡往下沉一點再回彈：印章真的壓在紙上。
+  Widget _impactDip({required Widget child}) {
+    if (!_impact || _reduceMotion) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 260),
+      builder: (_, t, c) => Transform.translate(
+        offset: Offset(0, 3.2 * math.sin(t * math.pi)),
+        child: c,
+      ),
+      child: child,
     );
   }
 
   Widget _buildDaySlot(int day, bool compact) {
     final milestone = CoinConfig.loginStreakMilestone;
     final isToday = day == _cycleDay;
-    final filled = isToday ? _step >= 4 : day < _cycleDay;
+    // 今日格等印章接觸才蓋上；之前的日子跟卡片一起亮相。
+    final stamped = isToday ? _impact : day < _cycleDay;
     final isGift = day == milestone;
     final slotSize = compact ? 30.0 : 36.0;
     return Column(
@@ -366,54 +471,43 @@ class _LoginStreakPageState extends State<LoginStreakPage>
           ),
         ),
         const SizedBox(height: 5),
-        AnimatedScale(
-          // 今日格用彈跳感打勾；其他格跟卡片一起出現不再彈。
-          scale: isToday && !filled ? 0.4 : 1,
-          duration: const Duration(milliseconds: 460),
-          curve: Curves.easeOutBack,
-          child: Container(
-            width: slotSize,
-            height: slotSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: filled
-                  ? const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFFF6C75E), _kSlotGold],
-                    )
-                  : null,
-              color: filled ? null : const Color(0xFFF3E9D8),
-              border: isToday && filled
-                  ? Border.all(color: Colors.white, width: 2)
-                  : null,
-              boxShadow: filled
-                  ? [
-                      BoxShadow(
-                        color: _kDeepGold.withValues(alpha: 0.28),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Icon(
-              isGift && !filled
-                  ? Icons.card_giftcard_rounded
-                  : filled
-                  ? Icons.check_rounded
-                  : null,
-              size: slotSize * 0.58,
-              color: filled ? Colors.white : const Color(0xFFC99B4C),
-            ),
+        SizedBox(
+          width: slotSize,
+          height: slotSize,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              if (!stamped) ...[
+                CustomPaint(
+                  size: Size.square(slotSize),
+                  painter: const _DashedSlotPainter(),
+                ),
+                if (isGift)
+                  Icon(
+                    Icons.card_giftcard_rounded,
+                    size: slotSize * 0.52,
+                    color: const Color(0xFFC99B4C),
+                  ),
+              ] else if (isToday) ...[
+                _buildMintedCoin(slotSize),
+                if (!_reduceMotion) ...[
+                  _buildStampRipple(slotSize),
+                  _buildSpeckBurst(slotSize),
+                ],
+              ] else
+                Image.asset(_coinAsset, width: slotSize, height: slotSize),
+              if (isToday) _buildStamp(slotSize),
+            ],
           ),
         ),
         // 里程碑加碼徽章：佔位固定高度，出現時不推擠版面。
+        // 非里程碑日不建這個 Text（scale 0 藏起來仍會漏進 semantics）。
         SizedBox(
           height: 16,
-          child: isGift
+          child: isGift && _isMilestoneDay
               ? AnimatedScale(
-                  scale: _isMilestoneDay && _step >= 4 ? 1 : 0,
+                  scale: _impact ? 1 : 0,
                   duration: const Duration(milliseconds: 420),
                   curve: Curves.easeOutBack,
                   child: Text(
@@ -430,8 +524,128 @@ class _LoginStreakPageState extends State<LoginStreakPage>
     );
   }
 
+  /// 今日的金腳印：從印章底下「鑄」出來——由大縮小帶一點旋轉落定。
+  Widget _buildMintedCoin(double slotSize) {
+    final coin = Image.asset(_coinAsset, width: slotSize, height: slotSize);
+    if (_reduceMotion) return coin;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 340),
+      curve: Curves.easeOutBack,
+      builder: (_, t, child) => Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.rotate(
+          angle: -0.16 * (1 - t),
+          child: Transform.scale(scale: 1.45 - 0.45 * t, child: child),
+        ),
+      ),
+      child: coin,
+    );
+  }
+
+  Widget _buildStampRipple(double slotSize) {
+    return IgnorePointer(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeOutCubic,
+        builder: (_, t, _) => Opacity(
+          opacity: (1 - t) * 0.55,
+          child: Container(
+            width: slotSize * (0.9 + 1.1 * t),
+            height: slotSize * (0.9 + 1.1 * t),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: _kSlotGold, width: 2.5),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeckBurst(double slotSize) {
+    return IgnorePointer(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 560),
+        curve: Curves.easeOutCubic,
+        builder: (_, t, _) => CustomPaint(
+          size: Size.square(slotSize * 2.4),
+          painter: _SpeckBurstPainter(t: t, slotSize: slotSize),
+        ),
+      ),
+    );
+  }
+
+  /// 木柄印章：懸停（呼吸浮動）→ 壓下 → 抬離淡出。只掛在今日格上，
+  /// 位置全部相對格子算，不用量全域座標。
+  Widget _buildStamp(double slotSize) {
+    if (_reduceMotion || _step >= 6) return const SizedBox.shrink();
+    final stampW = slotSize * 1.5;
+    final stampH = slotSize * 1.7;
+    final visible = _step >= 3 && _step < 5;
+    final pressing = _step >= 4 && _step < 5;
+    // 懸停：底面離格子一小段距離；壓下：底面貼住格子；抬離：拉高飛走。
+    final top = _step >= 5
+        ? -stampH - slotSize * 1.4
+        : pressing
+        ? -stampH + slotSize * 0.55
+        : -stampH - slotSize * 0.65;
+    return AnimatedPositioned(
+      // 壓下要快（重量感）、抬離與懸停就位走緩出。
+      duration: Duration(
+        milliseconds: pressing ? 150 : (_step >= 5 ? 380 : 420),
+      ),
+      curve: pressing ? Curves.easeInCubic : Curves.easeOutCubic,
+      top: top,
+      left: (slotSize - stampW) / 2,
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: Duration(milliseconds: _step >= 5 ? 300 : 260),
+          child: AnimatedBuilder(
+            animation: _ambient,
+            builder: (_, child) {
+              // 懸停時輕輕呼吸（醞釀）；壓下瞬間定住。
+              final bob = pressing || _step < 3
+                  ? 0.0
+                  : 3 * math.sin(_ambient.value * 2 * math.pi * 12);
+              return Transform.translate(offset: Offset(0, bob), child: child);
+            },
+            child: AnimatedRotation(
+              turns: pressing ? 0 : (_step >= 5 ? 0.01 : -0.016),
+              duration: const Duration(milliseconds: 180),
+              child: _squashOnImpact(
+                child: CustomPaint(
+                  size: Size(stampW, stampH),
+                  painter: const _StampPainter(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 接觸瞬間的擠壓（縮 Y 再回彈）：橡皮章的彈性。
+  Widget _squashOnImpact({required Widget child}) {
+    if (!_impact) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 220),
+      builder: (_, t, c) => Transform.scale(
+        scaleY: 1 - 0.10 * math.sin(t * math.pi),
+        alignment: Alignment.bottomCenter,
+        child: c,
+      ),
+      child: child,
+    );
+  }
+
   Widget _buildCaption() {
-    final shown = _step >= 5;
+    final shown = _step >= 6;
     return AnimatedOpacity(
       opacity: shown ? 1 : 0,
       duration: const Duration(milliseconds: 460),
@@ -473,7 +687,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   }
 
   Widget _buildCta() {
-    final shown = _step >= 5;
+    final shown = _step >= 6;
     return AnimatedOpacity(
       opacity: shown ? 1 : 0,
       duration: const Duration(milliseconds: 460),
@@ -502,6 +716,136 @@ class _LoginStreakPageState extends State<LoginStreakPage>
       ),
     );
   }
+}
+
+/// 報到卡空格：虛線圓圈＋淡奶油底，等著被蓋滿。
+class _DashedSlotPainter extends CustomPainter {
+  const _DashedSlotPainter();
+
+  static const _dashes = 18;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 1;
+    canvas.drawCircle(center, radius, Paint()..color = _kSlotEmptyFill);
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = _kSlotDash;
+    const span = 2 * math.pi / _dashes;
+    for (var i = 0; i < _dashes; i++) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        i * span,
+        span * 0.55,
+        false,
+        stroke,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedSlotPainter old) => false;
+}
+
+/// 蓋章瞬間向四周迸出的小金屑（一次性，跟漣漪一起收掉）。
+class _SpeckBurstPainter extends CustomPainter {
+  final double t; // 0→1 一次性
+  final double slotSize;
+
+  const _SpeckBurstPainter({required this.t, required this.slotSize});
+
+  static const _count = 8;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    for (var i = 0; i < _count; i++) {
+      final angle = i * 2 * math.pi / _count + (i.isEven ? 0.22 : -0.12);
+      final travel = slotSize * (0.5 + 0.85 * t);
+      final pos = center + Offset(math.cos(angle), math.sin(angle)) * travel;
+      final radius = (1 - t) * 2.4 + 0.5;
+      final paint = Paint()
+        ..color = Color.lerp(
+          _kSlotGold,
+          const Color(0xFFFFE9C8),
+          i / _count,
+        )!.withValues(alpha: (1 - t) * 0.8);
+      canvas.drawCircle(pos, radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpeckBurstPainter old) => old.t != t;
+}
+
+/// 木柄印章道具：圓柄＋護環＋深棕章座＋沾金印泥底緣。
+/// 純向量簡潔質感；之後若有「兔咪拿印章」CG 可整組替換。
+class _StampPainter extends CustomPainter {
+  const _StampPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // 章座（底部胖圓角塊）
+    final baseRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(w * 0.06, h * 0.66, w * 0.94, h * 0.95),
+      Radius.circular(w * 0.10),
+    );
+    canvas.drawRRect(
+      baseRect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_kStampBaseTop, _kStampBaseBottom],
+        ).createShader(baseRect.outerRect),
+    );
+
+    // 沾了金印泥的底緣
+    final inkRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(w * 0.10, h * 0.90, w * 0.90, h * 0.99),
+      Radius.circular(w * 0.06),
+    );
+    canvas.drawRRect(inkRect, Paint()..color = _kStampInkGold);
+
+    // 木柄（直立圓柱）
+    final handleRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(w * 0.40, h * 0.04, w * 0.60, h * 0.62),
+      Radius.circular(w * 0.10),
+    );
+    canvas.drawRRect(
+      handleRect,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [_kStampWoodLight, _kStampWoodDark],
+        ).createShader(handleRect.outerRect),
+    );
+
+    // 柄座護環
+    final collarRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(w * 0.30, h * 0.58, w * 0.70, h * 0.68),
+      Radius.circular(w * 0.05),
+    );
+    canvas.drawRRect(collarRect, Paint()..color = _kStampWoodDark);
+
+    // 柄上一道高光，立體感
+    canvas.drawLine(
+      Offset(w * 0.445, h * 0.10),
+      Offset(w * 0.445, h * 0.54),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.35)
+        ..strokeWidth = w * 0.035
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _StampPainter old) => false;
 }
 
 /// 放射光舞台：以兔咪身後為圓心的暖金光芒緩慢旋轉，

@@ -387,6 +387,10 @@ class _WardrobePageState extends State<WardrobePage>
           SafeArea(
             child: MascotPageShell(
               accent: kWardrobeAccent,
+              sceneHeight: sceneRegionHeightAnchored(
+                MediaQuery.of(context).size.width,
+                MediaQuery.of(context).padding.top,
+              ),
               scene: const PersonaScene(accent: kWardrobeAccent),
               child: AnimatedBuilder(
                 animation: Listenable.merge([

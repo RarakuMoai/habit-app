@@ -1024,7 +1024,10 @@ class _AdaptiveBottomNavState extends State<_AdaptiveBottomNav> {
                   // 單排塞得下就維持單排：6 格在一般手機寬度都放得下，也比兩排飽滿；
                   // 只有窄到每格 < 54 才退成兩排，避免小螢幕擠壓。
                   final width = constraints.maxWidth;
-                  final isTwoRow = n > 5 && width / n < 54;
+                  final isTwoRow = bottomNavUsesTwoRows(
+                    width: width,
+                    itemCount: n,
+                  );
                   final columnCount = isTwoRow ? (n / 2).ceil() : n;
                   final rowHeight = isTwoRow
                       ? _twoRowHeight

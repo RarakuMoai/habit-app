@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 
 import 'usage_stats.dart';
 
-// 番茄鐘 / 運動兩個計時器互斥：同一時間只允許一個「實際倒數中」。
+// 專注 / 運動兩個計時器互斥：同一時間只允許一個「實際倒數中」。
 //
 // 兩者都放在 timer_page 的 IndexedStack 裡常駐，各自有獨立 ticker、鎖屏
-// 鏈式通知與音效。若同時倒數，鎖屏會跳兩串通知、節拍器與番茄提示音互相
+// 鏈式通知與音效。若同時倒數，鎖屏會跳兩串通知、節拍器與專注提示音互相
 // 蓋掉，使用者分不清。
 //
 // 策略：按開始（含暫停後 resume）時，若另一個正在跑，就「自動暫停對方並
@@ -57,6 +57,22 @@ class TimerMutex {
     // 匿名統計：計時啟動（含 resume；當粗略 engagement 即可，不求精確）。
     unawaited(UsageStats.bump(UsageEvents.timerStart(who.name)));
     return other;
+  }
+
+  /// 使用者主動離開正在運作的模式時，暫停目前持有者並保留可恢復的進度。
+  ///
+  /// 回傳被暫停的模式，讓呼叫端顯示一致的切換提示。節拍器沒有倒數進度，
+  /// 因此它的 pauser 會停止播放但保留 BPM 與拍號設定。
+  static ActiveTimer? pauseActive() {
+    final current = _active;
+    if (current == null) return null;
+    final pause = _pausers[current];
+    if (pause != null) {
+      pause();
+    } else {
+      _active = null;
+    }
+    return current;
   }
 
   /// 釋放 [who]。只有持有者能釋放，避免在對方持有時誤清。

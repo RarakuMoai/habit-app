@@ -1033,6 +1033,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     return MascotPageShell(
       accent: colors.accent,
+      sceneHeight: sceneRegionHeightAnchored(
+        MediaQuery.of(context).size.width,
+        MediaQuery.of(context).padding.top,
+      ),
       scene: ScaleTransition(
         scale: _celebScale,
         child: PersonaScene(

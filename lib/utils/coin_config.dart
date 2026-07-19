@@ -12,7 +12,7 @@ enum CoinSource {
   /// 當日全部習慣完成
   allHabitsDone,
 
-  /// 完成一顆番茄（專注時段）
+  /// 完成一個專注回合（舊 enum 名稱保留供資料相容）
   tomatoDone,
 
   /// 完成一段運動間歇訓練
@@ -38,7 +38,6 @@ abstract final class CoinConfig {
     CoinSource.weeklyStreak, // 連續登入滿 7 天里程碑
     CoinSource.specialEvent, // 特殊活動 / 節日（呼叫端待活動系統）
   };
-
 
   // ── 固定金額來源 ──
   static const int habitDone = 2;

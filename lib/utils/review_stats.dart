@@ -1,10 +1,10 @@
-// 回顧／足跡的逐日彙總：把習慣、喝水、番茄鐘、運動的每日資料，整理成
+// 回顧／足跡的逐日彙總：把習慣、喝水、專注、運動的每日資料，整理成
 // 一段時間（週／月）的溫柔摘要。純讀取、不寫入；語氣由頁面決定，這裡只算數。
 //
 // 每個領域的逐日資料來源：
 // - 習慣：HabitHistory.doneIdsOn(date) + dailyHabitsAsOf（含已刪除墓碑）
 // - 喝水：waterEntries(date) 加總 ml（舊資料退回 waterDay 杯數×cupMl + extra）
-// - 番茄：timerTomatoes(date) / timerFocusMinutesDay(date)
+// - 專注：timerTomatoes(date，舊 key 名) / timerFocusMinutesDay(date)
 // - 運動：exerciseSessions(date) / exerciseMinutesDay(date)
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -60,7 +60,7 @@ class WaterReview {
   });
 }
 
-/// 番茄鐘 / 運動共用：count（顆數或次數）+ minutes（分鐘）。
+/// 專注 / 運動共用：count（回合或次數）+ minutes（分鐘）。
 class CountReview {
   final int count;
   final int minutes;

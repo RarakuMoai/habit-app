@@ -43,7 +43,7 @@ void main() {
     expect(find.text('好，幫我記'), findsOneWidget);
     await tapAndSettle(tester, '好，幫我記');
 
-    // 畫面5（番茄鐘）
+    // 畫面5（專注計時）
     expect(find.text('好，開著'), findsOneWidget);
     await tapAndSettle(tester, '好，開著');
 

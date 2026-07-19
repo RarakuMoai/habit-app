@@ -20,7 +20,7 @@ class ProfileEditPage extends StatefulWidget {
 }
 
 class _ProfileEditPageState extends State<ProfileEditPage> {
-  // 全頁主色（暖橘，沿用個人/體重系；版面語彙比照番茄鐘設定頁）
+  // 全頁主色（暖橘，沿用個人/體重系；版面語彙比照專注計時設定頁）
   static const Color _accent = Color(0xFFFF9800);
 
   final TextEditingController _nicknameCtrl = TextEditingController();
@@ -222,7 +222,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       UserValidators.birthday(_birthday) == null &&
       _bmiError == null;
 
-  // ── 共用版型（比照番茄鐘設定頁：圓角卡 + 區塊標題 + 暖色）──
+  // ── 共用版型（比照專注計時設定頁：圓角卡 + 區塊標題 + 暖色）──
 
   Widget _sectionTitle(IconData icon, String title) {
     return Padding(

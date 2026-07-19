@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 /// 計時圓環畫法（專注／運動共用）：柔和內盤 + 12 刻度 + 進度弧 + 弧端旋鈕。
-/// 兩頁外觀一致，只差傳入的 [color]（專注番茄色、運動各子模式主色）。
+/// 兩頁外觀一致，只差傳入的 [color]（專注暖橘、運動各子模式主色）。
 class TimerRingPainter extends CustomPainter {
   final double progress;
   final Color color;

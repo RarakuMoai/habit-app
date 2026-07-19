@@ -643,6 +643,10 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
             SafeArea(
               child: MascotPageShell(
                 accent: _kInk,
+                sceneHeight: sceneRegionHeightAnchored(
+                  MediaQuery.of(context).size.width,
+                  MediaQuery.of(context).padding.top,
+                ),
                 scene: PersonaScene(
                   accent: _kInk,
                   lightGeometry: FourPeriodRoom.water.light,

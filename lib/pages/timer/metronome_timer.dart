@@ -13,9 +13,10 @@ import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
 import '../../utils/timer_mutex.dart';
 import '../../utils/wake_guard.dart';
-import '../../widgets/hold_repeat_button.dart';
+import '../../widgets/scroll_continuation_area.dart';
+import '../../widgets/timer_mode_frame.dart';
 
-// 節拍器主色（跟專注番茄色、運動青綠明顯區分）
+// 節拍器主色（跟專注暖橘、運動青綠明顯區分）
 const Color kMetronomeAccent = Color(0xFF7C6BCF);
 
 const int _kMinBpm = 30;
@@ -512,166 +513,52 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   Widget build(BuildContext context) {
     if (!_loaded) return const SizedBox.shrink();
     const color = kMetronomeAccent;
-    return LayoutBuilder(
-      builder: (context, c) {
-        final h = c.maxHeight;
-        final t = Curves.easeInOutCubic.transform(_smoothRange(390, 520, h));
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-          child: t <= 0
-              ? _compactLayout(color, h)
-              : t >= 1
-              ? _fullLayout(color)
-              : _blendLayouts(color, h, t),
-        );
-      },
-    );
-  }
-
-  static const double _fullMetroSize = 230;
-  static const double _compactMetroMaxSize = 170;
-  static const Alignment _kFullMetroAlign = Alignment(0.0, -0.34);
-  static const Alignment _kCompactMetroAlign = Alignment(-0.48, -0.14);
-
-  static double _smoothRange(double start, double end, double value) {
-    final t = ((value - start) / (end - start)).clamp(0.0, 1.0);
-    return t * t * (3 - 2 * t);
-  }
-
-  double _compactMetroSize(double h) =>
-      (h - 142).clamp(118.0, _compactMetroMaxSize).toDouble();
-
-  // 完整版：節拍器置中當主視覺，控制直排。
-  Widget _fullLayout(Color color, {bool showMetro = true}) {
-    return Stack(
-      children: [
-        Column(
-          children: [
-            const SizedBox(height: 34), // 留給右上設定鈕
-            Expanded(
-              child: Center(
-                child: LayoutBuilder(
-                  builder: (context, c) {
-                    final maxSide = math.min(
-                      math.min(c.maxWidth, c.maxHeight),
-                      _fullMetroSize,
-                    );
-                    final side = maxSide.toDouble();
-                    return showMetro
-                        ? _metronome(color, width: side, height: side)
-                        : SizedBox.square(dimension: side);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            _bpmReadout(numberSize: 52),
-            const SizedBox(height: 12),
-            _beatDots(color),
-            const SizedBox(height: 16),
-            _compactControls(color),
-            const SizedBox(height: 16),
-            _bottomControls(color),
-            const SizedBox(height: 6),
-          ],
-        ),
-        Positioned(top: 0, right: 0, child: _settingsEntry(color)),
-      ],
-    );
-  }
-
-  // 緊湊版：跟專注/運動一樣左視覺、右控制；節拍器保持正方形等比縮放。
-  Widget _compactLayout(Color color, double h, {bool showMetro = true}) {
-    final metroSize = _compactMetroSize(h);
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  showMetro
-                      ? _metronome(color, width: metroSize, height: metroSize)
-                      : SizedBox.square(dimension: metroSize),
-                  const SizedBox(width: 20),
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _bpmReadout(numberSize: 36),
-                          const SizedBox(height: 8),
-                          _beatDots(color),
-                          const SizedBox(height: 12),
-                          _compactControls(color),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _bottomControls(color, height: 56),
-            const SizedBox(height: 2),
-          ],
-        ),
-        Positioned(top: 0, right: 0, child: _settingsEntry(color)),
-      ],
-    );
-  }
-
-  // 與專注/運動一致：中間狀態只有節拍器本體滑動縮放，周邊版型錯開淡入淡出。
-  Widget _blendLayouts(Color color, double h, double t) {
-    final fullHeight = math.max(h, 520.0);
-    final compactSize = _compactMetroSize(h);
-    final size = compactSize + (_fullMetroSize - compactSize) * t;
-    final align = Alignment.lerp(_kCompactMetroAlign, _kFullMetroAlign, t)!;
-    final compactOpacity = Curves.easeIn.transform((1 - 2 * t).clamp(0.0, 1.0));
-    final fullOpacity = Curves.easeIn.transform((2 * t - 1).clamp(0.0, 1.0));
-    return ClipRect(
-      child: Stack(
-        children: [
-          if (compactOpacity > 0.01)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Opacity(
-                  opacity: compactOpacity,
-                  child: _compactLayout(color, h, showMetro: false),
-                ),
-              ),
-            ),
-          if (fullOpacity > 0.01)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Opacity(
-                  opacity: fullOpacity,
-                  child: OverflowBox(
-                    minHeight: fullHeight,
-                    maxHeight: fullHeight,
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      height: fullHeight,
-                      child: _fullLayout(color, showMetro: false),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: RepaintBoundary(
-                child: Align(
-                  alignment: align,
-                  child: _metronome(color, width: size, height: size),
-                ),
-              ),
-            ),
-          ),
-        ],
+    return TimerModeFrame(
+      heroBuilder: (context, size) =>
+          _metronome(color, width: size, height: size),
+      status: TimerStatusPill(
+        stateKey: _running,
+        color: color,
+        icon: _running ? Icons.graphic_eq_rounded : Icons.music_note_rounded,
+        label: _running ? '節拍播放中' : '準備節拍',
       ),
+      progress: _beatDots(color),
+      controls: TimerControlCluster(
+        accent: color,
+        primaryIcon: _running ? Icons.stop_rounded : Icons.play_arrow_rounded,
+        onPrimary: _toggle,
+        primaryLabel: '$_bpm BPM',
+        leading: TimerSecondaryAction(
+          icon: Icons.remove_rounded,
+          label: '減速',
+          onTap: _bpm > _kMinBpm ? () => _setBpm(_bpm - 1) : null,
+          repeatable: true,
+        ),
+        trailing: TimerSecondaryAction(
+          icon: Icons.add_rounded,
+          label: '加速',
+          onTap: _bpm < _kMaxBpm ? () => _setBpm(_bpm + 1) : null,
+          repeatable: true,
+        ),
+      ),
+      statusLine: Text(
+        '$_bpm BPM · $_tempoNoteSummary · $_beats/$_beatUnit · ${_currentSub.label}',
+        style: const TextStyle(
+          color: AppInk.soft,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      quickPicker: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TimerModeMetrics.horizontalInset,
+        ),
+        child: _bottomControls(
+          color,
+          height: TimerModeMetrics.quickPickerHeight,
+        ),
+      ),
+      topAction: _settingsEntry(color),
     );
   }
 
@@ -690,86 +577,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
           builder: (context, angle, _) => CustomPaint(
             size: Size(width, height),
             painter: _MetronomePainter(angle: angle, color: color),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // BPM 大數字。BPM 拍值屬進階設定，收在節拍器設定內。
-  Widget _bpmReadout({required double numberSize}) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$_bpm',
-          style: AppType.digits(
-            fontSize: numberSize,
-            fontWeight: FontWeight.w900,
-            color: AppInk.strong,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 緊湊控制：− 大圓開始/停止 +
-  Widget _compactControls(Color color) {
-    Widget step(IconData icon, VoidCallback? onTap) {
-      final on = onTap != null;
-      return HoldRepeatButton(
-        onTrigger: onTap,
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: on ? 0.14 : 0.05),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 18, color: on ? color : AppInk.faint),
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        step(
-          Icons.remove_rounded,
-          _bpm > _kMinBpm ? () => _setBpm(_bpm - 1) : null,
-        ),
-        const SizedBox(width: 14),
-        _roundStartButton(color, 46),
-        const SizedBox(width: 14),
-        step(
-          Icons.add_rounded,
-          _bpm < _kMaxBpm ? () => _setBpm(_bpm + 1) : null,
-        ),
-      ],
-    );
-  }
-
-  Widget _roundStartButton(Color color, double size) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Material(
-        color: _running ? Colors.white : color,
-        shape: CircleBorder(
-          side: _running
-              ? BorderSide(color: color.withValues(alpha: 0.5), width: 1.5)
-              : BorderSide.none,
-        ),
-        elevation: _running ? 0 : 3,
-        shadowColor: color.withValues(alpha: 0.4),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: _toggle,
-          child: Icon(
-            _running ? Icons.stop_rounded : Icons.play_arrow_rounded,
-            size: size * 0.46,
-            color: _running ? color : Colors.white,
           ),
         ),
       ),
@@ -1173,7 +980,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: SingleChildScrollView(
+                      child: ScrollContinuationArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,

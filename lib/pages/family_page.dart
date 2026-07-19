@@ -149,6 +149,10 @@ class _FamilyPageState extends State<FamilyPage> {
                 SafeArea(
                   child: MascotPageShell(
                     accent: Theme.of(context).colorScheme.primary,
+                    sceneHeight: sceneRegionHeightAnchored(
+                      MediaQuery.of(context).size.width,
+                      MediaQuery.of(context).padding.top,
+                    ),
                     // 空狀態不再縮小場景（舊 0.40 特例）：所有分頁統一同一條
                     // 卡片線，空狀態內容是可捲動的邀請卡，不需要額外高度。
                     scene: PersonaScene(

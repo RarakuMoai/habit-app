@@ -22,30 +22,37 @@ void main() {
     test('核心時段權重為 1、dominant 正確', () {
       expect(SceneTimeState.fromHour(7.5).morningWeight, closeTo(1, 1e-9));
       expect(SceneTimeState.fromHour(13.0).dayWeight, closeTo(1, 1e-9));
-      expect(SceneTimeState.fromHour(17.8).duskWeight, closeTo(1, 1e-9));
+      expect(SceneTimeState.fromHour(17.5).duskWeight, closeTo(1, 1e-9));
       expect(SceneTimeState.fromHour(23.0).nightWeight, closeTo(1, 1e-9));
       expect(SceneTimeState.fromHour(2.0).nightWeight, closeTo(1, 1e-9));
       expect(SceneTimeState.fromHour(7.5).dominantPeriod, ScenePeriod.morning);
       expect(SceneTimeState.fromHour(13.0).dominantPeriod, ScenePeriod.day);
-      expect(SceneTimeState.fromHour(17.8).dominantPeriod, ScenePeriod.dusk);
+      expect(SceneTimeState.fromHour(17.5).dominantPeriod, ScenePeriod.dusk);
       expect(SceneTimeState.fromHour(23.0).dominantPeriod, ScenePeriod.night);
     });
 
-    test('交界區間兩時段共存且互補（20:00–20:45 黃昏→夜）', () {
-      final s = SceneTimeState.fromHour(20.375); // 交界正中
+    test('定案里程碑時間會進入完整時段', () {
+      expect(SceneTimeState.fromHour(5.0).morningWeight, closeTo(1, 1e-9));
+      expect(SceneTimeState.fromHour(9.0).dayWeight, closeTo(1, 1e-9));
+      expect(SceneTimeState.fromHour(16.0).duskWeight, 0);
+      expect(SceneTimeState.fromHour(17.0).duskWeight, closeTo(1, 1e-9));
+      expect(SceneTimeState.fromHour(19.0).nightWeight, closeTo(1, 1e-9));
+    });
+
+    test('交界區間兩時段共存且互補（18:15–19:00 黃昏→夜）', () {
+      final s = SceneTimeState.fromHour(18.625); // 交界正中
       expect(s.duskWeight, closeTo(0.5, 1e-9));
       expect(s.nightWeight, closeTo(0.5, 1e-9));
       expect(s.morningWeight, 0);
       expect(s.dayWeight, 0);
     });
 
-    test('正式時段邊界：官方區間外的時段權重必為 0', () {
-      // 清晨 05–08 / 白天 08–17 / 黃昏 17–20 / 夜晚 20–05
-      expect(SceneTimeState.fromHour(4.99).morningWeight, 0);
-      expect(SceneTimeState.fromHour(4.99).nightWeight, closeTo(1, 1e-9));
-      expect(SceneTimeState.fromHour(7.99).dayWeight, 0);
-      expect(SceneTimeState.fromHour(16.99).duskWeight, 0);
-      expect(SceneTimeState.fromHour(19.99).nightWeight, 0);
+    test('正式時段邊界：交界起點前新時段權重必為 0', () {
+      expect(SceneTimeState.fromHour(4.24).morningWeight, 0);
+      expect(SceneTimeState.fromHour(4.24).nightWeight, closeTo(1, 1e-9));
+      expect(SceneTimeState.fromHour(8.24).dayWeight, 0);
+      expect(SceneTimeState.fromHour(15.99).duskWeight, 0);
+      expect(SceneTimeState.fromHour(18.24).nightWeight, 0);
     });
 
     test('layerBlend：純時段單圖、交界回傳相鄰底圖+疊圖', () {
@@ -54,12 +61,12 @@ void main() {
       expect(pure.overlay, isNull);
       expect(pure.overlayOpacity, 0);
 
-      final mid = SceneTimeState.fromHour(17.375).layerBlend; // 晝→暮正中
+      final mid = SceneTimeState.fromHour(16.5).layerBlend; // 晝→暮正中
       expect(mid.base, ScenePeriod.day);
       expect(mid.overlay, ScenePeriod.dusk);
       expect(mid.overlayOpacity, closeTo(0.5, 1e-9));
 
-      final wrap = SceneTimeState.fromHour(5.375).layerBlend; // 夜→晨（跨序）
+      final wrap = SceneTimeState.fromHour(4.625).layerBlend; // 夜→晨（跨序）
       expect(wrap.base, ScenePeriod.night);
       expect(wrap.overlay, ScenePeriod.morning);
       expect(wrap.overlayOpacity, closeTo(0.5, 1e-9));
@@ -67,7 +74,18 @@ void main() {
 
     test('計劃書指定檢查點無跳變（相鄰一分鐘權重差 < 0.05）', () {
       // 交界正中與交界外緣、跨午夜
-      for (final h in [5.4, 6.0, 8.4, 16.5, 17.4, 20.4, 23.983, 0.0]) {
+      for (final h in [
+        4.6,
+        5.0,
+        8.6,
+        9.0,
+        16.5,
+        17.0,
+        18.6,
+        19.0,
+        23.983,
+        0.0,
+      ]) {
         final a = SceneTimeState.fromHour(h);
         final b = SceneTimeState.fromHour((h + 1 / 60) % 24);
         for (final p in ScenePeriod.values) {
@@ -108,7 +126,7 @@ void main() {
     });
 
     test('blendOpaque / blendValue 在交界取中間值', () {
-      final s = SceneTimeState.fromHour(20.375); // 黃昏/夜 各 0.5
+      final s = SceneTimeState.fromHour(18.625); // 黃昏/夜 各 0.5
       final v = s.blendValue(morning: 0, day: 0, dusk: 1.0, night: 0.5);
       expect(v, closeTo(0.75, 1e-9));
       final c = s.blendOpaque(

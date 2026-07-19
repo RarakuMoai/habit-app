@@ -41,15 +41,15 @@ void main() {
     expect(find.text('場景時段'), findsOneWidget);
     expect(find.text('清晨 06:30'), findsOneWidget);
     expect(find.text('白天 13:00'), findsOneWidget);
-    expect(find.text('黃昏 18:30'), findsOneWidget);
+    expect(find.text('黃昏 17:30'), findsOneWidget);
     expect(find.text('夜晚 23:00'), findsOneWidget);
-    expect(find.text('晝→暮 17:22:30'), findsOneWidget);
+    expect(find.text('晝→暮 16:30:00'), findsOneWidget);
 
-    await tester.tap(find.text('晝→暮 17:22:30'));
+    await tester.tap(find.text('晝→暮 16:30:00'));
     await tester.pumpAndSettle();
 
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getDouble(PrefsKeys.debugSceneHour), 17.375);
-    expect(find.text('17:22:30'), findsOneWidget);
+    expect(prefs.getDouble(PrefsKeys.debugSceneHour), 16.5);
+    expect(find.text('16:30'), findsOneWidget);
   });
 }

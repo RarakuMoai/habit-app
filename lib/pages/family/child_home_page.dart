@@ -87,6 +87,10 @@ class ChildHomePage extends StatelessWidget {
           SafeArea(
             child: MascotPageShell(
               accent: accent,
+              sceneHeight: sceneRegionHeightAnchored(
+                MediaQuery.of(context).size.width,
+                MediaQuery.of(context).padding.top,
+              ),
               scene: PersonaScene(
                 accent: accent,
                 lightGeometry: FourPeriodRoom.family.light,

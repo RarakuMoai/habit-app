@@ -70,4 +70,58 @@ void main() {
     expect(decoration.color, AppSurfaces.card);
     expect(decoration.gradient, isNull);
   });
+
+  testWidgets('目標整合在今日主卡，趨勢與歷史使用精簡後的單一層級', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final today = LogicalDate.dayOf(DateTime.now(), LogicalDate.defaultHour);
+    final yesterday = today.subtract(const Duration(days: 1));
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.weightRecords: jsonEncode([
+        {
+          'date': dateString(today),
+          'time': '08:20',
+          'weight': 68.4,
+          'body_fat': 21.4,
+        },
+        {
+          'date': dateString(yesterday),
+          'time': '08:10',
+          'weight': 68.7,
+          'body_fat': 21.6,
+        },
+      ]),
+      PrefsKeys.userHeight: 165.0,
+      PrefsKeys.userGender: '女',
+      PrefsKeys.userBirthday: '1992-05-20',
+      PrefsKeys.userActivityLevel: '輕度',
+      PrefsKeys.targetWeight: 65.0,
+      PrefsKeys.unitSystem: 'metric',
+    });
+    MascotPanelPrefs.openValue.value = 0;
+
+    await tester.pumpWidget(const MaterialApp(home: WeightPage()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final todayCard = find.byKey(const ValueKey('today-weight-card'));
+    final targetProgress = find.byKey(const ValueKey('weight-target-progress'));
+    expect(todayCard, findsOneWidget);
+    expect(
+      find.descendant(of: todayCard, matching: targetProgress),
+      findsOneWidget,
+      reason: '目標應收進今日主卡，不再成為同權重的獨立白卡',
+    );
+    expect(find.byKey(const ValueKey('weight-chart-insight')), findsOneWidget);
+    final historyList = find.byKey(const ValueKey('weight-history-list'));
+    await tester.scrollUntilVisible(
+      historyList,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(historyList, findsOneWidget);
+  });
 }

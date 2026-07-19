@@ -30,11 +30,15 @@ class TableSetupPanel extends StatefulWidget {
   /// 「只骰骰子」直達兔咪骰子屋（給的話，橫幅上出現骰子小鈕）。
   final VoidCallback? onDice;
 
+  /// 回到遊戲準備畫面；設定即改即存，所以不需要額外套用。
+  final VoidCallback? onDone;
+
   const TableSetupPanel({
     super.key,
     required this.prefs,
     required this.onConfigChanged,
     this.onDice,
+    this.onDone,
   });
 
   @override
@@ -1140,13 +1144,32 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '兔咪遊戲桌',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                      color: AppInk.strong,
-                    ),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '兔咪遊戲桌',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                            color: AppInk.strong,
+                          ),
+                        ),
+                      ),
+                      if (widget.onDone != null)
+                        TextButton(
+                          onPressed: widget.onDone,
+                          style: TextButton.styleFrom(
+                            foregroundColor: kGameAccentDark,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          child: const Text(
+                            '完成',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 3),
                   ExcludeSemantics(
