@@ -944,14 +944,14 @@ class ExerciseTimerState extends State<ExerciseTimer>
             : Icons.play_arrow_rounded,
         onPrimary: _startPause,
         leading: TimerSecondaryAction(
-          icon: _idle ? Icons.tune_rounded : Icons.replay_rounded,
-          label: _idle ? '設定' : '重設',
-          onTap: _idle ? _openSettingsSheet : _reset,
+          icon: Icons.replay_rounded,
+          label: '重設',
+          onTap: _idle ? null : _reset,
         ),
         trailing: TimerSecondaryAction(
           icon: Icons.skip_next_rounded,
           label: '跳過',
-          onTap: _idle ? null : _skip,
+          onTap: _idle || _finished ? null : _skip,
         ),
       ),
       statusLine: Text(
@@ -964,6 +964,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
       ),
       quickPicker: _kindPicker(),
       footer: _todaySessions > 0 ? _statsBar() : null,
+      topAction: TimerSettingsAction(
+        color: _exMeta[_kind]!.color,
+        onTap: _openSettingsSheet,
+      ),
     );
   }
 
@@ -1781,8 +1785,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
   }
 
   void _openSettingsSheet() {
-    if (_isRunning) {
+    if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('請先按「重設」，再調整運動設定')));
       return;
     }
     playFeedback(SfxCue.tap);

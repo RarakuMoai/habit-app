@@ -558,7 +558,13 @@ class _MetronomeTimerState extends State<MetronomeTimer>
           height: TimerModeMetrics.quickPickerHeight,
         ),
       ),
-      topAction: _settingsEntry(color),
+      topAction: TimerSettingsAction(
+        color: color,
+        onTap: () {
+          playFeedback(SfxCue.tap);
+          _openSettings(color);
+        },
+      ),
     );
   }
 
@@ -577,41 +583,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
           builder: (context, angle, _) => CustomPaint(
             size: Size(width, height),
             painter: _MetronomePainter(angle: angle, color: color),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 明顯的設定入口：實心膠囊 + 齒輪 + 文字（取代原本很淡的小圖示）
-  Widget _settingsEntry(Color color) {
-    return Material(
-      color: color,
-      shape: const StadiumBorder(),
-      elevation: 2,
-      shadowColor: color.withValues(alpha: 0.4),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: () {
-          playFeedback(SfxCue.tap);
-          _openSettings(color);
-        },
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.tune_rounded, size: 16, color: Colors.white),
-              SizedBox(width: 5),
-              Text(
-                '節拍設定',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                ),
-              ),
-            ],
           ),
         ),
       ),

@@ -259,7 +259,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('節拍器'));
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('節拍設定').hitTestable());
+    await tester.tap(
+      find.byKey(const ValueKey('timer-settings-action')).hitTestable(),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(Scrollbar), findsNothing);
@@ -303,7 +305,8 @@ void main() {
       find.byKey(const ValueKey('exercise-progress-0-empty')),
       findsOneWidget,
     );
-    expect(find.byIcon(Icons.replay_rounded).hitTestable(), findsNothing);
+    // 重設現在固定留在同一位置，待機時只停用，不再變回設定按鈕。
+    expect(find.byIcon(Icons.replay_rounded), findsOneWidget);
     expect(tester.takeException(), isNull);
     MascotPersona.resetToOpening();
   });

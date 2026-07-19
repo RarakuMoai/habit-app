@@ -1,5 +1,4 @@
-// 遊戲入口以明確的「準備／設定」狀態切換，不再把設定生命週期綁在高度。
-// 鍵盤、兔咪面板或視窗尺寸改變都不能銷毀正在編輯的設定頁。
+// 遊戲入口從準備畫面開啟底部設定選單；鍵盤與視窗尺寸改變時選單仍保留。
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -27,7 +26,7 @@ void main() {
     expect(frame.image.height, 2731);
   });
 
-  testWidgets('進入設定後，高度與鍵盤改變都不會退出設定頁', (tester) async {
+  testWidgets('遊戲設定由下方彈出，高度與鍵盤改變都不會退出', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1.0;
@@ -54,10 +53,17 @@ void main() {
     expect(find.text('準備開局'), findsOneWidget);
     expect(find.text('設定'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.tune_rounded));
+    await tester.tap(find.byKey(const ValueKey('timer-settings-action')));
     await tester.pumpAndSettle();
     expect(find.text('完成'), findsOneWidget);
-    expect(find.text('兔咪遊戲桌'), findsOneWidget);
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('兔咪遊戲桌'),
+      ),
+      findsOneWidget,
+    );
 
     // 鍵盤彈出：高度被壓到 200，仍是同一個設定頁。
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
@@ -76,7 +82,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('完成'), findsOneWidget);
 
-    await tester.tap(find.text('完成'));
+    await tester.tap(find.text('完成').hitTestable());
     await tester.pumpAndSettle();
     expect(find.text('完成'), findsNothing);
     expect(find.text('準備開局'), findsOneWidget);

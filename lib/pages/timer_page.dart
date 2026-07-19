@@ -880,9 +880,9 @@ class _TimerPageState extends State<TimerPage>
             : Icons.play_arrow_rounded,
         onPrimary: _startPause,
         leading: TimerSecondaryAction(
-          icon: _idle ? Icons.tune_rounded : Icons.replay_rounded,
-          label: _idle ? '設定' : '重設',
-          onTap: _idle ? _openSettingsSheet : _reset,
+          icon: Icons.replay_rounded,
+          label: '重設',
+          onTap: _idle ? null : _reset,
         ),
         trailing: TimerSecondaryAction(
           icon: Icons.skip_next_rounded,
@@ -900,6 +900,10 @@ class _TimerPageState extends State<TimerPage>
       ),
       quickPicker: _buildProfilePicker(),
       footer: _todayFocusRounds > 0 ? _statsBar() : null,
+      topAction: TimerSettingsAction(
+        color: const Color(0xFFFF7043),
+        onTap: _openSettingsSheet,
+      ),
     );
   }
 

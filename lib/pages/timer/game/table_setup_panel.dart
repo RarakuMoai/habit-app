@@ -1,5 +1,4 @@
-// 「展開狀態」的完整設定面板：桌遊計時器的設定不再藏在彈出 sheet，
-// 展開卡片本身就是設定頁——縮小快速用、展開完整設定。
+// 桌遊計時器的完整設定內容；可放在計時頁的底部設定選單，也可獨立測試。
 //
 // 一般設定即改即存（TableStore）並回報給入口卡（onConfigChanged）；
 // 常用玩家／常用組合因為會一次替換多筆本局設定，先選取、再按確認套用。
@@ -30,7 +29,7 @@ class TableSetupPanel extends StatefulWidget {
   /// 「只骰骰子」直達兔咪骰子屋（給的話，橫幅上出現骰子小鈕）。
   final VoidCallback? onDice;
 
-  /// 回到遊戲準備畫面；設定即改即存，所以不需要額外套用。
+  /// 關閉設定內容；設定即改即存，所以不需要額外套用。
   final VoidCallback? onDone;
 
   const TableSetupPanel({
@@ -1157,16 +1156,13 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                         ),
                       ),
                       if (widget.onDone != null)
-                        TextButton(
+                        IconButton(
                           onPressed: widget.onDone,
-                          style: TextButton.styleFrom(
-                            foregroundColor: kGameAccentDark,
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                          ),
-                          child: const Text(
-                            '完成',
-                            style: TextStyle(fontWeight: FontWeight.w900),
+                          tooltip: '關閉',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppInk.iconFaint,
                           ),
                         ),
                     ],

@@ -1,9 +1,8 @@
-// 「遊戲」計時入口卡：兔咪遊戲桌的兩種面貌。
+// 「遊戲」計時入口卡：兔咪遊戲桌的準備畫面與底部設定選單。
 //
 // 狀態定位（2026-07 UX 改版）：
 // - 預設＝與專注／運動／節拍器一致的準備畫面：看設定、一鍵開局。
-// - 點「設定」才進完整設定頁；設定狀態不再綁兔咪面板高度，鍵盤或版面改變
-//   都不會銷毀正在編輯的 TableSetupPanel。
+// - 點右上「設定」後，從下方展開與其他計時工具一致的完整設定選單。
 // - 完整遊玩體驗在 push 進去的全螢幕桌面模式（TableStagePage）。
 // - 不開對局也能「只骰骰子」：直達兔咪骰子屋（DiceTrayPage）。
 import 'package:flutter/material.dart';
@@ -11,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
-import '../../utils/mascot.dart';
 import '../../utils/sfx_service.dart';
 import '../../widgets/timer_mode_frame.dart';
 import 'game/dice_tray.dart';
@@ -33,7 +31,6 @@ class GameTimer extends StatefulWidget {
 class _GameTimerState extends State<GameTimer> {
   SharedPreferences? _prefs;
   TableTimerConfig _config = TableTimerConfig.fallback();
-  bool _showSetup = false;
 
   @override
   void initState() {
@@ -69,16 +66,91 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
-  /// 進入完整設定頁，同時收起兔咪面板騰出足夠空間。
-  void _expandToSetup() {
+  /// 從下方展開完整設定；一般調整即時儲存，關閉後由準備畫面顯示新摘要。
+  Future<void> _openSettingsSheet() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
     playFeedback(SfxCue.tap);
-    setState(() => _showSetup = true);
-    MascotPanelPrefs.requestCollapsed();
-  }
-
-  void _finishSetup() {
-    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
-    setState(() => _showSetup = false);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.86,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: kGameAccent.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8DDD4),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: TableSetupPanel(
+                    prefs: prefs,
+                    onConfigChanged: (c) {
+                      if (mounted) setState(() => _config = c);
+                    },
+                    onDice: _openDice,
+                    onDone: () => Navigator.pop(sheetContext),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(top: BorderSide(color: AppSurfaces.divider)),
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: kGameAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () {
+                        playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
+                        Navigator.pop(sheetContext);
+                      },
+                      icon: const Icon(Icons.check_rounded, size: 19),
+                      label: const Text(
+                        '完成',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   String get _oneLineSummary =>
@@ -87,27 +159,7 @@ class _GameTimerState extends State<GameTimer> {
 
   @override
   Widget build(BuildContext context) {
-    return _showSetup ? _buildSetup() : _buildReady();
-  }
-
-  // ── 完整設定頁 ───────────────────────────────────────────
-
-  Widget _buildSetup() {
-    final prefs = _prefs;
-    if (prefs == null) return const SizedBox.shrink();
-    return Column(
-      children: [
-        Expanded(
-          child: TableSetupPanel(
-            prefs: prefs,
-            onConfigChanged: (c) => setState(() => _config = c),
-            onDice: _openDice,
-            onDone: _finishSetup,
-          ),
-        ),
-        _footerBar(),
-      ],
-    );
+    return _buildReady();
   }
 
   // ── 共用準備畫面 ─────────────────────────────────────────
@@ -126,11 +178,6 @@ class _GameTimerState extends State<GameTimer> {
         accent: kGameAccent,
         primaryIcon: Icons.play_arrow_rounded,
         onPrimary: _prefs == null ? null : _startGame,
-        leading: TimerSecondaryAction(
-          icon: Icons.tune_rounded,
-          label: '設定',
-          onTap: _expandToSetup,
-        ),
         trailing: TimerSecondaryAction(
           icon: Icons.casino_rounded,
           label: '骰子',
@@ -146,6 +193,10 @@ class _GameTimerState extends State<GameTimer> {
         ),
       ),
       quickPicker: _configBar(),
+      topAction: TimerSettingsAction(
+        color: kGameAccent,
+        onTap: _prefs == null ? null : _openSettingsSheet,
+      ),
     );
   }
 
@@ -320,66 +371,6 @@ class _GameTimerState extends State<GameTimer> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  /// 底部固定列只留真正會推進流程的「開始對局」。
-  Widget _footerBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppSurfaces.divider)),
-      ),
-      child: _startButton(height: 54),
-    );
-  }
-
-  /// 開始鈕：頁面唯一的實色 CTA（遊戲主色）。
-  /// 原「深色絨布門」在暖奶油底上讀成死黑色塊，2026-07-08 截圖自查後撤掉。
-  Widget _startButton({required double height, double fontSize = 16.5}) {
-    final enabled = _prefs != null;
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        height: height,
-        decoration: BoxDecoration(
-          color: enabled ? kGameAccent : AppSurfaces.fill,
-          borderRadius: BorderRadius.circular(height / 2),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: kGameAccent.withValues(alpha: 0.30),
-                    blurRadius: 12,
-                    offset: const Offset(0, 5),
-                  ),
-                ]
-              : null,
-        ),
-        child: InkWell(
-          customBorder: const StadiumBorder(),
-          onTap: enabled ? _startGame : null,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.play_arrow_rounded,
-                size: 24,
-                color: enabled ? Colors.white : AppInk.iconFaint,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '開始對局',
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w900,
-                  color: enabled ? Colors.white : AppInk.iconFaint,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

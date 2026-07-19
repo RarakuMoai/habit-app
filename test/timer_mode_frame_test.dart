@@ -24,6 +24,10 @@ void main() {
                 quickPicker: const Text('快速設定'),
                 statusLine: const Text('摘要'),
                 footer: const Text('統計'),
+                topAction: TimerSettingsAction(
+                  color: Colors.orange,
+                  onTap: () {},
+                ),
               ),
             ),
           ),
@@ -40,6 +44,7 @@ void main() {
     expect(find.text('摘要'), findsOneWidget);
     expect(find.text('快速設定'), findsOneWidget);
     expect(find.text('統計'), findsOneWidget);
+    expect(find.byKey(const ValueKey('timer-settings-action')), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     height.value = 340;
@@ -47,6 +52,7 @@ void main() {
     expect(find.text('快速設定'), findsOneWidget);
     expect(find.text('摘要'), findsNothing);
     expect(find.text('統計'), findsNothing);
+    expect(find.byKey(const ValueKey('timer-settings-action')), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     height.value = 180;
@@ -56,6 +62,7 @@ void main() {
     expect(find.text('控制'), findsOneWidget);
     expect(find.text('快速設定'), findsNothing);
     expect(find.text('統計'), findsNothing);
+    expect(find.byKey(const ValueKey('timer-settings-action')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

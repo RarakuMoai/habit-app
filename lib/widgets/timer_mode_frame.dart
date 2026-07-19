@@ -100,7 +100,11 @@ class TimerModeFrame extends StatelessWidget {
     );
   }
 
-  Widget _fullLayout(BuildContext context, {bool showHero = true}) {
+  Widget _fullLayout(
+    BuildContext context, {
+    bool showHero = true,
+    bool showTopAction = true,
+  }) {
     return Stack(
       children: [
         Column(
@@ -171,7 +175,7 @@ class TimerModeFrame extends StatelessWidget {
             const SizedBox(height: 10),
           ],
         ),
-        if (topAction != null)
+        if (showTopAction && topAction != null)
           Positioned(
             top: 0,
             right: TimerModeMetrics.horizontalInset,
@@ -185,6 +189,7 @@ class TimerModeFrame extends StatelessWidget {
     BuildContext context,
     double height, {
     bool showHero = true,
+    bool showTopAction = true,
   }) {
     final heroSize = (height - compactHeightReserve).clamp(
       compactHeroMinSize,
@@ -244,7 +249,7 @@ class TimerModeFrame extends StatelessWidget {
             ],
           ],
         ),
-        if (topAction != null)
+        if (showTopAction && topAction != null)
           Positioned(
             top: 0,
             right: TimerModeMetrics.horizontalInset,
@@ -277,6 +282,10 @@ class TimerModeFrame extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (topAction != null) ...[
+                    Align(alignment: Alignment.centerRight, child: topAction!),
+                    const SizedBox(height: 4),
+                  ],
                   _slot(
                     name: 'status',
                     height: TimerModeMetrics.statusHeight,
@@ -326,7 +335,12 @@ class TimerModeFrame extends StatelessWidget {
             Positioned.fill(
               child: Opacity(
                 opacity: compactOpacity,
-                child: _compactLayout(context, height, showHero: false),
+                child: _compactLayout(
+                  context,
+                  height,
+                  showHero: false,
+                  showTopAction: false,
+                ),
               ),
             ),
           if (fullOpacity > 0.01)
@@ -339,10 +353,20 @@ class TimerModeFrame extends StatelessWidget {
                   alignment: Alignment.topCenter,
                   child: SizedBox(
                     height: fullHeight,
-                    child: _fullLayout(context, showHero: false),
+                    child: _fullLayout(
+                      context,
+                      showHero: false,
+                      showTopAction: false,
+                    ),
                   ),
                 ),
               ),
+            ),
+          if (topAction != null)
+            Positioned(
+              top: 0,
+              right: TimerModeMetrics.horizontalInset,
+              child: topAction!,
             ),
           Positioned.fill(
             child: IgnorePointer(
@@ -362,6 +386,56 @@ class TimerModeFrame extends StatelessWidget {
   static double _smoothRange(double start, double end, double value) {
     final t = ((value - start) / (end - start)).clamp(0.0, 1.0);
     return t * t * (3 - 2 * t);
+  }
+}
+
+/// 四種計時工具共用的深度設定入口。
+///
+/// 設定與開始／暫停／跳過等即時操作分層：固定在模式右上角，使用低彩度的
+/// 次要膠囊，不跟中央主操作搶視覺焦點。
+class TimerSettingsAction extends StatelessWidget {
+  final Color color;
+  final VoidCallback? onTap;
+
+  const TimerSettingsAction({super.key, required this.color, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Opacity(
+      opacity: enabled ? 1 : 0.48,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.90),
+        shape: StadiumBorder(
+          side: BorderSide(color: color.withValues(alpha: 0.24)),
+        ),
+        elevation: enabled ? 1 : 0,
+        shadowColor: color.withValues(alpha: 0.20),
+        child: InkWell(
+          key: const ValueKey('timer-settings-action'),
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.tune_rounded, size: 16, color: color),
+                const SizedBox(width: 5),
+                const Text(
+                  '設定',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -455,8 +529,8 @@ class TimerControlCluster extends StatelessWidget {
   final IconData primaryIcon;
   final VoidCallback? onPrimary;
   final String? primaryLabel;
-  final TimerSecondaryAction leading;
-  final TimerSecondaryAction trailing;
+  final TimerSecondaryAction? leading;
+  final TimerSecondaryAction? trailing;
 
   const TimerControlCluster({
     super.key,
@@ -464,8 +538,8 @@ class TimerControlCluster extends StatelessWidget {
     required this.primaryIcon,
     required this.onPrimary,
     this.primaryLabel,
-    required this.leading,
-    required this.trailing,
+    this.leading,
+    this.trailing,
   });
 
   @override
@@ -476,11 +550,14 @@ class TimerControlCluster extends StatelessWidget {
         final sideSize = compact ? 44.0 : 54.0;
         final primarySize = compact ? 62.0 : 78.0;
         final gap = compact ? 16.0 : 24.0;
+        Widget side(TimerSecondaryAction? action) => action == null
+            ? SizedBox.square(dimension: sideSize)
+            : _SecondaryButton(action: action, size: sideSize);
         return Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _SecondaryButton(action: leading, size: sideSize),
+            side(leading),
             SizedBox(width: gap),
             Column(
               mainAxisSize: MainAxisSize.min,
@@ -508,7 +585,7 @@ class TimerControlCluster extends StatelessWidget {
               ],
             ),
             SizedBox(width: gap),
-            _SecondaryButton(action: trailing, size: sideSize),
+            side(trailing),
           ],
         );
       },
