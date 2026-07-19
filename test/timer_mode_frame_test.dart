@@ -104,6 +104,53 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('緊湊與超緊湊版主視覺不貼左緣、狀態膠囊維持置中', (tester) async {
+    final height = ValueNotifier<double>(600);
+    addTearDown(height.dispose);
+
+    await tester.pumpWidget(harness(height));
+
+    void expectBalanced({required bool sideBySide}) {
+      final frameRect = tester.getRect(find.byType(TimerModeFrame));
+      final heroRect = tester.getRect(find.byKey(const ValueKey('hero')));
+      final statusRect = tester.getRect(
+        find.byKey(const ValueKey('header-status-probe')),
+      );
+      // 狀態膠囊固定在中軸線上（設定鈕另佔右側）。
+      expect(
+        statusRect.center.dx,
+        moreOrLessEquals(frameRect.center.dx, epsilon: 1.0),
+      );
+      // 主視覺至少保有共用內距，不會貼齊螢幕左緣。
+      expect(
+        heroRect.left,
+        greaterThanOrEqualTo(
+          frameRect.left + TimerModeMetrics.horizontalInset - 0.5,
+        ),
+      );
+      if (sideBySide) {
+        // 橫排時控制群置於右槽內，不會被推出畫面。
+        final controlsRect = tester.getRect(
+          find.byKey(const ValueKey('control-probe')),
+        );
+        expect(controlsRect.left, greaterThanOrEqualTo(heroRect.right));
+        expect(controlsRect.right, lessThanOrEqualTo(frameRect.right + 0.5));
+      }
+    }
+
+    expectBalanced(sideBySide: false);
+
+    height.value = 340;
+    await tester.pumpAndSettle();
+    expectBalanced(sideBySide: true);
+    expect(tester.takeException(), isNull);
+
+    height.value = 180;
+    await tester.pumpAndSettle();
+    expectBalanced(sideBySide: true);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('完整版的共用槽位使用固定高度', (tester) async {
     final height = ValueNotifier<double>(600);
     addTearDown(height.dispose);

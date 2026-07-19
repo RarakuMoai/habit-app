@@ -844,7 +844,10 @@ class _TimerPageState extends State<TimerPage>
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      // 與 TimerModeFrame 的 horizontalInset 對齊，切換列和標頭同一條邊線。
+      margin: const EdgeInsets.symmetric(
+        horizontal: TimerModeMetrics.horizontalInset,
+      ),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.86),

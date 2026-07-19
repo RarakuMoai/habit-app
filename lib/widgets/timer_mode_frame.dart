@@ -60,8 +60,16 @@ class TimerModeFrame extends StatelessWidget {
   static const double fullBreakpoint = 520;
   static const double ultraCompactBreakpoint = 230;
 
-  static const Alignment _fullHeroAlignment = Alignment(0, -0.32);
-  static const Alignment _compactHeroAlignment = Alignment(-0.46, -0.16);
+  /// 橫排版型左右兩槽之間的間距。
+  static const double _sideGap = 16;
+
+  /// 橫排版型主視覺槽佔內容寬（扣掉左右 inset 與間距）的比例。
+  /// 左槽放主視覺、右槽放進度＋控制，各自置中，兩側視覺重量才平衡。
+  static const double _heroSlotFraction = 0.46;
+
+  /// 橫排版型右槽的設計高度：進度 + 間距 + 控制。
+  static const double _sideColumnHeight =
+      TimerModeMetrics.progressHeight + 10 + TimerModeMetrics.controlsHeight;
 
   Widget _slot({
     required String name,
@@ -79,8 +87,9 @@ class TimerModeFrame extends StatelessWidget {
     );
   }
 
-  /// 狀態與設定各自佔據標頭的一側，避免設定鈕浮在內容上方。
-  /// 左側狀態可縮放，右側設定維持可點擊尺寸；320pt 窄機也不會互相覆蓋。
+  /// 標頭：狀態膠囊置中（跟主視覺、控制群同一條中軸線），設定鈕固定右側。
+  /// 狀態膠囊兩側各保留設定鈕的寬度，320pt 窄機也不會互相覆蓋，
+  /// 空間不足時膠囊等比縮小、維持置中。
   Widget _header({bool showContent = true}) {
     if (!showContent) {
       return const SizedBox(height: TimerModeMetrics.statusHeight);
@@ -92,17 +101,143 @@ class TimerModeFrame extends StatelessWidget {
         padding: const EdgeInsets.symmetric(
           horizontal: TimerModeMetrics.horizontalInset,
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FittedBox(fit: BoxFit.scaleDown, child: status),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final sideReserve = topAction == null ? 0.0 : 88.0;
+            final statusMaxWidth = math.max(
+              0.0,
+              constraints.maxWidth - sideReserve * 2,
+            );
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: statusMaxWidth),
+                    child: FittedBox(fit: BoxFit.scaleDown, child: status),
+                  ),
+                ),
+                if (topAction != null)
+                  Align(alignment: Alignment.centerRight, child: topAction!),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// 緊湊／超緊湊共用的橫排幾何。主視覺同時被「高度公式、左槽寬、
+  /// 實際剩餘高」三者封頂，任何機型都不會把整行推到貼齊螢幕邊緣。
+  ({
+    double bodyTop,
+    double bodyHeight,
+    double heroSlotWidth,
+    double heroSize,
+    double rightWidth,
+  })
+  _sideBySideGeometry({
+    required double width,
+    required double height,
+    required bool ultra,
+  }) {
+    final bodyTop =
+        (ultra ? 0.0 : 8.0) + TimerModeMetrics.statusHeight + 4.0;
+    final reservedBottom = !ultra && quickPicker != null
+        ? TimerModeMetrics.quickPickerHeight + 12.0
+        : 0.0;
+    final bodyHeight = math.max(0.0, height - bodyTop - reservedBottom);
+    final innerWidth = math.max(
+      0.0,
+      width - TimerModeMetrics.horizontalInset * 2,
+    );
+    final heroSlotWidth = math.max(
+      0.0,
+      (innerWidth - TimerModeFrame._sideGap) * _heroSlotFraction,
+    );
+    final heightCap = ultra
+        ? bodyHeight.clamp(48.0, 150.0)
+        : (height - compactHeightReserve).clamp(
+            compactHeroMinSize,
+            compactHeroMaxSize,
+          );
+    final heroSize = math.min(
+      bodyHeight,
+      math.max(48.0, math.min(heightCap, heroSlotWidth)),
+    );
+    final rightWidth = math.max(
+      1.0,
+      innerWidth - heroSlotWidth - TimerModeFrame._sideGap,
+    );
+    return (
+      bodyTop: bodyTop,
+      bodyHeight: bodyHeight,
+      heroSlotWidth: heroSlotWidth,
+      heroSize: heroSize,
+      rightWidth: rightWidth,
+    );
+  }
+
+  /// 橫排主體：左槽主視覺、右槽進度＋控制，各自置中。右槽以固定設計
+  /// 尺寸排版，高度不足時整組等比縮小，不會溢位。
+  Widget _sideBySideBody(
+    BuildContext context, {
+    required ({
+      double bodyTop,
+      double bodyHeight,
+      double heroSlotWidth,
+      double heroSize,
+      double rightWidth,
+    })
+    geometry,
+    bool showHero = true,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: TimerModeMetrics.horizontalInset,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: geometry.heroSlotWidth,
+            child: Center(
+              child: showHero
+                  ? heroBuilder(context, geometry.heroSize)
+                  : SizedBox.square(dimension: geometry.heroSize),
+            ),
+          ),
+          const SizedBox(width: TimerModeFrame._sideGap),
+          Expanded(
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                // 右槽以「真實右槽寬 × 設計高」為固定畫布：控制群拿到有界
+                // 寬度自行決定緊湊尺寸；只有高度不足時整組才等比縮小。
+                child: SizedBox(
+                  width: geometry.rightWidth,
+                  height: _sideColumnHeight,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _slot(
+                        name: 'progress',
+                        height: TimerModeMetrics.progressHeight,
+                        child: progress,
+                        scaleDown: true,
+                      ),
+                      const SizedBox(height: 10),
+                      _slot(
+                        name: 'controls',
+                        height: TimerModeMetrics.controlsHeight,
+                        child: controls,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            if (topAction != null) ...[const SizedBox(width: 12), topAction!],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -114,15 +249,16 @@ class TimerModeFrame extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final height = constraints.maxHeight;
+          final width = constraints.maxWidth;
           if (height < ultraCompactBreakpoint) {
-            return _ultraCompactLayout(context, height, constraints.maxWidth);
+            return _ultraCompactLayout(context, width, height);
           }
           final t = Curves.easeInOutCubic.transform(
             _smoothRange(compactBreakpoint, fullBreakpoint, height),
           );
-          if (t <= 0) return _compactLayout(context, height);
+          if (t <= 0) return _compactLayout(context, width, height);
           if (t >= 1) return _fullLayout(context);
-          return _blendLayouts(context, height, t);
+          return _blendLayouts(context, width, height, t);
         },
       ),
     );
@@ -201,13 +337,15 @@ class TimerModeFrame extends StatelessWidget {
 
   Widget _compactLayout(
     BuildContext context,
+    double width,
     double height, {
     bool showHero = true,
     bool showHeader = true,
   }) {
-    final heroSize = (height - compactHeightReserve).clamp(
-      compactHeroMinSize,
-      compactHeroMaxSize,
+    final geometry = _sideBySideGeometry(
+      width: width,
+      height: height,
+      ultra: false,
     );
     return Column(
       children: [
@@ -215,38 +353,7 @@ class TimerModeFrame extends StatelessWidget {
         _header(showContent: showHeader),
         const SizedBox(height: 4),
         Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              showHero
-                  ? heroBuilder(context, heroSize)
-                  : SizedBox.square(dimension: heroSize),
-              const SizedBox(width: 22),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _slot(
-                        name: 'progress',
-                        height: TimerModeMetrics.progressHeight,
-                        child: progress,
-                        scaleDown: true,
-                      ),
-                      const SizedBox(height: 10),
-                      _slot(
-                        name: 'controls',
-                        height: TimerModeMetrics.controlsHeight,
-                        child: controls,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: _sideBySideBody(context, geometry: geometry, showHero: showHero),
         ),
         if (quickPicker != null) ...[
           _slot(
@@ -260,74 +367,64 @@ class TimerModeFrame extends StatelessWidget {
     );
   }
 
-  Widget _ultraCompactLayout(
-    BuildContext context,
-    double height,
-    double width,
-  ) {
-    final bodyHeight = math.max(
-      0.0,
-      height - TimerModeMetrics.statusHeight - 12,
+  Widget _ultraCompactLayout(BuildContext context, double width, double height) {
+    final geometry = _sideBySideGeometry(
+      width: width,
+      height: height,
+      ultra: true,
     );
-    final heroSize = bodyHeight.clamp(48.0, 150.0);
-    final controlsWidth = math.max(0.0, width - heroSize - 18);
     return Column(
       children: [
         _header(),
         const SizedBox(height: 4),
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              heroBuilder(context, heroSize),
-              const SizedBox(width: 18),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: controlsWidth,
-                  maxHeight: bodyHeight,
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _slot(
-                        name: 'progress',
-                        height: TimerModeMetrics.progressHeight,
-                        child: progress,
-                        scaleDown: true,
-                      ),
-                      const SizedBox(height: 8),
-                      _slot(
-                        name: 'controls',
-                        height: TimerModeMetrics.controlsHeight,
-                        child: controls,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        Expanded(child: _sideBySideBody(context, geometry: geometry)),
       ],
     );
   }
 
-  Widget _blendLayouts(BuildContext context, double height, double t) {
+  Widget _blendLayouts(
+    BuildContext context,
+    double width,
+    double height,
+    double t,
+  ) {
     final fullHeight = math.max(height, fullBreakpoint);
-    final compactSize = (height - compactHeightReserve).clamp(
-      compactHeroMinSize,
-      compactHeroMaxSize,
+    final compactGeometry = _sideBySideGeometry(
+      width: width,
+      height: height,
+      ultra: false,
     );
-    final heroSize = compactSize + (fullHeroSize - compactSize) * t;
-    final heroAlignment = Alignment.lerp(
-      _compactHeroAlignment,
-      _fullHeroAlignment,
-      t,
-    )!;
-    final compactOpacity = Curves.easeIn.transform((1 - 2 * t).clamp(0.0, 1.0));
-    final fullOpacity = Curves.easeIn.transform((2 * t - 1).clamp(0.0, 1.0));
+
+    // 完整版主視覺的幾何（fullHeight 座標系）：跟 _fullLayout 的
+    // Column 結構逐項對齊，t=1 時浮動主視覺與真實版面零位移接軌。
+    const fullHeroTop =
+        8.0 + TimerModeMetrics.statusHeight + 6.0 + TimerModeMetrics.progressHeight;
+    var fullHeroBottom = TimerModeMetrics.controlsHeight + 10.0;
+    if (statusLine != null) {
+      fullHeroBottom += 8.0 + TimerModeMetrics.statusLineHeight;
+    }
+    if (quickPicker != null) {
+      fullHeroBottom += 8.0 + TimerModeMetrics.quickPickerHeight;
+    }
+    if (footer != null) fullHeroBottom += 12.0 + TimerModeMetrics.footerHeight;
+    final fullExpanded = math.max(0.0, fullHeight - fullHeroTop - fullHeroBottom);
+    final fullSize = math.min(math.min(width, fullExpanded), fullHeroSize);
+
+    final compactCenter = Offset(
+      TimerModeMetrics.horizontalInset + compactGeometry.heroSlotWidth / 2,
+      compactGeometry.bodyTop + compactGeometry.bodyHeight / 2,
+    );
+    final fullCenter = Offset(width / 2, fullHeroTop + fullExpanded / 2);
+    final heroSize = compactGeometry.heroSize +
+        (fullSize - compactGeometry.heroSize) * t;
+    final heroCenter = Offset.lerp(compactCenter, fullCenter, t)!;
+    // 錯開淡入淡出避免雙影，但保留少量重疊，拖曳中段內容不會整片真空。
+    final compactOpacity = Curves.easeIn.transform(
+      (1 - 1.6 * t).clamp(0.0, 1.0),
+    );
+    final fullOpacity = Curves.easeIn.transform(
+      (1.6 * t - 0.6).clamp(0.0, 1.0),
+    );
 
     return ClipRect(
       child: Stack(
@@ -338,6 +435,7 @@ class TimerModeFrame extends StatelessWidget {
                 opacity: compactOpacity,
                 child: _compactLayout(
                   context,
+                  width,
                   height,
                   showHero: false,
                   showHeader: false,
@@ -364,14 +462,13 @@ class TimerModeFrame extends StatelessWidget {
               ),
             ),
           Positioned(top: 8, left: 0, right: 0, child: _header()),
-          Positioned.fill(
+          Positioned(
+            left: heroCenter.dx - heroSize / 2,
+            top: heroCenter.dy - heroSize / 2,
+            width: heroSize,
+            height: heroSize,
             child: IgnorePointer(
-              child: RepaintBoundary(
-                child: Align(
-                  alignment: heroAlignment,
-                  child: heroBuilder(context, heroSize),
-                ),
-              ),
+              child: RepaintBoundary(child: heroBuilder(context, heroSize)),
             ),
           ),
         ],
@@ -542,14 +639,16 @@ class TimerControlCluster extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 260;
+        final compact =
+            constraints.hasBoundedWidth && constraints.maxWidth < 260;
         final sideSize = compact ? 44.0 : 54.0;
         final primarySize = compact ? 62.0 : 78.0;
         final gap = compact ? 16.0 : 24.0;
         Widget side(TimerSecondaryAction? action) => action == null
             ? SizedBox.square(dimension: sideSize)
             : _SecondaryButton(action: action, size: sideSize);
-        return Row(
+        // 連緊湊尺寸都放不下時（極窄右槽），整組等比縮小而不是溢位。
+        final row = Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -584,6 +683,7 @@ class TimerControlCluster extends StatelessWidget {
             side(trailing),
           ],
         );
+        return FittedBox(fit: BoxFit.scaleDown, child: row);
       },
     );
   }
