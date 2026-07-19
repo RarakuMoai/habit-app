@@ -77,10 +77,21 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final today = LogicalDate.dayOf(DateTime.now(), LogicalDate.defaultHour);
+    final now = DateTime.now();
+    final today = LogicalDate.dayOf(now, LogicalDate.defaultHour);
     final yesterday = today.subtract(const Duration(days: 1));
+    // 「本週」圖表以真實日曆週為框；週一凌晨（邏輯日仍是上週日）時
+    // 邏輯今天/昨天都落在上週，得補一筆真實今天，圖表洞見才有資料點。
+    final realToday = DateTime(now.year, now.month, now.day);
     SharedPreferences.setMockInitialValues({
       PrefsKeys.weightRecords: jsonEncode([
+        if (realToday != today)
+          {
+            'date': dateString(realToday),
+            'time': '00:05',
+            'weight': 68.3,
+            'body_fat': 21.3,
+          },
         {
           'date': dateString(today),
           'time': '08:20',
