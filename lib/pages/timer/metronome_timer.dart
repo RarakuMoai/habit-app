@@ -172,7 +172,6 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   Timer? _loopRegenDebounce; // 連續改 BPM 時延遲重生音訊循環，避免狂寫暫存檔
 
   // tap tempo：保留近期點按時刻，取間隔平均換算 BPM
-  final List<DateTime> _taps = [];
 
   @override
   void initState() {
@@ -483,27 +482,214 @@ class _MetronomeTimerState extends State<MetronomeTimer>
 
   double get _previewVolume => _volume <= 0 ? 0.75 : _volume;
 
-  void _tapTempo() {
-    final now = DateTime.now();
-    // 距離上一拍超過 2 秒視為重新開始抓速
-    if (_taps.isNotEmpty &&
-        now.difference(_taps.last) > const Duration(seconds: 2)) {
-      _taps.clear();
-    }
-    _taps.add(now);
-    if (_taps.length > 5) _taps.removeAt(0);
-    playHaptic(HapticLevel.selection);
-    // 每次點按都出一聲節拍器音（沒在跑時才出，跑著時循環本身已有聲，免重疊）
-    if (!_running) {
-      MetronomeService.instance.play(volume: _previewVolume, tone: _tone);
-    }
-    if (_taps.length >= 2) {
-      var totalMs = 0;
-      for (var i = 1; i < _taps.length; i++) {
-        totalMs += _taps[i].difference(_taps[i - 1]).inMilliseconds;
-      }
-      final avg = totalMs / (_taps.length - 1);
-      if (avg > 0) _setBpm((60000 / avg).round());
+  // TAP 抓節奏：獨立小視窗（教學＋即時預覽＋確認套用）。
+  // 不在主畫面直接改 BPM——初次使用者按一下就洗掉原設定太突然，
+  // 在視窗內看到偵測值、按「套用」才真的生效。
+  Future<void> _openTapDialog(Color color) async {
+    playFeedback(SfxCue.tap);
+    final taps = <DateTime>[];
+    int? preview;
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          void onPad() {
+            final now = DateTime.now();
+            // 距離上一拍超過 2 秒視為重新開始抓速
+            if (taps.isNotEmpty &&
+                now.difference(taps.last) > const Duration(seconds: 2)) {
+              taps.clear();
+              preview = null;
+            }
+            taps.add(now);
+            if (taps.length > 5) taps.removeAt(0);
+            playHaptic(HapticLevel.selection);
+            // 每次點按都出一聲節拍器音（沒在跑時才出，跑著時循環已有聲）
+            if (!_running) {
+              MetronomeService.instance.play(
+                volume: _previewVolume,
+                tone: _tone,
+              );
+            }
+            if (taps.length >= 2) {
+              var totalMs = 0;
+              for (var i = 1; i < taps.length; i++) {
+                totalMs += taps[i].difference(taps[i - 1]).inMilliseconds;
+              }
+              final avg = totalMs / (taps.length - 1);
+              if (avg > 0) {
+                preview = (60000 / avg).round().clamp(_kMinBpm, _kMaxBpm);
+              }
+            }
+            setDialog(() {});
+          }
+
+          final detected = preview;
+          return Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(
+                          Icons.touch_app_rounded,
+                          color: color,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'TAP 抓節奏',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: AppInk.strong,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '照你想要的速度連點下方大圓，點兩下以上就會顯示偵測到的速度；按「套用」才會更改 BPM。',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Material(
+                    color: color.withValues(alpha: 0.10),
+                    shape: CircleBorder(
+                      side: BorderSide(color: color.withValues(alpha: 0.26)),
+                    ),
+                    child: InkWell(
+                      key: const ValueKey('tap-tempo-pad'),
+                      customBorder: const CircleBorder(),
+                      onTap: onPad,
+                      child: SizedBox.square(
+                        dimension: 132,
+                        child: Center(
+                          child: detected == null
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.touch_app_rounded,
+                                      size: 30,
+                                      color: color,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      '點我抓拍',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppInk.soft,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '$detected',
+                                      style: AppType.digits(
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.w800,
+                                        color: color,
+                                      ),
+                                    ),
+                                    const Text(
+                                      'BPM',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppInk.soft,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    detected == null ? '至少連點 2 下' : '繼續點會越抓越準',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppInk.faint,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text(
+                            '取消',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppInk.soft,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: color,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: detected == null
+                              ? null
+                              : () => Navigator.pop(ctx, detected),
+                          child: Text(
+                            detected == null ? '套用' : '套用 $detected BPM',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (result != null) {
+      _setBpm(result);
+      playFeedback(SfxCue.tap, haptic: HapticLevel.light);
     }
   }
 
@@ -637,7 +823,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     return _pillShell(
       color: color,
       height: height,
-      onTap: _tapTempo,
+      onTap: () => _openTapDialog(color),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,

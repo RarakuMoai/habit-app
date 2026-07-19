@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/pages/timer/game/table_store.dart';
+import 'package:habit_app/pages/timer/game/table_timer_models.dart';
 import 'package:habit_app/pages/timer/game/table_timer_theme.dart';
 import 'package:habit_app/pages/timer/game_timer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -92,5 +94,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('完成'), findsNothing);
     expect(find.text('準備開局'), findsOneWidget);
+  });
+
+  testWidgets('玩法膠囊即點即換、玩家鈕快調人數並即改即存', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(height: 560, width: 400, child: GameTimer()),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('遊戲桌'), findsOneWidget);
+    expect(find.text('4 位玩家'), findsOneWidget);
+
+    // 快切玩法：二人棋鐘固定前兩位上場，玩家快調鈕停用。
+    await tester.tap(find.text('二人棋鐘'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 位玩家'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.groups_rounded).last, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('今天幾位上桌？'), findsNothing);
+
+    // 切回多人桌遊：原本 4 位玩家還在，人數快調可用。
+    await tester.tap(find.text('多人桌遊'));
+    await tester.pumpAndSettle();
+    expect(find.text('4 位玩家'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.groups_rounded).last);
+    await tester.pumpAndSettle();
+    expect(find.text('今天幾位上桌？'), findsOneWidget);
+    await tester.tap(find.text('6'));
+    await tester.pumpAndSettle();
+    expect(find.text('今天幾位上桌？'), findsNothing);
+    expect(find.text('6 位玩家'), findsOneWidget);
+
+    // 即改即存：重載 prefs 的設定要看到 6 位玩家與多人玩法。
+    final prefs = await SharedPreferences.getInstance();
+    final saved = TableStore.loadConfig(prefs);
+    expect(saved.players.length, 6);
+    expect(saved.mode, TableGameMode.party);
   });
 }
