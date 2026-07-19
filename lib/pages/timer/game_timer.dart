@@ -1,4 +1,4 @@
-// 「遊戲」計時入口卡：兔咪遊戲桌的準備畫面與底部設定選單。
+// 「遊戲」計時入口卡：遊戲桌的準備畫面與底部設定選單。
 //
 // 狀態定位（2026-07 UX 改版）：
 // - 預設＝與專注／運動／節拍器一致的準備畫面：看設定、一鍵開局。
@@ -12,6 +12,7 @@ import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/sfx_service.dart';
 import '../../widgets/timer_mode_frame.dart';
+import '../../widgets/timer_ring_painter.dart';
 import 'game/dice_tray.dart';
 import 'game/table_setup_panel.dart';
 import 'game/table_stage_page.dart';
@@ -96,35 +97,17 @@ class _GameTimerState extends State<GameTimer> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
-                SizedBox(
-                  height: 44,
-                  child: Stack(
-                    alignment: Alignment.topCenter,
-                    children: [
-                      Positioned(
-                        top: 10,
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8DDD4),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 0,
-                        right: 6,
-                        child: IconButton(
-                          tooltip: '關閉',
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            color: AppInk.iconFaint,
-                          ),
-                          onPressed: () => Navigator.pop(sheetContext),
-                        ),
-                      ),
-                    ],
+                // 把手列與其他三個設定面板同款；關閉鈕收進面板標題卡右側，
+                // 與專注／運動／節拍器「標題列右側關閉」同一個位置語彙。
+                Padding(
+                  padding: const EdgeInsets.only(top: 10, bottom: 10),
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8DDD4),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                   ),
                 ),
                 Expanded(
@@ -134,6 +117,7 @@ class _GameTimerState extends State<GameTimer> {
                       if (mounted) setState(() => _config = c);
                     },
                     onDice: _openDice,
+                    onDone: () => Navigator.pop(sheetContext),
                   ),
                 ),
                 Container(
@@ -198,6 +182,13 @@ class _GameTimerState extends State<GameTimer> {
         accent: kGameAccent,
         primaryIcon: Icons.play_arrow_rounded,
         onPrimary: _prefs == null ? null : _startGame,
+        // 與其他模式同構的「左低頻／右高頻」滿排：左「玩家」進設定調人，
+        // 右「骰子」是不開局也常用的工具。
+        leading: TimerSecondaryAction(
+          icon: Icons.groups_rounded,
+          label: '玩家',
+          onTap: _prefs == null ? null : _openSettingsSheet,
+        ),
         trailing: TimerSecondaryAction(
           icon: Icons.casino_rounded,
           label: '骰子',
@@ -226,60 +217,59 @@ class _GameTimerState extends State<GameTimer> {
       TableGameMode.chess => Icons.grid_view_rounded,
       TableGameMode.free => Icons.all_inclusive_rounded,
     };
+    // 與專注／運動同一個圓環盤面（外徑、刻度、內盤畫法一致），
+    // 遊戲桌沒有進度概念，progress 固定 0 只呈現盤面。
     return SizedBox.square(
       dimension: size,
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFFFF8E8), Color(0xFFE5F2E8)],
-          ),
-          border: Border.all(color: kGameAccent.withValues(alpha: 0.18)),
           boxShadow: [
             BoxShadow(
-              color: kGameAccent.withValues(alpha: 0.18),
-              blurRadius: size * 0.12,
-              offset: Offset(0, size * 0.035),
+              color: kGameAccent.withValues(alpha: 0.16),
+              blurRadius: 24,
+              spreadRadius: 2,
             ),
           ],
         ),
-        child: Padding(
-          padding: EdgeInsets.all(size * 0.18),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: kGameAccent.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
+        child: CustomPaint(
+          painter: const TimerRingPainter(progress: 0, color: kGameAccent),
+          child: Padding(
+            padding: EdgeInsets.all(size * 0.2),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: kGameAccent.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 28, color: kGameAccent),
                   ),
-                  child: Icon(icon, size: 30, color: kGameAccent),
-                ),
-                const SizedBox(height: 9),
-                const Text(
-                  '兔咪遊戲桌',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: AppInk.strong,
+                  const SizedBox(height: 8),
+                  const Text(
+                    '遊戲桌',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: AppInk.strong,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${_config.activePlayers.length} 位玩家',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: kGameAccentDark,
+                  const SizedBox(height: 3),
+                  Text(
+                    '${_config.activePlayers.length} 位玩家',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: kGameAccentDark,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -311,86 +301,84 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
+  // 下方摘要區：與專注方案／運動類別同款的白底膠囊（玩法／玩家／時間），
+  // 點任一顆直接開設定選單，不再是純顯示的一條卡。
   Widget _configBar() {
-    return Container(
+    return SizedBox(
       height: 52,
-      margin: const EdgeInsets.symmetric(horizontal: 18),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(18),
-        border: AppCardStyle.hairline,
-        boxShadow: AppShadows.flat,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _configFact(
-              Icons.videogame_asset_rounded,
-              '玩法',
-              _config.mode.label,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _configChip(
+                  Icons.videogame_asset_rounded,
+                  '玩法',
+                  _config.mode.label,
+                ),
+                const SizedBox(width: 8),
+                _configChip(
+                  Icons.groups_rounded,
+                  '玩家',
+                  '${_config.activePlayers.length} 人',
+                ),
+                const SizedBox(width: 8),
+                _configChip(Icons.timer_outlined, '時間', _config.timeSummary),
+              ],
             ),
           ),
-          const VerticalDivider(
-            width: 12,
-            indent: 10,
-            endIndent: 10,
-            color: AppSurfaces.divider,
-          ),
-          Expanded(
-            child: _configFact(
-              Icons.groups_rounded,
-              '玩家',
-              '${_config.activePlayers.length} 人',
-            ),
-          ),
-          const VerticalDivider(
-            width: 12,
-            indent: 10,
-            endIndent: 10,
-            color: AppSurfaces.divider,
-          ),
-          Expanded(
-            child: _configFact(Icons.timer_outlined, '時間', _config.timeSummary),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _configFact(IconData icon, String label, String value) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 17, color: kGameAccent),
-          const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppInk.soft,
+  Widget _configChip(IconData icon, String label, String value) {
+    return GestureDetector(
+      onTap: _prefs == null ? null : _openSettingsSheet,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 76, maxWidth: 108),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.86),
+          borderRadius: BorderRadius.circular(16),
+          border: AppCardStyle.hairline,
+          boxShadow: AppShadows.flat,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 13, color: kGameAccent),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppInk.soft,
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 1),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                color: AppInk.strong,
               ),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w900,
-                  color: AppInk.strong,
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

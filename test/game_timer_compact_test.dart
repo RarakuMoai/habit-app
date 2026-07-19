@@ -60,7 +60,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(BottomSheet),
-        matching: find.text('兔咪遊戲桌'),
+        matching: find.text('遊戲桌'),
       ),
       findsOneWidget,
     );

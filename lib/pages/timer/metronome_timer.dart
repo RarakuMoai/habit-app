@@ -553,10 +553,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         padding: const EdgeInsets.symmetric(
           horizontal: TimerModeMetrics.horizontalInset,
         ),
-        child: _bottomControls(
-          color,
-          height: TimerModeMetrics.quickPickerHeight,
-        ),
+        // 52 高置中於 56 槽位，與專注方案／遊戲摘要膠囊同一個光學高度。
+        child: Center(child: _bottomControls(color, height: 52)),
       ),
       topAction: TimerSettingsAction(
         color: color,
@@ -578,11 +576,17 @@ class _MetronomeTimerState extends State<MetronomeTimer>
       width: width,
       height: height,
       child: RepaintBoundary(
-        child: ValueListenableBuilder<double>(
-          valueListenable: _pendAngle,
-          builder: (context, angle, _) => CustomPaint(
-            size: Size(width, height),
-            painter: _MetronomePainter(angle: angle, color: color),
+        // 梯形案體比同格位的圓環視覺重量輕一階，以底部為錨溫和放大 5%
+        // 對齊四頁主視覺的份量；只縮放不改插畫造型。
+        child: Transform.scale(
+          scale: 1.05,
+          alignment: Alignment.bottomCenter,
+          child: ValueListenableBuilder<double>(
+            valueListenable: _pendAngle,
+            builder: (context, angle, _) => CustomPaint(
+              size: Size(width, height),
+              painter: _MetronomePainter(angle: angle, color: color),
+            ),
           ),
         ),
       ),
@@ -630,35 +634,25 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   }
 
   Widget _tapButton(Color color, double height) {
-    return Material(
-      color: color.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: _tapTempo,
-        child: Container(
-          height: height,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.touch_app_rounded, size: 18, color: color),
-                const SizedBox(width: 5),
-                Text(
-                  'TAP',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: AppInk.strong,
-                  ),
-                ),
-              ],
+    return _pillShell(
+      color: color,
+      height: height,
+      onTap: _tapTempo,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.touch_app_rounded, size: 18, color: color),
+          const SizedBox(width: 5),
+          const Text(
+            'TAP',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: AppInk.strong,
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -732,23 +726,27 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     );
   }
 
+  // 白底 hairline 膠囊：與專注方案／運動類別／遊戲摘要同一套快速設定語彙，
+  // 節拍器主色只留在圖示與點綴。
   Widget _pillShell({
     required Color color,
     required double height,
     required VoidCallback onTap,
     required Widget child,
   }) {
-    return Material(
-      color: color.withValues(alpha: 0.11),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color.withValues(alpha: 0.14)),
-          ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(16),
+        border: AppCardStyle.hairline,
+        boxShadow: AppShadows.flat,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
           child: Container(
             height: height,
             padding: const EdgeInsets.symmetric(horizontal: 8),

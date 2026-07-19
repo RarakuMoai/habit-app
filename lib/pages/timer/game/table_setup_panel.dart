@@ -1127,7 +1127,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
         '${_config.timeSummary}';
     return Semantics(
       container: true,
-      label: '兔咪遊戲桌設定，$summary',
+      label: '遊戲桌設定，$summary',
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
         decoration: BoxDecoration(
@@ -1147,7 +1147,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                     children: [
                       const Expanded(
                         child: Text(
-                          '兔咪遊戲桌',
+                          '遊戲桌',
                           style: TextStyle(
                             fontSize: 19,
                             fontWeight: FontWeight.w900,

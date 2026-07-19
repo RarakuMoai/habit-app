@@ -69,7 +69,7 @@ void main() {
     await pumpPanel(tester);
 
     // 頁首合併卡：兔咪＋一行本局摘要（舊三格摘要卡已收掉）
-    expect(find.text('兔咪遊戲桌'), findsOneWidget);
+    expect(find.text('遊戲桌'), findsOneWidget);
     expect(find.text('多人桌遊 · 4 人 · 每回合 1 分'), findsOneWidget);
     expect(find.text('本局摘要'), findsNothing);
 
