@@ -96,16 +96,37 @@ class _GameTimerState extends State<GameTimer> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
-                const SizedBox(height: 10),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8DDD4),
-                    borderRadius: BorderRadius.circular(99),
+                SizedBox(
+                  height: 44,
+                  child: Stack(
+                    alignment: Alignment.topCenter,
+                    children: [
+                      Positioned(
+                        top: 10,
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8DDD4),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 6,
+                        child: IconButton(
+                          tooltip: '關閉',
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppInk.iconFaint,
+                          ),
+                          onPressed: () => Navigator.pop(sheetContext),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
                 Expanded(
                   child: TableSetupPanel(
                     prefs: prefs,
@@ -113,7 +134,6 @@ class _GameTimerState extends State<GameTimer> {
                       if (mounted) setState(() => _config = c);
                     },
                     onDice: _openDice,
-                    onDone: () => Navigator.pop(sheetContext),
                   ),
                 ),
                 Container(

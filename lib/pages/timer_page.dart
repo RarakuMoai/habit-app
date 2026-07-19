@@ -1070,16 +1070,23 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  Widget _profileChip({required int index}) {
+  Widget _profileChip({
+    required int index,
+    VoidCallback? onTap,
+    double? width,
+  }) {
     const accent = Color(0xFFFF7043);
     final profile = _profiles[index];
     final selected = _selected == index;
     return GestureDetector(
-      onTap: () => _selectProfile(index),
+      onTap: onTap ?? () => _selectProfile(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        constraints: const BoxConstraints(minWidth: 60, maxWidth: 84),
+        width: width,
+        constraints: width == null
+            ? const BoxConstraints(minWidth: 60, maxWidth: 84)
+            : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: selected ? accent : Colors.white.withValues(alpha: 0.86),
@@ -1128,7 +1135,7 @@ class _TimerPageState extends State<TimerPage>
   // ── 專注方案與設定 sheet ──
 
   Future<void> _openSettingsSheet() async {
-    // 設定只編輯目前選中的快捷方案；進行中先重設，避免改到已建立的階段序列。
+    // 設定頁可直接切換四個方案；進行中先重設，避免改到已建立的階段序列。
     if (!_idle && !_finished) {
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
@@ -1136,8 +1143,7 @@ class _TimerPageState extends State<TimerPage>
         ..showSnackBar(const SnackBar(content: Text('請先按「重設」，再調整專注設定')));
       return;
     }
-    final profileIndex = _selected;
-    final profile = _profiles[profileIndex];
+    var editingProfileIndex = _selected;
     var nameFieldRevision = 0;
     playFeedback(SfxCue.tap);
     await showModalBottomSheet<void>(
@@ -1147,6 +1153,9 @@ class _TimerPageState extends State<TimerPage>
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheet) {
+            final profileIndex = editingProfileIndex;
+            final profile = _profiles[profileIndex];
+
             void refreshPreview() {
               _applySelected();
               _phase = _Phase.idle;
@@ -1161,6 +1170,20 @@ class _TimerPageState extends State<TimerPage>
               });
               setSheet(() {});
               unawaited(_persistSettings());
+            }
+
+            void selectEditingProfile(int index) {
+              if (index == editingProfileIndex) return;
+              FocusScope.of(ctx).unfocus();
+              nameFieldRevision++;
+              setState(() {
+                editingProfileIndex = index;
+                _selected = index;
+                refreshPreview();
+              });
+              setSheet(() {});
+              unawaited(_persistSettings());
+              playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
             }
 
             Future<void> restoreProfile() async {
@@ -1273,6 +1296,42 @@ class _TimerPageState extends State<TimerPage>
                               ),
                               const SizedBox(height: 14),
                               _settingsSectionTitle(
+                                icon: Icons.view_carousel_rounded,
+                                title: '專注方案',
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                key: const ValueKey(
+                                  'focus-settings-profile-picker',
+                                ),
+                                width: double.infinity,
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final columns = constraints.maxWidth < 300
+                                        ? 2
+                                        : 4;
+                                    final chipWidth =
+                                        (constraints.maxWidth -
+                                            8 * (columns - 1)) /
+                                        columns;
+                                    return Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        for (var i = 0; i < _profileCount; i++)
+                                          _profileChip(
+                                            index: i,
+                                            width: chipWidth,
+                                            onTap: () =>
+                                                selectEditingProfile(i),
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              _settingsSectionTitle(
                                 icon: Icons.label_rounded,
                                 title: '方案名稱',
                               ),
@@ -1322,7 +1381,6 @@ class _TimerPageState extends State<TimerPage>
                                 onChanged: (value) =>
                                     applyProfile(() => profile.name = value),
                               ),
-                              const SizedBox(height: 14),
                               _settingsSummaryCard(),
                               const SizedBox(height: 14),
                               _settingsSectionTitle(
@@ -1438,11 +1496,15 @@ class _TimerPageState extends State<TimerPage>
       },
     );
     if (!mounted) return;
-    final trimmed = profile.name.trim();
-    if (trimmed != profile.name || trimmed.isEmpty) {
-      setState(() {
-        profile.name = trimmed.isEmpty ? profile.defaults.name : trimmed;
-      });
+    var namesChanged = false;
+    for (final profile in _profiles) {
+      final trimmed = profile.name.trim();
+      if (trimmed == profile.name && trimmed.isNotEmpty) continue;
+      profile.name = trimmed.isEmpty ? profile.defaults.name : trimmed;
+      namesChanged = true;
+    }
+    if (namesChanged) {
+      setState(_applySelected);
       await _persistSettings();
     }
   }

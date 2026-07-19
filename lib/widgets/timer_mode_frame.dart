@@ -79,6 +79,34 @@ class TimerModeFrame extends StatelessWidget {
     );
   }
 
+  /// 狀態與設定各自佔據標頭的一側，避免設定鈕浮在內容上方。
+  /// 左側狀態可縮放，右側設定維持可點擊尺寸；320pt 窄機也不會互相覆蓋。
+  Widget _header({bool showContent = true}) {
+    if (!showContent) {
+      return const SizedBox(height: TimerModeMetrics.statusHeight);
+    }
+    return SizedBox(
+      key: const ValueKey('timer-mode-status-slot'),
+      height: TimerModeMetrics.statusHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TimerModeMetrics.horizontalInset,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FittedBox(fit: BoxFit.scaleDown, child: status),
+              ),
+            ),
+            if (topAction != null) ...[const SizedBox(width: 12), topAction!],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -103,84 +131,70 @@ class TimerModeFrame extends StatelessWidget {
   Widget _fullLayout(
     BuildContext context, {
     bool showHero = true,
-    bool showTopAction = true,
+    bool showHeader = true,
   }) {
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            const SizedBox(height: 8),
-            _slot(
-              name: 'status',
-              height: TimerModeMetrics.statusHeight,
-              child: status,
+        const SizedBox(height: 8),
+        _header(showContent: showHeader),
+        const SizedBox(height: 6),
+        _slot(
+          name: 'progress',
+          height: TimerModeMetrics.progressHeight,
+          child: progress,
+          scaleDown: true,
+        ),
+        Expanded(
+          child: Center(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final size = math.min(
+                  math.min(constraints.maxWidth, constraints.maxHeight),
+                  fullHeroSize,
+                );
+                return showHero
+                    ? heroBuilder(context, size)
+                    : SizedBox.square(dimension: size);
+              },
             ),
-            const SizedBox(height: 6),
-            _slot(
-              name: 'progress',
-              height: TimerModeMetrics.progressHeight,
-              child: progress,
+          ),
+        ),
+        _slot(
+          name: 'controls',
+          height: TimerModeMetrics.controlsHeight,
+          child: controls,
+        ),
+        if (statusLine != null) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: TimerModeMetrics.horizontalInset,
+            ),
+            child: _slot(
+              name: 'status-line',
+              height: TimerModeMetrics.statusLineHeight,
+              child: statusLine!,
               scaleDown: true,
             ),
-            Expanded(
-              child: Center(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final size = math.min(
-                      math.min(constraints.maxWidth, constraints.maxHeight),
-                      fullHeroSize,
-                    );
-                    return showHero
-                        ? heroBuilder(context, size)
-                        : SizedBox.square(dimension: size);
-                  },
-                ),
-              ),
-            ),
-            _slot(
-              name: 'controls',
-              height: TimerModeMetrics.controlsHeight,
-              child: controls,
-            ),
-            if (statusLine != null) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: TimerModeMetrics.horizontalInset,
-                ),
-                child: _slot(
-                  name: 'status-line',
-                  height: TimerModeMetrics.statusLineHeight,
-                  child: statusLine!,
-                  scaleDown: true,
-                ),
-              ),
-            ],
-            if (quickPicker != null) ...[
-              const SizedBox(height: 8),
-              _slot(
-                name: 'quick-picker',
-                height: TimerModeMetrics.quickPickerHeight,
-                child: quickPicker!,
-              ),
-            ],
-            if (footer != null) ...[
-              const SizedBox(height: 12),
-              _slot(
-                name: 'footer',
-                height: TimerModeMetrics.footerHeight,
-                child: footer!,
-              ),
-            ],
-            const SizedBox(height: 10),
-          ],
-        ),
-        if (showTopAction && topAction != null)
-          Positioned(
-            top: 0,
-            right: TimerModeMetrics.horizontalInset,
-            child: topAction!,
           ),
+        ],
+        if (quickPicker != null) ...[
+          const SizedBox(height: 8),
+          _slot(
+            name: 'quick-picker',
+            height: TimerModeMetrics.quickPickerHeight,
+            child: quickPicker!,
+          ),
+        ],
+        if (footer != null) ...[
+          const SizedBox(height: 12),
+          _slot(
+            name: 'footer',
+            height: TimerModeMetrics.footerHeight,
+            child: footer!,
+          ),
+        ],
+        const SizedBox(height: 10),
       ],
     );
   }
@@ -189,72 +203,59 @@ class TimerModeFrame extends StatelessWidget {
     BuildContext context,
     double height, {
     bool showHero = true,
-    bool showTopAction = true,
+    bool showHeader = true,
   }) {
     final heroSize = (height - compactHeightReserve).clamp(
       compactHeroMinSize,
       compactHeroMaxSize,
     );
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  showHero
-                      ? heroBuilder(context, heroSize)
-                      : SizedBox.square(dimension: heroSize),
-                  const SizedBox(width: 22),
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _slot(
-                            name: 'status',
-                            height: TimerModeMetrics.statusHeight,
-                            child: status,
-                          ),
-                          const SizedBox(height: 6),
-                          _slot(
-                            name: 'progress',
-                            height: TimerModeMetrics.progressHeight,
-                            child: progress,
-                            scaleDown: true,
-                          ),
-                          const SizedBox(height: 10),
-                          _slot(
-                            name: 'controls',
-                            height: TimerModeMetrics.controlsHeight,
-                            child: controls,
-                          ),
-                        ],
+        const SizedBox(height: 8),
+        _header(showContent: showHeader),
+        const SizedBox(height: 4),
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              showHero
+                  ? heroBuilder(context, heroSize)
+                  : SizedBox.square(dimension: heroSize),
+              const SizedBox(width: 22),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _slot(
+                        name: 'progress',
+                        height: TimerModeMetrics.progressHeight,
+                        child: progress,
+                        scaleDown: true,
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      _slot(
+                        name: 'controls',
+                        height: TimerModeMetrics.controlsHeight,
+                        child: controls,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-            if (quickPicker != null) ...[
-              _slot(
-                name: 'quick-picker',
-                height: TimerModeMetrics.quickPickerHeight,
-                child: quickPicker!,
-              ),
-              const SizedBox(height: 12),
             ],
-          ],
-        ),
-        if (showTopAction && topAction != null)
-          Positioned(
-            top: 0,
-            right: TimerModeMetrics.horizontalInset,
-            child: topAction!,
           ),
+        ),
+        if (quickPicker != null) ...[
+          _slot(
+            name: 'quick-picker',
+            height: TimerModeMetrics.quickPickerHeight,
+            child: quickPicker!,
+          ),
+          const SizedBox(height: 12),
+        ],
       ],
     );
   }
@@ -264,52 +265,52 @@ class TimerModeFrame extends StatelessWidget {
     double height,
     double width,
   ) {
-    final heroSize = (height - 12).clamp(80.0, 150.0);
+    final bodyHeight = math.max(
+      0.0,
+      height - TimerModeMetrics.statusHeight - 12,
+    );
+    final heroSize = bodyHeight.clamp(48.0, 150.0);
     final controlsWidth = math.max(0.0, width - heroSize - 18);
-    return Center(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          heroBuilder(context, heroSize),
-          const SizedBox(width: 18),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: controlsWidth,
-              maxHeight: height,
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (topAction != null) ...[
-                    Align(alignment: Alignment.centerRight, child: topAction!),
-                    const SizedBox(height: 4),
-                  ],
-                  _slot(
-                    name: 'status',
-                    height: TimerModeMetrics.statusHeight,
-                    child: status,
+    return Column(
+      children: [
+        _header(),
+        const SizedBox(height: 4),
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              heroBuilder(context, heroSize),
+              const SizedBox(width: 18),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: controlsWidth,
+                  maxHeight: bodyHeight,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _slot(
+                        name: 'progress',
+                        height: TimerModeMetrics.progressHeight,
+                        child: progress,
+                        scaleDown: true,
+                      ),
+                      const SizedBox(height: 8),
+                      _slot(
+                        name: 'controls',
+                        height: TimerModeMetrics.controlsHeight,
+                        child: controls,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  _slot(
-                    name: 'progress',
-                    height: TimerModeMetrics.progressHeight,
-                    child: progress,
-                    scaleDown: true,
-                  ),
-                  const SizedBox(height: 8),
-                  _slot(
-                    name: 'controls',
-                    height: TimerModeMetrics.controlsHeight,
-                    child: controls,
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -339,7 +340,7 @@ class TimerModeFrame extends StatelessWidget {
                   context,
                   height,
                   showHero: false,
-                  showTopAction: false,
+                  showHeader: false,
                 ),
               ),
             ),
@@ -356,18 +357,13 @@ class TimerModeFrame extends StatelessWidget {
                     child: _fullLayout(
                       context,
                       showHero: false,
-                      showTopAction: false,
+                      showHeader: false,
                     ),
                   ),
                 ),
               ),
             ),
-          if (topAction != null)
-            Positioned(
-              top: 0,
-              right: TimerModeMetrics.horizontalInset,
-              child: topAction!,
-            ),
+          Positioned(top: 8, left: 0, right: 0, child: _header()),
           Positioned.fill(
             child: IgnorePointer(
               child: RepaintBoundary(

@@ -10,7 +10,7 @@ void main() {
           child: ValueListenableBuilder<double>(
             valueListenable: height,
             builder: (context, value, _) => SizedBox(
-              width: 400,
+              width: 320,
               height: value,
               child: TimerModeFrame(
                 heroBuilder: (_, size) => SizedBox.square(
@@ -18,9 +18,19 @@ void main() {
                   dimension: size,
                   child: const ColoredBox(color: Colors.orange),
                 ),
-                status: const Text('狀態'),
+                status: const SizedBox(
+                  key: ValueKey('header-status-probe'),
+                  width: TimerModeMetrics.statusWidth,
+                  height: 34,
+                  child: Center(child: Text('狀態')),
+                ),
                 progress: const Text('進度'),
-                controls: const Text('控制'),
+                controls: const SizedBox(
+                  key: ValueKey('control-probe'),
+                  width: 240,
+                  height: TimerModeMetrics.controlsHeight,
+                  child: Center(child: Text('控制')),
+                ),
                 quickPicker: const Text('快速設定'),
                 statusLine: const Text('摘要'),
                 footer: const Text('統計'),
@@ -41,10 +51,30 @@ void main() {
     addTearDown(height.dispose);
 
     await tester.pumpWidget(harness(height));
+    void expectHeaderSeparated() {
+      final statusRect = tester.getRect(
+        find.byKey(const ValueKey('header-status-probe')),
+      );
+      final settingsRect = tester.getRect(
+        find.byKey(const ValueKey('timer-settings-action')),
+      );
+      final frameRect = tester.getRect(find.byType(TimerModeFrame));
+      expect(statusRect.overlaps(settingsRect), isFalse);
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('control-probe')))
+            .overlaps(settingsRect),
+        isFalse,
+      );
+      expect(settingsRect.right, lessThanOrEqualTo(frameRect.right));
+      expect(settingsRect.left, greaterThanOrEqualTo(frameRect.left));
+    }
+
     expect(find.text('摘要'), findsOneWidget);
     expect(find.text('快速設定'), findsOneWidget);
     expect(find.text('統計'), findsOneWidget);
     expect(find.byKey(const ValueKey('timer-settings-action')), findsOneWidget);
+    expectHeaderSeparated();
     expect(tester.takeException(), isNull);
 
     height.value = 340;
@@ -53,6 +83,7 @@ void main() {
     expect(find.text('摘要'), findsNothing);
     expect(find.text('統計'), findsNothing);
     expect(find.byKey(const ValueKey('timer-settings-action')), findsOneWidget);
+    expectHeaderSeparated();
     expect(tester.takeException(), isNull);
 
     height.value = 180;
@@ -63,6 +94,13 @@ void main() {
     expect(find.text('快速設定'), findsNothing);
     expect(find.text('統計'), findsNothing);
     expect(find.byKey(const ValueKey('timer-settings-action')), findsOneWidget);
+    expectHeaderSeparated();
+    expect(tester.takeException(), isNull);
+
+    height.value = 450;
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('timer-settings-action')), findsOneWidget);
+    expectHeaderSeparated();
     expect(tester.takeException(), isNull);
   });
 

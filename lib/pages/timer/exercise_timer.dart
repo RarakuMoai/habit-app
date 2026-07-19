@@ -1165,15 +1165,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
-  Widget _kindChip(ExerciseKind k) {
+  Widget _kindChip(ExerciseKind k, {VoidCallback? onTap, double? width}) {
     final meta = _exMeta[k]!;
     final selected = k == _kind;
     return GestureDetector(
-      onTap: () => _selectKind(k),
+      onTap: onTap ?? () => _selectKind(k),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        constraints: const BoxConstraints(minWidth: 62),
+        width: width,
+        constraints: width == null ? const BoxConstraints(minWidth: 62) : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: selected ? meta.color : Colors.white.withValues(alpha: 0.86),
@@ -1812,6 +1813,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
             _persistConfig();
           }
 
+          void selectSettingsKind(ExerciseKind kind) {
+            if (kind == _kind) return;
+            _selectKind(kind);
+            setSheet(() {});
+          }
+
           final meta = _exMeta[_kind]!;
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1903,6 +1910,42 @@ class ExerciseTimerState extends State<ExerciseTimer>
                                   onPressed: () => Navigator.pop(ctx),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 14),
+                            _exSectionTitle(
+                              icon: Icons.grid_view_rounded,
+                              color: meta.color,
+                              title: '運動類別',
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              key: const ValueKey(
+                                'exercise-settings-kind-picker',
+                              ),
+                              width: double.infinity,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final columns = constraints.maxWidth < 300
+                                      ? 2
+                                      : 3;
+                                  final chipWidth =
+                                      (constraints.maxWidth -
+                                          8 * (columns - 1)) /
+                                      columns;
+                                  return Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      for (final kind in ExerciseKind.values)
+                                        _kindChip(
+                                          kind,
+                                          width: chipWidth,
+                                          onTap: () => selectSettingsKind(kind),
+                                        ),
+                                    ],
+                                  );
+                                },
+                              ),
                             ),
                             const SizedBox(height: 14),
                             _exSummaryCard(meta.color),

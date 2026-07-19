@@ -91,6 +91,69 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('專注與運動設定可在面板內直接切換要編輯的類別', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    Finder sheetText(String text) => find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text(text),
+    );
+    Finder focusProfile(String text) => find.descendant(
+      of: find.byKey(const ValueKey('focus-settings-profile-picker')),
+      matching: find.text(text),
+    );
+    Finder exerciseKind(String text) => find.descendant(
+      of: find.byKey(const ValueKey('exercise-settings-kind-picker')),
+      matching: find.text(text),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('timer-settings-action')).hitTestable(),
+    );
+    await tester.pumpAndSettle();
+    expect(sheetText('專注方案'), findsOneWidget);
+    for (final label in ['經典', '深度', '輕量', '自訂']) {
+      expect(focusProfile(label), findsOneWidget);
+    }
+
+    await tester.tap(focusProfile('深度').hitTestable());
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('50 分'), findsOneWidget);
+    await tester.tap(sheetText('完成').hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('50:00'), findsOneWidget);
+
+    await tester.tap(find.text('運動'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(
+      find.byKey(const ValueKey('timer-settings-action')).hitTestable(),
+    );
+    await tester.pumpAndSettle();
+    expect(sheetText('運動類別'), findsOneWidget);
+    for (final label in ['Tabata', 'HIIT', 'EMOM', '重訓', '超慢跑']) {
+      expect(exerciseKind(label), findsOneWidget);
+    }
+
+    await tester.tap(exerciseKind('HIIT').hitTestable());
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(sheetText('HIIT 設定'), findsOneWidget);
+    await tester.tap(sheetText('完成').hitTestable());
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt(PrefsKeys.timerSelectedPreset), 1);
+    expect(prefs.getString(PrefsKeys.exerciseSubMode), 'hiit');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('四種計時模式的共用槽位維持同一垂直基準', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(390, 844);

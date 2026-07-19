@@ -64,6 +64,12 @@ void main() {
       ),
       findsOneWidget,
     );
+    final close = find.byTooltip('關閉');
+    expect(close, findsOneWidget);
+    expect(
+      tester.getCenter(close).dx,
+      greaterThan(tester.getCenter(find.byType(BottomSheet)).dx),
+    );
 
     // 鍵盤彈出：高度被壓到 200，仍是同一個設定頁。
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
