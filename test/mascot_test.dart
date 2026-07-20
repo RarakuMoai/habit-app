@@ -1,3 +1,4 @@
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/sfx_service.dart';
@@ -197,4 +198,43 @@ void main() {
     );
     expect(MascotPersona.current.value.speech, '剛剛那一下，我有看到。');
   });
+
+  test('all mascot contexts have an auditable non-empty line pool', () {
+    for (final ctx in MascotContext.values) {
+      final lines = MascotLines.linesFor(ctx);
+      expect(lines, isNotEmpty, reason: '$ctx');
+      expect(lines, isNot(contains('...')), reason: '$ctx 不應回退到 placeholder');
+    }
+  });
+
+  test('shared dialogue pools avoid out-of-context presence statements', () {
+    final lines = <String>[
+      for (final ctx in MascotContext.values) ...MascotLines.linesFor(ctx),
+      for (final ctx in MascotContext.values)
+        ...MascotLines.homeTapLinesFor(ctx),
+    ];
+
+    expect(lines.where((line) => line.contains('我在這裡')), isEmpty);
+    expect(lines.where((line) => line.contains('我還在')), isEmpty);
+  });
+
+  test(
+    'an interaction settles into silent idle instead of another greeting',
+    () {
+      fakeAsync((async) {
+        expect(
+          MascotPersona.interact(MascotContext.allDone, force: true),
+          isTrue,
+        );
+        expect(MascotPersona.current.value.speech, isNotNull);
+
+        async.elapse(const Duration(seconds: 10));
+
+        final state = MascotPersona.current.value;
+        expect(state.assetPath, MascotEmotion.neutralFront.assetPath);
+        expect(state.speech, isNull);
+        expect(state.bubble, isNull);
+      });
+    },
+  );
 }

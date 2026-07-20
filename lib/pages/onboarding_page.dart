@@ -1733,7 +1733,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   Widget _buildPage6() {
     final bmiOdd = _bmiOddOnboarding;
     final emotion = bmiOdd ? 'sad' : 'smile';
-    final bubbleText = bmiOdd ? '嗯…這比例怪怪的，再看一下？' : '我可以幫你紀錄身高、體重喔！';
+    final bubbleText = bmiOdd ? '嗯…身高或體重好像需要再確認一下。' : '我可以幫你紀錄身高、體重喔！';
 
     return _mascotPage(
       emotion: emotion,
@@ -1970,7 +1970,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('好了，$_nickname。\n我會在這裡陪你慢慢來。', fontSize: 18),
+          _speechBubble('好了，$_nickname。\n以後也一起慢慢來。', fontSize: 18),
           const SizedBox(height: 48),
           SizedBox(
             width: double.infinity,

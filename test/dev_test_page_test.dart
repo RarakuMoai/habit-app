@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/dev_test_page.dart';
+import 'package:habit_app/utils/coin_config.dart';
+import 'package:habit_app/utils/coin_service.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/scene_time.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,5 +53,42 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getDouble(PrefsKeys.debugSceneHour), 16.5);
     expect(find.text('16:30'), findsOneWidget);
+  });
+
+  testWidgets('快轉日子會重開當日登入獎勵並可再觸發報到', (tester) async {
+    final now = DateTime.now();
+    final today =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      PrefsKeys.coinLastLoginDate: today,
+      PrefsKeys.coinLoginLevel: 2,
+      PrefsKeys.coinLoginStreak: 2,
+      PrefsKeys.coinClaim(CoinSource.dailyLogin.name, today): true,
+      PrefsKeys.coinClaim(CoinSource.weeklyStreak.name, today): true,
+    });
+
+    await tester.pumpWidget(const MaterialApp(home: DevTestPage()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('快轉一天'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('快轉一天'));
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getBool(PrefsKeys.coinClaim(CoinSource.dailyLogin.name, today)),
+      isNull,
+    );
+    expect(
+      prefs.getBool(PrefsKeys.coinClaim(CoinSource.weeklyStreak.name, today)),
+      isNull,
+    );
+    final reward = await CoinService.claimDailyLogin(now: now);
+    expect(reward, isNotNull);
+    expect(reward!.level, 3);
   });
 }

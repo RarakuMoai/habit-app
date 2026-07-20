@@ -317,8 +317,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void showGreeting(SharedPreferences prefs, String? lastOpen) {
     // 每日登入獎勵演出（慶祝頁＋金幣飛行）進行中就不疊問候橫幅：
     // 橫幅走全域 Overlay 會蓋在慶祝頁上；慶祝頁本身就是當天的迎接，
-    // pop 後的兔咪報喜台詞會接手問候。
+    // pop 後的兔咪開心演出會接手當日迎接。
     if (CoinService.dailyRewardShowing.value) return;
+    // 當日個人化橫幅就是開場問候；先收掉冷啟動的一般氣泡，
+    // 避免首頁同時出現兩句兔咪台詞。
+    MascotPersona.resetToIdle();
     showGreetingBanner(buildGreetingMessage(lastOpen));
   }
 
@@ -350,16 +353,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       LogicalDate.dayOf(now, _dayStartHour),
     );
     if (daysAway != null && daysAway >= 14) {
-      return '你回來了。\n我有把這裡留著。';
+      return '好久不見。\n今天慢慢來就好。';
     }
-    if (daysAway != null && daysAway >= 2) return '你回來了。\n我還在。';
+    if (daysAway != null && daysAway >= 2) {
+      return '又見到你了。\n今天慢慢來就好。';
+    }
 
     if (streak >= 30 && streak % 10 == 0) {
       return '連續 $streak 天了。\n你真的一天一天走過來。';
     }
-    if (streak == 14) return '連續兩週了。\n這已經是你的節奏了。';
+    if (streak == 14) return '連續兩週了。\n我們一天一天走到這裡了。';
     if (streak == 7) return '連續一週了。\n你一直有回來。';
-    if (yesterdayAllDone) return '昨天也完成了。\n兔咪有看到。';
+    if (yesterdayAllDone) return '昨天也完成了。\n我有看到。';
 
     if (onboardingDate != null) {
       final start = onboardingDate!;
@@ -383,7 +388,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (now.hour >= 11 && now.hour < 18) {
       return '午安，$_nickname。\n想從哪件小事開始？';
     }
-    return '晚安，$_nickname。\n今天回來了就好。';
+    return '辛苦了，$_nickname。\n今天回來了就好。';
   }
 
   void showGreetingBanner(String message) {

@@ -458,7 +458,7 @@ class _TimerPageState extends State<TimerPage>
   void _boundaryFeedback() {
     MascotPersona.interact(
       _phase == _Phase.focus
-          ? MascotContext.openApp
+          ? MascotContext.focusStarted
           : MascotContext.completedOne,
     );
     playFeedback(SfxCue.complete);
@@ -551,7 +551,9 @@ class _TimerPageState extends State<TimerPage>
       (_) => _refreshFromEndTime(),
     );
     MascotPersona.interact(
-      _phase == _Phase.focus ? MascotContext.openApp : MascotContext.halfDone,
+      _phase == _Phase.focus
+          ? MascotContext.focusStarted
+          : MascotContext.halfDone,
     );
     playFeedback(SfxCue.tap, haptic: HapticLevel.medium);
   }
@@ -597,7 +599,7 @@ class _TimerPageState extends State<TimerPage>
     }
     MascotPersona.interact(
       _phase == _Phase.focus
-          ? MascotContext.openApp
+          ? MascotContext.focusStarted
           : MascotContext.completedOne,
     );
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);

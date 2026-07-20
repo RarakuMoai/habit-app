@@ -462,7 +462,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   }
 
   // 每日登入獎勵：先推全螢幕慶祝頁（兔咪＋連續天數舞台），看完 pop 回來
-  // 才輪到金幣飛行吸入 AppBar ＋ 兔咪報喜台詞，整段演出有起點也有收尾。
+  // 才輪到金幣飛行吸入 AppBar ＋ 兔咪開心反應。文字只在慶祝頁講一次，
+  // 回到首頁後不再重複同一句。
   Future<void> _claimDailyLoginReward() async {
     if (_claimingDailyReward) return;
     _claimingDailyReward = true;
@@ -510,17 +511,9 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       _rewardStartBalance = startBalance;
       _rewardTargetBalance = targetBalance;
     });
-    final line = reward.graceUsed
-        ? '昨天我幫你看家了～足跡幣照領，+${reward.amount}！'
-        : reward.milestoneAmount > 0
-        ? '一起走到第 ${CoinConfig.loginStreakMilestone} 天了！今天共有 +${reward.totalAmount} 足跡幣。'
-        : reward.level >= CoinConfig.loginMaxLevel
-        ? '連續報到 Lv.${reward.level}！今天 +${reward.amount} 足跡幣。'
-        : '你來了！今天留下 +${reward.amount} 足跡幣。';
     MascotPersona.setForContext(
       MascotEmotion.happy.assetPath,
-      MascotContext.allDone,
-      speech: line,
+      MascotContext.energize,
       force: true,
     );
     _claimingDailyReward = false;

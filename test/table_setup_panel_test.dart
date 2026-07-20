@@ -44,6 +44,11 @@ Future<SharedPreferences> pumpPanel(
 /// 避免誤中常用組合卡上同圖示的 ⋯。
 Finder playerMenuButton(int i) => find.byTooltip('改名、移動或移除').at(i);
 
+Finder playerPressFeedback(int i) => find.ancestor(
+  of: find.byKey(ValueKey('player-row-middle-$i')),
+  matching: find.byType(ReorderPressFeedback),
+);
+
 /// 排序模式中抖動動畫永遠在跑，pumpAndSettle 會逾時——
 /// 一律用固定時長 pump 前進。
 Future<void> pumpJiggling(WidgetTester tester, [int frames = 6]) async {
@@ -152,7 +157,7 @@ void main() {
         find.byWidgetPredicate(
           (w) =>
               w is CustomPaint &&
-              w.painter.runtimeType.toString() == '_PlayerHoldPainter',
+              w.painter.runtimeType.toString() == '_ReorderPressPainter',
         ),
         findsOneWidget,
       );
@@ -183,12 +188,24 @@ void main() {
         find.byWidgetPredicate(
           (w) =>
               w is CustomPaint &&
-              w.painter.runtimeType.toString() == '_PlayerHoldPainter',
+              w.painter.runtimeType.toString() == '_ReorderPressPainter',
         ),
         findsOneWidget,
       );
       await gesture.up();
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('玩家列左滑顯示移除，點下後即時存檔', (tester) async {
+      final prefs = await pumpPanel(tester);
+
+      await tester.drag(playerPressFeedback(0), const Offset(-360, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('移除'), findsOneWidget);
+
+      await tester.tap(find.text('移除'));
+      await tester.pumpAndSettle();
+      expect(savedNames(prefs), ['玩家 2', '玩家 3', '玩家 4']);
     });
 
     testWidgets('同時存入常用玩家會記住上次勾選', (tester) async {
@@ -311,6 +328,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('改名'), findsOneWidget);
       expect(find.text('移動'), findsOneWidget);
+      expect(find.text('移除'), findsNothing);
+
+      // 收掉選單後驗證最低人數時左滑也不會露出刪除動作。
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+      await tester.drag(playerPressFeedback(0), const Offset(-360, 0));
+      await tester.pumpAndSettle();
       expect(find.text('移除'), findsNothing);
     });
 

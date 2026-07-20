@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -68,11 +69,11 @@ class _WardrobePageState extends State<WardrobePage>
     with SingleTickerProviderStateMixin {
   _WardrobeSection _section = _WardrobeSection.outfits;
   bool _loaded = false;
+  final ScrollController _scrollController = ScrollController();
 
   // 播放清單「拖曳排序模式」：長按或 …→移動 進入，整列 Q 版抖動，底部出完成 bar。
-  // 與習慣頁同一套互動（_Jiggle + Delayed/Immediate 拖曳辨識器）。
+  // 與遊戲玩家列共用按壓回饋、抖動與 Delayed/Immediate 拖曳辨識器。
   bool _playlistEditMode = false;
-  String? _selectedPlaylistTrackId;
   late final AnimationController _jiggleCtrl;
 
   @override
@@ -87,6 +88,7 @@ class _WardrobePageState extends State<WardrobePage>
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _jiggleCtrl.dispose();
     unawaited(WardrobePreviewController.restore());
     super.dispose();
@@ -187,6 +189,28 @@ class _WardrobePageState extends State<WardrobePage>
     await WardrobeStore.addTrack(track.id);
   }
 
+  // 曲庫排在播放清單下方；從曲庫增減曲目時，清單高度會差一列。同步補償外層
+  // 捲動位置，讓使用者正在看的曲庫卡片留在同一個螢幕位置。
+  Future<void> _keepLibraryStill(Future<void> Function() change) async {
+    final beforeCount = WardrobeStore.playlist.value.length;
+    await change();
+    if (!mounted || !_scrollController.hasClients) return;
+
+    final rowDelta = WardrobeStore.playlist.value.length - beforeCount;
+    if (rowDelta == 0) return;
+    final position = _scrollController.position;
+    final target = math.max(
+      position.minScrollExtent,
+      position.pixels + rowDelta * _kPlaylistRowExtent,
+    );
+    // 加入曲目時，新 maxScrollExtent 要到下一個 layout 才會更新；jumpTo 本身
+    // 允許暫時超出舊範圍，下一幀內容長高後就會落在有效位置。
+    _scrollController.jumpTo(target);
+  }
+
+  Future<void> _addTrackFromLibrary(MusicTrackSpec track) =>
+      _keepLibraryStill(() => _addTrack(track));
+
   Future<void> _setCurrentTrack(MusicTrackSpec track) async {
     playHaptic(HapticLevel.selection);
     final changed = await WardrobeStore.setCurrentTrack(track.id);
@@ -196,11 +220,11 @@ class _WardrobePageState extends State<WardrobePage>
   Future<void> _removeTrack(MusicTrackSpec track) async {
     playHaptic(HapticLevel.selection);
     final changed = await WardrobeStore.removeTrack(track.id);
-    if (_selectedPlaylistTrackId == track.id) {
-      _selectedPlaylistTrackId = null;
-    }
     _applyCurrentTrackChange(changed);
   }
+
+  Future<void> _removeTrackFromLibrary(MusicTrackSpec track) =>
+      _keepLibraryStill(() => _removeTrack(track));
 
   Future<void> _reorderPlaylist(int oldIndex, int newIndex) async {
     playHaptic(HapticLevel.selection);
@@ -225,16 +249,9 @@ class _WardrobePageState extends State<WardrobePage>
     await BgmService.instance.setMuted(!AudioSettingsService.musicMuted.value);
   }
 
-  void _selectPlaylistTrack(MusicTrackSpec track) {
-    if (_selectedPlaylistTrackId == track.id) return;
-    playHaptic(HapticLevel.selection);
-    setState(() => _selectedPlaylistTrackId = track.id);
-  }
-
-  // 明確按播放鈕才切歌／暫停／續播；點清單列本身只做選取。
+  // 明確按播放鈕才切歌／暫停／續播；點清單列本身只顯示短暫按壓回饋。
   Future<void> _togglePlaylistTrackPlayback(MusicTrackSpec track) async {
     playHaptic(HapticLevel.selection);
-    setState(() => _selectedPlaylistTrackId = track.id);
     final muted = AudioSettingsService.musicMuted.value;
     if (WardrobeStore.currentTrackId.value == track.id) {
       await BgmService.instance.setMuted(!muted);
@@ -405,6 +422,7 @@ class _WardrobePageState extends State<WardrobePage>
                   StoryStore.unread,
                 ]),
                 builder: (context, _) => ListView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   children: [
                     _SectionSwitch(
@@ -470,9 +488,6 @@ class _WardrobePageState extends State<WardrobePage>
     final playlistTracks = playlistIds.map(trackById).toList();
     final current = WardrobeStore.currentTrack;
     final muted = AudioSettingsService.musicMuted.value;
-    final selectedId = playlistIds.contains(_selectedPlaylistTrackId)
-        ? _selectedPlaylistTrackId
-        : null;
     // 清單剩一首就沒得排序：自動退出拖曳模式，避免卡在抖動狀態。
     if (_playlistEditMode && playlistTracks.length <= 1) {
       WidgetsBinding.instance.addPostFrameCallback(
@@ -495,13 +510,11 @@ class _WardrobePageState extends State<WardrobePage>
         _PlaylistCard(
           tracks: playlistTracks,
           currentId: current.id,
-          selectedId: selectedId ?? current.id,
           muted: muted,
           playMode: WardrobeStore.playMode.value,
           editMode: _playlistEditMode,
           jiggle: _jiggleCtrl,
           onCyclePlayMode: _cyclePlayMode,
-          onSelect: _selectPlaylistTrack,
           onTogglePlay: _togglePlaylistTrackPlayback,
           onDetail: _openTrackDetail,
           onRemove: _removeTrack,
@@ -531,6 +544,7 @@ class _WardrobePageState extends State<WardrobePage>
       tiles: [
         for (final track in tracks)
           _TrackGridCard(
+            key: ValueKey('track-grid-${track.id}'),
             track: track,
             owned: WardrobeStore.ownedTracks.value.contains(track.id),
             inPlaylist: WardrobeStore.playlist.value.contains(track.id),
@@ -538,8 +552,8 @@ class _WardrobePageState extends State<WardrobePage>
             removable: WardrobeStore.playlist.value.length > 1,
             onPreview: () => _previewTrack(track),
             onDetail: () => _openTrackDetail(track),
-            onAddToPlaylist: () => _addTrack(track),
-            onRemoveFromPlaylist: () => _removeTrack(track),
+            onAddToPlaylist: () => _addTrackFromLibrary(track),
+            onRemoveFromPlaylist: () => _removeTrackFromLibrary(track),
             onBuy: () => _buyTrack(track),
           ),
       ],
@@ -1177,15 +1191,17 @@ class _MusicSummaryCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(
-                              previewing
-                                  ? Icons.headphones_rounded
-                                  : Icons.graphic_eq_rounded,
-                              size: 15,
-                              color: previewing
-                                  ? const Color(0xFFE0894F)
-                                  : kMusicAccent,
-                            ),
+                            if (previewing)
+                              const Icon(
+                                Icons.headphones_rounded,
+                                size: 15,
+                                color: Color(0xFFE0894F),
+                              )
+                            else
+                              _PlaybackEqualizer(
+                                active: !muted,
+                                color: kMusicAccent,
+                              ),
                             const SizedBox(width: 5),
                             Text(
                               previewing ? '試聽中（暫時）' : '現在播放',
@@ -1242,16 +1258,157 @@ class _MusicSummaryCard extends StatelessWidget {
   }
 }
 
+// 只表達「背景音樂正在播放」，不分析真實音訊振幅，避免視覺太躁動。
+// 系統減少動態、頁面不在目前分頁或 BGM 暫停時，音柱會停在低調的固定高度。
+class _PlaybackEqualizer extends StatefulWidget {
+  final bool active;
+  final Color color;
+
+  const _PlaybackEqualizer({required this.active, required this.color});
+
+  @override
+  State<_PlaybackEqualizer> createState() => _PlaybackEqualizerState();
+}
+
+class _PlaybackEqualizerState extends State<_PlaybackEqualizer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _moving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncMotion();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlaybackEqualizer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active != widget.active) _syncMotion();
+  }
+
+  void _syncMotion() {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final shouldMove =
+        widget.active && TickerMode.valuesOf(context).enabled && !reduceMotion;
+    if (_moving == shouldMove) return;
+
+    _moving = shouldMove;
+    if (shouldMove) {
+      _controller.repeat();
+    } else {
+      _controller
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: ValueKey(
+        _moving
+            ? 'music-playback-equalizer-moving'
+            : 'music-playback-equalizer-still',
+      ),
+      width: 15,
+      height: 15,
+      child: ExcludeSemantics(
+        child: CustomPaint(
+          painter: _PlaybackEqualizerPainter(
+            progress: _controller,
+            color: widget.color,
+            moving: _moving,
+            playing: widget.active,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaybackEqualizerPainter extends CustomPainter {
+  final Animation<double> progress;
+  final Color color;
+  final bool moving;
+  final bool playing;
+
+  _PlaybackEqualizerPainter({
+    required this.progress,
+    required this.color,
+    required this.moving,
+    required this.playing,
+  }) : super(repaint: progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final staticHeights = playing
+        ? const [0.48, 0.72, 0.56]
+        : const [0.32, 0.48, 0.38];
+    final t = progress.value;
+    final animatedHeights = [
+      0.34 + 0.48 * _wave(t, 1, 0.04),
+      0.40 + 0.48 * _wave(t, 2, 0.31),
+      0.30 + 0.50 * _wave(t, 1, 0.63),
+    ];
+    final heights = moving ? animatedHeights : staticHeights;
+    final paint = Paint()
+      ..color = color.withValues(alpha: playing ? 0.88 : 0.48)
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2.35;
+    const xPositions = [2.2, 7.5, 12.8];
+
+    for (var i = 0; i < xPositions.length; i++) {
+      final barHeight = math.max(3.5, size.height * heights[i]);
+      final bottom = size.height - 1.5;
+      canvas.drawLine(
+        Offset(xPositions[i], bottom),
+        Offset(xPositions[i], bottom - barHeight),
+        paint,
+      );
+    }
+  }
+
+  double _wave(double t, int cycles, double phase) {
+    return 0.5 + 0.5 * math.sin(2 * math.pi * (cycles * t + phase));
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlaybackEqualizerPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.moving != moving ||
+        oldDelegate.playing != playing;
+  }
+}
+
+// 播放清單列同時也是主要觸控區：維持接近標準 ListTile 的 60pt，
+// 中間 InkWell 與兩側操作都至少有 44pt 高，避免封面／播放鍵太小難按。
+const double _kPlaylistRowExtent = 60;
+
 class _PlaylistCard extends StatelessWidget {
   final List<MusicTrackSpec> tracks;
   final String currentId;
-  final String selectedId;
   final bool muted;
   final PlayMode playMode;
   final bool editMode;
   final Animation<double> jiggle;
   final VoidCallback onCyclePlayMode;
-  final ValueChanged<MusicTrackSpec> onSelect;
   final ValueChanged<MusicTrackSpec> onTogglePlay;
   final ValueChanged<MusicTrackSpec> onDetail;
   final ValueChanged<MusicTrackSpec> onRemove;
@@ -1262,13 +1419,11 @@ class _PlaylistCard extends StatelessWidget {
   const _PlaylistCard({
     required this.tracks,
     required this.currentId,
-    required this.selectedId,
     required this.muted,
     required this.playMode,
     required this.editMode,
     required this.jiggle,
     required this.onCyclePlayMode,
-    required this.onSelect,
     required this.onTogglePlay,
     required this.onDetail,
     required this.onRemove,
@@ -1324,6 +1479,7 @@ class _PlaylistCard extends StatelessWidget {
           ReorderableListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
+            itemExtent: _kPlaylistRowExtent,
             buildDefaultDragHandles: false,
             padding: EdgeInsets.zero,
             itemCount: tracks.length,
@@ -1366,11 +1522,9 @@ class _PlaylistCard extends StatelessWidget {
                     key: ValueKey('playlist-row-${track.id}'),
                     track: track,
                     isCurrent: track.id == currentId,
-                    isSelected: track.id == selectedId,
                     muted: muted,
                     editMode: editMode,
                     removable: canModify,
-                    onTap: editMode ? null : () => onSelect(track),
                     onPlayTap: () => onTogglePlay(track),
                     onMove: onStartMove,
                     onRemove: () => onRemove(track),
@@ -1399,18 +1553,17 @@ class _PlaylistCard extends StatelessWidget {
   }
 }
 
-// 播放清單的一列：點＝輕量臨時標記（編輯模式中停用）；右側播放鈕才切歌/暫停。
+// 播放清單的一列：單點＝立即的整列 InkWell 漣漪、不留下選取；
+// 右側播放鈕才切歌/暫停，詳細資訊由「⋯」進入。
 // 移除走左滑或「…」。排序模式只用整列抖動表意，不插入圖示、不改列的幾何。
 enum _PlaylistRowAction { move, remove, detail }
 
 class _PlaylistRow extends StatelessWidget {
   final MusicTrackSpec track;
   final bool isCurrent;
-  final bool isSelected;
   final bool muted;
   final bool editMode;
   final bool removable;
-  final VoidCallback? onTap;
   final VoidCallback onPlayTap;
   final VoidCallback onMove;
   final VoidCallback onRemove;
@@ -1420,11 +1573,9 @@ class _PlaylistRow extends StatelessWidget {
     super.key,
     required this.track,
     required this.isCurrent,
-    required this.isSelected,
     required this.muted,
     required this.editMode,
     required this.removable,
-    required this.onTap,
     required this.onPlayTap,
     required this.onMove,
     required this.onRemove,
@@ -1434,19 +1585,10 @@ class _PlaylistRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playing = isCurrent && !muted;
-    final selectedOnly = isSelected && !isCurrent;
-    final rowColor = isCurrent
-        ? const Color(0xFFEFF3FC)
-        : selectedOnly
-        // 臨時標記只留近乎白色的淡染；它方便截圖辨認，不應搶過播放狀態。
-        ? Color.alphaBlend(kMusicAccent.withValues(alpha: 0.025), Colors.white)
-        : Colors.white;
+    final rowColor = isCurrent ? const Color(0xFFEFF3FC) : Colors.white;
     final borderColor = isCurrent
         ? kMusicAccent.withValues(alpha: 0.20)
         : Colors.transparent;
-    final titleColor = selectedOnly
-        ? Color.lerp(AppInk.strong, kMusicAccent, 0.18)!
-        : AppInk.strong;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 140),
@@ -1460,22 +1602,26 @@ class _PlaylistRow extends StatelessWidget {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: onTap,
           borderRadius: BorderRadius.circular(12),
+          // 不掛 onDoubleTap：雙擊辨識器會讓單點等待第二下，漣漪明顯延遲。
+          // 空 onTap 只負責啟用即時 Material 漣漪，不改播放或選取狀態。
+          onTap: editMode ? null : () {},
+          excludeFromSemantics: true,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            // 60pt 列高扣除上下 1pt 邊框與 5pt padding，內容正好 48pt。
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
             child: Row(
               children: [
-                _TrackCover(track: track, size: 34),
-                const SizedBox(width: 9),
+                _TrackCover(track: track, size: 42),
+                const SizedBox(width: 11),
                 Expanded(
                   child: Text(
                     track.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: titleColor,
-                      fontSize: 13.5,
+                      color: AppInk.strong,
+                      fontSize: 15,
                       fontWeight: isCurrent ? FontWeight.w900 : FontWeight.w800,
                     ),
                   ),
@@ -1641,9 +1787,9 @@ class _PlaylistPlayButton extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox(
-            width: 34,
-            height: 34,
-            child: Icon(icon, size: 22, color: kMusicAccent),
+            width: 44,
+            height: 44,
+            child: Icon(icon, size: 24, color: kMusicAccent),
           ),
         ),
       ),
@@ -1994,6 +2140,7 @@ class _TrackGridCard extends StatelessWidget {
   final VoidCallback onBuy;
 
   const _TrackGridCard({
+    super.key,
     required this.track,
     required this.owned,
     required this.inPlaylist,

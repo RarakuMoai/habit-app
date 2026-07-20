@@ -3,10 +3,10 @@
 // 一般設定即改即存（TableStore）並回報給入口卡（onConfigChanged）；
 // 常用玩家／常用組合因為會一次替換多筆本局設定，先選取、再按確認套用。
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../utils/app_feedback.dart';
@@ -1369,6 +1369,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
   // ── 出場順位 ─────────────────────────────────────────────
 
   Widget _playerList({required bool chess}) {
+    final canRemove = _config.players.length > TableTimerConfig.minPlayers;
     return ReorderableListView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -1401,9 +1402,30 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               animation: _jiggleCtrl,
               enabled: _sortingPlayers,
               seed: identityHashCode(_config.players[i]),
-              child: _PlayerHoldFill(
+              child: ReorderPressFeedback(
                 sorting: _sortingPlayers,
-                child: _playerRow(i, chess: chess),
+                color: kGameAccent,
+                child: Slidable(
+                  key: ValueKey(
+                    'player-slidable-${identityHashCode(_config.players[i])}',
+                  ),
+                  enabled: !_sortingPlayers && canRemove,
+                  endActionPane: ActionPane(
+                    motion: const BehindMotion(),
+                    extentRatio: 0.26,
+                    children: [
+                      SlidableAction(
+                        onPressed: (_) => _removePlayer(i),
+                        backgroundColor: Colors.red.shade400,
+                        foregroundColor: Colors.white,
+                        icon: Icons.delete_outline_rounded,
+                        label: '移除',
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ],
+                  ),
+                  child: _playerRow(i, chess: chess),
+                ),
               ),
             ),
           ),
@@ -2061,117 +2083,6 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       ),
     );
   }
-}
-
-/// 玩家列的按壓語言：手指一碰就從落點出現極淡回饋；短點放開即消失、
-/// 不執行任何功能，持續按住則一路填滿，滿一秒時剛好由
-/// [ReorderHoldDragListener] 接手拖曳。只負責視覺，不攔截任何按鈕手勢。
-class _PlayerHoldFill extends StatefulWidget {
-  final bool sorting;
-  final Widget child;
-
-  const _PlayerHoldFill({required this.sorting, required this.child});
-
-  @override
-  State<_PlayerHoldFill> createState() => _PlayerHoldFillState();
-}
-
-class _PlayerHoldFillState extends State<_PlayerHoldFill>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  Offset? _origin;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: kReorderHoldDelay);
-  }
-
-  @override
-  void didUpdateWidget(_PlayerHoldFill oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.sorting && !oldWidget.sorting) _clear();
-  }
-
-  void _down(PointerDownEvent e) {
-    if (widget.sorting) return;
-    _origin = e.localPosition;
-    _controller.forward(from: 0);
-  }
-
-  void _clear() {
-    if (_controller.value > 0 && !widget.sorting) {
-      _controller.reverse();
-    } else {
-      _controller.value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Listener(
-    behavior: HitTestBehavior.opaque,
-    onPointerDown: _down,
-    onPointerUp: (_) => _clear(),
-    onPointerCancel: (_) => _clear(),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Stack(
-        children: [
-          widget.child,
-          Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (_, _) => _controller.value == 0
-                    ? const SizedBox.shrink()
-                    : CustomPaint(
-                        painter: _PlayerHoldPainter(
-                          progress: _controller.value,
-                          origin: _origin,
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _PlayerHoldPainter extends CustomPainter {
-  final double progress;
-  final Offset? origin;
-
-  const _PlayerHoldPainter({required this.progress, required this.origin});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final o = origin ?? Offset(size.width / 2, size.height / 2);
-    final maxRadius = [
-      o.distance,
-      (o - Offset(size.width, 0)).distance,
-      (o - Offset(0, size.height)).distance,
-      (o - Offset(size.width, size.height)).distance,
-    ].reduce(math.max);
-    final p = progress.clamp(0.0, 1.0);
-    canvas.drawCircle(
-      o,
-      maxRadius * Curves.easeOut.transform(p),
-      Paint()
-        ..color = kGameAccent.withValues(alpha: 0.15 * math.min(1.0, p * 4)),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_PlayerHoldPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.origin != origin;
 }
 
 class _MaxIntInputFormatter extends TextInputFormatter {

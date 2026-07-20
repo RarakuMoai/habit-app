@@ -101,6 +101,13 @@ class _DevTestPageState extends State<DevTestPage> {
             );
       await prefs.setString(k, shifted);
     }
+    // claimDailyLogin 還會用「今天的 per-day claim」防重複入帳。
+    // 開發者快轉是要模擬新的登入日，因此只重開登入與連續里程碑；
+    // 其他每日來源仍保留，避免快轉意外重領其他獎勵。
+    final today = _fmtDate(DateTime.now());
+    for (final source in [CoinSource.dailyLogin, CoinSource.weeklyStreak]) {
+      await prefs.remove(PrefsKeys.coinClaim(source.name, today));
+    }
     final n = _dayShift + days;
     await prefs.setInt(PrefsKeys.debugDayShift, n);
     if (!mounted) return;

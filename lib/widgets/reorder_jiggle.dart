@@ -12,6 +12,145 @@ import 'package:flutter/material.dart';
 /// 滑一下容易誤觸進排序；拉長到 1 秒（與習慣頁同一手感）。
 const Duration kReorderHoldDelay = Duration(seconds: 1);
 
+/// 可拖曳列的共用按壓語言：短按只從觸點浮出一層淡色再消失，不留下選取；
+/// 持續按住則一路填滿，到 [kReorderHoldDelay] 時由外層拖曳辨識器接手。
+/// 使用原始 pointer 事件，只畫視覺、不宣告 tap 功能，也不攔截列內按鈕或左滑。
+class ReorderPressFeedback extends StatefulWidget {
+  final bool sorting;
+  final Color color;
+  final double borderRadius;
+  final Widget child;
+
+  const ReorderPressFeedback({
+    super.key,
+    required this.sorting,
+    required this.color,
+    required this.child,
+    this.borderRadius = 14,
+  });
+
+  @override
+  State<ReorderPressFeedback> createState() => _ReorderPressFeedbackState();
+}
+
+class _ReorderPressFeedbackState extends State<ReorderPressFeedback>
+    with SingleTickerProviderStateMixin {
+  static const _tapFloor = 0.075;
+  late final AnimationController _controller;
+  Offset? _origin;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: kReorderHoldDelay);
+  }
+
+  @override
+  void didUpdateWidget(ReorderPressFeedback oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sorting && !oldWidget.sorting) _reset();
+  }
+
+  void _down(PointerDownEvent event) {
+    if (widget.sorting) return;
+    _origin = event.localPosition;
+    _controller.forward(from: 0);
+  }
+
+  void _release() {
+    if (widget.sorting) {
+      _reset();
+      return;
+    }
+    // 很快的 tap 也至少留一個低存在感的短暫光暈，讓使用者知道列有收到觸碰。
+    if (_controller.value < _tapFloor) _controller.value = _tapFloor;
+    _controller.animateBack(
+      0,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _reset() {
+    _controller
+      ..stop()
+      ..value = 0;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.opaque,
+    onPointerDown: _down,
+    onPointerUp: (_) => _release(),
+    onPointerCancel: (_) => _release(),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(widget.borderRadius),
+      child: Stack(
+        children: [
+          widget.child,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (_, _) => _controller.value == 0
+                    ? const SizedBox.shrink()
+                    : CustomPaint(
+                        painter: _ReorderPressPainter(
+                          progress: _controller.value,
+                          origin: _origin,
+                          color: widget.color,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ReorderPressPainter extends CustomPainter {
+  final double progress;
+  final Offset? origin;
+  final Color color;
+
+  const _ReorderPressPainter({
+    required this.progress,
+    required this.origin,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final o = origin ?? Offset(size.width / 2, size.height / 2);
+    final maxRadius = [
+      o.distance,
+      (o - Offset(size.width, 0)).distance,
+      (o - Offset(0, size.height)).distance,
+      (o - Offset(size.width, size.height)).distance,
+    ].reduce(math.max);
+    final p = progress.clamp(0.0, 1.0);
+    canvas.drawCircle(
+      o,
+      maxRadius * Curves.easeOut.transform(p),
+      Paint()..color = color.withValues(alpha: 0.12 * math.min(1.0, p * 4)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ReorderPressPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.origin != origin ||
+      oldDelegate.color != color;
+}
+
 /// 排序模式中每列的「Q 版抖動」：監聽外部共用的 jiggle controller
 /// （無自己的 ticker），依 seed 給不同相位/方向，看起來像 iOS 主畫面
 /// 長按 App 那樣整列在輕輕晃。enabled=false 時零成本直通。

@@ -52,7 +52,8 @@ void main() {
       reward: const LoginReward(level: 6, amount: 10, graceUsed: false),
     );
 
-    expect(find.text('兔咪報到卡'), findsOneWidget);
+    expect(find.text('報到卡'), findsOneWidget);
+    expect(find.text('兔咪報到卡'), findsNothing);
     expect(find.text('連續第 12 天'), findsOneWidget);
     expect(find.text('今日足跡幣 +10'), findsOneWidget);
     expect(find.text('開始吧'), findsOneWidget);
@@ -66,7 +67,41 @@ void main() {
     // 第二輪徽章要亮出來
     expect(find.text('第 2 輪'), findsOneWidget);
     // 滿級台詞
-    expect(find.text('你一直有回來，兔咪都記得。'), findsOneWidget);
+    expect(find.text('你一直有回來，我都有記得。'), findsOneWidget);
+  });
+
+  testWidgets('先顯示連續天數，縮小時才浮出兔咪與報到卡', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: LoginStreakPage(
+          streak: 1,
+          reward: LoginReward(level: 1, amount: 5, graceUsed: false),
+        ),
+      ),
+    );
+
+    AnimatedOpacity opacity(String key) =>
+        tester.widget<AnimatedOpacity>(find.byKey(ValueKey(key)));
+
+    // 第一拍只有全螢幕連續天數墨印。
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(opacity('login-streak-seal').opacity, 1);
+    expect(opacity('login-streak-mascot').opacity, 0);
+    expect(opacity('login-streak-card').opacity, 0);
+
+    // 墨印縮回落款的同一拍，兔咪與報到卡才開始浮現。
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(opacity('login-streak-mascot').opacity, 1);
+    expect(opacity('login-streak-card').opacity, 1);
+    expect(opacity('login-streak-stamp').opacity, 0);
+
+    // 報到卡就位後，印章才進場準備蓋下。
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(opacity('login-streak-stamp').opacity, 1);
   });
 
   testWidgets('Pro Max 尺寸：里程碑日 7 格蓋滿並秀 +20 加碼', (tester) async {
@@ -89,7 +124,7 @@ void main() {
     expect(find.bySemanticsLabel(RegExp(r'連續登入 7 天，今日足跡幣 \+30')), findsWidgets);
     // 首輪（第 7 天）還不亮輪數徽章
     expect(find.textContaining('輪'), findsNothing);
-    expect(find.text('一起走到第 7 天了，兔咪有點感動。'), findsOneWidget);
+    expect(find.text('一起走到第 7 天了，我有點感動。'), findsOneWidget);
   });
 
   testWidgets('中斷回歸（等級>1、天數=1）：歡迎回來台詞、卡片只蓋第 1 格', (tester) async {
@@ -100,7 +135,7 @@ void main() {
       reward: const LoginReward(level: 4, amount: 8, graceUsed: false),
     );
 
-    expect(find.text('歡迎回來，兔咪都在。今天再一起開始。'), findsOneWidget);
+    expect(find.text('歡迎回來。今天再一起慢慢開始。'), findsOneWidget);
     expect(pawStamps(), findsNWidgets(1));
     // 真・新用戶（等級 1）仍拿第一天台詞——這條保護兩句不互相蓋掉
   });
@@ -113,7 +148,7 @@ void main() {
       reward: const LoginReward(level: 1, amount: 5, graceUsed: false),
     );
 
-    expect(find.text('第一天。兔咪會陪著你，慢慢來。'), findsOneWidget);
+    expect(find.text('第一天。以後也一起慢慢來。'), findsOneWidget);
   });
 
   testWidgets('寬限日換台詞；點畫面快轉後 CTA 可關頁', (tester) async {
@@ -153,7 +188,7 @@ void main() {
     // 演出還沒走完就點畫面 → 一次亮完（Timer 全取消，今日腳印直接蓋上）。
     await tester.tapAt(const Offset(195, 300));
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('昨天兔咪幫你看家，天數守住了。'), findsOneWidget);
+    expect(find.text('昨天休息了一天，連續天數還留著。'), findsOneWidget);
     expect(pawStamps(), findsNWidgets(5));
     // 快轉後沒有殘留的演出 Timer，pump 大段時間也不再變化。
     await tester.pump(const Duration(seconds: 3));

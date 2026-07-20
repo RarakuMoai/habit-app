@@ -1,7 +1,8 @@
-// 兔咪角色資料層：情緒、情境、台詞、展開狀態。
+// 兔咪角色資料層：情緒、情境、主要互動台詞、展開狀態。
 //
-// 設計參考 docs/tumi_character_guide.md。台詞庫直接由指南搬過來，
-// 之後人設更新只改這檔不必動 widget。
+// 人設參考 docs/tumi_character_guide.md；全 app 對話與觸發索引見
+// docs/tumi_dialogue_catalog.md。這裡集中一般互動台詞，劇情、onboarding
+// 與小遊戲等專屬文案仍跟著各功能的資料與畫面維護。
 
 import 'dart:async';
 import 'dart:math';
@@ -71,6 +72,8 @@ enum MascotEmotion {
 // 之後想新增/修改台詞，只改下方 [_lines] 這個 map 就好。
 enum MascotContext {
   openApp,
+  // 專注計時開始／從休息回到專注（不能借用 openApp 問候）
+  focusStarted,
   notStarted,
   completedOne,
   halfDone,
@@ -86,8 +89,8 @@ enum MascotContext {
   energize,
   // 還沒有任何習慣時（空狀態）
   emptyHabits,
-  // 喝水過量警告（>=4L/day，醫學上「過量但還沒到水中毒」灰色地帶）
-  // 兔咪驚嚇 + 提示語，但不擋使用者繼續紀錄（硬擋在 6L）
+  // 喝水高量提醒（目前 >=4L/day）：兔咪驚訝 + 溫和提示，
+  // 但不擋使用者繼續紀錄（硬擋在 6L）。
   overhydration,
 }
 
@@ -132,6 +135,8 @@ enum EmotionBubble {
       case MascotContext.openApp:
       case MascotContext.emptyHabits:
         return null;
+      case MascotContext.focusStarted:
+        return EmotionBubble.note;
     }
   }
 }
@@ -139,6 +144,7 @@ enum EmotionBubble {
 // 各情境對應的預設情緒（呼叫端可以另外覆寫）。
 const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.openApp: MascotEmotion.neutralFront,
+  MascotContext.focusStarted: MascotEmotion.expect,
   MascotContext.notStarted: MascotEmotion.sleep,
   MascotContext.completedOne: MascotEmotion.smile,
   MascotContext.halfDone: MascotEmotion.expect,
@@ -159,8 +165,8 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
 // ─────────────────────────────────────────────────────────────
 //  📝 兔咪台詞庫
 //  -----------------------------------------------------------
-//  全 app 唯一一份台詞來源。要新增 / 修改 / 刪除任何兔咪講的話，
-//  直接改下面這個 map 就好，不需要動其他檔案。
+//  首頁、喝水、計時等共用互動的台詞來源。功能專屬台詞的
+//  實際位置與觸發條件統一記在 docs/tumi_dialogue_catalog.md。
 //
 //  每個 key（MascotContext）對應一個台詞池，呼叫端拿其中一句使用。
 //  - lineFor(ctx, seed): 同 seed 拿固定一句（避免 build 時抖動）
@@ -170,19 +176,27 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
 // ─────────────────────────────────────────────────────────────
 const Map<MascotContext, List<String>> _lines = {
   // ── 打開 app / 一般招呼 ──
-  MascotContext.openApp: ['嗯...你來了。', '我在這裡。', '今天也慢慢來？', '要先做一件小事嗎？'],
+  MascotContext.openApp: ['嗯...你來了。', '我有醒著喔。', '今天也慢慢來？', '要先做一件小事嗎？'],
+
+  // ── 專注計時開始／重新進入專注 ──
+  MascotContext.focusStarted: ['好，先專心一下。', '時間開始了，慢慢來。', '先做這一小段就好。'],
 
   // ── 今天還沒開始做任何習慣 ──
   MascotContext.notStarted: [
-    '嗯...今天也慢慢開始？',
-    '我在等你，不急。',
+    '嗯...今天也慢慢來？',
+    '還沒開始也沒關係。',
     '先做一個小小的也可以。',
     '今天不用很快。',
     '嗯...要開始了嗎？',
   ],
 
   // ── 完成了第一個 / 任一個習慣 ──
-  MascotContext.completedOne: ['做到了，我有看到。', '剛剛那一下，很好。', '你完成了一個。', '嗯，這樣就很好。'],
+  MascotContext.completedOne: [
+    '做到了，我有看到。',
+    '剛剛那一小步，很好。',
+    '又多完成一件了。',
+    '嗯，這樣就很好。',
+  ],
 
   // ── 完成過一半 ──
   MascotContext.halfDone: ['已經一半了。', '你做到不少了。', '我有點醒了。', '照這樣慢慢來就好。'],
@@ -191,30 +205,35 @@ const Map<MascotContext, List<String>> _lines = {
   MascotContext.allDone: ['全部完成了。', '今天真的很棒。', '可以好好休息了。', '我替你開心。'],
 
   // ── 連續達標一段時間（streak >= 7） ──
-  MascotContext.streak: ['連續好多天了。', '你一直有回來。', '我有點感動。', '這段時間，你做到了。'],
+  MascotContext.streak: ['連續好多天了。', '你一直有回來。', '我有點感動。', '這些天，你是一天一天走來的。'],
 
   // ── 取消已完成的習慣（撤銷感） ──
-  MascotContext.undone: ['沒關係，我還在。', '今天慢一點也可以。', '我們等一下再來。', '先休息一下也沒關係。'],
+  MascotContext.undone: [
+    '取消這一筆也沒關係。',
+    '今天慢一點也可以。',
+    '需要的話，等一下再來。',
+    '先休息一下也沒關係。',
+  ],
 
   // ── 夜晚（22:00 ~ 06:00） ──
-  MascotContext.night: ['很晚了，我小聲一點。', '今天辛苦了。', '如果累了，也可以休息。', '明天我還會在這裡。'],
+  MascotContext.night: ['很晚了，我小聲一點。', '今天辛苦了。', '如果累了，也可以休息。', '明天再一起慢慢來。'],
 
   // ── 使用者點兔咪本身的隨機反應 ──
   MascotContext.tapReaction: [
     '嗯？',
-    '我在這裡。',
+    '你在找我嗎？',
     '今天也慢慢來。',
     '先做一點點也可以。',
     '我有醒著喔。',
     '你回來了，真好。',
-    '我陪你一下。',
-    '我陪你。',
+    '剛剛在發呆。',
+    '嗯，我有看到你。',
   ],
 
   // ── 摸頭反應 ──
   MascotContext.headPet: [
     '嗯...舒服。',
-    '頭頂被摸到了。',
+    '耳朵旁邊癢癢的。',
     '再一下下也可以。',
     '我有點開心。',
     '好，我乖乖的。',
@@ -223,23 +242,18 @@ const Map<MascotContext, List<String>> _lines = {
   // ── 充電互動（長按蓄力放開）──
   // speaksFor 為 false，平常只靠星星泡泡＋歡呼語音；
   // 台詞池備著給之後「明確帶 speech」的場合（登入禮、活動）取用。
-  MascotContext.energize: [
-    '充飽電了！',
-    '嗯！力氣滿滿。',
-    '謝謝你幫我打氣。',
-    '整個人都輕起來了。',
-  ],
+  MascotContext.energize: ['充飽電了！', '嗯！力氣滿滿。', '謝謝你幫我打氣。', '好像可以跳得更高了。'],
 
   // ── 還沒新增任何習慣（空狀態） ──
-  MascotContext.emptyHabits: ['先新增一個小習慣吧。', '從一個小小的開始。', '不用很多，一個就好。'],
+  MascotContext.emptyHabits: ['要不要先放一個小習慣？', '從一個小小的開始。', '不用很多，一個就好。'],
 
-  // ── 喝水過量（>=4L/day，過量但還沒到水中毒）──
+  // ── 喝水高量提醒（目前 >=4L/day）──
   MascotContext.overhydration: [
     '欸…你今天喝有點多了。',
-    '水也是有上限的喔，慢慢來。',
+    '今天的水量已經很高了。',
     '已經喝很多了，先停一下吧。',
-    '再喝下去身體會吃不消。',
-    '記得補一點電解質。',
+    '先不要勉強自己繼續喝。',
+    '先停一下，讓身體休息。',
   ],
 };
 
@@ -253,16 +267,16 @@ const Map<MascotContext, List<String>> _homeTapLines = {
   ],
   MascotContext.notStarted: [
     '還沒開始也沒關係。',
-    '我在等你。\n第一件可以很小。',
+    '先挑最小的那一件就好。',
     '今天先做一點點就好。',
     '要不要從最簡單那個開始？',
   ],
-  MascotContext.completedOne: ['剛剛那一下，我有看到。', '已經開始了。\n這很重要。', '你有往前一點點了。'],
+  MascotContext.completedOne: ['剛剛那一下，我有看到。', '已經開始了。\n就從這裡慢慢來。', '你有往前一點點了。'],
   MascotContext.halfDone: ['你已經做到一半了。', '照這個速度慢慢來就好。', '我有點醒了。\n你做得不錯。'],
   MascotContext.allDone: ['今天的份已經完成了。', '可以安心休息一下。', '你有把今天照顧好。'],
-  MascotContext.streak: ['你已經連續回來好多天了。', '這段時間，我都有記得。', '你不是突然做到的。\n是一天一天來的。'],
-  MascotContext.undone: ['改掉也沒關係。', '今天可以重新調整。', '我們慢慢來，不用硬撐。'],
-  MascotContext.night: ['很晚了，我小聲一點。', '今天先不要太逼自己。', '如果累了，明天再繼續也可以。'],
+  MascotContext.streak: ['你已經連續回來好多天了。', '這段時間，我都有記得。', '這些都是一天一天累積起來的。'],
+  MascotContext.undone: ['取消這一筆也沒關係。', '今天可以重新調整。', '我們慢慢來，不用硬撐。'],
+  MascotContext.night: ['很晚了，我小聲一點。', '今天慢慢收尾就好。', '如果累了，明天再繼續也可以。'],
 };
 
 class MascotLines {
@@ -272,24 +286,34 @@ class MascotLines {
   /// 從情境抽一句台詞。同一個 (context, seed) 會回固定結果，
   /// 避免每次 rebuild 換句話讓使用者覺得抖。
   static String lineFor(MascotContext c, {int seed = 0}) {
-    final list = _lines[c] ?? const ['...'];
+    final list = linesFor(c);
     if (list.isEmpty) return '...';
     return list[seed.abs() % list.length];
   }
 
   /// 隨機抽一句（用在「開 app 時換句話講」這種場景）。
   static String randomLineFor(MascotContext c) {
-    final list = _lines[c] ?? const ['...'];
+    final list = linesFor(c);
     if (list.isEmpty) return '...';
     return list[Random().nextInt(list.length)];
   }
 
   /// 首頁點兔咪：依目前進度抽一句更貼身的回應。
   static String randomHomeTapLineFor(MascotContext c) {
-    final list = _homeTapLines[c] ?? _lines[MascotContext.tapReaction];
-    if (list == null || list.isEmpty) return '...';
+    final list = homeTapLinesFor(c);
+    if (list.isEmpty) return '...';
     return list[Random().nextInt(list.length)];
   }
+
+  /// 取得指定情境的完整台詞池；給測試、開發工具與文案審查使用。
+  static List<String> linesFor(MascotContext c) =>
+      List<String>.unmodifiable(_lines[c] ?? const ['...']);
+
+  /// 取得首頁點兔咪的完整情境回應池。
+  static List<String> homeTapLinesFor(MascotContext c) =>
+      List<String>.unmodifiable(
+        _homeTapLines[c] ?? _lines[MascotContext.tapReaction] ?? const ['...'],
+      );
 
   /// 這個情境要不要顯示文字台詞（沒明確帶 speech 時才看這裡）。
   ///
@@ -308,6 +332,7 @@ class MascotLines {
       case MascotContext.energize:
         return false;
       case MascotContext.openApp:
+      case MascotContext.focusStarted:
       case MascotContext.notStarted:
       case MascotContext.allDone:
       case MascotContext.streak:
@@ -516,7 +541,7 @@ class MascotPersona {
     return _tapVoiceCue(bucket: bucket);
   }
 
-  /// 單點以疑問聲為主，偶爾用確認聲回應「我在」；其他語音保留給
+  /// 單點以疑問聲為主，偶爾用確認聲表示有注意到使用者；其他語音保留給
   /// 摸頭、蓄力與關鍵事件，避免互動語意混在一起。
   static SfxCue _tapVoiceCue({int? bucket}) {
     final resolvedBucket = bucket ?? _voiceRandom.nextInt(10);
@@ -536,6 +561,7 @@ class MascotPersona {
       case MascotContext.completedOne:
       case MascotContext.halfDone:
       case MascotContext.openApp:
+      case MascotContext.focusStarted:
         return SfxCue.tumiConfirm;
       // 開心：摸頭（表情 smile）
       case MascotContext.headPet:
@@ -583,6 +609,7 @@ class MascotPersona {
         return 6;
       case MascotContext.tapReaction:
       case MascotContext.openApp:
+      case MascotContext.focusStarted:
       case MascotContext.notStarted:
       case MascotContext.night:
       case MascotContext.emptyHabits:
@@ -602,7 +629,22 @@ class MascotPersona {
     );
   }
 
-  /// 安排 N 秒後回到中性狀態。新互動會 reset 計時。
+  /// 回到不帶文字、泡泡或語音的中性待機。
+  /// 用在個人化問候取代一般開場，或互動演出自然結束時。
+  static void resetToIdle() {
+    _revertTimer?.cancel();
+    _holdUntil = null;
+    _activePriority = 0;
+    current.value = MascotState(
+      MascotLines.emotionFor(MascotContext.openApp).assetPath,
+      null,
+    );
+  }
+
+  /// 安排 N 秒後回到安靜待機。新互動會 reset 計時。
+  ///
+  /// 不能在這裡重抽 openApp 問候：否則任何打卡、摸頭或計時事件結束後，
+  /// 兔咪都會像剛開 app 一樣突然再說一句。
   static void _scheduleRevert() {
     _revertTimer?.cancel();
     _revertTimer = Timer(_revertAfter, () {
@@ -610,7 +652,7 @@ class MascotPersona {
       _activePriority = 0;
       current.value = MascotState(
         MascotLines.emotionFor(MascotContext.openApp).assetPath,
-        MascotLines.randomLineFor(MascotContext.openApp),
+        null,
       );
     });
   }

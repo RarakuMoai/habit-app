@@ -740,7 +740,7 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget _buildTopSummary(HabitReview hr) {
     final String line;
     if (hr.trackedDays == 0) {
-      line = '這段時間還沒有習慣紀錄。\n慢慢來，兔咪都在。';
+      line = '這段時間還沒有習慣紀錄。\n慢慢來，下次再留下足跡就好。';
     } else {
       final base = '這段時間你回來了 ${hr.daysActive} 天。';
       line = hr.daysAllDone > 0 ? '$base\n其中 ${hr.daysAllDone} 天全部完成了。' : base;
