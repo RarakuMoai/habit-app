@@ -514,7 +514,7 @@ class _WardrobePageState extends State<WardrobePage>
           icon: Icons.library_music_rounded,
           title: '曲庫',
           subtitle: '依心情挑選',
-          trailing: '${ownedTracks.length}/${trackCatalog.length}',
+          trailing: '已解鎖 ${ownedTracks.length} / ${trackCatalog.length} 首',
           color: kMusicAccent,
         ),
         _buildMoodGroup(MusicMood.relax),

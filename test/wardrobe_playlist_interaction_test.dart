@@ -19,7 +19,8 @@ void main() {
       PrefsKeys.bgmSelectedTrack: _firstTrack,
     });
     WardrobeStore.reset();
-    tester.view.physicalSize = const Size(800, 2400);
+    // 一般 iPhone 寬度；標題右側的完整解鎖文案也必須放得下。
+    tester.view.physicalSize = const Size(390, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -35,6 +36,12 @@ void main() {
   testWidgets('播放清單排序維持列尺寸與原排版，不插入拖曳圖示', (tester) async {
     await pumpMusicBox(tester);
 
+    expect(
+      find.text(
+        '已解鎖 ${WardrobeStore.ownedTracks.value.length} / ${trackCatalog.length} 首',
+      ),
+      findsOneWidget,
+    );
     final row = find.byKey(const ValueKey('playlist-row-$_firstTrack'));
     final normalSize = tester.getSize(row);
     expect(find.byIcon(Icons.drag_indicator_rounded), findsNothing);
