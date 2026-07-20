@@ -210,45 +210,51 @@ class _DiceDuelEggState extends State<DiceDuelEgg>
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // 窗簾過場期間吸掉觸控，別讓點擊穿到下層功能卡／分頁列。
-          Listener(
-            behavior: HitTestBehavior.opaque,
-            child: const SizedBox.expand(),
-          ),
-          if (_panelVisible)
-            DiceDuelPanel(onClose: _close, onActivity: widget.onActivity),
-          IgnorePointer(
-            child: AnimatedBuilder(
-              animation: _curtain,
-              builder: (_, _) => CustomPaint(
-                painter: _PixelCurtainPainter(_curtain.value),
-                isComplex: true,
+    // 掛在 root overlay、沒有頁面的 Material 祖先：不包一層透明
+    // Material 的話，所有 Text 會被畫上黃色雙底線的除錯樣式。
+    return Material(
+      type: MaterialType.transparency,
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 窗簾過場期間吸掉觸控，別讓點擊穿到下層功能卡／分頁列。
+            Listener(
+              behavior: HitTestBehavior.opaque,
+              child: const SizedBox.expand(),
+            ),
+            if (_panelVisible)
+              DiceDuelPanel(onClose: _close, onActivity: widget.onActivity),
+            IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _curtain,
+                builder: (_, _) => CustomPaint(
+                  painter: _PixelCurtainPainter(_curtain.value),
+                  isComplex: true,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// 像素窗簾：深棕階的馬賽克方格按穩定偽隨機順序鋪滿／退去，
-/// 偶爾摻一格琥珀當「訊號雜訊」點綴。純方格、無淡入淡出＝像素感。
+/// 像素窗簾：奶油紙／鼠尾草亮階的馬賽克方格按穩定偽隨機順序鋪滿
+/// ／退去，偶爾摻一格 sage 深綠當「訊號雜訊」點綴。純方格、無淡入
+/// 淡出＝像素感；特殊事件感靠節奏與音效，不靠暗色。
 class _PixelCurtainPainter extends CustomPainter {
   final double progress;
 
   _PixelCurtainPainter(this.progress);
 
   static const List<Color> _palette = [
-    Color(0xFF241A12),
-    Color(0xFF33251A),
-    Color(0xFF2A1D12),
-    Color(0xFF4A3423),
+    Color(0xFFFFF8EC), // 奶油紙面
+    Color(0xFFF6EDDC), // 暖紙
+    Color(0xFFDDE9E0), // 鼠尾草收邊
+    Color(0xFFCBDFD2), // 淡鼠尾草
   ];
 
   @override
@@ -265,7 +271,7 @@ class _PixelCurtainPainter extends CustomPainter {
         final h = ((ix * 73856093) ^ (iy * 19349663)) & 0x7fffffff;
         if ((h % 997) / 997 >= progress) continue;
         paintBox.color = h % 29 == 0
-            ? TableTheme.warn
+            ? kGameAccent
             : _palette[h % _palette.length];
         canvas.drawRect(
           Rect.fromLTWH(ix * cell, iy * cell, cell + 0.5, cell + 0.5),
@@ -279,12 +285,77 @@ class _PixelCurtainPainter extends CustomPainter {
   bool shouldRepaint(_PixelCurtainPainter old) => old.progress != progress;
 }
 
+/// 布墊裝飾：內縮一圈縫線虛線＋中央淺色圓區與蕾絲虛線圓邊。
+/// 手縫布物的語彙（樓上房間的圓地毯、蕾絲籃同一家人），
+/// 讓墊有「物品感」而不是一片色塊。
+class _MatDecorPainter extends CustomPainter {
+  const _MatDecorPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stitch = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = kGameAccent.withValues(alpha: 0.30);
+
+    // 中央圓區：比墊亮半階的「落骰區」，像地毯上再鋪一塊圓布。
+    final center = size.center(Offset.zero);
+    final radius = math.min(size.width, size.height) * 0.36;
+    canvas.drawCircle(center, radius, Paint()..color = const Color(0xFFE9F2EC));
+    _dashPath(
+      canvas,
+      Path()..addOval(Rect.fromCircle(center: center, radius: radius - 7)),
+      stitch,
+      dash: 7,
+      gap: 7,
+    );
+
+    // 墊邊內縫線：沿圓角矩形一圈虛線。
+    _dashPath(
+      canvas,
+      Path()..addRRect(
+        RRect.fromRectAndRadius(
+          Offset.zero & size,
+          const Radius.circular(26),
+        ).deflate(9),
+      ),
+      stitch,
+      dash: 6,
+      gap: 6,
+    );
+  }
+
+  /// 沿路徑畫等距虛線（PathMetrics 取段）。
+  void _dashPath(
+    Canvas canvas,
+    Path path,
+    Paint paint, {
+    required double dash,
+    required double gap,
+  }) {
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(d, math.min(d + dash, metric.length)),
+          paint,
+        );
+        d += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MatDecorPainter old) => false;
+}
+
 /// 對決回合：你擲 → 定格交棒 → 兔咪擲（throwAll 自動）→ 結果。
 enum _DuelPhase { player, handoff, bunny, result }
 
 enum _DuelOutcome { playerWin, bunnyWin, tie }
 
-/// 骰盤本體：遊戲桌 CG 裁切當桌面、中央深色骰盤墊＝物理範圍。
+/// 骰盤本體：暖奶油桌面（與對局面同款）＋中央淡鼠尾草布墊＝物理範圍。
 /// 沒有擲骰鈕、沒有教學文字——墊上一顆骰子，自己摸索怎麼甩。
 class DiceDuelPanel extends StatefulWidget {
   /// 「結束遊戲」按下（退場動畫由 [DiceDuelEgg] 跑）。
@@ -300,11 +371,7 @@ class DiceDuelPanel extends StatefulWidget {
 class _DiceDuelPanelState extends State<DiceDuelPanel>
     with SingleTickerProviderStateMixin {
   // 台詞照角色指南：短句、慢熱、真誠；贏了小得意、輸了不氣餒。
-  static const List<String> _bunnyWinLines = [
-    '我贏了…嘿嘿。',
-    '這次是我的。',
-    '骰子今天站我這邊。',
-  ];
+  static const List<String> _bunnyWinLines = ['我贏了…嘿嘿。', '這次是我的。', '骰子今天站我這邊。'];
   static const List<String> _playerWinLines = [
     '你贏了…好厲害。',
     '輸了…再來一次好不好？',
@@ -329,6 +396,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
 
   String _bunnyName = '兔咪';
   DateTime _lastImpactFeedback = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _matReady = false;
 
   @override
   void initState() {
@@ -434,13 +502,22 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     }
   }
 
+  /// spawn 的掌心隊形算式對單顆也會右偏 1.15×骰寬；
+  /// 對決只有一顆，擺回墊（蕾絲圓區）正中央。
+  void _spawnCentered() {
+    _world.spawn(1);
+    if (_world.bounds != Rect.zero) {
+      _world.dice.single.pos = _world.bounds.center;
+    }
+  }
+
   void _startRound() {
     _handoffTimer?.cancel();
     _tieTimer?.cancel();
     _playerValue = null;
     _bunnyValue = null;
     _outcome = null;
-    _world.spawn(1);
+    _spawnCentered();
     setState(() => _phase = _DuelPhase.player);
   }
 
@@ -501,38 +578,47 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
           box.maxWidth - 14,
           box.maxHeight - buttonZone - 4,
         );
-        final die = (mat.height * 0.26).clamp(50.0, 88.0);
+        final die = (mat.height * 0.30).clamp(60.0, 100.0);
         _world.setBounds(mat.deflate(12), die);
+        // 第一次拿到真實墊範圍後把骰子重擺到墊中央（initState 的
+        // spawn 發生在 bounds 之前，會縮在 fallback 座標）。
+        if (!_matReady) {
+          _matReady = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_world.hasBeenThrown) _spawnCentered();
+          });
+        }
         return Stack(
           fit: StackFit.expand,
           children: [
-            // 桌面：遊戲桌 CG 裁切鋪滿（與骰子屋同一張桌布）。
-            const RepaintBoundary(
-              child: Image(
-                image: AssetImage(TableTheme.tableAsset),
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-              ),
-            ),
-            // 輕壓一層讓墊與按鈕浮起，但保留桌布質感。
-            const ColoredBox(color: Color(0x24120B06)),
-            // 骰盤墊：刻意深色（像桌上一塊真的墊），也是「在這裡甩」
-            // 的無文字暗示。
+            // 桌面：與對局面同一套暖奶油紙面（遊戲桌融合定案的語彙），
+            // 彩蛋是「兔咪家的桌遊角落」，不是賭場。
+            DecoratedBox(decoration: TableTheme.feltBackground()),
+            // 骰盤墊：鼠尾草布墊——縫線虛線邊＋中央蕾絲圓區，
+            // 呼應樓上房間圓地毯的語彙，也是「在這裡甩」的無文字暗示。
             Positioned.fromRect(
               rect: mat,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: const Color(0xE0261A10),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: TableTheme.hairline),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFDFEDE3), Color(0xFFCFE2D6)],
+                  ),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(
+                    color: kGameAccent.withValues(alpha: 0.38),
+                    width: 1.4,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 18,
+                      color: kGameAccent.withValues(alpha: 0.22),
+                      blurRadius: 22,
                       offset: const Offset(0, 8),
                     ),
                   ],
                 ),
+                child: const CustomPaint(painter: _MatDecorPainter()),
               ),
             ),
             // 物理場：你的回合整面都能按住吸骰子、甩出去。
@@ -564,7 +650,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
                       style: AppType.digits(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: TableTheme.inkStrong,
+                        color: AppInk.strong,
                       ),
                     ),
                   ),
@@ -593,7 +679,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
                             style: AppType.digits(
                               fontSize: 25,
                               fontWeight: FontWeight.w800,
-                              color: TableTheme.inkStrong,
+                              color: AppInk.strong,
                             ),
                           ),
                           const SizedBox(height: 3),
@@ -601,7 +687,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
                             '你 $_playerValue・$_bunnyName $_bunnyValue',
                             style: AppType.digits(
                               fontSize: 13.5,
-                              color: TableTheme.inkSoft,
+                              color: TableTheme.tableInkSoft,
                             ),
                           ),
                         ],
@@ -627,7 +713,11 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
                     ),
                     const SizedBox(width: 12),
                   ],
-                  _pillButton(label: '結束遊戲', filled: false, onTap: widget.onClose),
+                  _pillButton(
+                    label: '結束遊戲',
+                    filled: false,
+                    onTap: widget.onClose,
+                  ),
                 ],
               ),
             ),
@@ -637,28 +727,43 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     );
   }
 
+  /// 暖白膠囊卡：與全 app 卡片同語彙（暖白底＋淡 sage 邊＋柔影）。
   Widget _capsule({Widget? child, EdgeInsetsGeometry? padding}) {
     return Container(
       padding:
-          padding ??
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xCC1D130B),
+        color: const Color(0xFFFFFDF9),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: TableTheme.hairline),
+        border: Border.all(color: kGameAccent.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: child,
     );
   }
 
+  /// 一頁一實色 CTA：主鈕鼠尾草實色白字、次鈕暖白底淡染描邊。
   Widget _pillButton({
     required String label,
     required bool filled,
     required VoidCallback onTap,
   }) {
     return Material(
-      color: filled ? TableTheme.warn : const Color(0xB3241A12),
-      shape: const StadiumBorder(),
+      color: filled ? kGameAccent : const Color(0xFFFFFDF9),
+      shape: filled
+          ? const StadiumBorder()
+          : StadiumBorder(
+              side: BorderSide(
+                color: kGameAccent.withValues(alpha: 0.35),
+                width: 1.2,
+              ),
+            ),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: onTap,
@@ -671,7 +776,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
-                color: filled ? const Color(0xFF241A12) : TableTheme.inkStrong,
+                color: filled ? Colors.white : kGameAccentDark,
               ),
             ),
           ),
