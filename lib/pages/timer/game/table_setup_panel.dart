@@ -26,9 +26,6 @@ class TableSetupPanel extends StatefulWidget {
   /// 設定有任何改動（含套用常用組合）就回報最新版，入口卡同步摘要。
   final ValueChanged<TableTimerConfig> onConfigChanged;
 
-  /// 「只骰骰子」直達兔咪骰子屋（給的話，橫幅上出現骰子小鈕）。
-  final VoidCallback? onDice;
-
   /// 關閉設定內容；設定即改即存，所以不需要額外套用。
   final VoidCallback? onDone;
 
@@ -36,7 +33,6 @@ class TableSetupPanel extends StatefulWidget {
     super.key,
     required this.prefs,
     required this.onConfigChanged,
-    this.onDice,
     this.onDone,
   });
 
@@ -1118,9 +1114,8 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     ),
   );
 
-  /// 頁首：兔咪邀請與本局摘要合成一張卡（2026-07 減量：原本橫幅＋
-  /// 三格摘要卡連續兩張大卡，資訊還互相重複）。設定頁不是表單，
-  /// 是兔咪招呼大家上桌；一行摘要隨設定即時更新，首屏留給玩法與玩家。
+  /// 頁首只保留兔咪與本局摘要；骰子入口留在外層準備畫面。
+  /// 卡片刻意收短，讓真正要調整的玩法與玩家更早進入首屏。
   Widget _header() {
     final summary =
         '${_config.mode.label} · ${_config.activePlayers.length} 人 · '
@@ -1129,12 +1124,13 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       container: true,
       label: '遊戲桌設定，$summary',
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+        key: const ValueKey('game-settings-header'),
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFFFFF8E8), Color(0xFFEAF6EC)],
           ),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: kGameAccent.withValues(alpha: 0.16)),
         ),
         child: Row(
@@ -1181,55 +1177,19 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       ),
                     ),
                   ),
-                  if (widget.onDice != null) ...[
-                    const SizedBox(height: 8),
-                    _diceChip(),
-                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             ExcludeSemantics(
               child: Image.asset(
                 'assets/mascot/core/tumi_invite.png',
-                width: 84,
-                height: 84,
+                width: 72,
+                height: 72,
                 fit: BoxFit.contain,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// 橫幅上的「只骰骰子」小鈕：不開對局也能用骰盤。
-  Widget _diceChip() {
-    return Material(
-      color: AppSurfaces.card.withValues(alpha: 0.85),
-      shape: StadiumBorder(
-        side: BorderSide(color: kGameAccent.withValues(alpha: 0.28)),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: widget.onDice,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.casino_rounded, size: 16, color: kGameAccentDark),
-              SizedBox(width: 5),
-              Text(
-                '只骰骰子',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w900,
-                  color: kGameAccentDark,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

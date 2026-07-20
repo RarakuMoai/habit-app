@@ -60,11 +60,13 @@ void main() {
     expect(find.text('完成'), findsOneWidget);
     expect(find.byType(BottomSheet), findsOneWidget);
     expect(
-      find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.text('遊戲桌'),
-      ),
+      find.descendant(of: find.byType(BottomSheet), matching: find.text('遊戲桌')),
       findsOneWidget,
+    );
+    expect(find.text('只骰骰子'), findsNothing);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('game-settings-header'))).height,
+      lessThanOrEqualTo(96),
     );
     final close = find.byTooltip('關閉');
     expect(close, findsOneWidget);
@@ -120,7 +122,10 @@ void main() {
     await tester.tap(find.text('二人棋鐘'));
     await tester.pumpAndSettle();
     expect(find.text('2 位玩家'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.groups_rounded).last, warnIfMissed: false);
+    await tester.tap(
+      find.byIcon(Icons.groups_rounded).last,
+      warnIfMissed: false,
+    );
     await tester.pumpAndSettle();
     expect(find.text('今天幾位上桌？'), findsNothing);
 

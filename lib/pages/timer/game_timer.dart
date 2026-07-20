@@ -284,7 +284,6 @@ class _GameTimerState extends State<GameTimer> {
                     onConfigChanged: (c) {
                       if (mounted) setState(() => _config = c);
                     },
-                    onDice: _openDice,
                   ),
                 ),
                 Container(
