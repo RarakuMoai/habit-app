@@ -1467,14 +1467,20 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                     ),
                   ),
                 Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: _sortingPlayers ? null : () => _renamePlayer(i),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      child: Row(
-                        children: [
-                          Flexible(
+                  child: Row(
+                    key: ValueKey('player-row-middle-$i'),
+                    children: [
+                      Flexible(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: _sortingPlayers
+                              ? null
+                              : () => _renamePlayer(i),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 2,
+                              vertical: 9,
+                            ),
                             child: Text(
                               p.name,
                               maxLines: 1,
@@ -1486,20 +1492,20 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                               ),
                             ),
                           ),
-                          if (chess) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              benched ? '本局輪空' : '上場',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: benched ? AppInk.faint : kGameAccent,
-                              ),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
-                    ),
+                      if (chess) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          benched ? '本局輪空' : '上場',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: benched ? AppInk.faint : kGameAccent,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 IconButton(

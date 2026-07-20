@@ -136,8 +136,16 @@ void main() {
   });
 
   group('出場順位排序模式', () {
-    testWidgets('名字與鉛筆都能改名；按住會出現蓄色', (tester) async {
+    testWidgets('名字與鉛筆都能改名；中間空白無效；按住會出現蓄色', (tester) async {
       await pumpPanel(tester);
+
+      final middle = tester.getRect(
+        find.byKey(const ValueKey('player-row-middle-0')),
+      );
+      await tester.tapAt(Offset(middle.right - 12, middle.center.dy));
+      await tester.pumpAndSettle();
+      expect(find.text('玩家名字'), findsNothing);
+      expect(find.text('移除玩家'), findsNothing);
 
       await tester.tap(find.text('玩家 1'));
       await tester.pumpAndSettle();
