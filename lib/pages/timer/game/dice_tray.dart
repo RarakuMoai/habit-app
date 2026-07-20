@@ -209,7 +209,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
                     onPointerUp: (e) => _pointerUp(e.pointer),
                     onPointerCancel: (e) => _pointerUp(e.pointer),
                     child: CustomPaint(
-                      painter: _WorldPainter(_world),
+                      painter: DiceWorldPainter(_world),
                       isComplex: true,
                     ),
                   ),
@@ -376,10 +376,11 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
 /// 物理場畫家：軟體渲染「圓角」立方體——照真骰子畫：
 /// 稜與角帶弧度（內縮立方體 ⊕ 球的 Minkowski 輪廓）、平面部分內縮、
 /// 透視投影＋背面剔除＋面光照；台式細節：1 點紅色大點、4 點紅色。
-class _WorldPainter extends CustomPainter {
+/// 公開給骰盤以外的重用場（兔咪骰子對決彩蛋 widgets/dice_duel_panel.dart）。
+class DiceWorldPainter extends CustomPainter {
   final DiceWorld world;
 
-  _WorldPainter(this.world) : super(repaint: world);
+  DiceWorldPainter(this.world) : super(repaint: world);
 
   /// 稜/角圓弧佔半邊長的比例（0.2 ≈ 一般桌遊骰的圓潤度）。
   static const _bevel = 0.20;
@@ -577,5 +578,5 @@ class _WorldPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_WorldPainter old) => false; // repaint 由 world 通知
+  bool shouldRepaint(DiceWorldPainter old) => false; // repaint 由 world 通知
 }

@@ -148,6 +148,15 @@ MascotSceneLighting mascotLightingForScene(
   );
 }
 
+/// 兔咪場景區當下按著的手指數（由 shell 的彩蛋偵測層更新）。
+///
+/// 單指手勢（點／充電／摸頭）與雙指彩蛋（骰子對決）互讓的依據：
+/// 第二指落下的瞬間 [MascotStage] 會取消進行中的充電與摸頭，
+/// 避免充電蓄滿自動爆發搶在彩蛋觸發之前。
+abstract final class MascotScenePointers {
+  static final ValueNotifier<int> count = ValueNotifier<int>(0);
+}
+
 class MascotIdleScope extends InheritedWidget {
   final bool paused;
 
@@ -604,7 +613,17 @@ class _MascotStageState extends State<MascotStage>
     _bubbleShown = widget.bubble;
     if (widget.bubble != null) _playBubble(widget.bubble!);
 
+    MascotScenePointers.count.addListener(_onScenePointersChanged);
+
     _scheduleNextBlink();
+  }
+
+  /// 雙指彩蛋互讓：第二指落下就放掉單指互動（不觸發爆發／摸頭結算），
+  /// 讓場景把手指交給彩蛋長按偵測。
+  void _onScenePointersChanged() {
+    if (MascotScenePointers.count.value < 2) return;
+    _cancelCharge();
+    _endHeadPet();
   }
 
   /// 冒一次頭頂泡泡：時長依泡泡種類（見 mascot_bubbles.dart 註冊表）。
@@ -686,6 +705,7 @@ class _MascotStageState extends State<MascotStage>
 
   @override
   void dispose() {
+    MascotScenePointers.count.removeListener(_onScenePointersChanged);
     _cancelBlinkTimers();
     _petBlissTimer?.cancel();
     unawaited(SfxService.instance.stop(SfxCue.tumiCharge));
@@ -749,6 +769,7 @@ class _MascotStageState extends State<MascotStage>
   }
 
   void _beginHeadPet(Offset position) {
+    if (MascotScenePointers.count.value >= 2) return; // 雙指＝彩蛋長按中
     if (!_petCtrl.isAnimating) {
       _petClockMs = 0;
       _petCtrl.repeat();
@@ -822,6 +843,7 @@ class _MascotStageState extends State<MascotStage>
   }
 
   void _beginCharge(Offset origin) {
+    if (MascotScenePointers.count.value >= 2) return; // 雙指＝彩蛋長按中
     _endHeadPet(); // 保險：長按贏得手勢後不該殘留摸頭狀態
     _isCharging = true;
     _chargeOrigin = origin;

@@ -25,7 +25,9 @@ import 'package:flutter/material.dart';
 
 import '../pages/home/room_metrics.dart';
 
+import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
+import 'dice_duel_panel.dart';
 import 'mascot_panel.dart';
 import 'mascot_scene.dart';
 
@@ -81,6 +83,18 @@ class MascotPageShell extends StatefulWidget {
 class _MascotPageShellState extends State<MascotPageShell> {
   Timer? _sceneIdleTimer;
   bool _sceneIdle = false;
+
+  // 隱藏彩蛋：兩指長按場景 → 骰子對決面板（見 dice_duel_panel.dart）。
+  bool _diceDuelOpen = false;
+
+  void _openDiceDuel() {
+    if (_diceDuelOpen || !mounted) return;
+    playHaptic(HapticLevel.medium); // 「找到了」的確認感
+    // 把功能卡吸到收合位，面板蓋上去時下方不露縫。
+    MascotPanelPrefs.requestExpanded();
+    _markSceneActive();
+    setState(() => _diceDuelOpen = true);
+  }
 
   @override
   void initState() {
@@ -161,9 +175,15 @@ class _MascotPageShellState extends State<MascotPageShell> {
                     right: 0,
                     height: mascotMaxH,
                     // 拖曳面板時場景/兔咪本身不變，獨立圖層避免被連帶重繪。
-                    child: pauseScene
-                        ? TickerMode(enabled: false, child: scene)
-                        : scene,
+                    // 彩蛋偵測層只包場景區：兩指長按觸發、指數同步給
+                    // MascotStage 做單指互動互讓；功能卡展開時不觸發。
+                    child: TwoFingerEggDetector(
+                      enabled: !_diceDuelOpen && openValue > 0.85,
+                      onTrigger: _openDiceDuel,
+                      child: pauseScene
+                          ? TickerMode(enabled: false, child: scene)
+                          : scene,
+                    ),
                   ),
                   Positioned(
                     top: widget.peekHeight + dragExtent * openValue,
@@ -176,6 +196,20 @@ class _MascotPageShellState extends State<MascotPageShell> {
                       child: widget.child,
                     ),
                   ),
+                  // 骰子對決彩蛋：蓋在功能卡收合位上的獨立 overlay，
+                  // 不動 shell 版面；退場動畫跑完才移除。
+                  if (_diceDuelOpen)
+                    Positioned(
+                      top: mascotMaxH,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: DiceDuelPanel(
+                        onClosed: () {
+                          if (mounted) setState(() => _diceDuelOpen = false);
+                        },
+                      ),
+                    ),
                 ],
               ),
             );
