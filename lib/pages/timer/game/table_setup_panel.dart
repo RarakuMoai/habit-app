@@ -2063,7 +2063,8 @@ class _TableSetupPanelState extends State<TableSetupPanel>
   }
 }
 
-/// 與習慣卡相同的長按蓄色回饋：短點不留痕，按住一秒填滿時剛好由
+/// 玩家列的按壓語言：手指一碰就從落點出現極淡回饋；短點放開即消失、
+/// 不執行任何功能，持續按住則一路填滿，滿一秒時剛好由
 /// [ReorderHoldDragListener] 接手拖曳。只負責視覺，不攔截任何按鈕手勢。
 class _PlayerHoldFill extends StatefulWidget {
   final bool sorting;
@@ -2077,18 +2078,13 @@ class _PlayerHoldFill extends StatefulWidget {
 
 class _PlayerHoldFillState extends State<_PlayerHoldFill>
     with SingleTickerProviderStateMixin {
-  static const _startDelay = Duration(milliseconds: 130);
   late final AnimationController _controller;
-  Timer? _timer;
   Offset? _origin;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: kReorderHoldDelay - _startDelay,
-    );
+    _controller = AnimationController(vsync: this, duration: kReorderHoldDelay);
   }
 
   @override
@@ -2100,14 +2096,10 @@ class _PlayerHoldFillState extends State<_PlayerHoldFill>
   void _down(PointerDownEvent e) {
     if (widget.sorting) return;
     _origin = e.localPosition;
-    _timer?.cancel();
-    _timer = Timer(_startDelay, () {
-      if (mounted) _controller.forward(from: 0);
-    });
+    _controller.forward(from: 0);
   }
 
   void _clear() {
-    _timer?.cancel();
     if (_controller.value > 0 && !widget.sorting) {
       _controller.reverse();
     } else {
@@ -2117,7 +2109,6 @@ class _PlayerHoldFillState extends State<_PlayerHoldFill>
 
   @override
   void dispose() {
-    _timer?.cancel();
     _controller.dispose();
     super.dispose();
   }

@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,6 +19,7 @@ import '../widgets/app_dialogs.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/reorder_jiggle.dart';
 import 'home/room_metrics.dart';
 import 'memory_book_reader.dart';
 
@@ -1341,7 +1340,7 @@ class _PlaylistCard extends StatelessWidget {
                 Material(color: Colors.transparent, child: child),
             itemBuilder: (_, i) {
               final track = tracks[i];
-              final row = _Jiggle(
+              final row = ReorderJiggle(
                 animation: jiggle,
                 enabled: editMode && canModify,
                 seed: track.id.hashCode,
@@ -1364,6 +1363,7 @@ class _PlaylistCard extends StatelessWidget {
                     ],
                   ),
                   child: _PlaylistRow(
+                    key: ValueKey('playlist-row-${track.id}'),
                     track: track,
                     isCurrent: track.id == currentId,
                     isSelected: track.id == selectedId,
@@ -1380,7 +1380,7 @@ class _PlaylistCard extends StatelessWidget {
               );
               // 只有一首時不掛拖曳辨識器（不能排序），但仍要 keyed 給 ReorderableListView。
               return canModify
-                  ? _MusicDragListener(
+                  ? ReorderHoldDragListener(
                       key: ValueKey('pl_${track.id}'),
                       index: i,
                       immediate: editMode,
@@ -1399,8 +1399,8 @@ class _PlaylistCard extends StatelessWidget {
   }
 }
 
-// 播放清單的一列：點＝選取（編輯模式中停用點擊）；右側播放鈕才切歌/暫停。
-// 移除走左滑或「…」。編輯模式顯示拖曳握把、整列抖動。
+// 播放清單的一列：點＝輕量臨時標記（編輯模式中停用）；右側播放鈕才切歌/暫停。
+// 移除走左滑或「…」。排序模式只用整列抖動表意，不插入圖示、不改列的幾何。
 enum _PlaylistRowAction { move, remove, detail }
 
 class _PlaylistRow extends StatelessWidget {
@@ -1417,6 +1417,7 @@ class _PlaylistRow extends StatelessWidget {
   final VoidCallback onDetail;
 
   const _PlaylistRow({
+    super.key,
     required this.track,
     required this.isCurrent,
     required this.isSelected,
@@ -1437,13 +1438,15 @@ class _PlaylistRow extends StatelessWidget {
     final rowColor = isCurrent
         ? const Color(0xFFEFF3FC)
         : selectedOnly
-        ? const Color(0xFFF6F8FE)
+        // 臨時標記只留近乎白色的淡染；它方便截圖辨認，不應搶過播放狀態。
+        ? Color.alphaBlend(kMusicAccent.withValues(alpha: 0.025), Colors.white)
         : Colors.white;
     final borderColor = isCurrent
         ? kMusicAccent.withValues(alpha: 0.20)
-        : selectedOnly
-        ? kMusicAccent.withValues(alpha: 0.15)
         : Colors.transparent;
+    final titleColor = selectedOnly
+        ? Color.lerp(AppInk.strong, kMusicAccent, 0.18)!
+        : AppInk.strong;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 140),
@@ -1463,14 +1466,6 @@ class _PlaylistRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
             child: Row(
               children: [
-                if (editMode) ...[
-                  const Icon(
-                    Icons.drag_indicator_rounded,
-                    size: 20,
-                    color: AppInk.iconFaint,
-                  ),
-                  const SizedBox(width: 6),
-                ],
                 _TrackCover(track: track, size: 34),
                 const SizedBox(width: 9),
                 Expanded(
@@ -1479,28 +1474,38 @@ class _PlaylistRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: AppInk.strong,
+                      color: titleColor,
                       fontSize: 13.5,
-                      fontWeight: isCurrent || isSelected
-                          ? FontWeight.w900
-                          : FontWeight.w800,
+                      fontWeight: isCurrent ? FontWeight.w900 : FontWeight.w800,
                     ),
                   ),
                 ),
-                if (!editMode) ...[
-                  const SizedBox(width: 6),
-                  _PlaylistPlayButton(
-                    playing: playing,
-                    muted: muted,
-                    onTap: onPlayTap,
+                const SizedBox(width: 6),
+                // 排序時保留原本兩顆操作鈕的版位，讓封面、標題與整列寬度
+                // 完全不跳動；只把操作藏起來，避免拖曳途中誤播或開選單。
+                IgnorePointer(
+                  ignoring: editMode,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    opacity: editMode ? 0 : 1,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _PlaylistPlayButton(
+                          playing: playing,
+                          muted: muted,
+                          onTap: onPlayTap,
+                        ),
+                        _PlaylistMoreButton(
+                          removable: removable,
+                          onMove: onMove,
+                          onRemove: onRemove,
+                          onDetail: onDetail,
+                        ),
+                      ],
+                    ),
                   ),
-                  _PlaylistMoreButton(
-                    removable: removable,
-                    onMove: onMove,
-                    onRemove: onRemove,
-                    onDetail: onDetail,
-                  ),
-                ],
+                ),
               ],
             ),
           ),
@@ -1687,73 +1692,6 @@ class _MoveDoneButton extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// 編輯模式下整列「Q 版抖動」（沿用習慣頁做法：共用 ticker、依 seed 給相位/方向）。
-class _Jiggle extends StatelessWidget {
-  final Animation<double> animation;
-  final bool enabled;
-  final int seed;
-  final Widget child;
-
-  const _Jiggle({
-    required this.animation,
-    required this.enabled,
-    required this.seed,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final direction = seed.isEven ? 1.0 : -1.0;
-    final phaseOffset = (seed.abs() % 100) / 100 * math.pi * 2;
-    return AnimatedBuilder(
-      animation: animation,
-      child: child,
-      builder: (_, child) {
-        if (!enabled) return child!;
-        final phase = animation.value * math.pi * 2 + phaseOffset;
-        final sway = math.sin(phase);
-        final bounce = math.sin(phase + math.pi / 2);
-        final squash = math.sin(phase + math.pi);
-        return Transform.translate(
-          offset: Offset(direction * sway * 0.5, bounce * 0.9),
-          child: Transform.rotate(
-            angle: direction * sway * 0.014,
-            child: Transform.scale(
-              scaleX: 1 + squash * 0.005,
-              scaleY: 1 - squash * 0.0035,
-              child: child,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-const Duration _kDragHoldDelay = Duration(seconds: 1);
-
-// 拖曳啟動辨識器：未進編輯模式用 Delayed（長按啟動）；進模式後 Immediate（觸碰即拖）。
-class _MusicDragListener extends ReorderableDragStartListener {
-  final bool immediate;
-
-  const _MusicDragListener({
-    super.key,
-    required super.child,
-    required super.index,
-    required this.immediate,
-  });
-
-  @override
-  MultiDragGestureRecognizer createRecognizer() {
-    return immediate
-        ? ImmediateMultiDragGestureRecognizer(debugOwner: this)
-        : DelayedMultiDragGestureRecognizer(
-            delay: _kDragHoldDelay,
-            debugOwner: this,
-          );
   }
 }
 

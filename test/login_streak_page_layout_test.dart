@@ -34,9 +34,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(home: LoginStreakPage(streak: streak, reward: reward)),
+      MaterialApp(
+        home: LoginStreakPage(streak: streak, reward: reward),
+      ),
     );
-    // 演出時序最後一步在 2150ms；分段 pump 讓中間的隱式動畫有機會跑完。
+    // 演出時序最後一步在 2880ms；分段 pump 讓中間的隱式動畫有機會跑完。
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 300));
     }
@@ -84,13 +86,34 @@ void main() {
     expect(find.byIcon(Icons.card_giftcard_rounded), findsNothing);
     expect(find.text('+20'), findsOneWidget);
     expect(find.text('今日足跡幣 +30'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel(RegExp(r'連續登入 7 天，今日足跡幣 \+30')),
-      findsWidgets,
-    );
+    expect(find.bySemanticsLabel(RegExp(r'連續登入 7 天，今日足跡幣 \+30')), findsWidgets);
     // 首輪（第 7 天）還不亮輪數徽章
     expect(find.textContaining('輪'), findsNothing);
     expect(find.text('一起走到第 7 天了，兔咪有點感動。'), findsOneWidget);
+  });
+
+  testWidgets('中斷回歸（等級>1、天數=1）：歡迎回來台詞、卡片只蓋第 1 格', (tester) async {
+    await pumpPage(
+      tester,
+      size: const Size(390, 844),
+      streak: 1,
+      reward: const LoginReward(level: 4, amount: 8, graceUsed: false),
+    );
+
+    expect(find.text('歡迎回來，兔咪都在。今天再一起開始。'), findsOneWidget);
+    expect(pawStamps(), findsNWidgets(1));
+    // 真・新用戶（等級 1）仍拿第一天台詞——這條保護兩句不互相蓋掉
+  });
+
+  testWidgets('真・第一天（等級 1）：新朋友台詞', (tester) async {
+    await pumpPage(
+      tester,
+      size: const Size(390, 844),
+      streak: 1,
+      reward: const LoginReward(level: 1, amount: 5, graceUsed: false),
+    );
+
+    expect(find.text('第一天。兔咪會陪著你，慢慢來。'), findsOneWidget);
   });
 
   testWidgets('寬限日換台詞；點畫面快轉後 CTA 可關頁', (tester) async {

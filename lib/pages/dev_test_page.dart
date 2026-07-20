@@ -75,32 +75,33 @@ class _DevTestPageState extends State<DevTestPage> {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
-  // 快轉一天：把每日狀態日期標記往前推一天，接著程式內重建整棵 app。
+  // 快轉 N 天：把每日狀態日期標記往前推 N 天，接著程式內重建整棵 app。
   // 重建後真實時鐘一比對，就會跑真正的換日流程
   // （習慣勾選清空、streak 計算、登入獎勵重開）。
+  // N >= 2 等於中間有 N-1 天完全沒開 app：快轉 2 天觸發登入寬限、
+  // 3 天觸發中斷歸零（重建當下首頁會自動領獎把日期蓋回今天，
+  // 所以連按兩次快轉一天只會是連續簽到，湊不出缺席）。
   // 第一次快轉前先整包快照 prefs，供「還原換日」回復。
-  Future<void> _fastForwardOneDay() async {
+  Future<void> _fastForwardDays(int days) async {
     final prefs = _prefs;
     if (prefs == null) return;
     if (!prefs.containsKey(PrefsKeys.debugDaySnapshot)) {
       await _snapshot(prefs);
     }
-    final yesterday = _fmtDate(
-      DateTime.now().subtract(const Duration(days: 1)),
-    );
+    final fallback = _fmtDate(DateTime.now().subtract(Duration(days: days)));
     for (final k in _dayMarkers) {
       final cur = prefs.getString(k);
-      // 有值就往前推一天；沒值就設成昨天，確保換日一定觸發
+      // 有值就往前推 N 天；沒值就設成 N 天前，確保換日一定觸發
       final shifted = cur == null
-          ? yesterday
+          ? fallback
           : _fmtDate(
               (DateTime.tryParse(cur) ?? DateTime.now()).subtract(
-                const Duration(days: 1),
+                Duration(days: days),
               ),
             );
       await prefs.setString(k, shifted);
     }
-    final n = _dayShift + 1;
+    final n = _dayShift + days;
     await prefs.setInt(PrefsKeys.debugDayShift, n);
     if (!mounted) return;
     setState(() => _dayShift = n);
@@ -527,28 +528,51 @@ class _DevTestPageState extends State<DevTestPage> {
                   ),
                 ),
                 _card(
-                  title: '換日（快轉一天）',
+                  title: '換日（快轉）',
                   icon: Icons.fast_forward_outlined,
                   description:
-                      '把每日狀態日期推前一天，按下後會自動刷新並跑真正的換日：'
+                      '把每日狀態日期推前 N 天，按下後會自動刷新並跑真正的換日：'
                       '習慣勾選清空、streak 重算、登入獎勵重開。'
+                      '快轉 2／3 天＝中間 1／2 天沒開 app，可測登入寬限與中斷歸零。'
                       '喝水／專注計時累計按真實日期存、不歸零。目前已快轉 $_dayShift 天。',
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: _fastForwardOneDay,
-                          icon: const Icon(Icons.fast_forward, size: 18),
-                          label: const Text('快轉一天'),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.tonalIcon(
+                              onPressed: () => _fastForwardDays(1),
+                              icon: const Icon(Icons.fast_forward, size: 18),
+                              label: const Text('快轉一天'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _dayShift > 0 ? _restoreDays : null,
+                              icon: const Icon(Icons.undo, size: 18),
+                              label: const Text('還原換日'),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _dayShift > 0 ? _restoreDays : null,
-                          icon: const Icon(Icons.undo, size: 18),
-                          label: const Text('還原換日'),
-                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _fastForwardDays(2),
+                              child: const Text('快轉 2 天→寬限'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _fastForwardDays(3),
+                              child: const Text('快轉 3 天→中斷'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

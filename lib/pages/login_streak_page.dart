@@ -3,8 +3,9 @@
 // 敘事＝蓋章打卡（足跡幣本來就是腳印，蓋腳印章是這個 app 自己的隱喻）：
 // 兔咪浮現 → 報到卡滑入（過往腳印已蓋在卡上）→ 木柄印章懸停在今日格上方
 // → 「啪」蓋下（震動＋漣漪＋金腳印現身；里程碑日兔咪歡呼＋整卡發光）
-// → 印章抬離、「連續第 N 天」墨印落款 → 台詞與 CTA 亮起。
-// 點畫面任意處可一次亮完（不強迫等演出）。
+// → 印章抬離、「連續第 N 天」以全螢幕大墨印重擊畫面中央（框與傾斜
+//   本來就是橡皮章印痕）→ 定住半拍 → 縮小飛回卡片上方落款
+// → 台詞與 CTA 亮起。點畫面任意處可一次亮完（不強迫等演出）。
 //
 // 誰來開這一頁：MainPage 的 _claimDailyLoginReward 領到獎勵後 push；
 // pop 之後才輪到金幣飛行吸入 AppBar（幣從本頁 CTA 的位置爆出，接得上）。
@@ -84,8 +85,14 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   late final AnimationController _ambient;
 
   // 演出階段：0 無 → 1 兔咪 → 2 報到卡 → 3 印章懸停 → 4 印章壓下
-  // → 5 印章抬離＋墨印落款 → 6 全亮。
+  // → 5 印章抬離＋大墨印重擊 → 6 墨印縮小飛回落款 → 7 全亮。
   int _step = 0;
+
+  // 大墨印飛行參數：post-frame 量出落款定位點 → 畫面中央的位移與倍率。
+  // 量測時矩陣的平移為零、縮放/旋轉都以中心為軸，中心點不受影響。
+  final GlobalKey _sealKey = GlobalKey();
+  Offset _sealShift = Offset.zero;
+  double _sealBigScale = 2.0;
 
   // 印章接觸瞬間（壓下後約 150ms）：腳印現身／漣漪／音效震動以此為準。
   bool _impact = false;
@@ -117,15 +124,30 @@ class _LoginStreakPageState extends State<LoginStreakPage>
     )..repeat();
     playFeedback(SfxCue.unlock, haptic: HapticLevel.light);
     _startShow();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureSealFlight());
+  }
+
+  /// 量出墨印落款的畫面位置，換算重擊階段的位移與放大倍率。
+  void _measureSealFlight() {
+    if (!mounted) return;
+    final box = _sealKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final sealCenter = box.localToGlobal(box.size.center(Offset.zero));
+    final size = MediaQuery.sizeOf(context);
+    setState(() {
+      // 重擊落點在偏上的視覺中心（兔咪胸前），不是幾何正中央。
+      _sealShift = Offset(size.width / 2, size.height * 0.40) - sealCenter;
+      _sealBigScale = ((size.width * 0.94) / box.size.width).clamp(1.5, 2.4);
+    });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_reduceMotion && _step < 6) {
+    if (_reduceMotion && _step < 7) {
       _cancelTimers();
       _ambient.stop();
-      _step = 6;
+      _step = 7;
       _impact = true;
       _impactPlayed = true; // 靜態呈現：不補蓋章音效
     }
@@ -146,11 +168,14 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   }
 
   void _startShow() {
-    const steps = [150, 420, 900, 1300, 1780, 2150];
+    const steps = [150, 420, 900, 1300, 1780, 2400, 2880];
     for (var i = 0; i < steps.length; i++) {
       _timers.add(
         Timer(Duration(milliseconds: steps[i]), () {
-          if (mounted) setState(() => _step = i + 1);
+          if (!mounted) return;
+          setState(() => _step = i + 1);
+          // 大墨印重擊瞬間補一下輕震：「啪」的餘勁蓋到整個畫面。
+          if (i + 1 == 5) playHaptic(HapticLevel.light);
         }),
       );
     }
@@ -173,10 +198,10 @@ class _LoginStreakPageState extends State<LoginStreakPage>
 
   /// 點畫面任意處：一次亮完，不強迫等演出。
   void _fastForward() {
-    if (_step >= 6) return;
+    if (_step >= 7) return;
     _cancelTimers();
     setState(() {
-      _step = 6;
+      _step = 7;
       _markImpact();
     });
     playHaptic(HapticLevel.selection);
@@ -193,7 +218,13 @@ class _LoginStreakPageState extends State<LoginStreakPage>
     if (_isMilestoneDay) {
       return '一起走到第 ${widget.streak} 天了，兔咪有點感動。';
     }
-    if (widget.streak <= 1) return '第一天。兔咪會陪著你，慢慢來。';
+    if (widget.streak <= 1) {
+      // 等級 >1 但天數歸 1 ＝中斷後回歸的老朋友；不提中斷、不帶罪惡感
+      //（兔咪語氣：不是評分，是看見）。等級被扣到 1 的舊識認不出來，
+      // 會拿到新朋友台詞，可接受。
+      if (r.level > 1) return '歡迎回來，兔咪都在。今天再一起開始。';
+      return '第一天。兔咪會陪著你，慢慢來。';
+    }
     if (r.level >= CoinConfig.loginMaxLevel) return '你一直有回來，兔咪都記得。';
     return '你今天也來了，兔咪有看到。';
   }
@@ -295,22 +326,40 @@ class _LoginStreakPageState extends State<LoginStreakPage>
     );
   }
 
-  /// 「連續第 N 天」墨印落款：像蓋在紙上的橡皮章（微傾斜、粗框），
-  /// 出現時由大縮小＝壓上去的力道。取代舊版的巨大置中數字。
+  /// 重擊／飛行階段的墨印矩陣：位移到畫面視覺中心＋額外傾斜＋放大。
+  /// transformAlignment 是中心，縮放旋轉都繞著自身中心轉。
+  Matrix4 _sealBigMatrix(double extraScale) {
+    final s = _sealBigScale * extraScale;
+    return Matrix4.translationValues(_sealShift.dx, _sealShift.dy, 0)
+      ..rotateZ(-0.045)
+      ..multiply(Matrix4.diagonal3Values(s, s, 1));
+  }
+
+  /// 「連續第 N 天」墨印落款：像蓋在紙上的橡皮章（微傾斜、粗框）。
+  /// 印章抬離後先以全螢幕大墨印重擊畫面中央（現身時由更大壓到定格＝
+  /// 印下來的力道），定住半拍再縮小飛回這裡落款。版面位置從頭到尾
+  /// 佔著不動，重擊/飛行全靠 transform，不推擠其他元素。
   Widget _buildStreakSeal(bool compact) {
     final shown = _step >= 5;
+    final landed = _step >= 6 || _reduceMotion;
+    final matrix = landed
+        ? Matrix4.identity()
+        : _sealBigMatrix(shown ? 1 : 1.18);
     return Semantics(
       label: '連續登入 ${widget.streak} 天，今日足跡幣 +${widget.reward.totalAmount}',
       child: AnimatedOpacity(
         opacity: shown ? 1 : 0,
-        duration: const Duration(milliseconds: 200),
-        child: AnimatedScale(
-          scale: shown ? 1 : 1.55,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
+        // 重擊現身要快（力道）；快轉直達落款時稍緩。
+        duration: Duration(milliseconds: shown && !landed ? 140 : 220),
+        child: AnimatedContainer(
+          duration: Duration(milliseconds: landed ? 460 : 190),
+          curve: landed ? Curves.easeInOutCubic : Curves.easeOutCubic,
+          transform: matrix,
+          transformAlignment: Alignment.center,
           child: Transform.rotate(
             angle: -0.05,
             child: Container(
+              key: _sealKey,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
@@ -361,7 +410,12 @@ class _LoginStreakPageState extends State<LoginStreakPage>
         curve: Curves.easeOutCubic,
         child: _impactDip(
           child: Container(
-            padding: EdgeInsets.fromLTRB(14, compact ? 8 : 11, 14, compact ? 10 : 14),
+            padding: EdgeInsets.fromLTRB(
+              14,
+              compact ? 8 : 11,
+              14,
+              compact ? 10 : 14,
+            ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.78),
               borderRadius: BorderRadius.circular(22),
@@ -645,7 +699,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   }
 
   Widget _buildCaption() {
-    final shown = _step >= 6;
+    final shown = _step >= 7;
     return AnimatedOpacity(
       opacity: shown ? 1 : 0,
       duration: const Duration(milliseconds: 460),
@@ -687,7 +741,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   }
 
   Widget _buildCta() {
-    final shown = _step >= 6;
+    final shown = _step >= 7;
     return AnimatedOpacity(
       opacity: shown ? 1 : 0,
       duration: const Duration(milliseconds: 460),

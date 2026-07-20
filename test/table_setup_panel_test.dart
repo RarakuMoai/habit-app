@@ -136,14 +136,29 @@ void main() {
   });
 
   group('出場順位排序模式', () {
-    testWidgets('名字與鉛筆都能改名；中間空白無效；按住會出現蓄色', (tester) async {
+    testWidgets('名字與鉛筆都能改名；中間空白短按只有回饋、按住銜接蓄色', (tester) async {
       await pumpPanel(tester);
 
       final middle = tester.getRect(
         find.byKey(const ValueKey('player-row-middle-0')),
       );
-      await tester.tapAt(Offset(middle.right - 12, middle.center.dy));
+      final blankTap = await tester.startGesture(
+        Offset(middle.right - 12, middle.center.dy),
+      );
+      // 第一幀啟動 ticker，下一幀才會得到大於 0 的按壓進度。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is CustomPaint &&
+              w.painter.runtimeType.toString() == '_PlayerHoldPainter',
+        ),
+        findsOneWidget,
+      );
+      await blankTap.up();
       await tester.pumpAndSettle();
+      // 空白處只回饋觸碰，不擴大改名／移除等功能命中範圍。
       expect(find.text('玩家名字'), findsNothing);
       expect(find.text('移除玩家'), findsNothing);
 
