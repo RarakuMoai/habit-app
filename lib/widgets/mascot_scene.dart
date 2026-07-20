@@ -619,11 +619,12 @@ class _MascotStageState extends State<MascotStage>
   }
 
   /// 雙指彩蛋互讓：第二指落下就放掉單指互動（不觸發爆發／摸頭結算），
-  /// 讓場景把手指交給彩蛋長按偵測。
+  /// 讓場景把手指交給彩蛋長按偵測。摸頭不通知 persona——否則摸頭
+  /// 台詞先冒、彩蛋開場又接對局台詞，兔咪像連珠炮。
   void _onScenePointersChanged() {
     if (MascotScenePointers.count.value < 2) return;
     _cancelCharge();
-    _endHeadPet();
+    _endHeadPet(notifyPersona: false);
   }
 
   /// 冒一次頭頂泡泡：時長依泡泡種類（見 mascot_bubbles.dart 註冊表）。
@@ -817,7 +818,7 @@ class _MascotStageState extends State<MascotStage>
     }
   }
 
-  void _endHeadPet() {
+  void _endHeadPet({bool notifyPersona = true}) {
     if (!_isPetting) return;
     _isPetting = false;
     unawaited(SfxService.instance.stop(SfxCue.tumiPet));
@@ -828,7 +829,7 @@ class _MascotStageState extends State<MascotStage>
     final petted =
         _petTotalStroke > 18 ||
         _petClockMs - _petStartClockMs > _mascotPetMinimumHold.inMilliseconds;
-    if (petted) widget.onHeadPet?.call();
+    if (petted && notifyPersona) widget.onHeadPet?.call();
   }
 
   // ── 充電互動：長按蓄力 → 放開（或蓄滿）爆發 ──

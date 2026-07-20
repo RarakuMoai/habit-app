@@ -1,9 +1,11 @@
-// 骰子對決彩蛋：兩指長按偵測與面板基本行為。
+// 骰子對決彩蛋：兩指長按偵測、像素窗簾進出場、root overlay 掛載。
 // 物理擲骰的公平性/收斂已由 dice_world_test.dart 覆蓋，這裡不重測。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/widgets/dice_duel_panel.dart';
+import 'package:habit_app/widgets/mascot_page_shell.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,9 +22,19 @@ Widget _detectorHarness({
   );
 }
 
+/// 走完像素窗簾的「蓋滿 → 換景 → 退去」一段（0.55s + 0.55s）。
+Future<void> _pumpCurtainCycle(WidgetTester tester) async {
+  await tester.pump(); // 窗簾動畫 t0
+  await tester.pump(const Duration(milliseconds: 600)); // 蓋滿、換景
+  await tester.pump(); // 退簾 t0
+  await tester.pump(const Duration(milliseconds: 600)); // 退完
+}
+
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     MascotScenePointers.count.value = 0;
+    MascotPanelPrefs.openValue.value = 1.0;
   });
 
   testWidgets('兩指靜止按滿 1.8 秒才觸發；單指不觸發、同一次觸控只觸發一次', (tester) async {
@@ -100,27 +112,68 @@ void main() {
     expect(MascotScenePointers.count.value, 0);
   });
 
-  testWidgets('對決面板：進場是玩家回合，收起跑完退場動畫回呼 onClosed', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+  testWidgets('彩蛋演出：窗簾蓋滿才換景，無擲骰鈕與教學文字，結束遊戲跑完退場才回呼', (tester) async {
     var closed = false;
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: DiceDuelPanel(onClosed: () => closed = true)),
+        home: Scaffold(body: DiceDuelEgg(onClosed: () => closed = true)),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 350)); // 進場動畫
 
-    expect(find.textContaining('換你'), findsOneWidget);
-    expect(find.text('擲骰子'), findsOneWidget);
+    // 窗簾蓋滿前骰盤還沒掛上。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(DiceDuelPanel), findsNothing);
+    await tester.pump(const Duration(milliseconds: 300)); // 蓋滿、換景
+    expect(find.byType(DiceDuelPanel), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600)); // 退簾
 
-    await tester.tap(find.byIcon(Icons.close_rounded));
-    await tester.pump(); // 退場動畫起跑（第一幀只建立動畫起始時間）
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(closed, isFalse); // 退場動畫還在跑
-    await tester.pump(const Duration(milliseconds: 200));
+    // 極簡 HUD：只有功能按鍵，沒有擲骰鈕、沒有教學文字。
+    expect(find.text('結束遊戲'), findsOneWidget);
+    expect(find.text('擲骰子'), findsNothing);
+    expect(find.textContaining('甩'), findsNothing);
+
+    await tester.tap(find.text('結束遊戲'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600)); // 蓋滿、卸下骰盤
+    expect(find.byType(DiceDuelPanel), findsNothing);
+    expect(closed, isFalse); // 窗簾還沒退完
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600)); // 退完
     expect(closed, isTrue);
 
-    // 卸載後 ticker / timer 不殘留（flutter_test 會自動驗證）。
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('shell：兩指長按場景把彩蛋掛上 root overlay，結束遊戲後移除', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MascotPageShell(
+          accent: Colors.orange,
+          scene: const SizedBox.expand(),
+          child: const Text('功能卡'),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(MascotPageShell));
+    final a = await tester.createGesture(pointer: 21);
+    final b = await tester.createGesture(pointer: 22);
+    await a.down(origin + const Offset(150, 60));
+    await b.down(origin + const Offset(300, 60));
+    await tester.pump(const Duration(milliseconds: 1900));
+    await a.up();
+    await b.up();
+    await tester.pump();
+    expect(find.byType(DiceDuelEgg), findsOneWidget);
+
+    // 走完開場窗簾後收掉。
+    await _pumpCurtainCycle(tester);
+    await tester.tap(find.text('結束遊戲'));
+    await _pumpCurtainCycle(tester);
+    expect(find.byType(DiceDuelEgg), findsNothing);
+
     await tester.pumpWidget(const SizedBox());
   });
 }

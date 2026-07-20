@@ -2,14 +2,16 @@
 //
 // 觸發：兔咪場景區（功能卡收合時）用「兩指同時按住不動」約 1.8 秒——
 // 比一般長按更久、也不與任何單指互動（點／充電／摸頭）衝突，
-// 純粹留給知道的人發現。觸發後功能卡位置蓋上一塊深色骰盤墊
-// （[DiceDuelPanel]），跟兔咪一人一擲比大小。
+// 純粹留給知道的人發現。觸發後像素窗簾（復古遊戲事件感）蓋過
+// 功能卡「與底部分頁列」，退去時露出遊戲桌骰盤（[DiceDuelEgg]，
+// 由 shell 掛在 root overlay 上，所以能蓋到 tab bar）。
 //
-// 規則刻意極簡：一顆對一顆、比點數、平手自動再擲；沒有任何獎勵——
-// 彩蛋的價值就是無目的的驚喜。骰子物理與畫家整組重用計時遊戲的
-// dice_world.dart / dice_tray.dart（DiceWorldPainter）；兔咪的輸贏反應
-// 走既有 persona 情境（贏＝energize 星星＋歡呼、輸與平手＝tapReaction
-// 問號＋疑問聲），不需要新 CG 素材。
+// 規則刻意極簡：一顆對一顆、比點數、平手自動再擲；沒有任何獎勵、
+// 沒有教學文字——彩蛋的樂趣就是自己摸索（骰盤墊本身就是「在這裡甩」
+// 的暗示）。骰子物理與畫家整組重用計時遊戲的 dice_world.dart /
+// dice_tray.dart（DiceWorldPainter）；兔咪的輸贏反應走既有 persona
+// 情境（贏＝energize 星星＋歡呼、輸與平手＝tapReaction 問號＋疑問聲），
+// 不需要新 CG 素材。
 //
 // 手勢互讓：偵測層把場景區指數同步到 MascotScenePointers.count，
 // MascotStage 看到第二指落下會立刻取消充電／摸頭（見 mascot_scene.dart）。
@@ -126,24 +128,177 @@ class _TwoFingerEggDetectorState extends State<TwoFingerEggDetector> {
   }
 }
 
+/// 彩蛋整體演出：像素窗簾蓋上 → 換景成骰盤 → 窗簾退去。
+/// 結束時同一套倒著跑（窗簾蓋上 → 骰盤卸下 → 退去露回原 UI），
+/// 跑完才回呼 [onClosed] 讓 shell 移除 overlay entry。
+///
+/// 特殊事件不走一般 bottom sheet 上滑——像素馬賽克是「進入小遊戲」
+/// 的復古儀式感；音效用現有 unlock（揭曉）／cancel（收場），之後
+/// 若補 8-bit 專用音效資產再替換。
+class DiceDuelEgg extends StatefulWidget {
+  final VoidCallback onClosed;
+
+  /// 面板互動時回報 shell（重置場景閒置凍結，兔咪對局中不睡著）。
+  final VoidCallback? onActivity;
+
+  const DiceDuelEgg({super.key, required this.onClosed, this.onActivity});
+
+  @override
+  State<DiceDuelEgg> createState() => _DiceDuelEggState();
+}
+
+class _DiceDuelEggState extends State<DiceDuelEgg>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _curtain; // 0 = 全透明、1 = 蓋滿
+  bool _panelVisible = false;
+  bool _closing = false;
+  int _curtainStep = 0; // 窗簾觸覺節拍（跨檔才震）
+
+  @override
+  void initState() {
+    super.initState();
+    _curtain = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    )..addListener(_onCurtainTick);
+    _openSequence();
+  }
+
+  @override
+  void dispose() {
+    _curtain.dispose();
+    super.dispose();
+  }
+
+  /// 像素格一路「啵啵啵」鋪滿的觸覺節拍。
+  void _onCurtainTick() {
+    final step = (_curtain.value * 5).floor();
+    if (step != _curtainStep) {
+      _curtainStep = step;
+      playHaptic(HapticLevel.selection);
+    }
+  }
+
+  Future<void> _openSequence() async {
+    playHaptic(HapticLevel.medium); // 「找到了」的確認感
+    try {
+      await _curtain.forward().orCancel;
+      if (!mounted) return;
+      setState(() => _panelVisible = true); // 蓋滿的瞬間換景
+      playFeedback(SfxCue.unlock);
+      await _curtain.reverse().orCancel;
+    } on TickerCanceled {
+      return;
+    }
+  }
+
+  Future<void> _close() async {
+    if (_closing) return;
+    _closing = true;
+    playHaptic(HapticLevel.light);
+    try {
+      await _curtain.forward().orCancel;
+      if (!mounted) return;
+      setState(() => _panelVisible = false); // 蓋滿時卸下骰盤，露回原 UI
+      unawaited(SfxService.instance.play(SfxCue.cancel));
+      await _curtain.reverse().orCancel;
+    } on TickerCanceled {
+      return;
+    }
+    widget.onClosed();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 窗簾過場期間吸掉觸控，別讓點擊穿到下層功能卡／分頁列。
+          Listener(
+            behavior: HitTestBehavior.opaque,
+            child: const SizedBox.expand(),
+          ),
+          if (_panelVisible)
+            DiceDuelPanel(onClose: _close, onActivity: widget.onActivity),
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _curtain,
+              builder: (_, _) => CustomPaint(
+                painter: _PixelCurtainPainter(_curtain.value),
+                isComplex: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 像素窗簾：深棕階的馬賽克方格按穩定偽隨機順序鋪滿／退去，
+/// 偶爾摻一格琥珀當「訊號雜訊」點綴。純方格、無淡入淡出＝像素感。
+class _PixelCurtainPainter extends CustomPainter {
+  final double progress;
+
+  _PixelCurtainPainter(this.progress);
+
+  static const List<Color> _palette = [
+    Color(0xFF241A12),
+    Color(0xFF33251A),
+    Color(0xFF2A1D12),
+    Color(0xFF4A3423),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0) return;
+    final cell = (size.width / 22).clamp(14.0, 26.0);
+    final cols = (size.width / cell).ceil();
+    final rows = (size.height / cell).ceil();
+    final paintBox = Paint();
+    for (var iy = 0; iy < rows; iy++) {
+      for (var ix = 0; ix < cols; ix++) {
+        // 每格一個穩定的偽隨機序：progress 掃過去時格子順序固定，
+        // 前進／倒帶都是同一張「雜訊圖」在鋪滿／退去。
+        final h = ((ix * 73856093) ^ (iy * 19349663)) & 0x7fffffff;
+        if ((h % 997) / 997 >= progress) continue;
+        paintBox.color = h % 29 == 0
+            ? TableTheme.warn
+            : _palette[h % _palette.length];
+        canvas.drawRect(
+          Rect.fromLTWH(ix * cell, iy * cell, cell + 0.5, cell + 0.5),
+          paintBox,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PixelCurtainPainter old) => old.progress != progress;
+}
+
 /// 對決回合：你擲 → 定格交棒 → 兔咪擲（throwAll 自動）→ 結果。
 enum _DuelPhase { player, handoff, bunny, result }
 
 enum _DuelOutcome { playerWin, bunnyWin, tie }
 
-/// 深色骰盤墊面板：蓋在功能卡收合位上（shell 疊 overlay，不動版面）。
-/// 自帶進出場動畫；收起時跑完退場再回呼 [onClosed] 讓 shell 移除。
+/// 骰盤本體：遊戲桌 CG 裁切當桌面、中央深色骰盤墊＝物理範圍。
+/// 沒有擲骰鈕、沒有教學文字——墊上一顆骰子，自己摸索怎麼甩。
 class DiceDuelPanel extends StatefulWidget {
-  final VoidCallback onClosed;
+  /// 「結束遊戲」按下（退場動畫由 [DiceDuelEgg] 跑）。
+  final VoidCallback onClose;
+  final VoidCallback? onActivity;
 
-  const DiceDuelPanel({super.key, required this.onClosed});
+  const DiceDuelPanel({super.key, required this.onClose, this.onActivity});
 
   @override
   State<DiceDuelPanel> createState() => _DiceDuelPanelState();
 }
 
 class _DiceDuelPanelState extends State<DiceDuelPanel>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   // 台詞照角色指南：短句、慢熱、真誠；贏了小得意、輸了不氣餒。
   static const List<String> _bunnyWinLines = [
     '我贏了…嘿嘿。',
@@ -165,10 +320,6 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
   Duration _lastTick = Duration.zero;
   bool _settleHandled = false;
 
-  late final AnimationController _slideCtrl;
-  late final Animation<Offset> _slide;
-  bool _closing = false;
-
   _DuelPhase _phase = _DuelPhase.player;
   int? _playerValue;
   int? _bunnyValue;
@@ -185,18 +336,6 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     _world.onImpact = _handleImpact;
     _world.spawn(1);
     _ticker = createTicker(_onTick)..start();
-    _slideCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _slide = Tween(begin: const Offset(0, 1), end: Offset.zero).animate(
-      CurvedAnimation(
-        parent: _slideCtrl,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
-    _slideCtrl.forward();
     SharedPreferences.getInstance().then((p) {
       if (!mounted) return;
       final name = p.getString(PrefsKeys.mascotName)?.trim();
@@ -209,7 +348,6 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     _handoffTimer?.cancel();
     _tieTimer?.cancel();
     _ticker.dispose();
-    _slideCtrl.dispose();
     _world.dispose();
     super.dispose();
   }
@@ -237,7 +375,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
         playHaptic(HapticLevel.medium); // 定格
         setState(() => _phase = _DuelPhase.handoff);
         // 交棒小停頓：看清自己的點數，兔咪才出手。
-        _handoffTimer = Timer(const Duration(milliseconds: 900), () {
+        _handoffTimer = Timer(const Duration(milliseconds: 1100), () {
           if (!mounted) return;
           setState(() => _phase = _DuelPhase.bunny);
           playFeedback(SfxCue.gameDice);
@@ -289,7 +427,8 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
           speech: _pick(_tieLines),
           force: true,
         );
-        _tieTimer = Timer(const Duration(milliseconds: 1300), () {
+        // 停得夠久才自動重擲：台詞要來得及看（太快會被下一句蓋掉）。
+        _tieTimer = Timer(const Duration(milliseconds: 2600), () {
           if (mounted) _startRound();
         });
     }
@@ -303,15 +442,6 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     _outcome = null;
     _world.spawn(1);
     setState(() => _phase = _DuelPhase.player);
-  }
-
-  void _close() {
-    if (_closing) return;
-    _closing = true;
-    _handoffTimer?.cancel();
-    _tieTimer?.cancel();
-    playHaptic(HapticLevel.light);
-    _slideCtrl.reverse().whenComplete(widget.onClosed);
   }
 
   // 碰撞回饋：同骰盤（音量隨力道、90ms 節流）。
@@ -329,6 +459,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
   }
 
   void _pointerDown(PointerDownEvent e) {
+    widget.onActivity?.call();
     if (_phase != _DuelPhase.player) return;
     _pointers[e.pointer] = e.localPosition;
     _world.wake();
@@ -350,13 +481,6 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     }
   }
 
-  String get _statusText => switch (_phase) {
-    _DuelPhase.player => '換你——按住骰子，甩出去！',
-    _DuelPhase.handoff => '你骰出 $_playerValue 點…換$_bunnyName了',
-    _DuelPhase.bunny => '$_bunnyName擲骰中…',
-    _DuelPhase.result => '你 $_playerValue 點・$_bunnyName $_bunnyValue 點',
-  };
-
   String get _resultLabel => switch (_outcome!) {
     _DuelOutcome.playerWin => '你贏了！',
     _DuelOutcome.bunnyWin => '$_bunnyName贏了！',
@@ -366,170 +490,190 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
-    return SlideTransition(
-      position: _slide,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        child: DecoratedBox(
-          // 沒有桌布 CG 墊底，直接畫深色墊：中央受光、四周收暗。
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(0, -0.4),
-              radius: 1.5,
-              colors: [Color(0xFF33251A), Color(0xFF1A120C)],
+    return LayoutBuilder(
+      builder: (context, box) {
+        // 底部按鈕帶以外都是骰盤墊；墊內縮一圈＝物理牆，
+        // 骰子尺寸跟墊高走（SE 超緊湊高度也要能玩）。
+        final buttonZone = 64.0 + bottomPad;
+        final mat = Rect.fromLTRB(
+          14,
+          14,
+          box.maxWidth - 14,
+          box.maxHeight - buttonZone - 4,
+        );
+        final die = (mat.height * 0.26).clamp(50.0, 88.0);
+        _world.setBounds(mat.deflate(12), die);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // 桌面：遊戲桌 CG 裁切鋪滿（與骰子屋同一張桌布）。
+            const RepaintBoundary(
+              child: Image(
+                image: AssetImage(TableTheme.tableAsset),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+              ),
             ),
-          ),
-          child: LayoutBuilder(
-            builder: (context, box) {
-              // 面板高度依機型浮動（SE 超緊湊 ~260px 也要能玩），
-              // 骰子尺寸跟著高度縮、物理牆避開頂部狀態行與底部按鈕列。
-              final die = (box.maxHeight * 0.22).clamp(50.0, 84.0);
-              _world.setBounds(
-                Rect.fromLTRB(
-                  10,
-                  52,
-                  box.maxWidth - 10,
-                  box.maxHeight - bottomPad - 78,
+            // 輕壓一層讓墊與按鈕浮起，但保留桌布質感。
+            const ColoredBox(color: Color(0x24120B06)),
+            // 骰盤墊：刻意深色（像桌上一塊真的墊），也是「在這裡甩」
+            // 的無文字暗示。
+            Positioned.fromRect(
+              rect: mat,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xE0261A10),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: TableTheme.hairline),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                die,
-              );
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  // 物理場：你的回合整面都能按住吸骰子、甩出去。
-                  IgnorePointer(
-                    ignoring: _phase != _DuelPhase.player,
-                    child: Listener(
-                      behavior: HitTestBehavior.opaque,
-                      onPointerDown: _pointerDown,
-                      onPointerMove: _pointerMove,
-                      onPointerUp: (e) => _pointerUp(e.pointer),
-                      onPointerCancel: (e) => _pointerUp(e.pointer),
-                      child: CustomPaint(
-                        painter: DiceWorldPainter(_world),
-                        isComplex: true,
+              ),
+            ),
+            // 物理場：你的回合整面都能按住吸骰子、甩出去。
+            IgnorePointer(
+              ignoring: _phase != _DuelPhase.player,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _pointerDown,
+                onPointerMove: _pointerMove,
+                onPointerUp: (e) => _pointerUp(e.pointer),
+                onPointerCancel: (e) => _pointerUp(e.pointer),
+                child: CustomPaint(
+                  painter: DiceWorldPainter(_world),
+                  isComplex: true,
+                ),
+              ),
+            ),
+            // 你的點數：定格後小膠囊浮在墊頂，兔咪擲的時候還看得到。
+            if (_playerValue != null &&
+                (_phase == _DuelPhase.handoff || _phase == _DuelPhase.bunny))
+              Positioned(
+                top: mat.top + 10,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _capsule(
+                    child: Text(
+                      '你：$_playerValue',
+                      style: AppType.digits(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: TableTheme.inkStrong,
                       ),
                     ),
                   ),
-                  // 頂部：狀態行＋收起。
-                  Positioned(
-                    top: 4,
-                    left: 20,
-                    right: 6,
-                    height: 44,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _statusText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: TableTheme.inkStrong,
-                              fontFamily: AppType.digits().fontFamily,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: _close,
-                          icon: const Icon(Icons.close_rounded),
-                          color: TableTheme.inkSoft,
-                          tooltip: '收起',
-                        ),
-                      ],
-                    ),
-                  ),
-                  // 結果：中央偏上浮現。
-                  if (_phase == _DuelPhase.result)
-                    Align(
-                      alignment: const Alignment(0, -0.5),
-                      child: IgnorePointer(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xCC3C2D21),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: TableTheme.hairline),
-                          ),
-                          child: Text(
+                ),
+              ),
+            // 結果：墊中央偏上浮現，大字＋小比分。
+            if (_phase == _DuelPhase.result)
+              Positioned(
+                top: mat.top,
+                left: mat.left,
+                right: box.maxWidth - mat.right,
+                height: mat.height,
+                child: Align(
+                  alignment: const Alignment(0, -0.55),
+                  child: IgnorePointer(
+                    child: _capsule(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 26,
+                        vertical: 12,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
                             _resultLabel,
                             style: AppType.digits(
-                              fontSize: 24,
+                              fontSize: 25,
                               fontWeight: FontWeight.w800,
                               color: TableTheme.inkStrong,
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '你 $_playerValue・$_bunnyName $_bunnyValue',
+                            style: AppType.digits(
+                              fontSize: 13.5,
+                              color: TableTheme.inkSoft,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  // 底部：回合按鈕（交棒/兔咪擲骰中留空，避免誤觸）。
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: bottomPad + 14,
-                    child: Center(
-                      child: switch (_phase) {
-                        _DuelPhase.player => _pillButton(
-                          icon: Icons.casino_rounded,
-                          label: '擲骰子',
-                          onTap: () {
-                            playFeedback(SfxCue.gameDice);
-                            _world.throwAll();
-                          },
-                        ),
-                        _DuelPhase.result
-                            when _outcome != _DuelOutcome.tie =>
-                          _pillButton(
-                            icon: Icons.replay_rounded,
-                            label: '再來一場',
-                            onTap: _startRound,
-                          ),
-                        _ => const SizedBox(height: 48),
-                      },
-                    ),
                   ),
+                ),
+              ),
+            // 底部：功能按鍵。分出勝負才多一顆「再來一場」。
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: bottomPad + 10,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (_phase == _DuelPhase.result &&
+                      _outcome != _DuelOutcome.tie) ...[
+                    _pillButton(
+                      label: '再來一場',
+                      filled: true,
+                      onTap: _startRound,
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  _pillButton(label: '結束遊戲', filled: false, onTap: widget.onClose),
                 ],
-              );
-            },
-          ),
-        ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _capsule({Widget? child, EdgeInsetsGeometry? padding}) {
+    return Container(
+      padding:
+          padding ??
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xCC1D130B),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: TableTheme.hairline),
       ),
+      child: child,
     );
   }
 
   Widget _pillButton({
-    required IconData icon,
     required String label,
+    required bool filled,
     required VoidCallback onTap,
   }) {
     return Material(
-      color: TableTheme.warn,
+      color: filled ? TableTheme.warn : const Color(0xB3241A12),
       shape: const StadiumBorder(),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: onTap,
         child: SizedBox(
-          width: 176,
-          height: 48,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 22, color: const Color(0xFF241A12)),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF241A12),
-                ),
+          width: 132,
+          height: 46,
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: filled ? const Color(0xFF241A12) : TableTheme.inkStrong,
               ),
-            ],
+            ),
           ),
         ),
       ),

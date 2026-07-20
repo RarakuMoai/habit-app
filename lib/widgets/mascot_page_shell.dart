@@ -25,7 +25,6 @@ import 'package:flutter/material.dart';
 
 import '../pages/home/room_metrics.dart';
 
-import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 import 'dice_duel_panel.dart';
 import 'mascot_panel.dart';
@@ -84,16 +83,42 @@ class _MascotPageShellState extends State<MascotPageShell> {
   Timer? _sceneIdleTimer;
   bool _sceneIdle = false;
 
-  // 隱藏彩蛋：兩指長按場景 → 骰子對決面板（見 dice_duel_panel.dart）。
-  bool _diceDuelOpen = false;
+  // 隱藏彩蛋：兩指長按場景 → 骰子對決（見 dice_duel_panel.dart）。
+  // 面板要蓋住功能卡「與底部分頁列」，所以掛在 root overlay 而不是
+  // shell 自己的 Stack（shell 在分頁列上方的頁面區內，蓋不到）。
+  OverlayEntry? _diceDuelEntry;
+  double _sceneRegionHeight = 0; // build 時記下，開彩蛋算面板頂緣用
 
   void _openDiceDuel() {
-    if (_diceDuelOpen || !mounted) return;
-    playHaptic(HapticLevel.medium); // 「找到了」的確認感
-    // 把功能卡吸到收合位，面板蓋上去時下方不露縫。
+    if (_diceDuelEntry != null || !mounted) return;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    // 面板頂緣＝場景區下緣的螢幕座標；蓋掉場景以下的一切。
+    final top = box.localToGlobal(Offset.zero).dy + _sceneRegionHeight;
+    // 把功能卡吸到收合位，面板退場時下方不會露出半開的卡。
     MascotPanelPrefs.requestExpanded();
     _markSceneActive();
-    setState(() => _diceDuelOpen = true);
+    final entry = OverlayEntry(
+      builder: (_) => Positioned(
+        top: top,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        child: DiceDuelEgg(
+          onClosed: _closeDiceDuel,
+          onActivity: _markSceneActive,
+        ),
+      ),
+    );
+    _diceDuelEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    setState(() {}); // 更新彩蛋偵測層的 enabled 門檻
+  }
+
+  void _closeDiceDuel() {
+    _diceDuelEntry?.remove();
+    _diceDuelEntry = null;
+    if (mounted) setState(() {});
   }
 
   @override
@@ -116,6 +141,8 @@ class _MascotPageShellState extends State<MascotPageShell> {
   void dispose() {
     MascotPersona.current.removeListener(_handleMascotActivity);
     _sceneIdleTimer?.cancel();
+    _diceDuelEntry?.remove();
+    _diceDuelEntry = null;
     super.dispose();
   }
 
@@ -154,6 +181,7 @@ class _MascotPageShellState extends State<MascotPageShell> {
           anchored,
           constraints.maxHeight * kSceneRegionMaxFraction,
         );
+        _sceneRegionHeight = mascotMaxH;
         final dragExtent = mascotMaxH - widget.peekHeight;
         return ValueListenableBuilder<double>(
           valueListenable: MascotPanelPrefs.openValue,
@@ -178,7 +206,7 @@ class _MascotPageShellState extends State<MascotPageShell> {
                     // 彩蛋偵測層只包場景區：兩指長按觸發、指數同步給
                     // MascotStage 做單指互動互讓；功能卡展開時不觸發。
                     child: TwoFingerEggDetector(
-                      enabled: !_diceDuelOpen && openValue > 0.85,
+                      enabled: _diceDuelEntry == null && openValue > 0.85,
                       onTrigger: _openDiceDuel,
                       child: pauseScene
                           ? TickerMode(enabled: false, child: scene)
@@ -196,20 +224,6 @@ class _MascotPageShellState extends State<MascotPageShell> {
                       child: widget.child,
                     ),
                   ),
-                  // 骰子對決彩蛋：蓋在功能卡收合位上的獨立 overlay，
-                  // 不動 shell 版面；退場動畫跑完才移除。
-                  if (_diceDuelOpen)
-                    Positioned(
-                      top: mascotMaxH,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: DiceDuelPanel(
-                        onClosed: () {
-                          if (mounted) setState(() => _diceDuelOpen = false);
-                        },
-                      ),
-                    ),
                 ],
               ),
             );
