@@ -57,7 +57,7 @@ void main() {
     expect(engine.head, ArcadePoint(start.x - 1, start.y - 1));
   });
 
-  test('吃胡蘿蔔：積分、實體數、長度分開累計，並補生到至少 2 顆', () {
+  test('吃胡蘿蔔：積分、實體數、長度分開累計，並補生到至少 3 顆', () {
     final engine = _engine()..enqueueDirection(ArcadeDirection.right);
     _eatAhead(engine);
     expect(engine.score, SnakeArcadeEngine.carrotScore);
@@ -67,7 +67,7 @@ void main() {
       engine.collectibles
           .where((c) => c.type == ArcadeCollectibleType.carrot)
           .length,
-      greaterThanOrEqualTo(2),
+      greaterThanOrEqualTo(3),
     );
   });
 
@@ -206,7 +206,7 @@ void main() {
     expect(engine.phase, ArcadePhase.gameOver);
   });
 
-  test('鼴鼠不主動走進蛇身：被擋就轉向', () {
+  test('鼴鼠不主動走進蛇身：被擋會改走其他方向', () {
     final engine = _engine()..debugClearCollectibles();
     engine.enqueueDirection(ArcadeDirection.up);
     // 身體位於 (17..20,20)；鼴鼠在 (18,21) 面朝上，正上方是蛇身。
@@ -217,9 +217,54 @@ void main() {
     engine.debugResetMoleClock();
     engine.advance(SnakeArcadeEngine.moleStepMs);
     final mole = engine.moles.single;
-    // 右轉（up 的右邊是 right）走到 (19,21)，不進蛇身。
-    expect(mole.cell, const ArcadePoint(19, 21));
+    expect(mole.cell, isNot(const ArcadePoint(18, 20)));
+    expect(mole.cell, isNot(const ArcadePoint(18, 21)));
     expect(engine.body.contains(mole.cell), isFalse);
+  });
+
+  test('鼴鼠數量上限隨進度由 3 增至 6，生成間隔為 6–9 秒', () {
+    final engine = _engine();
+    for (final entry in <(int, int)>[(15, 3), (30, 4), (45, 5), (60, 6)]) {
+      engine.debugSetPhysicalCount(entry.$1);
+      expect(engine.moleCap, entry.$2);
+    }
+    expect(SnakeArcadeEngine.moleSpawnBaseMs, 6000);
+    expect(SnakeArcadeEngine.moleSpawnJitterMs, 3000);
+  });
+
+  test('鼴鼠漫遊不再長時間貼邊', () {
+    final engine = _engine()
+      ..debugClearCollectibles()
+      ..debugSpawnMole(const ArcadePoint(8, 8));
+    var edgeSteps = 0;
+    var currentEdgeRun = 0;
+    var longestEdgeRun = 0;
+    for (var i = 0; i < 2000; i++) {
+      engine.debugStepMoles();
+      final cell = engine.moles.single.cell;
+      final edgeDistance = math.min(
+        math.min(cell.x, SnakeArcadeEngine.worldSize - 1 - cell.x),
+        math.min(cell.y, SnakeArcadeEngine.worldSize - 1 - cell.y),
+      );
+      if (edgeDistance <= 1) {
+        edgeSteps += 1;
+        currentEdgeRun += 1;
+        longestEdgeRun = math.max(longestEdgeRun, currentEdgeRun);
+      } else {
+        currentEdgeRun = 0;
+      }
+    }
+    expect(edgeSteps, lessThan(200));
+    expect(longestEdgeRun, lessThan(12));
+  });
+
+  test('狩獵逃跑會離開牆面，不再沿外圈逃', () {
+    final engine = _engine()
+      ..debugClearCollectibles()
+      ..debugSpawnMole(const ArcadePoint(0, 20), facing: ArcadeDirection.up)
+      ..debugStartHunt();
+    engine.debugStepMoles();
+    expect(engine.moles.single.cell.x, 1);
   });
 
   test('射擊：種子命中掉金蘿蔔；冷卻期間不能連發', () {
@@ -272,6 +317,20 @@ void main() {
       engine.score,
       3 * SnakeArcadeEngine.huntEatScore + SnakeArcadeEngine.huntFullBonus,
     );
+  });
+
+  test('正式狩獵開始時保證三個 5–9 格內的可追目標', () {
+    final engine = _engine()..debugSetPhysicalCount(15);
+    engine.debugGrantAbility(ArcadeAbility.hunt);
+    engine.enqueueDirection(ArcadeDirection.right);
+    final nearbyTargets = engine.moles.where((mole) {
+      final distance = engine.head.chebyshev(mole.cell);
+      return mole.state == ArcadeMoleState.active &&
+          distance >= SnakeArcadeEngine.huntTargetMinHeadDistance &&
+          distance <= SnakeArcadeEngine.huntTargetMaxHeadDistance;
+    });
+    expect(engine.huntActive, isTrue);
+    expect(nearbyTargets.length, greaterThanOrEqualTo(3));
   });
 
   test('狩獵倒數警告與解除驅離：3 格內鼴鼠鑽地離場', () {

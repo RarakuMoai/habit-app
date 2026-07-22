@@ -163,13 +163,15 @@ class SnakeArcadeEngine {
   static const int moleTelegraphMs = 1200;
   static const int moleStepMs = 480;
   static const int moleHuntStepMs = 400;
-  static const int moleSpawnBaseMs = 8000;
-  static const int moleSpawnJitterMs = 4000; // 8–12 秒（5ms 對齊）
+  static const int moleSpawnBaseMs = 6000;
+  static const int moleSpawnJitterMs = 3000; // 6–9 秒（5ms 對齊）
   static const int bulletStepMs = 70;
   static const int shootCooldownMs = 900;
   static const int maxBulletsAirborne = 2;
   static const int huntDurationMs = 20000;
   static const int huntTargetKills = 3;
+  static const int huntTargetMinHeadDistance = 5;
+  static const int huntTargetMaxHeadDistance = 9;
   static const int huntEndGraceRadius = 3;
   static const int maxLives = 3;
   static const int maxPassPoints = 3;
@@ -284,6 +286,12 @@ class SnakeArcadeEngine {
     >= 30 => 5,
     >= 15 => 4,
     _ => initialCarrotFloor,
+  };
+  int get moleCap => switch (_physicalCount) {
+    >= 60 => 6,
+    >= 45 => 5,
+    >= 30 => 4,
+    _ => 3,
   };
   int get abilityRounds => _abilityRounds;
   int get nextAbilityAt => _nextAbilityAt;
@@ -796,14 +804,12 @@ class SnakeArcadeEngine {
 
   // ── 鼴鼠 ───────────────────────────────────────────────
 
-  int get _moleCap => math.min(5, 2 + math.max(0, _abilityRounds - 2));
-
   int _nextMoleSpawnDelay() =>
       moleSpawnBaseMs +
       _rng.nextInt(moleSpawnJitterMs ~/ _quantumMs) * _quantumMs;
 
   void _tickMoleSpawner() {
-    if (!molesUnlocked || _moles.length >= _moleCap) return;
+    if (!molesUnlocked || _moles.length >= moleCap) return;
     _moleSpawnIn -= _quantumMs;
     if (_moleSpawnIn > 0) return;
     _moleSpawnIn = _nextMoleSpawnDelay();
@@ -860,50 +866,77 @@ class SnakeArcadeEngine {
     }
   }
 
-  /// 直線走、遇阻礙才轉（右→左→回頭），不追蹤、不攔截、不進蛇身。
+  /// 有方向慣性，但每一步都重新加權。靠牆時向內的權重會大幅提高，
+  /// 避免過去一路直走、碰牆後沿牆繞場的視覺假象。
   void _wanderStep(ArcadeMole mole) {
-    final candidates = [
-      mole.facing,
-      _turnRight(mole.facing),
-      _turnLeft(mole.facing),
-      mole.facing.opposite,
-    ];
-    for (final dir in candidates) {
-      final target = mole.cell.move(dir);
-      if (_moleCanEnter(target)) {
-        mole.cell = target;
-        mole.facing = dir;
-        return;
-      }
-    }
-  }
-
-  /// 狩獵中改為避開蛇頭：選能走且離頭最遠的相鄰格。
-  void _fleeStep(ArcadeMole mole) {
-    ArcadeDirection? best;
-    var bestDistance = -1;
+    final candidates = <(ArcadeDirection, int)>[];
     for (final dir in ArcadeDirection.values) {
       final target = mole.cell.move(dir);
       if (!_moleCanEnter(target)) continue;
-      final distance = head.chebyshev(target);
-      if (distance > bestDistance) {
-        bestDistance = distance;
+      var weight = switch (dir) {
+        _ when dir == mole.facing => 54,
+        _ when dir == mole.facing.opposite => 5,
+        _ => 20,
+      };
+      final currentEdge = _edgeDistance(mole.cell);
+      final targetEdge = _edgeDistance(target);
+      if (targetEdge == 0) {
+        weight = math.max(1, weight ~/ 12);
+      } else if (targetEdge == 1) {
+        weight = math.max(1, weight ~/ 5);
+      } else if (targetEdge == 2) {
+        weight = math.max(1, weight ~/ 2);
+      }
+      if (targetEdge > currentEdge) weight *= 2;
+      if (targetEdge < currentEdge) weight = math.max(1, weight ~/ 2);
+      candidates.add((dir, weight));
+    }
+    final direction = _pickWeightedDirection(candidates);
+    if (direction == null) return;
+    mole.cell = mole.cell.move(direction);
+    mole.facing = direction;
+  }
+
+  /// 狩獵中同時避開蛇頭與牆。離牆一格的收益略高於多逃離蛇頭一格，
+  /// 因此鼴鼠不會為了最大化距離長時間黏在邊界。
+  void _fleeStep(ArcadeMole mole) {
+    ArcadeDirection? best;
+    var bestScore = -1;
+    for (final dir in ArcadeDirection.values) {
+      final target = mole.cell.move(dir);
+      if (!_moleCanEnter(target)) continue;
+      final score =
+          head.chebyshev(target) * 20 +
+          math.min(4, _edgeDistance(target)) * 28 +
+          (dir == mole.facing ? 2 : 0) +
+          _rng.nextInt(4);
+      if (score > bestScore) {
+        bestScore = score;
         best = dir;
       }
     }
-    if (best == null || bestDistance < head.chebyshev(mole.cell)) return;
+    if (best == null) return;
     mole.cell = mole.cell.move(best);
     mole.facing = best;
   }
 
-  ArcadeDirection _turnRight(ArcadeDirection dir) => switch (dir) {
-    ArcadeDirection.up => ArcadeDirection.right,
-    ArcadeDirection.right => ArcadeDirection.down,
-    ArcadeDirection.down => ArcadeDirection.left,
-    ArcadeDirection.left => ArcadeDirection.up,
-  };
+  int _edgeDistance(ArcadePoint cell) => math.min(
+    math.min(cell.x, worldSize - 1 - cell.x),
+    math.min(cell.y, worldSize - 1 - cell.y),
+  );
 
-  ArcadeDirection _turnLeft(ArcadeDirection dir) => _turnRight(dir).opposite;
+  ArcadeDirection? _pickWeightedDirection(
+    List<(ArcadeDirection, int)> candidates,
+  ) {
+    if (candidates.isEmpty) return null;
+    final total = candidates.fold<int>(0, (sum, item) => sum + item.$2);
+    var roll = _rng.nextInt(total);
+    for (final candidate in candidates) {
+      if (roll < candidate.$2) return candidate.$1;
+      roll -= candidate.$2;
+    }
+    return candidates.last.$1;
+  }
 
   bool _moleCanEnter(ArcadePoint cell) =>
       _inWorld(cell) &&
@@ -955,7 +988,61 @@ class SnakeArcadeEngine {
     _huntMsLeft = huntDurationMs;
     _huntEaten = 0;
     _bullets.clear(); // 變身期間停用射擊，場上種子直接收掉
+    _ensureHuntTargets();
     _events.add(ArcadeEvent.huntStarted);
+  }
+
+  /// 把最多三隻既有鼴鼠移到蛇頭 5–9 格內，不足才新增。
+  /// 維持原本場上總量，同時保證狩獵開始就看得到可追的目標。
+  void _ensureHuntTargets() {
+    var nearby = _moles.where((mole) {
+      final distance = head.chebyshev(mole.cell);
+      if (distance < huntTargetMinHeadDistance ||
+          distance > huntTargetMaxHeadDistance) {
+        return false;
+      }
+      mole.state = ArcadeMoleState.active;
+      return true;
+    }).length;
+    final distant = _moles.where((mole) {
+      final distance = head.chebyshev(mole.cell);
+      return distance < huntTargetMinHeadDistance ||
+          distance > huntTargetMaxHeadDistance;
+    }).toList();
+    for (final mole in distant) {
+      if (nearby >= huntTargetKills) break;
+      _moles.remove(mole);
+      final cell = _randomFreeCellNearHead(
+        minRadius: huntTargetMinHeadDistance,
+        maxRadius: huntTargetMaxHeadDistance,
+      );
+      if (cell == null) {
+        _moles.add(mole);
+        break;
+      }
+      mole
+        ..cell = cell
+        ..state = ArcadeMoleState.active
+        ..telegraphMsLeft = 0;
+      _moles.add(mole);
+      nearby += 1;
+    }
+    while (nearby < huntTargetKills) {
+      final cell = _randomFreeCellNearHead(
+        minRadius: huntTargetMinHeadDistance,
+        maxRadius: huntTargetMaxHeadDistance,
+      );
+      if (cell == null) break;
+      _moles.add(
+        ArcadeMole(
+          cell: cell,
+          facing: ArcadeDirection.values[_rng.nextInt(4)],
+          state: ArcadeMoleState.active,
+          telegraphMsLeft: 0,
+        ),
+      );
+      nearby += 1;
+    }
   }
 
   void _tickHunt() {
@@ -1120,4 +1207,11 @@ class SnakeArcadeEngine {
   /// 歸零鼴鼠移動累計，讓測試能保證「蛇先走到、鼴鼠還沒逃」的時序。
   @visibleForTesting
   void debugResetMoleClock() => _moleAcc = 0;
+
+  @visibleForTesting
+  void debugStepMoles([int steps = 1]) {
+    for (var i = 0; i < steps; i++) {
+      _stepMoles();
+    }
+  }
 }
