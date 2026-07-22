@@ -1,12 +1,11 @@
 // 三指彩蛋：菜園小蛇（大地圖貪食蛇）。
 //
-// 與二指骰子不同，這是「全螢幕」root overlay：遊戲體驗優先，
-// 兔咪在遊戲中隱藏，只在結算面板以小立繪出現。像素窗簾沿用同一套復古
-// 進出場儀式；關閉 overlay 即完整回到觸發前的頁面與狀態。
+// 與二指骰子不同，這是「全螢幕」root overlay：遊戲盤放在視線較容易追蹤的
+// 上方，兔咪縮成下方陪玩角落；全畫面滑動都能操作，不必用手遮住棋盤。
+// 像素窗簾沿用同一套復古進出場儀式；關閉 overlay 即完整回到觸發前狀態。
 //
-// 版型：上 HUD＋全寬正方形視窗＋下操作台。
-// 小地圖與能力進度放在操作台，永不被手指遮擋；滑動手勢吃整個螢幕，
-// 點擊只在棋盤區內才算射擊，按鈕不會誤發種子。
+// 版型：手機直式＝上 HUD＋正方形視窗＋下方兔咪操作台；橫式／平板橫向
+// 改為棋盤在左、兔咪操作台在右。種子只由專用按鈕發射。
 //
 // 規則全部在 SnakeArcadeEngine；這個檔案只做輸入、鏡頭、演出與資料存取。
 
@@ -24,7 +23,10 @@ import '../../../utils/mini_game_session.dart';
 import '../../../utils/prefs_keys.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../utils/usage_stats.dart';
+import '../../../utils/wardrobe_catalog.dart';
+import '../../../utils/wardrobe_store.dart';
 import '../../../widgets/app_dialogs.dart';
+import '../../../widgets/mascot_scene.dart';
 import '../../timer/game/table_timer_theme.dart'
     show kGameAccent, kGameAccentDark;
 import 'snake_arcade_engine.dart';
@@ -572,21 +574,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             children: [
               SafeArea(
                 child: LayoutBuilder(
-                  builder: (context, box) {
-                    // 直式手機＝全寬正方形；其他比例（或極端小螢幕）以
-                    // 「高度扣掉 HUD 與操作台最小高」為上限，遊戲格不拉伸。
-                    final side = math.max(
-                      120.0,
-                      math.min(box.maxWidth - 20, box.maxHeight - 200),
-                    );
-                    return Column(
-                      children: [
-                        _buildHud(),
-                        _buildBoard(side),
-                        Expanded(child: _buildConsole()),
-                      ],
-                    );
-                  },
+                  builder: (_, box) => _buildGameLayout(box),
                 ),
               ),
               if (phase == ArcadePhase.choosingAbility)
@@ -605,6 +593,49 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildGameLayout(BoxConstraints box) {
+    final sideBySide = box.maxWidth > box.maxHeight * 1.25;
+    if (sideBySide) {
+      final dockWidth = (box.maxWidth * 0.34).clamp(220.0, 310.0);
+      final boardAreaWidth = box.maxWidth - dockWidth;
+      final side = math.max(
+        120.0,
+        math.min(boardAreaWidth - 18, box.maxHeight - 58),
+      );
+      return Row(
+        children: [
+          SizedBox(
+            width: boardAreaWidth,
+            child: Column(
+              children: [
+                _buildHud(),
+                Expanded(child: Center(child: _buildBoard(side))),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: dockWidth,
+            child: _buildSideDock(compact: box.maxHeight < 440),
+          ),
+        ],
+      );
+    }
+
+    final compact = box.maxWidth < 360 || box.maxHeight < 650;
+    final dockFloor = compact ? 132.0 : 158.0;
+    final side = math.max(
+      120.0,
+      math.min(box.maxWidth - 20, box.maxHeight - 56 - dockFloor),
+    );
+    return Column(
+      children: [
+        _buildHud(),
+        _buildBoard(side),
+        Expanded(child: _buildBottomDock(compact: compact)),
+      ],
     );
   }
 
@@ -703,51 +734,158 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     );
   }
 
-  Widget _buildConsole() {
+  Widget _buildBottomDock({required bool compact}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox.square(
-            dimension: 92,
-            child: ValueListenableBuilder<int>(
-              valueListenable: _frame,
-              builder: (_, _, _) => CustomPaint(
-                key: const ValueKey('snake-arcade-minimap'),
-                painter: SnakeArcadeMinimapPainter(
-                  engine: _engine,
-                  cameraX: _cameraX,
-                  cameraY: _cameraY,
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      child: Container(
+        key: const ValueKey('arcade-mascot-dock'),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 12,
+          vertical: 8,
+        ),
+        decoration: _dockDecoration(),
+        child: LayoutBuilder(
+          builder: (_, box) {
+            final showMap = box.maxWidth >= 560;
+            return Row(
+              children: [
+                if (showMap) ...[
+                  _buildMinimap(compact ? 66 : 78),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(child: _buildConsoleStatus()),
+                SizedBox(width: compact ? 5 : 10),
+                _buildGardenMascot(
+                  width: compact ? 62 : 88,
+                  height: compact ? 88 : 116,
                 ),
+                SizedBox(width: compact ? 4 : 8),
+                _buildSeedButton(),
+                SizedBox(width: compact ? 4 : 8),
+                _buildDockActions(),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSideDock({required bool compact}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 10, 8),
+      child: Container(
+        key: const ValueKey('arcade-mascot-dock'),
+        padding: EdgeInsets.all(compact ? 8 : 12),
+        decoration: _dockDecoration(),
+        child: LayoutBuilder(
+          builder: (_, box) {
+            final mascotHeight = compact
+                ? 76.0
+                : math.min(186.0, box.maxHeight * 0.38);
+            return Column(
+              children: [
+                _buildGardenMascot(
+                  width: math.min(170, box.maxWidth),
+                  height: mascotHeight,
+                ),
+                SizedBox(height: compact ? 3 : 10),
+                _buildConsoleStatus(),
+                const Spacer(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildMinimap(compact ? 58 : 76),
+                    const SizedBox(width: 8),
+                    _buildSeedButton(),
+                    const SizedBox(width: 8),
+                    _buildDockActions(),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _dockDecoration() => BoxDecoration(
+    gradient: const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFFFFFCF3), Color(0xFFE8EED7)],
+    ),
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(color: ArcadePalette.fenceLight),
+    boxShadow: AppShadows.flat,
+  );
+
+  Widget _buildMinimap(double dimension) {
+    return SizedBox.square(
+      dimension: dimension,
+      child: ValueListenableBuilder<int>(
+        valueListenable: _frame,
+        builder: (_, _, _) => CustomPaint(
+          key: const ValueKey('snake-arcade-minimap'),
+          painter: SnakeArcadeMinimapPainter(
+            engine: _engine,
+            cameraX: _cameraX,
+            cameraY: _cameraY,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDockActions() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _RoundButton(
+          key: const ValueKey('arcade-pause-button'),
+          icon: Icons.pause_rounded,
+          tooltip: '暫停',
+          onPressed: _engine.phase == ArcadePhase.running ? _pauseGame : null,
+        ),
+        const SizedBox(height: 6),
+        _RoundButton(
+          key: const ValueKey('arcade-exit-button'),
+          icon: Icons.close_rounded,
+          tooltip: '離開遊戲',
+          onPressed: () => unawaited(_requestExit()),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGardenMascot({required double width, required double height}) {
+    return SizedBox(
+      key: const ValueKey('arcade-mascot'),
+      width: width,
+      height: height,
+      child: ValueListenableBuilder<MascotState>(
+        valueListenable: MascotPersona.current,
+        builder: (_, state, _) => ValueListenableBuilder<String>(
+          valueListenable: WardrobeStore.selectedOutfit,
+          builder: (_, outfitId, _) => FittedBox(
+            alignment: Alignment.bottomCenter,
+            child: MascotStage(
+              asset: skinnedMascotAsset(
+                state.assetPath,
+                outfitById(outfitId).skinKey,
               ),
+              accent: kGameAccent,
+              bubble: state.bubble,
+              bubbleTick: state.bubbleTick,
+              reactionTick: 0,
+              onTap: () => MascotPersona.interact(MascotContext.tapReaction),
+              onHeadPet: () => MascotPersona.interact(MascotContext.headPet),
+              onEnergize: () => MascotPersona.interact(MascotContext.energize),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: _buildConsoleStatus()),
-          const SizedBox(width: 10),
-          _buildSeedButton(),
-          const SizedBox(width: 8),
-          Column(
-            children: [
-              _RoundButton(
-                key: const ValueKey('arcade-pause-button'),
-                icon: Icons.pause_rounded,
-                tooltip: '暫停',
-                onPressed: _engine.phase == ArcadePhase.running
-                    ? _pauseGame
-                    : null,
-              ),
-              const SizedBox(height: 8),
-              _RoundButton(
-                key: const ValueKey('arcade-exit-button'),
-                icon: Icons.close_rounded,
-                tooltip: '離開遊戲',
-                onPressed: () => unawaited(_requestExit()),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

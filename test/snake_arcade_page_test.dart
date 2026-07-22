@@ -121,6 +121,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('手機直式棋盤在上、兔咪在下；橫式改為棋盤左兔咪右且不裁切', (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    for (final size in const [
+      Size(320, 568),
+      Size(390, 844),
+      Size(768, 1024),
+    ]) {
+      await tester.binding.setSurfaceSize(size);
+      await tester.pumpWidget(_harness());
+      await tester.pump();
+      final board = tester.getRect(
+        find.byKey(const ValueKey('snake-arcade-board')),
+      );
+      final mascot = tester.getRect(
+        find.byKey(const ValueKey('arcade-mascot')),
+      );
+      expect(board.top, lessThan(mascot.top), reason: '$size 應為上下版型');
+      expect(mascot.bottom, lessThanOrEqualTo(size.height));
+      expect(tester.takeException(), isNull, reason: '$size 不應 overflow');
+    }
+
+    for (final size in const [Size(667, 320), Size(1024, 768)]) {
+      await tester.binding.setSurfaceSize(size);
+      await tester.pumpWidget(_harness());
+      await tester.pump();
+      final board = tester.getRect(
+        find.byKey(const ValueKey('snake-arcade-board')),
+      );
+      final mascot = tester.getRect(
+        find.byKey(const ValueKey('arcade-mascot')),
+      );
+      expect(board.left, lessThan(mascot.left), reason: '$size 應為左右版型');
+      expect(mascot.bottom, lessThanOrEqualTo(size.height));
+      expect(tester.takeException(), isNull, reason: '$size 不應 overflow');
+    }
+  });
+
   testWidgets('暫停面板；繼續後仍要滑動才動', (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
