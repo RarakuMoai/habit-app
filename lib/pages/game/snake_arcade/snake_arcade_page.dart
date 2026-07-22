@@ -46,11 +46,20 @@ import 'snake_arcade_records.dart';
   if (set.contains(ArcadeEvent.huntFull)) {
     return (cue: SfxCue.snakeBonus, haptic: HapticLevel.medium);
   }
+  if (set.contains(ArcadeEvent.magnetFruitCollected)) {
+    return (cue: SfxCue.snakeBonus, haptic: HapticLevel.medium);
+  }
   if (set.contains(ArcadeEvent.abilityOffered)) {
     return (cue: SfxCue.snakePower, haptic: HapticLevel.light);
   }
   if (set.contains(ArcadeEvent.huntStarted)) {
     return (cue: SfxCue.snakeHunt, haptic: HapticLevel.medium);
+  }
+  if (set.contains(ArcadeEvent.laserStarted)) {
+    return (cue: SfxCue.snakePower, haptic: HapticLevel.medium);
+  }
+  if (set.contains(ArcadeEvent.laserShot)) {
+    return (cue: SfxCue.snakeSeed, haptic: HapticLevel.light);
   }
   if (set.contains(ArcadeEvent.ateFiveFold)) {
     return (cue: SfxCue.snakePower, haptic: HapticLevel.medium);
@@ -337,9 +346,16 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
           needsSetState = true;
         case ArcadeEvent.ateFiveFold:
           needsSetState = true;
+        case ArcadeEvent.carrotPulled:
+        case ArcadeEvent.magnetFruitSpawned:
+        case ArcadeEvent.magnetFruitCollected:
+          needsSetState = true;
         case ArcadeEvent.abilityOffered:
           needsSetState = true;
         case ArcadeEvent.shot:
+        case ArcadeEvent.laserStarted:
+        case ArcadeEvent.laserShot:
+        case ArcadeEvent.laserEnded:
         case ArcadeEvent.moleKilled:
           needsSetState = true;
         case ArcadeEvent.huntStarted:
@@ -1109,6 +1125,8 @@ class _AbilityOverlay extends StatelessWidget {
     ArcadeAbility.hunt => Icons.flash_on_rounded,
     ArcadeAbility.carrotRain => Icons.grass_rounded,
     ArcadeAbility.rapidSeed => Icons.forward_rounded,
+    ArcadeAbility.carrotMagnet => Icons.filter_center_focus_rounded,
+    ArcadeAbility.laser => Icons.bolt_rounded,
   };
 
   @override

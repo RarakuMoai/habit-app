@@ -16,14 +16,14 @@ void _eatAhead(
 }
 
 void main() {
-  test('初始狀態：等待滑動、長度 4、速度第 3 級、場上 2 顆胡蘿蔔', () {
+  test('初始狀態：等待滑動、長度 4、速度第 3 級、場上 3 顆胡蘿蔔', () {
     final engine = _engine();
     expect(engine.phase, ArcadePhase.waiting);
     expect(engine.waitReason, ArcadeWaitReason.newGame);
     expect(engine.length, SnakeArcadeEngine.initialLength);
     expect(engine.speedLevel, SnakeArcadeEngine.startSpeedLevel);
     expect(engine.scoreMultiplier, 1.0);
-    expect(engine.collectibles.length, 2);
+    expect(engine.collectibles.length, SnakeArcadeEngine.initialCarrotFloor);
     for (final item in engine.collectibles) {
       expect(item.cell.x, inInclusiveRange(2, 37));
       expect(item.cell.y, inInclusiveRange(2, 37));
@@ -132,6 +132,9 @@ void main() {
       ..debugGrantAbility(ArcadeAbility.selfPass)
       ..debugGrantAbility(ArcadeAbility.rapidSeed)
       ..debugGrantAbility(ArcadeAbility.rapidSeed)
+      ..debugGrantAbility(ArcadeAbility.carrotMagnet)
+      ..debugGrantAbility(ArcadeAbility.carrotMagnet)
+      ..debugGrantAbility(ArcadeAbility.carrotMagnet)
       ..debugGrantAbility(ArcadeAbility.fiveFold)
       ..debugSetSpeedLevel(7)
       ..debugSetPhysicalCount(4);
@@ -352,5 +355,126 @@ void main() {
     final base = engine.shootCooldownTotalMs;
     engine.debugGrantAbility(ArcadeAbility.rapidSeed);
     expect(engine.shootCooldownTotalMs, lessThan(base));
+  });
+
+  test('一般蘿蔔最低數量依收集進度由 3 增至 6', () {
+    final engine = _engine();
+    for (final entry in <(int, int)>[(0, 3), (15, 4), (30, 5), (50, 6)]) {
+      engine
+        ..debugSetPhysicalCount(entry.$1)
+        ..debugClearCollectibles()
+        ..debugRefillCarrots();
+      expect(
+        engine.collectibles
+            .where((item) => item.type == ArcadeCollectibleType.carrot)
+            .length,
+        entry.$2,
+      );
+      expect(engine.carrotFloor, entry.$2);
+    }
+  });
+
+  test('蘿蔔磁鐵可疊 3 級，吸收半徑內普通與金蘿蔔', () {
+    final engine = _engine()
+      ..debugClearCollectibles()
+      ..debugGrantAbility(ArcadeAbility.carrotMagnet)
+      ..enqueueDirection(ArcadeDirection.right);
+    final next = engine.head.move(engine.direction);
+    engine
+      ..debugPlaceCollectible(
+        ArcadePoint(next.x + 1, next.y + 1),
+        ArcadeCollectibleType.carrot,
+      )
+      ..debugPlaceCollectible(
+        ArcadePoint(next.x + 2, next.y),
+        ArcadeCollectibleType.gold,
+      )
+      ..advance(engine.stepIntervalMs);
+
+    expect(engine.physicalCount, 1);
+    expect(engine.takeEvents(), contains(ArcadeEvent.carrotPulled));
+    expect(
+      engine.collectibles.any(
+        (item) => item.cell == ArcadePoint(next.x + 2, next.y),
+      ),
+      isTrue,
+    );
+
+    engine
+      ..debugGrantAbility(ArcadeAbility.carrotMagnet)
+      ..debugGrantAbility(ArcadeAbility.carrotMagnet)
+      ..debugGrantAbility(ArcadeAbility.carrotMagnet);
+    expect(engine.carrotMagnetLevel, SnakeArcadeEngine.maxCarrotMagnetLevel);
+  });
+
+  test('磁力果實吸收全場與 4 顆額外蘿蔔，全部計分但最多成長 4 格', () {
+    final engine = _engine()
+      ..debugClearCollectibles()
+      ..enqueueDirection(ArcadeDirection.right);
+    final fruit = engine.head.move(engine.direction);
+    engine
+      ..debugPlaceCollectible(
+        const ArcadePoint(5, 5),
+        ArcadeCollectibleType.carrot,
+      )
+      ..debugPlaceCollectible(fruit, ArcadeCollectibleType.magnetFruit)
+      ..advance(engine.stepIntervalMs);
+
+    expect(
+      engine.physicalCount,
+      1 + SnakeArcadeEngine.globalVacuumBonusCarrots,
+    );
+    expect(
+      engine.score,
+      (1 + SnakeArcadeEngine.globalVacuumBonusCarrots) *
+          SnakeArcadeEngine.carrotScore,
+    );
+    expect(
+      engine.length,
+      SnakeArcadeEngine.initialLength + SnakeArcadeEngine.globalVacuumGrowthCap,
+    );
+    expect(
+      engine.collectibles
+          .where((item) => item.type == ArcadeCollectibleType.carrot)
+          .length,
+      engine.carrotFloor,
+    );
+    expect(
+      engine.collectibles,
+      isNot(
+        contains(
+          predicate<ArcadeCollectible>(
+            (item) => item.type == ArcadeCollectibleType.magnetFruit,
+          ),
+        ),
+      ),
+    );
+    expect(engine.takeEvents(), contains(ArcadeEvent.magnetFruitCollected));
+  });
+
+  test('三排雷射命中前方三列、射程外與第四列不受影響', () {
+    final engine = _engine()
+      ..debugClearCollectibles()
+      ..debugSetPhysicalCount(SnakeArcadeEngine.moleUnlockAt)
+      ..enqueueDirection(ArcadeDirection.right)
+      ..debugGrantAbility(ArcadeAbility.laser);
+    final head = engine.head;
+    for (final y in [head.y - 1, head.y, head.y + 1, head.y + 2]) {
+      engine.debugSpawnMole(ArcadePoint(head.x + 5, y));
+    }
+    engine.debugSpawnMole(
+      ArcadePoint(head.x + SnakeArcadeEngine.laserRange + 1, head.y),
+    );
+
+    expect(engine.shoot(), isTrue);
+    expect(engine.shotKills, 3);
+    expect(engine.moles, hasLength(2));
+    expect(engine.takeEvents(), contains(ArcadeEvent.laserShot));
+    expect(engine.shootCooldownTotalMs, SnakeArcadeEngine.laserCooldownMs);
+
+    engine.debugSetLaserMsLeft(5);
+    engine.advance(5);
+    expect(engine.laserActive, isFalse);
+    expect(engine.takeEvents(), contains(ArcadeEvent.laserEnded));
   });
 }

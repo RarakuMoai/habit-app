@@ -35,6 +35,8 @@ abstract final class ArcadePalette {
   static const carrotDark = Color(0xFFD06F2C);
   static const leaf = Color(0xFF6FA34C);
   static const gold = Color(0xFFE3B23A);
+  static const magnet = Color(0xFFB65D86);
+  static const magnetGlow = Color(0xFFF2B7D0);
 
   static const mole = Color(0xFF7B5A46);
   static const moleLight = Color(0xFF9C7A64);
@@ -169,6 +171,23 @@ class SnakeArcadeBoardPainter extends CustomPainter {
           _paintCarrot(canvas, rect, cell);
         case ArcadeCollectibleType.gold:
           _paintGoldCarrot(canvas, rect, cell);
+        case ArcadeCollectibleType.magnetFruit:
+          final center = rect.center;
+          canvas.drawCircle(
+            center,
+            rect.width * (0.48 + pulse * 0.05),
+            Paint()..color = ArcadePalette.magnetGlow.withValues(alpha: 0.42),
+          );
+          canvas.drawCircle(
+            center,
+            rect.width * 0.34,
+            Paint()..color = ArcadePalette.magnet,
+          );
+          canvas.drawCircle(
+            center.translate(-rect.width * 0.09, -rect.height * 0.09),
+            rect.width * 0.07,
+            Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.82),
+          );
       }
     }
 
@@ -522,12 +541,13 @@ class SnakeArcadeMinimapPainter extends CustomPainter {
 
     final carrotPaint = Paint()..color = ArcadePalette.carrot;
     final goldPaint = Paint()..color = ArcadePalette.gold;
+    final magnetPaint = Paint()..color = ArcadePalette.magnet;
     for (final item in engine.collectibles) {
-      canvas.drawCircle(
-        dot(item.cell),
-        scale * 1.1,
-        item.type == ArcadeCollectibleType.gold ? goldPaint : carrotPaint,
-      );
+      canvas.drawCircle(dot(item.cell), scale * 1.1, switch (item.type) {
+        ArcadeCollectibleType.carrot => carrotPaint,
+        ArcadeCollectibleType.gold => goldPaint,
+        ArcadeCollectibleType.magnetFruit => magnetPaint,
+      });
     }
 
     final molePaint = Paint()..color = ArcadePalette.mole;

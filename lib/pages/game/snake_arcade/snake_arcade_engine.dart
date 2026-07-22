@@ -11,6 +11,8 @@
 //   引擎絕不自行開跑。
 // - 穿身點只處理自我碰撞；牆與鼴鼠照樣致命。
 // - 狩獵解除瞬間，蛇頭 3 格內的鼴鼠鑽地離場，杜絕貼臉死。
+// - 一般蘿蔔最低數量隨進度由 3 增至 6；磁力果實全場吸收時分數與
+//   實體數全算，但單次成長封頂 4 格，避免獎勵反成自撞懲罰。
 
 import 'dart:math' as math;
 
@@ -64,7 +66,7 @@ enum ArcadePhase { waiting, running, choosingAbility, paused, gameOver }
 /// 等待狀態的原因，只影響 UI 提示文案。
 enum ArcadeWaitReason { newGame, abilityPicked, revived, resumed }
 
-enum ArcadeCollectibleType { carrot, gold }
+enum ArcadeCollectibleType { carrot, gold, magnetFruit }
 
 class ArcadeCollectible {
   final ArcadePoint cell;
@@ -100,9 +102,11 @@ enum ArcadeAbility {
   speedDown('踩剎車', '慢一級，得分倍率 −25%'),
   fiveFold('五倍蘿蔔', '下一份收穫價值 ×5'),
   selfPass('穿身術', '補滿 3 點，穿過自己每格用 1 點'),
-  hunt('狩獵時刻', '12 秒內用蛇頭吃鼴鼠，最多 3 隻'),
+  hunt('狩獵時刻', '20 秒內用蛇頭吃鼴鼠，目標 3 隻'),
   carrotRain('蘿蔔雨', '田裡馬上多 4 根胡蘿蔔'),
-  rapidSeed('速射種子', '種子冷卻縮短（可疊 2 次）');
+  rapidSeed('速射種子', '種子冷卻縮短（可疊 2 次）'),
+  carrotMagnet('蘿蔔磁鐵', '吸取範圍增加 1 格（最多 3 格）'),
+  laser('三排雷射', '10 秒內改射三排雷射，射程 12 格');
 
   final String label;
   final String description;
@@ -115,8 +119,14 @@ enum ArcadeEvent {
   ateCarrot,
   ateGold,
   ateFiveFold,
+  carrotPulled,
+  magnetFruitSpawned,
+  magnetFruitCollected,
   abilityOffered,
   shot,
+  laserStarted,
+  laserShot,
+  laserEnded,
   moleKilled,
   huntStarted,
   huntWarnTick,
@@ -146,7 +156,8 @@ class SnakeArcadeEngine {
 
   // ── 節奏 ────────────────────────────────────────────────
   static const int initialLength = 4;
-  static const int normalCarrotFloor = 2; // 一般胡蘿蔔恆常至少 2 顆
+  static const int initialCarrotFloor = 3;
+  static const int maxCarrotFloor = 6;
   static const int firstAbilityAt = 5;
   static const int moleUnlockAt = 15; // 第二輪能力後（累計 ≥15 顆）
   static const int moleTelegraphMs = 1200;
@@ -157,12 +168,24 @@ class SnakeArcadeEngine {
   static const int bulletStepMs = 70;
   static const int shootCooldownMs = 900;
   static const int maxBulletsAirborne = 2;
-  static const int huntDurationMs = 12000;
+  static const int huntDurationMs = 20000;
   static const int huntTargetKills = 3;
   static const int huntEndGraceRadius = 3;
   static const int maxLives = 3;
   static const int maxPassPoints = 3;
   static const int maxRapidSeedStacks = 2;
+  static const int maxCarrotMagnetLevel = 3;
+  static const int laserDurationMs = 10000;
+  static const int laserCooldownMs = 900;
+  static const int laserRange = 12;
+  static const int magnetFruitUnlockAt = 8;
+  static const int magnetFruitSpawnBaseMs = 30000;
+  static const int magnetFruitSpawnJitterMs = 15000;
+  static const int magnetFruitLifetimeMs = 15000;
+  static const int magnetFruitMinHeadDistance = 6;
+  static const int magnetFruitMaxHeadDistance = 10;
+  static const int globalVacuumBonusCarrots = 4;
+  static const int globalVacuumGrowthCap = 4;
   static const int moleSpawnMinHeadDistance = 6;
   static const int reviveClearRadius = 5;
   static const int _quantumMs = 5;
@@ -191,6 +214,8 @@ class SnakeArcadeEngine {
   int _passPoints = 0;
   bool _fiveFoldArmed = false;
   int _rapidSeedStacks = 0;
+  int _carrotMagnetLevel = 0;
+  int _laserMsLeft = 0;
   int _abilityRounds = 0;
   int _nextAbilityAt = firstAbilityAt;
   List<ArcadeAbility> _offeredAbilities = const [];
@@ -212,6 +237,8 @@ class SnakeArcadeEngine {
   int _bulletAcc = 0;
   int _shootCooldownLeft = 0;
   int _moleSpawnIn = 0;
+  int _magnetFruitSpawnIn = 0;
+  int _magnetFruitTtlMs = 0;
   int _advanceRemainder = 0;
 
   final List<ArcadeEvent> _events = [];
@@ -224,7 +251,8 @@ class SnakeArcadeEngine {
     }
     _direction = ArcadeDirection.right;
     _moleSpawnIn = _nextMoleSpawnDelay();
-    for (var i = 0; i < normalCarrotFloor; i++) {
+    _magnetFruitSpawnIn = _nextMagnetFruitSpawnDelay();
+    for (var i = 0; i < initialCarrotFloor; i++) {
       _spawnCarrot();
     }
   }
@@ -248,6 +276,15 @@ class SnakeArcadeEngine {
   int get passPoints => _passPoints;
   bool get fiveFoldArmed => _fiveFoldArmed;
   int get rapidSeedStacks => _rapidSeedStacks;
+  int get carrotMagnetLevel => _carrotMagnetLevel;
+  int get laserMsLeft => _laserMsLeft;
+  bool get laserActive => _laserMsLeft > 0;
+  int get carrotFloor => switch (_physicalCount) {
+    >= 50 => maxCarrotFloor,
+    >= 30 => 5,
+    >= 15 => 4,
+    _ => initialCarrotFloor,
+  };
   int get abilityRounds => _abilityRounds;
   int get nextAbilityAt => _nextAbilityAt;
   List<ArcadeAbility> get offeredAbilities => _offeredAbilities;
@@ -265,7 +302,7 @@ class SnakeArcadeEngine {
       _phase == ArcadePhase.running &&
       !_huntActive &&
       _shootCooldownLeft == 0 &&
-      _bullets.length < maxBulletsAirborne;
+      (laserActive || _bullets.length < maxBulletsAirborne);
 
   /// UI 一次取走本回合事件。
   List<ArcadeEvent> takeEvents() {
@@ -304,9 +341,10 @@ class SnakeArcadeEngine {
     return input != _direction.opposite;
   }
 
-  /// 點擊射擊。狩獵中停用；冷卻與在場種子數也在這裡把關。
+  /// 發射。狩獵中停用；冷卻與在場種子數也在這裡把關。
   bool shoot() {
     if (!canShoot) return false;
+    if (laserActive) return _shootLaser();
     final target = head.move(_direction);
     if (!_inWorld(target)) return false;
     _shootCooldownLeft = _currentShootCooldown();
@@ -321,6 +359,7 @@ class SnakeArcadeEngine {
   }
 
   int _currentShootCooldown() {
+    if (laserActive) return laserCooldownMs;
     var cooldown = shootCooldownMs;
     for (var i = 0; i < _rapidSeedStacks; i++) {
       cooldown = cooldown * 3 ~/ 5; // ×0.6，900 → 540 → 324→325（5ms 對齊）
@@ -329,6 +368,26 @@ class SnakeArcadeEngine {
   }
 
   int _alignQuantum(int ms) => (ms + _quantumMs - 1) ~/ _quantumMs * _quantumMs;
+
+  bool _shootLaser() {
+    _shootCooldownLeft = laserCooldownMs;
+    final hits = _moles.where((mole) {
+      if (mole.state != ArcadeMoleState.active) return false;
+      final dx = mole.cell.x - head.x;
+      final dy = mole.cell.y - head.y;
+      return switch (_direction) {
+        ArcadeDirection.right => dx >= 1 && dx <= laserRange && dy.abs() <= 1,
+        ArcadeDirection.left => dx <= -1 && dx >= -laserRange && dy.abs() <= 1,
+        ArcadeDirection.down => dy >= 1 && dy <= laserRange && dx.abs() <= 1,
+        ArcadeDirection.up => dy <= -1 && dy >= -laserRange && dx.abs() <= 1,
+      };
+    }).toList();
+    for (final mole in hits) {
+      _killMoleByShot(mole);
+    }
+    _events.add(ArcadeEvent.laserShot);
+    return true;
+  }
 
   /// 進行中才可暫停（外部凍結：切背景、足跡開啟等也走這裡）。
   bool pause() {
@@ -373,6 +432,14 @@ class SnakeArcadeEngine {
         }
       case ArcadeAbility.rapidSeed:
         _rapidSeedStacks = math.min(maxRapidSeedStacks, _rapidSeedStacks + 1);
+      case ArcadeAbility.carrotMagnet:
+        _carrotMagnetLevel = math.min(
+          maxCarrotMagnetLevel,
+          _carrotMagnetLevel + 1,
+        );
+      case ArcadeAbility.laser:
+        _laserMsLeft = laserDurationMs;
+        _events.add(ArcadeEvent.laserStarted);
     }
   }
 
@@ -387,6 +454,8 @@ class SnakeArcadeEngine {
     ArcadeAbility.hunt: 12,
     ArcadeAbility.carrotRain: 10,
     ArcadeAbility.rapidSeed: 10,
+    ArcadeAbility.carrotMagnet: 12,
+    ArcadeAbility.laser: 10,
   };
 
   bool _abilityValid(ArcadeAbility ability) => switch (ability) {
@@ -398,6 +467,8 @@ class SnakeArcadeEngine {
     ArcadeAbility.hunt => molesUnlocked && !_huntArmed && !_huntActive,
     ArcadeAbility.carrotRain => true,
     ArcadeAbility.rapidSeed => _rapidSeedStacks < maxRapidSeedStacks,
+    ArcadeAbility.carrotMagnet => _carrotMagnetLevel < maxCarrotMagnetLevel,
+    ArcadeAbility.laser => molesUnlocked && !laserActive,
   };
 
   List<ArcadeAbility> _drawAbilities() {
@@ -430,6 +501,10 @@ class SnakeArcadeEngine {
   }
 
   void _tickQuantum() {
+    if (_laserMsLeft > 0) {
+      _laserMsLeft = math.max(0, _laserMsLeft - _quantumMs);
+      if (_laserMsLeft == 0) _events.add(ArcadeEvent.laserEnded);
+    }
     if (_shootCooldownLeft > 0) {
       _shootCooldownLeft = math.max(0, _shootCooldownLeft - _quantumMs);
     }
@@ -451,6 +526,7 @@ class SnakeArcadeEngine {
     if (_huntActive) _tickHunt();
 
     _tickMoleSpawner();
+    _tickMagnetFruit();
 
     _snakeAcc += _quantumMs;
     while (_snakeAcc >= stepIntervalMs && _phase == ArcadePhase.running) {
@@ -500,10 +576,16 @@ class SnakeArcadeEngine {
     }
     _maxLength = math.max(_maxLength, length);
 
-    final eatenIndex = _collectibles.indexWhere((c) => c.cell == target);
-    if (eatenIndex >= 0) {
-      _collect(_collectibles.removeAt(eatenIndex));
+    final fieldPowerIndex = _collectibles.indexWhere(
+      (c) => c.cell == target && c.type == ArcadeCollectibleType.magnetFruit,
+    );
+    if (fieldPowerIndex >= 0) {
+      _collectibles.removeAt(fieldPowerIndex);
+      _triggerGlobalVacuum();
+      return;
     }
+
+    _collectProduceNear(target);
   }
 
   /// 自我碰撞判定：尾巴這步若會空出（無待成長）則不算撞。
@@ -517,27 +599,73 @@ class SnakeArcadeEngine {
     return false;
   }
 
-  void _collect(ArcadeCollectible item) {
-    final base = switch (item.type) {
-      ArcadeCollectibleType.carrot => carrotScore,
-      ArcadeCollectibleType.gold => goldScore,
-    };
-    final fiveFold = _fiveFoldArmed;
-    _fiveFoldArmed = false;
-    _score += _applyMultiplier(base) * (fiveFold ? 5 : 1);
-    _pendingGrowth += fiveFold ? 2 : 1;
-    _physicalCount += 1; // 五倍那顆也只算 1 顆實體
-    _events.add(
-      fiveFold
-          ? ArcadeEvent.ateFiveFold
-          : item.type == ArcadeCollectibleType.gold
-          ? ArcadeEvent.ateGold
-          : ArcadeEvent.ateCarrot,
-    );
+  void _collectProduceNear(ArcadePoint center) {
+    final produce =
+        _collectibles
+            .where(
+              (item) =>
+                  item.type != ArcadeCollectibleType.magnetFruit &&
+                  center.chebyshev(item.cell) <= _carrotMagnetLevel,
+            )
+            .toList()
+          ..sort(
+            (a, b) =>
+                center.chebyshev(a.cell).compareTo(center.chebyshev(b.cell)),
+          );
+    if (produce.isEmpty) return;
+    final pulled = produce.any((item) => item.cell != center);
+    _collectProduceBatch(produce);
+    if (pulled) _events.add(ArcadeEvent.carrotPulled);
+  }
+
+  void _collectProduceBatch(List<ArcadeCollectible> items, {int? growthCap}) {
+    var growthAdded = 0;
+    for (final item in items) {
+      if (!_collectibles.remove(item)) continue;
+      final base = switch (item.type) {
+        ArcadeCollectibleType.carrot => carrotScore,
+        ArcadeCollectibleType.gold => goldScore,
+        ArcadeCollectibleType.magnetFruit => 0,
+      };
+      final fiveFold = _fiveFoldArmed;
+      _fiveFoldArmed = false;
+      _score += _applyMultiplier(base) * (fiveFold ? 5 : 1);
+      final desiredGrowth = fiveFold ? 2 : 1;
+      final allowedGrowth = growthCap == null
+          ? desiredGrowth
+          : math.min(desiredGrowth, math.max(0, growthCap - growthAdded));
+      _pendingGrowth += allowedGrowth;
+      growthAdded += allowedGrowth;
+      _physicalCount += 1; // 五倍那顆也只算 1 顆實體
+      _events.add(
+        fiveFold
+            ? ArcadeEvent.ateFiveFold
+            : item.type == ArcadeCollectibleType.gold
+            ? ArcadeEvent.ateGold
+            : ArcadeEvent.ateCarrot,
+      );
+    }
     _refillCarrots();
-    if (_physicalCount >= _nextAbilityAt) {
+    if (_phase == ArcadePhase.running && _physicalCount >= _nextAbilityAt) {
       _openAbilityChoice();
     }
+  }
+
+  void _triggerGlobalVacuum() {
+    _magnetFruitTtlMs = 0;
+    _magnetFruitSpawnIn = _nextMagnetFruitSpawnDelay();
+    for (var i = 0; i < globalVacuumBonusCarrots; i++) {
+      _spawnCarrot();
+    }
+    final produce =
+        _collectibles
+            .where((item) => item.type != ArcadeCollectibleType.magnetFruit)
+            .toList()
+          ..sort(
+            (a, b) => head.chebyshev(a.cell).compareTo(head.chebyshev(b.cell)),
+          );
+    _collectProduceBatch(produce, growthCap: globalVacuumGrowthCap);
+    _events.add(ArcadeEvent.magnetFruitCollected);
   }
 
   int _applyMultiplier(int base) =>
@@ -559,7 +687,7 @@ class SnakeArcadeEngine {
     var normals = _collectibles
         .where((c) => c.type == ArcadeCollectibleType.carrot)
         .length;
-    while (normals < normalCarrotFloor) {
+    while (normals < carrotFloor) {
       if (!_spawnCarrot()) break;
       normals++;
     }
@@ -570,6 +698,70 @@ class SnakeArcadeEngine {
     if (cell == null) return false;
     _collectibles.add(ArcadeCollectible(cell, ArcadeCollectibleType.carrot));
     return true;
+  }
+
+  int _nextMagnetFruitSpawnDelay() =>
+      magnetFruitSpawnBaseMs +
+      _rng.nextInt(magnetFruitSpawnJitterMs ~/ _quantumMs) * _quantumMs;
+
+  void _tickMagnetFruit() {
+    final fruitIndex = _collectibles.indexWhere(
+      (item) => item.type == ArcadeCollectibleType.magnetFruit,
+    );
+    if (fruitIndex >= 0) {
+      _magnetFruitTtlMs -= _quantumMs;
+      if (_magnetFruitTtlMs > 0) return;
+      _collectibles.removeAt(fruitIndex);
+      _magnetFruitSpawnIn = _nextMagnetFruitSpawnDelay();
+      return;
+    }
+    if (_physicalCount < magnetFruitUnlockAt) return;
+    _magnetFruitSpawnIn -= _quantumMs;
+    if (_magnetFruitSpawnIn > 0) return;
+    final cell = _randomFreeCellNearHead(
+      minRadius: magnetFruitMinHeadDistance,
+      maxRadius: magnetFruitMaxHeadDistance,
+    );
+    if (cell == null) {
+      _magnetFruitSpawnIn = 1000;
+      return;
+    }
+    _collectibles.add(
+      ArcadeCollectible(cell, ArcadeCollectibleType.magnetFruit),
+    );
+    _magnetFruitTtlMs = magnetFruitLifetimeMs;
+    _events.add(ArcadeEvent.magnetFruitSpawned);
+  }
+
+  ArcadePoint? _randomFreeCellNearHead({
+    required int minRadius,
+    required int maxRadius,
+  }) {
+    final candidates = <ArcadePoint>[];
+    for (
+      var y = math.max(spawnMargin, head.y - maxRadius);
+      y <= math.min(worldSize - spawnMargin - 1, head.y + maxRadius);
+      y++
+    ) {
+      for (
+        var x = math.max(spawnMargin, head.x - maxRadius);
+        x <= math.min(worldSize - spawnMargin - 1, head.x + maxRadius);
+        x++
+      ) {
+        final cell = ArcadePoint(x, y);
+        final distance = head.chebyshev(cell);
+        if (distance < minRadius || distance > maxRadius) continue;
+        if (_body.contains(cell) ||
+            _collectibles.any((c) => c.cell == cell) ||
+            _moles.any((m) => m.cell == cell) ||
+            _bullets.any((b) => b.cell == cell)) {
+          continue;
+        }
+        candidates.add(cell);
+      }
+    }
+    if (candidates.isEmpty) return null;
+    return candidates[_rng.nextInt(candidates.length)];
   }
 
   /// 生成點：距邊線 [margin] 格、不壓蛇身／收集物／鼴鼠／種子、
@@ -874,6 +1066,9 @@ class SnakeArcadeEngine {
   void debugPlaceCollectible(ArcadePoint cell, ArcadeCollectibleType type) {
     _collectibles.removeWhere((c) => c.cell == cell);
     _collectibles.add(ArcadeCollectible(cell, type));
+    if (type == ArcadeCollectibleType.magnetFruit) {
+      _magnetFruitTtlMs = magnetFruitLifetimeMs;
+    }
   }
 
   @visibleForTesting
@@ -901,11 +1096,17 @@ class SnakeArcadeEngine {
   void debugSetPhysicalCount(int value) => _physicalCount = value;
 
   @visibleForTesting
+  void debugRefillCarrots() => _refillCarrots();
+
+  @visibleForTesting
   void debugGrantAbility(ArcadeAbility ability) => _applyAbility(ability);
 
   @visibleForTesting
   void debugSetSpeedLevel(int level) =>
       _speedLevel = level.clamp(1, stepIntervalsMs.length);
+
+  @visibleForTesting
+  void debugSetLaserMsLeft(int value) => _laserMsLeft = math.max(0, value);
 
   /// 直接進入狩獵（可指定剩餘毫秒），測倒數警告與解除驅離用。
   @visibleForTesting
