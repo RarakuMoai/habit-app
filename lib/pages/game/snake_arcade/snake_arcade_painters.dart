@@ -2,7 +2,7 @@
 //
 // 視覺走「暖奶油菜園」：奶油底、柔綠田畦、暖棕籬笆；全部暖色系、
 // 無冷灰純黑（對齊 visual_spec 與骰子彩蛋「回歸兔咪家視覺」的定案）。
-// 鏡頭以蛇頭為中心、在世界邊緣 clamp，並額外外擴 [cameraPadCells] 格，
+// 鏡頭採安全區跟隨、在世界邊緣 clamp，並額外外擴 [cameraPadCells] 格，
 // 讓籬笆在貼邊時仍完整可見，玩家不會誤判底牆。
 
 import 'dart:math' as math;
@@ -11,8 +11,8 @@ import 'package:flutter/widgets.dart';
 
 import 'snake_arcade_engine.dart';
 
-/// 主視窗一邊顯示的格數（正方形視野）。
-const int kArcadeViewportCells = 15;
+/// 主視窗固定顯示 15 欄；列數依實際長方形高度動態增加。
+const double kArcadeViewportColumns = 15;
 
 /// 鏡頭在世界外圍多留的格數，保證邊線籬笆完整入鏡。
 const double kArcadeCameraPadCells = 0.6;
@@ -49,15 +49,18 @@ abstract final class ArcadePalette {
   static const arrow = Color(0xFFB9773B);
 }
 
-/// 鏡頭左上角（世界座標，格為單位）的合法範圍夾取。
-double clampCamera(double value) => value
-    .clamp(
-      -kArcadeCameraPadCells,
-      SnakeArcadeEngine.worldSize +
-          kArcadeCameraPadCells -
-          kArcadeViewportCells,
-    )
-    .toDouble();
+/// 鏡頭單軸左上角（世界座標，格為單位）的合法範圍夾取。
+double clampArcadeCamera(double value, double viewportCells) {
+  final minimum = -kArcadeCameraPadCells;
+  final maximum = math.max(
+    minimum,
+    SnakeArcadeEngine.worldSize + kArcadeCameraPadCells - viewportCells,
+  );
+  return value.clamp(minimum, maximum).toDouble();
+}
+
+double _lerpCell(int from, int to, double progress) =>
+    from + (to - from) * progress;
 
 class SnakeArcadeBoardPainter extends CustomPainter {
   SnakeArcadeBoardPainter({
@@ -76,7 +79,8 @@ class SnakeArcadeBoardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cell = size.width / kArcadeViewportCells;
+    final cell = size.width / kArcadeViewportColumns;
+    final viewportRows = size.height / cell;
     canvas.clipRect(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, Paint()..color = ArcadePalette.outside);
 
@@ -87,8 +91,11 @@ class SnakeArcadeBoardPainter extends CustomPainter {
     const world = SnakeArcadeEngine.worldSize;
     final firstX = math.max(0, cameraX.floor());
     final firstY = math.max(0, cameraY.floor());
-    final lastX = math.min(world - 1, (cameraX + kArcadeViewportCells).ceil());
-    final lastY = math.min(world - 1, (cameraY + kArcadeViewportCells).ceil());
+    final lastX = math.min(
+      world - 1,
+      (cameraX + kArcadeViewportColumns).ceil(),
+    );
+    final lastY = math.min(world - 1, (cameraY + viewportRows).ceil());
     final fieldPaint = Paint();
     for (var y = firstY; y <= lastY; y++) {
       for (var x = firstX; x <= lastX; x++) {
@@ -153,16 +160,22 @@ class SnakeArcadeBoardPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(fenceRect);
 
-    Rect cellRect(ArcadePoint p, {double inset = 0}) => Rect.fromPoints(
-      toScreen(p.x + inset, p.y + inset),
-      toScreen(p.x + 1.0 - inset, p.y + 1.0 - inset),
-    );
+    Rect worldCellRect(double x, double y, {double inset = 0}) =>
+        Rect.fromPoints(
+          toScreen(x + inset, y + inset),
+          toScreen(x + 1.0 - inset, y + 1.0 - inset),
+        );
 
-    bool visible(ArcadePoint p) =>
-        p.x + 1 > cameraX - 1 &&
-        p.x < cameraX + kArcadeViewportCells + 1 &&
-        p.y + 1 > cameraY - 1 &&
-        p.y < cameraY + kArcadeViewportCells + 1;
+    Rect cellRect(ArcadePoint p, {double inset = 0}) =>
+        worldCellRect(p.x.toDouble(), p.y.toDouble(), inset: inset);
+
+    bool visibleAt(double x, double y) =>
+        x + 1 > cameraX - 1 &&
+        x < cameraX + kArcadeViewportColumns + 1 &&
+        y + 1 > cameraY - 1 &&
+        y < cameraY + viewportRows + 1;
+
+    bool visible(ArcadePoint p) => visibleAt(p.x.toDouble(), p.y.toDouble());
 
     // ── 收集物 ──
     for (final item in engine.collectibles) {
@@ -195,8 +208,13 @@ class SnakeArcadeBoardPainter extends CustomPainter {
 
     // ── 鼴鼠與土丘預告 ──
     for (final mole in engine.moles) {
-      if (!visible(mole.cell)) continue;
-      final rect = cellRect(mole.cell, inset: 0.10);
+      final progress = mole.state == ArcadeMoleState.active
+          ? engine.moleRenderProgress
+          : 1.0;
+      final x = _lerpCell(mole.previousCell.x, mole.cell.x, progress);
+      final y = _lerpCell(mole.previousCell.y, mole.cell.y, progress);
+      if (!visibleAt(x, y)) continue;
+      final rect = worldCellRect(x, y, inset: 0.10);
       if (mole.state == ArcadeMoleState.telegraph) {
         _paintMound(canvas, rect);
       } else {
@@ -207,8 +225,18 @@ class SnakeArcadeBoardPainter extends CustomPainter {
     // ── 種子 ──
     final seedPaint = Paint()..color = ArcadePalette.seed;
     for (final bullet in engine.bullets) {
-      if (!visible(bullet.cell)) continue;
-      final rect = cellRect(bullet.cell, inset: 0.34);
+      final x = _lerpCell(
+        bullet.previousCell.x,
+        bullet.cell.x,
+        engine.bulletRenderProgress,
+      );
+      final y = _lerpCell(
+        bullet.previousCell.y,
+        bullet.cell.y,
+        engine.bulletRenderProgress,
+      );
+      if (!visibleAt(x, y)) continue;
+      final rect = worldCellRect(x, y, inset: 0.34);
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, Radius.circular(rect.width * 0.45)),
         seedPaint,
@@ -227,8 +255,19 @@ class SnakeArcadeBoardPainter extends CustomPainter {
       };
       final (px, py) = (-dy, dx);
       for (var lane = -1; lane <= 1; lane++) {
-        final startX = engine.head.x + 0.5 + px * lane;
-        final startY = engine.head.y + 0.5 + py * lane;
+        final previousHead = engine.previousBody.first;
+        final headX = _lerpCell(
+          previousHead.x,
+          engine.head.x,
+          engine.snakeRenderProgress,
+        );
+        final headY = _lerpCell(
+          previousHead.y,
+          engine.head.y,
+          engine.snakeRenderProgress,
+        );
+        final startX = headX + 0.5 + px * lane;
+        final startY = headY + 0.5 + py * lane;
         if (startX < 0 || startX >= world || startY < 0 || startY >= world) {
           continue;
         }
@@ -275,25 +314,34 @@ class SnakeArcadeBoardPainter extends CustomPainter {
         ? ArcadePalette.huntHead
         : ArcadePalette.snakeHead;
     final body = engine.body;
+    final previousBody = engine.previousBody;
+    final snakeProgress = engine.snakeRenderProgress;
     final segmentPaint = Paint();
     for (var i = body.length - 1; i >= 1; i--) {
-      if (!visible(body[i])) continue;
+      final previous = previousBody[math.min(i, previousBody.length - 1)];
+      final x = _lerpCell(previous.x, body[i].x, snakeProgress);
+      final y = _lerpCell(previous.y, body[i].y, snakeProgress);
+      if (!visibleAt(x, y)) continue;
       segmentPaint.color = i.isEven ? bodyColor : bodyAlt;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          cellRect(body[i], inset: 0.06),
+          worldCellRect(x, y, inset: 0.06),
           Radius.circular(cell * 0.22),
         ),
         segmentPaint,
       );
     }
-    _paintHead(canvas, cellRect(engine.head, inset: 0.02), cell, headColor);
+    final previousHead = previousBody.first;
+    final headX = _lerpCell(previousHead.x, engine.head.x, snakeProgress);
+    final headY = _lerpCell(previousHead.y, engine.head.y, snakeProgress);
+    final headRect = worldCellRect(headX, headY, inset: 0.02);
+    _paintHead(canvas, headRect, cell, headColor);
 
     // 五倍待發：頭頂星光。
     if (engine.fiveFoldArmed) {
       _paintSparkle(
         canvas,
-        cellRect(engine.head).center.translate(cell * 0.42, -cell * 0.42),
+        headRect.center.translate(cell * 0.42, -cell * 0.42),
         cell * (0.22 + 0.08 * pulse),
       );
     }
@@ -301,7 +349,7 @@ class SnakeArcadeBoardPainter extends CustomPainter {
     canvas.restore();
 
     // ── 目標方向箭頭：視窗內沒有任何收集物時指向最近的一個 ──
-    _paintTargetArrow(canvas, size, cell, toScreen);
+    _paintTargetArrow(canvas, size, cell, toScreen, headX, headY);
   }
 
   void _paintCarrot(Canvas canvas, Rect rect, double cell) {
@@ -483,9 +531,11 @@ class SnakeArcadeBoardPainter extends CustomPainter {
     Size size,
     double cell,
     Offset Function(double, double) toScreen,
+    double headX,
+    double headY,
   ) {
     if (engine.collectibles.isEmpty) return;
-    final headScreen = toScreen(engine.head.x + 0.5, engine.head.y + 0.5);
+    final headScreen = toScreen(headX + 0.5, headY + 0.5);
     ArcadeCollectible? nearest;
     var nearestDistance = 1 << 30;
     var anyVisible = false;
@@ -555,11 +605,15 @@ class SnakeArcadeMinimapPainter extends CustomPainter {
     required this.engine,
     required this.cameraX,
     required this.cameraY,
+    required this.viewportColumns,
+    required this.viewportRows,
   });
 
   final SnakeArcadeEngine engine;
   final double cameraX;
   final double cameraY;
+  final double viewportColumns;
+  final double viewportRows;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -614,8 +668,8 @@ class SnakeArcadeMinimapPainter extends CustomPainter {
       Rect.fromLTWH(
         cameraX * scale,
         cameraY * scale,
-        kArcadeViewportCells * scale,
-        kArcadeViewportCells * scale,
+        viewportColumns * scale,
+        viewportRows * scale,
       ),
       Paint()
         ..color = ArcadePalette.arrow

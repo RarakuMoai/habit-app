@@ -4,8 +4,8 @@
 // 上方，兔咪縮成下方陪玩角落；全畫面滑動都能操作，不必用手遮住棋盤。
 // 像素窗簾沿用同一套復古進出場儀式；關閉 overlay 即完整回到觸發前狀態。
 //
-// 版型：手機直式＝上 HUD＋正方形視窗＋下方兔咪操作台；橫式／平板橫向
-// 改為棋盤在左、兔咪操作台在右。種子只由專用按鈕發射。
+// 版型：手機直式＝上 HUD＋直向長方形視窗＋下方兩層操作台；橫式／平板橫向
+// 改為棋盤在左、兔咪操作台在右。小地圖常駐，種子只由專用按鈕發射。
 //
 // 規則全部在 SnakeArcadeEngine；這個檔案只做輸入、鏡頭、演出與資料存取。
 
@@ -95,6 +95,37 @@ import 'snake_arcade_records.dart';
 }
 
 const _cream = Color(0xFFF6F1E7);
+
+/// 蛇頭可在中央安全區內自由移動；只有跨出邊界時，鏡頭才移動剛好足夠的距離。
+/// 這能避免每走一格就整張地圖跟著跳。
+@visibleForTesting
+({double x, double y}) snakeArcadeCameraTarget({
+  required double cameraX,
+  required double cameraY,
+  required double headX,
+  required double headY,
+  required double viewportColumns,
+  required double viewportRows,
+}) {
+  final deadWidth = math.min(7.0, math.max(3.0, viewportColumns - 4));
+  final deadHeight = math.min(9.0, math.max(3.0, viewportRows - 4));
+  final left = (viewportColumns - deadWidth) / 2;
+  final right = left + deadWidth;
+  final top = (viewportRows - deadHeight) / 2;
+  final bottom = top + deadHeight;
+  final localX = headX - cameraX;
+  final localY = headY - cameraY;
+  var targetX = cameraX;
+  var targetY = cameraY;
+  if (localX < left) targetX = headX - left;
+  if (localX > right) targetX = headX - right;
+  if (localY < top) targetY = headY - top;
+  if (localY > bottom) targetY = headY - bottom;
+  return (
+    x: clampArcadeCamera(targetX, viewportColumns),
+    y: clampArcadeCamera(targetY, viewportRows),
+  );
+}
 
 /// 全螢幕彩蛋演出：像素窗簾蓋滿 → 換景成菜園 → 窗簾退去；
 /// 關閉時反向播放，跑完才回呼 [onClosed] 讓 shell 移除 overlay entry。
@@ -244,6 +275,9 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   double _cameraX = 0;
   double _cameraY = 0;
+  double _viewportColumns = kArcadeViewportColumns;
+  double _viewportRows = kArcadeViewportColumns;
+  bool _viewportConfigured = false;
   double _pulse = 0;
   String? _notice;
   Timer? _noticeTimer;
@@ -333,20 +367,52 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   }
 
   void _updateCamera(int dtMs) {
-    final targetX = clampCamera(
-      _engine.head.x + 0.5 - kArcadeViewportCells / 2,
+    final previous = _engine.previousBody.first;
+    final progress = _engine.snakeRenderProgress;
+    final headX = previous.x + (_engine.head.x - previous.x) * progress + 0.5;
+    final headY = previous.y + (_engine.head.y - previous.y) * progress + 0.5;
+    final target = snakeArcadeCameraTarget(
+      cameraX: _cameraX,
+      cameraY: _cameraY,
+      headX: headX,
+      headY: headY,
+      viewportColumns: _viewportColumns,
+      viewportRows: _viewportRows,
     );
-    final targetY = clampCamera(
-      _engine.head.y + 0.5 - kArcadeViewportCells / 2,
-    );
-    final t = math.min(1.0, dtMs / 1000 * 8);
-    _cameraX += (targetX - _cameraX) * t;
-    _cameraY += (targetY - _cameraY) * t;
+    // 約 90ms 半衰期並限制最大速度；跨安全區時柔順跟上，不瞬間抽動。
+    final cameraDtMs = math.min(dtMs, 50);
+    final smoothing = 1 - math.pow(0.5, cameraDtMs / 90).toDouble();
+    final maxStep = 9.0 * cameraDtMs / 1000;
+    final stepX = ((target.x - _cameraX) * smoothing).clamp(-maxStep, maxStep);
+    final stepY = ((target.y - _cameraY) * smoothing).clamp(-maxStep, maxStep);
+    _cameraX = clampArcadeCamera(_cameraX + stepX, _viewportColumns);
+    _cameraY = clampArcadeCamera(_cameraY + stepY, _viewportRows);
   }
 
   void _snapCamera() {
-    _cameraX = clampCamera(_engine.head.x + 0.5 - kArcadeViewportCells / 2);
-    _cameraY = clampCamera(_engine.head.y + 0.5 - kArcadeViewportCells / 2);
+    _cameraX = clampArcadeCamera(
+      _engine.head.x + 0.5 - _viewportColumns / 2,
+      _viewportColumns,
+    );
+    _cameraY = clampArcadeCamera(
+      _engine.head.y + 0.5 - _viewportRows / 2,
+      _viewportRows,
+    );
+  }
+
+  void _configureViewport(double width, double height) {
+    if (width <= 0 || height <= 0) return;
+    final rows = math.max(7.0, height / (width / kArcadeViewportColumns));
+    final changed = (rows - _viewportRows).abs() > 0.01;
+    _viewportColumns = kArcadeViewportColumns;
+    _viewportRows = rows;
+    if (!_viewportConfigured) {
+      _viewportConfigured = true;
+      _snapCamera();
+    } else if (changed) {
+      _cameraX = clampArcadeCamera(_cameraX, _viewportColumns);
+      _cameraY = clampArcadeCamera(_cameraY, _viewportRows);
+    }
   }
 
   void _showNotice(
@@ -672,12 +738,8 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   Widget _buildGameLayout(BoxConstraints box) {
     final sideBySide = box.maxWidth > box.maxHeight * 1.25;
     if (sideBySide) {
-      final dockWidth = (box.maxWidth * 0.34).clamp(220.0, 310.0);
+      final dockWidth = (box.maxWidth * 0.34).clamp(214.0, 300.0);
       final boardAreaWidth = box.maxWidth - dockWidth;
-      final side = math.max(
-        120.0,
-        math.min(boardAreaWidth - 18, box.maxHeight - 58),
-      );
       return Row(
         children: [
           SizedBox(
@@ -685,7 +747,15 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             child: Column(
               children: [
                 _buildHud(),
-                Expanded(child: Center(child: _buildBoard(side))),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 2, 6, 8),
+                    child: LayoutBuilder(
+                      builder: (_, boardBox) =>
+                          _buildBoard(boardBox.maxWidth, boardBox.maxHeight),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -698,16 +768,23 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     }
 
     final compact = box.maxWidth < 360 || box.maxHeight < 650;
-    final dockFloor = compact ? 132.0 : 158.0;
-    final side = math.max(
-      120.0,
-      math.min(box.maxWidth - 20, box.maxHeight - 56 - dockFloor),
-    );
+    final dockHeight = compact ? 156.0 : 166.0;
     return Column(
       children: [
         _buildHud(),
-        _buildBoard(side),
-        Expanded(child: _buildBottomDock(compact: compact)),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
+            child: LayoutBuilder(
+              builder: (_, boardBox) =>
+                  _buildBoard(boardBox.maxWidth, boardBox.maxHeight),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: dockHeight,
+          child: _buildBottomDock(compact: compact),
+        ),
       ],
     );
   }
@@ -718,9 +795,9 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         ? '×${multiplier.toInt()}'
         : '×$multiplier';
     return SizedBox(
-      height: 56,
+      height: 46,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        padding: const EdgeInsets.fromLTRB(10, 5, 10, 3),
         child: Row(
           children: [
             _HudChip(
@@ -769,10 +846,11 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     );
   }
 
-  Widget _buildBoard(double side) {
+  Widget _buildBoard(double width, double height) {
+    _configureViewport(width, height);
     return SizedBox(
-      width: side,
-      height: side,
+      width: width,
+      height: height,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
@@ -810,33 +888,54 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   Widget _buildBottomDock({required bool compact}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
       child: Container(
         key: const ValueKey('arcade-mascot-dock'),
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 8 : 12,
-          vertical: 8,
+          horizontal: compact ? 8 : 10,
+          vertical: 7,
         ),
         decoration: _dockDecoration(),
         child: LayoutBuilder(
           builder: (_, box) {
-            final showMap = box.maxWidth >= 560;
-            return Row(
+            final mapSize = compact ? 70.0 : 80.0;
+            return Column(
               children: [
-                if (showMap) ...[
-                  _buildMinimap(compact ? 66 : 78),
-                  const SizedBox(width: 10),
-                ],
-                Expanded(child: _buildConsoleStatus()),
-                SizedBox(width: compact ? 5 : 10),
-                _buildGardenMascot(
-                  width: compact ? 62 : 88,
-                  height: compact ? 88 : 116,
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildMinimap(mapSize),
+                      _buildGardenMascot(
+                        width: compact ? 76 : 88,
+                        height: compact ? 76 : 88,
+                      ),
+                      _buildSeedButton(),
+                    ],
+                  ),
                 ),
-                SizedBox(width: compact ? 4 : 8),
-                _buildSeedButton(),
-                SizedBox(width: compact ? 4 : 8),
-                _buildDockActions(),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(child: _buildConsoleStatus(compact: true)),
+                    const SizedBox(width: 8),
+                    _RoundButton(
+                      key: const ValueKey('arcade-pause-button'),
+                      icon: Icons.pause_rounded,
+                      tooltip: '暫停',
+                      onPressed: _engine.phase == ArcadePhase.running
+                          ? _pauseGame
+                          : null,
+                    ),
+                    const SizedBox(width: 6),
+                    _RoundButton(
+                      key: const ValueKey('arcade-exit-button'),
+                      icon: Icons.close_rounded,
+                      tooltip: '離開遊戲',
+                      onPressed: () => unawaited(_requestExit()),
+                    ),
+                  ],
+                ),
               ],
             );
           },
@@ -855,8 +954,8 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         child: LayoutBuilder(
           builder: (_, box) {
             final mascotHeight = compact
-                ? 76.0
-                : math.min(186.0, box.maxHeight * 0.38);
+                ? 68.0
+                : math.min(172.0, box.maxHeight * 0.34);
             return Column(
               children: [
                 _buildGardenMascot(
@@ -864,17 +963,34 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
                   height: mascotHeight,
                 ),
                 SizedBox(height: compact ? 3 : 10),
-                _buildConsoleStatus(),
+                _buildConsoleStatus(compact: compact),
                 const Spacer(),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildMinimap(compact ? 58 : 76),
-                    const SizedBox(width: 8),
+                    _buildMinimap(compact ? 58 : 82),
                     _buildSeedButton(),
-                    const SizedBox(width: 8),
-                    _buildDockActions(),
+                  ],
+                ),
+                SizedBox(height: compact ? 3 : 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _RoundButton(
+                      key: const ValueKey('arcade-pause-button'),
+                      icon: Icons.pause_rounded,
+                      tooltip: '暫停',
+                      onPressed: _engine.phase == ArcadePhase.running
+                          ? _pauseGame
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    _RoundButton(
+                      key: const ValueKey('arcade-exit-button'),
+                      icon: Icons.close_rounded,
+                      tooltip: '離開遊戲',
+                      onPressed: () => unawaited(_requestExit()),
+                    ),
                   ],
                 ),
               ],
@@ -907,30 +1023,11 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             engine: _engine,
             cameraX: _cameraX,
             cameraY: _cameraY,
+            viewportColumns: _viewportColumns,
+            viewportRows: _viewportRows,
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildDockActions() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _RoundButton(
-          key: const ValueKey('arcade-pause-button'),
-          icon: Icons.pause_rounded,
-          tooltip: '暫停',
-          onPressed: _engine.phase == ArcadePhase.running ? _pauseGame : null,
-        ),
-        const SizedBox(height: 6),
-        _RoundButton(
-          key: const ValueKey('arcade-exit-button'),
-          icon: Icons.close_rounded,
-          tooltip: '離開遊戲',
-          onPressed: () => unawaited(_requestExit()),
-        ),
-      ],
     );
   }
 
@@ -939,24 +1036,27 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
       key: const ValueKey('arcade-mascot'),
       width: width,
       height: height,
-      child: ValueListenableBuilder<MascotState>(
-        valueListenable: MascotPersona.current,
-        builder: (_, state, _) => ValueListenableBuilder<String>(
-          valueListenable: WardrobeStore.selectedOutfit,
-          builder: (_, outfitId, _) => FittedBox(
-            alignment: Alignment.bottomCenter,
-            child: MascotStage(
-              asset: skinnedMascotAsset(
-                _gameMascotEmotion?.assetPath ?? state.assetPath,
-                outfitById(outfitId).skinKey,
+      child: IgnorePointer(
+        child: ValueListenableBuilder<MascotState>(
+          valueListenable: MascotPersona.current,
+          builder: (_, state, _) => ValueListenableBuilder<String>(
+            valueListenable: WardrobeStore.selectedOutfit,
+            builder: (_, outfitId, _) => FittedBox(
+              alignment: Alignment.bottomCenter,
+              child: MascotStage(
+                asset: skinnedMascotAsset(
+                  _gameMascotEmotion?.assetPath ?? state.assetPath,
+                  outfitById(outfitId).skinKey,
+                ),
+                accent: kGameAccent,
+                bubble: state.bubble,
+                bubbleTick: state.bubbleTick,
+                reactionTick: _mascotReactionTick,
+                onTap: () => MascotPersona.interact(MascotContext.tapReaction),
+                onHeadPet: () => MascotPersona.interact(MascotContext.headPet),
+                onEnergize: () =>
+                    MascotPersona.interact(MascotContext.energize),
               ),
-              accent: kGameAccent,
-              bubble: state.bubble,
-              bubbleTick: state.bubbleTick,
-              reactionTick: _mascotReactionTick,
-              onTap: () => MascotPersona.interact(MascotContext.tapReaction),
-              onHeadPet: () => MascotPersona.interact(MascotContext.headPet),
-              onEnergize: () => MascotPersona.interact(MascotContext.energize),
             ),
           ),
         ),
@@ -964,7 +1064,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     );
   }
 
-  Widget _buildConsoleStatus() {
+  Widget _buildConsoleStatus({bool compact = false}) {
     final children = <Widget>[];
     final abilityBadges = <Widget>[
       if (_engine.carrotMagnetLevel > 0)
@@ -989,10 +1089,25 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
           color: ArcadePalette.huntBody,
         ),
       );
-    } else {
+    } else if (compact && _engine.laserActive) {
       children.add(
         _ConsoleBar(
-          label: '下次能力',
+          label: '三排雷射',
+          trailing: '${(_engine.laserMsLeft / 1000).ceil()}s',
+          progress: _engine.laserMsLeft / SnakeArcadeEngine.laserDurationMs,
+          color: ArcadePalette.huntBody,
+        ),
+      );
+    } else {
+      final compactPowers = <String>[
+        if (_engine.carrotMagnetLevel > 0) '吸${_engine.carrotMagnetLevel}',
+        if (_engine.rapidSeedStacks > 0) '速${_engine.rapidSeedStacks}',
+      ];
+      children.add(
+        _ConsoleBar(
+          label: compact && compactPowers.isNotEmpty
+              ? '能力 ${compactPowers.join(' · ')}'
+              : '下次能力',
           trailing: '${_engine.physicalCount}/${_engine.nextAbilityAt}',
           progress: _engine.nextAbilityAt == 0
               ? 0
@@ -1001,6 +1116,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         ),
       );
     }
+    if (compact) return children.first;
     children.add(const SizedBox(height: 8));
     children.add(
       abilityBadges.isEmpty

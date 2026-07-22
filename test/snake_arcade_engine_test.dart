@@ -57,6 +57,20 @@ void main() {
     expect(engine.head, ArcadePoint(start.x - 1, start.y - 1));
   });
 
+  test('畫面插值保留上一步姿勢，並在下一個節拍前完成移動', () {
+    final engine = _engine()..enqueueDirection(ArcadeDirection.right);
+    final oldBody = engine.body;
+    engine.advance(engine.stepIntervalMs);
+
+    expect(engine.previousBody, oldBody);
+    expect(engine.head.x, oldBody.first.x + 1);
+    expect(engine.snakeRenderProgress, 0);
+
+    engine.advance((engine.stepIntervalMs * 0.39).round());
+    expect(engine.snakeRenderProgress, closeTo(0.5, 0.03));
+    expect(engine.head.x, oldBody.first.x + 1); // 規則位置不受動畫影響。
+  });
+
   test('吃胡蘿蔔：積分、實體數、長度分開累計，並補生到至少 3 顆', () {
     final engine = _engine()..enqueueDirection(ArcadeDirection.right);
     _eatAhead(engine);

@@ -120,6 +120,30 @@ void main() {
     );
   });
 
+  test('鏡頭安全區內不移動，蛇頭跨界後只補足超出的距離', () {
+    final inside = snakeArcadeCameraTarget(
+      cameraX: 10,
+      cameraY: 8,
+      headX: 18,
+      headY: 17,
+      viewportColumns: 15,
+      viewportRows: 18,
+    );
+    expect(inside.x, 10);
+    expect(inside.y, 8);
+
+    final outside = snakeArcadeCameraTarget(
+      cameraX: 10,
+      cameraY: 8,
+      headX: 22,
+      headY: 18,
+      viewportColumns: 15,
+      viewportRows: 18,
+    );
+    expect(outside.x, 11); // 水平安全區右界是畫面內第 11 格。
+    expect(outside.y, 8); // 垂直仍在安全區內，不連帶重置。
+  });
+
   testWidgets('進場等待滑動；滑動後才開始移動', (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
@@ -154,6 +178,16 @@ void main() {
         find.byKey(const ValueKey('arcade-mascot')),
       );
       expect(board.top, lessThan(mascot.top), reason: '$size 應為上下版型');
+      expect(
+        board.height,
+        greaterThan(board.width),
+        reason: '$size 應使用直向長方形視野',
+      );
+      expect(
+        find.byKey(const ValueKey('snake-arcade-minimap')),
+        findsOneWidget,
+        reason: '$size 手機／平板都要常駐小地圖',
+      );
       expect(mascot.bottom, lessThanOrEqualTo(size.height));
       expect(tester.takeException(), isNull, reason: '$size 不應 overflow');
     }
@@ -169,6 +203,11 @@ void main() {
         find.byKey(const ValueKey('arcade-mascot')),
       );
       expect(board.left, lessThan(mascot.left), reason: '$size 應為左右版型');
+      expect(
+        find.byKey(const ValueKey('snake-arcade-minimap')),
+        findsOneWidget,
+        reason: '$size 橫向也要常駐小地圖',
+      );
       expect(mascot.bottom, lessThanOrEqualTo(size.height));
       expect(tester.takeException(), isNull, reason: '$size 不應 overflow');
     }

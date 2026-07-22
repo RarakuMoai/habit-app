@@ -78,6 +78,7 @@ enum ArcadeMoleState { telegraph, active }
 
 class ArcadeMole {
   ArcadePoint cell;
+  ArcadePoint previousCell;
   ArcadeDirection facing;
   ArcadeMoleState state;
   int telegraphMsLeft;
@@ -87,13 +88,16 @@ class ArcadeMole {
     required this.facing,
     this.state = ArcadeMoleState.telegraph,
     this.telegraphMsLeft = SnakeArcadeEngine.moleTelegraphMs,
-  });
+    ArcadePoint? previousCell,
+  }) : previousCell = previousCell ?? cell;
 }
 
 class ArcadeBullet {
   ArcadePoint cell;
+  ArcadePoint previousCell;
   final ArcadeDirection direction;
-  ArcadeBullet(this.cell, this.direction);
+  ArcadeBullet(this.cell, this.direction, {ArcadePoint? previousCell})
+    : previousCell = previousCell ?? cell;
 }
 
 enum ArcadeAbility {
@@ -198,6 +202,7 @@ class SnakeArcadeEngine {
 
   // ── 蛇 ─────────────────────────────────────────────────
   final List<ArcadePoint> _body = [];
+  final List<ArcadePoint> _previousBody = [];
   ArcadeDirection _direction = ArcadeDirection.right;
   bool _hasMoved = false; // 復活後長度 1 時任何方向都合法
   int _pendingGrowth = 0;
@@ -254,6 +259,7 @@ class SnakeArcadeEngine {
     for (var i = 0; i < initialLength; i++) {
       _body.add(ArcadePoint(center - i, center));
     }
+    _previousBody.addAll(_body);
     _direction = ArcadeDirection.right;
     _moleSpawnIn = _nextMoleSpawnDelay();
     _magnetFruitSpawnIn = _nextMagnetFruitSpawnDelay();
@@ -266,6 +272,7 @@ class SnakeArcadeEngine {
   ArcadePhase get phase => _phase;
   ArcadeWaitReason get waitReason => _waitReason;
   List<ArcadePoint> get body => List.unmodifiable(_body);
+  List<ArcadePoint> get previousBody => List.unmodifiable(_previousBody);
   ArcadePoint get head => _body.first;
   ArcadeDirection get direction => _direction;
   List<ArcadeCollectible> get collectibles => List.unmodifiable(_collectibles);
@@ -310,6 +317,18 @@ class SnakeArcadeEngine {
   int get shotKills => _shotKills;
   int get shootCooldownLeftMs => _shootCooldownLeft;
   int get shootCooldownTotalMs => _currentShootCooldown();
+  double get snakeRenderProgress => _phase == ArcadePhase.running
+      ? (_snakeAcc / (stepIntervalMs * 0.78)).clamp(0.0, 1.0)
+      : 1;
+  double get moleRenderProgress => _phase == ArcadePhase.running
+      ? (_moleAcc / ((_huntActive ? moleHuntStepMs : moleStepMs) * 0.78)).clamp(
+          0.0,
+          1.0,
+        )
+      : 1;
+  double get bulletRenderProgress => _phase == ArcadePhase.running
+      ? (_bulletAcc / (bulletStepMs * 0.82)).clamp(0.0, 1.0)
+      : 1;
   bool get canShoot =>
       _phase == ArcadePhase.running &&
       !_huntActive &&
@@ -364,7 +383,7 @@ class SnakeArcadeEngine {
     if (hit != null) {
       _killMoleByShot(hit);
     } else {
-      _bullets.add(ArcadeBullet(target, _direction));
+      _bullets.add(ArcadeBullet(target, _direction, previousCell: head));
     }
     _events.add(ArcadeEvent.shot);
     return true;
@@ -584,6 +603,9 @@ class SnakeArcadeEngine {
       }
     }
 
+    _previousBody
+      ..clear()
+      ..addAll(_body);
     _body.insert(0, target);
     if (_pendingGrowth > 0) {
       _pendingGrowth--;
@@ -851,6 +873,7 @@ class SnakeArcadeEngine {
           continue;
         }
         mole.cell = relocated;
+        mole.previousCell = relocated;
         mole.telegraphMsLeft = moleTelegraphMs;
         continue;
       }
@@ -865,8 +888,10 @@ class SnakeArcadeEngine {
         continue;
       }
       if (_huntActive) {
+        mole.previousCell = mole.cell;
         _fleeStep(mole);
       } else {
+        mole.previousCell = mole.cell;
         _wanderStep(mole);
       }
       // 鼴鼠自己走進種子所在格也算被命中（與種子前進命中互補）。
@@ -988,6 +1013,7 @@ class SnakeArcadeEngine {
         _killMoleByShot(mole);
         continue;
       }
+      bullet.previousCell = bullet.cell;
       bullet.cell = target;
     }
   }
@@ -1034,6 +1060,7 @@ class SnakeArcadeEngine {
       }
       mole
         ..cell = cell
+        ..previousCell = cell
         ..state = ArcadeMoleState.active
         ..telegraphMsLeft = 0;
       _moles.add(mole);
@@ -1117,6 +1144,9 @@ class SnakeArcadeEngine {
     final keptLength = math.max(initialLength, length ~/ 2);
     final spot = _findReviveSpot();
     _body
+      ..clear()
+      ..add(spot);
+    _previousBody
       ..clear()
       ..add(spot);
     _pendingGrowth = keptLength - 1;
