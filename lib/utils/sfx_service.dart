@@ -29,17 +29,23 @@ enum SfxCue {
   tumiJump('assets/sounds/sfx_tumi_jump.wav', 0.72),
   // 只取 swish 最前方乾淨毛茸段，首尾交叉淡化成 0.64 秒無縫循環。
   tumiPet('assets/sounds/sfx_tumi_pet.wav', 0.78),
-  // 菜園小蛇專屬：短音色各自對應遊戲語意，不借用棋鐘／骰子／一般 UI 聲。
-  snakeStart('assets/sounds/sfx_snake_start.wav', 0.70),
-  snakeCollect('assets/sounds/sfx_snake_collect.wav', 0.58),
-  snakeBonus('assets/sounds/sfx_snake_bonus.wav', 0.72),
-  snakePower('assets/sounds/sfx_snake_power.wav', 0.68),
-  snakeSeed('assets/sounds/sfx_snake_seed.wav', 0.46),
-  snakeHit('assets/sounds/sfx_snake_hit.wav', 0.68),
-  snakeHunt('assets/sounds/sfx_snake_hunt.wav', 0.72),
-  snakeWarning('assets/sounds/sfx_snake_warning.wav', 0.54),
-  snakeGameOver('assets/sounds/sfx_snake_game_over.wav', 0.76),
-  snakeRevive('assets/sounds/sfx_snake_revive.wav', 0.72),
+  // 菜園小蛇 V2：暖木質起音＋柔和掌機三角波。高頻動作刻意短且小聲，
+  // 升級／復活才保留旋律尾韻；特殊能力各有獨立語意，不再共用泛用音效。
+  snakeStart('assets/sounds/sfx_snake_start.wav', 0.62),
+  snakeCollect('assets/sounds/sfx_snake_collect.wav', 0.42),
+  snakeBonus('assets/sounds/sfx_snake_bonus.wav', 0.62),
+  snakePower('assets/sounds/sfx_snake_power.wav', 0.58),
+  snakeSeed('assets/sounds/sfx_snake_seed.wav', 0.35),
+  snakeHit('assets/sounds/sfx_snake_hit.wav', 0.55),
+  snakeHunt('assets/sounds/sfx_snake_hunt.wav', 0.64),
+  snakeWarning('assets/sounds/sfx_snake_warning.wav', 0.42),
+  snakeGameOver('assets/sounds/sfx_snake_game_over.wav', 0.65),
+  snakeRevive('assets/sounds/sfx_snake_revive.wav', 0.62),
+  snakeMagnetSpawn('assets/sounds/sfx_snake_magnet_spawn.wav', 0.42),
+  snakeMagnetVacuum('assets/sounds/sfx_snake_magnet_vacuum.wav', 0.62),
+  snakeLaserCharge('assets/sounds/sfx_snake_laser_charge.wav', 0.50),
+  snakeLaserShot('assets/sounds/sfx_snake_laser_shot.wav', 0.42),
+  snakeMoleRise('assets/sounds/sfx_snake_mole_rise.wav', 0.48),
   // 桌遊計時器專屬（ElevenLabs 生成、剪裁後 peak 對齊上面同類音效）
   gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人
   gameWarn('assets/sounds/sfx_game_warn.wav', 0.85), // 木質 tick：倒數警示

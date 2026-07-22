@@ -37,6 +37,8 @@ abstract final class ArcadePalette {
   static const gold = Color(0xFFE3B23A);
   static const magnet = Color(0xFFB65D86);
   static const magnetGlow = Color(0xFFF2B7D0);
+  static const laser = Color(0xFFFFF2A8);
+  static const laserGlow = Color(0xFFE8B84E);
 
   static const mole = Color(0xFF7B5A46);
   static const moleLight = Color(0xFF9C7A64);
@@ -211,6 +213,52 @@ class SnakeArcadeBoardPainter extends CustomPainter {
         RRect.fromRectAndRadius(rect, Radius.circular(rect.width * 0.45)),
         seedPaint,
       );
+    }
+
+    // ── 三排雷射（140ms 短閃；三條路徑直接把能力範圍說清楚）──
+    if (engine.laserFlashMsLeft > 0) {
+      final alpha =
+          engine.laserFlashMsLeft / SnakeArcadeEngine.laserFlashDurationMs;
+      final (dx, dy) = switch (engine.direction) {
+        ArcadeDirection.up => (0, -1),
+        ArcadeDirection.down => (0, 1),
+        ArcadeDirection.left => (-1, 0),
+        ArcadeDirection.right => (1, 0),
+      };
+      final (px, py) = (-dy, dx);
+      for (var lane = -1; lane <= 1; lane++) {
+        final startX = engine.head.x + 0.5 + px * lane;
+        final startY = engine.head.y + 0.5 + py * lane;
+        if (startX < 0 || startX >= world || startY < 0 || startY >= world) {
+          continue;
+        }
+        final endX = (startX + dx * SnakeArcadeEngine.laserRange).clamp(
+          0.5,
+          world - 0.5,
+        );
+        final endY = (startY + dy * SnakeArcadeEngine.laserRange).clamp(
+          0.5,
+          world - 0.5,
+        );
+        final start = toScreen(startX, startY);
+        final end = toScreen(endX, endY);
+        canvas.drawLine(
+          start,
+          end,
+          Paint()
+            ..color = ArcadePalette.laserGlow.withValues(alpha: alpha * 0.42)
+            ..strokeWidth = cell * 0.76
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawLine(
+          start,
+          end,
+          Paint()
+            ..color = ArcadePalette.laser.withValues(alpha: alpha * 0.92)
+            ..strokeWidth = cell * 0.22
+            ..strokeCap = StrokeCap.round,
+        );
+      }
     }
 
     // ── 蛇（尾到頭，讓頭壓在最上面）──

@@ -123,6 +123,7 @@ enum ArcadeEvent {
   magnetFruitSpawned,
   magnetFruitCollected,
   abilityOffered,
+  molesUnlocked,
   shot,
   laserStarted,
   laserShot,
@@ -180,6 +181,7 @@ class SnakeArcadeEngine {
   static const int laserDurationMs = 10000;
   static const int laserCooldownMs = 900;
   static const int laserRange = 12;
+  static const int laserFlashDurationMs = 140;
   static const int magnetFruitUnlockAt = 8;
   static const int magnetFruitSpawnBaseMs = 30000;
   static const int magnetFruitSpawnJitterMs = 15000;
@@ -218,6 +220,7 @@ class SnakeArcadeEngine {
   int _rapidSeedStacks = 0;
   int _carrotMagnetLevel = 0;
   int _laserMsLeft = 0;
+  int _laserFlashMsLeft = 0;
   int _abilityRounds = 0;
   int _nextAbilityAt = firstAbilityAt;
   List<ArcadeAbility> _offeredAbilities = const [];
@@ -281,6 +284,7 @@ class SnakeArcadeEngine {
   int get carrotMagnetLevel => _carrotMagnetLevel;
   int get laserMsLeft => _laserMsLeft;
   bool get laserActive => _laserMsLeft > 0;
+  int get laserFlashMsLeft => _laserFlashMsLeft;
   int get carrotFloor => switch (_physicalCount) {
     >= 50 => maxCarrotFloor,
     >= 30 => 5,
@@ -379,6 +383,7 @@ class SnakeArcadeEngine {
 
   bool _shootLaser() {
     _shootCooldownLeft = laserCooldownMs;
+    _laserFlashMsLeft = laserFlashDurationMs;
     final hits = _moles.where((mole) {
       if (mole.state != ArcadeMoleState.active) return false;
       final dx = mole.cell.x - head.x;
@@ -513,6 +518,9 @@ class SnakeArcadeEngine {
       _laserMsLeft = math.max(0, _laserMsLeft - _quantumMs);
       if (_laserMsLeft == 0) _events.add(ArcadeEvent.laserEnded);
     }
+    if (_laserFlashMsLeft > 0) {
+      _laserFlashMsLeft = math.max(0, _laserFlashMsLeft - _quantumMs);
+    }
     if (_shootCooldownLeft > 0) {
       _shootCooldownLeft = math.max(0, _shootCooldownLeft - _quantumMs);
     }
@@ -627,6 +635,7 @@ class SnakeArcadeEngine {
   }
 
   void _collectProduceBatch(List<ArcadeCollectible> items, {int? growthCap}) {
+    final hadMolesUnlocked = molesUnlocked;
     var growthAdded = 0;
     for (final item in items) {
       if (!_collectibles.remove(item)) continue;
@@ -652,6 +661,9 @@ class SnakeArcadeEngine {
             ? ArcadeEvent.ateGold
             : ArcadeEvent.ateCarrot,
       );
+    }
+    if (!hadMolesUnlocked && molesUnlocked) {
+      _events.add(ArcadeEvent.molesUnlocked);
     }
     _refillCarrots();
     if (_phase == ArcadePhase.running && _physicalCount >= _nextAbilityAt) {

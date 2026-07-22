@@ -232,6 +232,15 @@ void main() {
     expect(SnakeArcadeEngine.moleSpawnJitterMs, 3000);
   });
 
+  test('第 15 顆會送出鼴鼠解鎖事件', () {
+    final engine = _engine()
+      ..debugSetPhysicalCount(14)
+      ..debugClearCollectibles()
+      ..enqueueDirection(ArcadeDirection.right);
+    _eatAhead(engine);
+    expect(engine.takeEvents(), contains(ArcadeEvent.molesUnlocked));
+  });
+
   test('鼴鼠漫遊不再長時間貼邊', () {
     final engine = _engine()
       ..debugClearCollectibles()
@@ -526,13 +535,15 @@ void main() {
     );
 
     expect(engine.shoot(), isTrue);
+    expect(engine.laserFlashMsLeft, SnakeArcadeEngine.laserFlashDurationMs);
     expect(engine.shotKills, 3);
     expect(engine.moles, hasLength(2));
     expect(engine.takeEvents(), contains(ArcadeEvent.laserShot));
     expect(engine.shootCooldownTotalMs, SnakeArcadeEngine.laserCooldownMs);
 
     engine.debugSetLaserMsLeft(5);
-    engine.advance(5);
+    engine.advance(SnakeArcadeEngine.laserFlashDurationMs);
+    expect(engine.laserFlashMsLeft, 0);
     expect(engine.laserActive, isFalse);
     expect(engine.takeEvents(), contains(ArcadeEvent.laserEnded));
   });

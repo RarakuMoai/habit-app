@@ -72,6 +72,11 @@ void main() {
       SfxCue.snakeWarning,
       SfxCue.snakeGameOver,
       SfxCue.snakeRevive,
+      SfxCue.snakeMagnetSpawn,
+      SfxCue.snakeMagnetVacuum,
+      SfxCue.snakeLaserCharge,
+      SfxCue.snakeLaserShot,
+      SfxCue.snakeMoleRise,
     ];
     expect(cues.map((cue) => cue.assetPath).toSet(), hasLength(cues.length));
     for (final cue in cues) {
@@ -103,13 +108,23 @@ void main() {
       ])?.cue,
       SfxCue.snakePower,
     );
+    expect(
+      snakeArcadeFeedbackForEvents(const [
+        ArcadeEvent.magnetFruitCollected,
+      ])?.cue,
+      SfxCue.snakeMagnetVacuum,
+    );
+    expect(
+      snakeArcadeFeedbackForEvents(const [ArcadeEvent.laserShot])?.cue,
+      SfxCue.snakeLaserShot,
+    );
   });
 
   testWidgets('進場等待滑動；滑動後才開始移動', (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
 
-    expect(find.text('滑動開始探索'), findsOneWidget);
+    expect(find.text('全螢幕滑動開始'), findsOneWidget);
     final headBefore = engine.head;
     await _run(tester, 600);
     expect(engine.head, headBefore); // 不滑不動
@@ -117,7 +132,7 @@ void main() {
     await _swipe(tester, const Offset(0, -40));
     await _run(tester, 400);
     expect(engine.head.y, lessThan(headBefore.y));
-    expect(find.text('滑動開始探索'), findsNothing);
+    expect(find.text('全螢幕滑動開始'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -244,7 +259,7 @@ void main() {
     );
     await tester.pump();
     expect(engine, isNot(same(previous)));
-    expect(find.text('滑動開始探索'), findsOneWidget);
+    expect(find.text('全螢幕滑動開始'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -270,6 +285,24 @@ void main() {
     final head = engine.head;
     await _run(tester, 800);
     expect(engine.head, head);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('第 15 顆會顯示鼴鼠與下方種子鈕引導', (tester) async {
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+    engine
+      ..debugSetPhysicalCount(14)
+      ..debugClearCollectibles()
+      ..debugPlaceCollectible(
+        engine.head.move(ArcadeDirection.right),
+        ArcadeCollectibleType.carrot,
+      );
+
+    await _swipe(tester, const Offset(40, 0));
+    await _run(tester, 400);
+    expect(find.text('鼴鼠來了！用下方種子鈕反擊'), findsOneWidget);
+    expect(find.byKey(const ValueKey('arcade-notice')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -314,7 +347,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('arcade-retry-button')));
     await tester.pump();
-    expect(find.text('滑動開始探索'), findsOneWidget);
+    expect(find.text('全螢幕滑動開始'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

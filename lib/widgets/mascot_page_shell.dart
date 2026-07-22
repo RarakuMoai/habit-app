@@ -140,8 +140,8 @@ class _MascotPageShellState extends State<MascotPageShell> {
     _openSnakeArcade();
   }
 
-  /// 菜園小蛇是全螢幕彩蛋：蓋掉場景、AppBar 與分頁列，遊戲中兔咪隱藏。
-  /// 關閉 overlay 即回到觸發前的頁面與狀態。
+  /// 菜園小蛇是全螢幕彩蛋：蓋掉場景、AppBar 與分頁列，並把目前兔咪縮進
+  /// 遊戲操作台陪玩。關閉 overlay 即回到觸發前的頁面與狀態。
   void _openSnakeArcade() {
     if (_snakeEggOpen || !mounted) return;
     final switchingFromDice = _diceDuelEntry != null;

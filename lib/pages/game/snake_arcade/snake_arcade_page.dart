@@ -50,7 +50,13 @@ import 'snake_arcade_records.dart';
     return (cue: SfxCue.snakeBonus, haptic: HapticLevel.medium);
   }
   if (set.contains(ArcadeEvent.magnetFruitCollected)) {
-    return (cue: SfxCue.snakeBonus, haptic: HapticLevel.medium);
+    return (cue: SfxCue.snakeMagnetVacuum, haptic: HapticLevel.medium);
+  }
+  if (set.contains(ArcadeEvent.magnetFruitSpawned)) {
+    return (cue: SfxCue.snakeMagnetSpawn, haptic: HapticLevel.light);
+  }
+  if (set.contains(ArcadeEvent.molesUnlocked)) {
+    return (cue: SfxCue.snakeMoleRise, haptic: HapticLevel.medium);
   }
   if (set.contains(ArcadeEvent.abilityOffered)) {
     return (cue: SfxCue.snakePower, haptic: HapticLevel.light);
@@ -59,10 +65,10 @@ import 'snake_arcade_records.dart';
     return (cue: SfxCue.snakeHunt, haptic: HapticLevel.medium);
   }
   if (set.contains(ArcadeEvent.laserStarted)) {
-    return (cue: SfxCue.snakePower, haptic: HapticLevel.medium);
+    return (cue: SfxCue.snakeLaserCharge, haptic: HapticLevel.medium);
   }
   if (set.contains(ArcadeEvent.laserShot)) {
-    return (cue: SfxCue.snakeSeed, haptic: HapticLevel.light);
+    return (cue: SfxCue.snakeLaserShot, haptic: HapticLevel.light);
   }
   if (set.contains(ArcadeEvent.ateFiveFold)) {
     return (cue: SfxCue.snakePower, haptic: HapticLevel.medium);
@@ -239,6 +245,11 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   double _cameraX = 0;
   double _cameraY = 0;
   double _pulse = 0;
+  String? _notice;
+  Timer? _noticeTimer;
+  MascotEmotion? _gameMascotEmotion;
+  int _mascotReactionTick = 0;
+  Timer? _mascotReactionTimer;
 
   SharedPreferences? _prefs;
   SnakeArcadeRecords _records = SnakeArcadeRecords.empty();
@@ -277,6 +288,8 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     MiniGameSession.unregister(this);
     _ticker.dispose();
     _frame.dispose();
+    _noticeTimer?.cancel();
+    _mascotReactionTimer?.cancel();
     _nameController.dispose();
     super.dispose();
   }
@@ -336,9 +349,32 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     _cameraY = clampCamera(_engine.head.y + 0.5 - kArcadeViewportCells / 2);
   }
 
+  void _showNotice(
+    String text, {
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    _notice = text;
+    _noticeTimer?.cancel();
+    _noticeTimer = Timer(duration, () {
+      if (!mounted || _notice != text) return;
+      setState(() => _notice = null);
+    });
+  }
+
+  void _reactMascot(MascotEmotion emotion) {
+    _gameMascotEmotion = emotion;
+    _mascotReactionTick += 1;
+    _mascotReactionTimer?.cancel();
+    _mascotReactionTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (!mounted || _gameMascotEmotion != emotion) return;
+      setState(() => _gameMascotEmotion = null);
+    });
+  }
+
   void _handleEvents() {
     final events = _engine.takeEvents();
     if (events.isEmpty) return;
+    final eventSet = events.toSet();
     final feedback = snakeArcadeFeedbackForEvents(events);
     if (feedback != null) {
       playFeedback(feedback.cue, haptic: feedback.haptic);
@@ -351,33 +387,66 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         case ArcadeEvent.ateCarrot:
           needsSetState = true;
         case ArcadeEvent.ateGold:
+          _reactMascot(MascotEmotion.smile);
           needsSetState = true;
         case ArcadeEvent.ateFiveFold:
+          _reactMascot(MascotEmotion.popHappy);
           needsSetState = true;
         case ArcadeEvent.carrotPulled:
+          needsSetState = true;
         case ArcadeEvent.magnetFruitSpawned:
+          _showNotice('磁力果實出現！吃下去吸光全場');
+          _reactMascot(MascotEmotion.expect);
+          needsSetState = true;
         case ArcadeEvent.magnetFruitCollected:
+          _showNotice('全場收割！蘿蔔全算，成長最多 4 格');
+          _reactMascot(MascotEmotion.popHappy);
           needsSetState = true;
         case ArcadeEvent.abilityOffered:
+          if (!eventSet.contains(ArcadeEvent.molesUnlocked) &&
+              !eventSet.contains(ArcadeEvent.magnetFruitCollected)) {
+            _showNotice('能力到了！選一個再滑動繼續');
+            _reactMascot(MascotEmotion.expect);
+          }
+          needsSetState = true;
+        case ArcadeEvent.molesUnlocked:
+          _showNotice('鼴鼠來了！用下方種子鈕反擊');
+          _reactMascot(MascotEmotion.question);
           needsSetState = true;
         case ArcadeEvent.shot:
+          needsSetState = true;
         case ArcadeEvent.laserStarted:
+          _showNotice('三排雷射啟動｜10 秒');
+          _reactMascot(MascotEmotion.happy);
+          needsSetState = true;
         case ArcadeEvent.laserShot:
+          needsSetState = true;
         case ArcadeEvent.laserEnded:
+          _showNotice('雷射結束，恢復種子射擊');
+          needsSetState = true;
         case ArcadeEvent.moleKilled:
+          _reactMascot(MascotEmotion.smile);
           needsSetState = true;
         case ArcadeEvent.huntStarted:
+          _showNotice('狩獵時刻｜20 秒內追到 3 隻');
+          _reactMascot(MascotEmotion.expect);
           needsSetState = true;
         case ArcadeEvent.huntWarnTick:
+          needsSetState = true;
         case ArcadeEvent.huntFull:
+          _showNotice('三隻達成！獲得狩獵加碼');
+          _reactMascot(MascotEmotion.popHappy);
           needsSetState = true;
         case ArcadeEvent.huntEnded:
           if (feedback == null) playHaptic(HapticLevel.light);
           needsSetState = true;
         case ArcadeEvent.died:
+          _reactMascot(MascotEmotion.sad);
           needsSetState = true;
         case ArcadeEvent.revived:
           _snapCamera();
+          _showNotice('兔咪把你帶回安全位置了');
+          _reactMascot(MascotEmotion.happy);
           needsSetState = true;
         case ArcadeEvent.gameOver:
           _onGameOver();
@@ -516,6 +585,10 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   void _restart() {
     _engine = widget.engineBuilder?.call() ?? SnakeArcadeEngine();
+    _noticeTimer?.cancel();
+    _notice = null;
+    _mascotReactionTimer?.cancel();
+    _gameMascotEmotion = null;
     _finishRecorded = false;
     _resultRegistered = false;
     _showBoards = false;
@@ -727,6 +800,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
               if (_engine.phase == ArcadePhase.waiting)
                 _StartHint(reason: _engine.waitReason),
               if (_engine.huntActive) const _HuntBanner(),
+              if (_notice != null) _ArcadeNotice(text: _notice!),
             ],
           ),
         ),
@@ -873,13 +947,13 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             alignment: Alignment.bottomCenter,
             child: MascotStage(
               asset: skinnedMascotAsset(
-                state.assetPath,
+                _gameMascotEmotion?.assetPath ?? state.assetPath,
                 outfitById(outfitId).skinKey,
               ),
               accent: kGameAccent,
               bubble: state.bubble,
               bubbleTick: state.bubbleTick,
-              reactionTick: 0,
+              reactionTick: _mascotReactionTick,
               onTap: () => MascotPersona.interact(MascotContext.tapReaction),
               onHeadPet: () => MascotPersona.interact(MascotContext.headPet),
               onEnergize: () => MascotPersona.interact(MascotContext.energize),
@@ -892,6 +966,20 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   Widget _buildConsoleStatus() {
     final children = <Widget>[];
+    final abilityBadges = <Widget>[
+      if (_engine.carrotMagnetLevel > 0)
+        _TinyBadge(
+          label: '吸取 ${_engine.carrotMagnetLevel} 格',
+          color: ArcadePalette.magnet,
+        ),
+      if (_engine.rapidSeedStacks > 0)
+        _TinyBadge(label: '速射 ×${_engine.rapidSeedStacks}', color: kGameAccent),
+      if (_engine.laserActive)
+        _TinyBadge(
+          label: '雷射 ${(_engine.laserMsLeft / 1000).ceil()}s',
+          color: ArcadePalette.huntHead,
+        ),
+    ];
     if (_engine.huntActive) {
       children.add(
         _ConsoleBar(
@@ -915,20 +1003,18 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     }
     children.add(const SizedBox(height: 8));
     children.add(
-      Row(
-        children: [
-          Expanded(
-            child: Text(
+      abilityBadges.isEmpty
+          ? Text(
               _engine.molesUnlocked ? '按種子鈕趕走鼴鼠' : '收蘿蔔，長大一點',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppInk.soft,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
-            ),
-          ),
-        ],
-      ),
+            )
+          : Wrap(spacing: 4, runSpacing: 4, children: abilityBadges),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1306,7 +1392,7 @@ class _StartHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = switch (reason) {
-      ArcadeWaitReason.newGame => '滑動開始探索',
+      ArcadeWaitReason.newGame => '全螢幕滑動開始',
       ArcadeWaitReason.abilityPicked => '滑動繼續',
       ArcadeWaitReason.revived => '復活了，滑動繼續',
       ArcadeWaitReason.resumed => '滑動繼續',
@@ -1327,6 +1413,48 @@ class _StartHint extends StatelessWidget {
                 color: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArcadeNotice extends StatelessWidget {
+  const _ArcadeNotice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 10,
+      right: 10,
+      bottom: 10,
+      child: IgnorePointer(
+        child: Center(
+          child: DecoratedBox(
+            key: const ValueKey('arcade-notice'),
+            decoration: BoxDecoration(
+              color: const Color(0xEDFFF9E9),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: ArcadePalette.fenceLight),
+              boxShadow: AppShadows.flat,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: kGameAccentDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ),
