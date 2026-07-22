@@ -140,6 +140,76 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('點棋盤不再射擊；只有下方種子鍵會發射並進入冷卻', (tester) async {
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+    engine.debugSetPhysicalCount(SnakeArcadeEngine.moleUnlockAt);
+    await _swipe(tester, const Offset(0, -40));
+
+    await tester.tap(find.byKey(const ValueKey('snake-arcade-board')));
+    await tester.pump();
+    expect(engine.bullets, isEmpty);
+
+    await tester.tap(find.byKey(const ValueKey('arcade-seed-button')));
+    await tester.pump();
+    expect(engine.bullets, hasLength(1));
+    expect(engine.shootCooldownLeftMs, greaterThan(0));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('有進度離開會確認，取消後停在滑動繼續', (tester) async {
+    var closed = 0;
+    await tester.pumpWidget(_harness(onClose: () => closed++));
+    await tester.pump();
+    await _swipe(tester, const Offset(0, -40));
+
+    await tester.tap(find.byKey(const ValueKey('arcade-exit-button')));
+    await tester.pump();
+    expect(find.text('離開菜園小蛇？'), findsOneWidget);
+    expect(closed, 0);
+
+    await tester.tap(find.text('取消'));
+    await tester.pump();
+    expect(closed, 0);
+    expect(find.text('滑動繼續'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('arcade-exit-button')));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, '離開遊戲'));
+    await tester.pump();
+    expect(closed, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('有進度重新開始會先確認', (tester) async {
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+    await _swipe(tester, const Offset(0, -40));
+    final previous = engine;
+    await tester.tap(find.byKey(const ValueKey('arcade-pause-button')));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('arcade-restart-button')));
+    await tester.pump();
+    expect(find.text('重新開始？'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pump();
+    expect(engine, same(previous));
+
+    await tester.tap(find.byKey(const ValueKey('arcade-restart-button')));
+    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextButton, '重新開始'),
+      ),
+    );
+    await tester.pump();
+    expect(engine, isNot(same(previous)));
+    expect(find.text('滑動開始探索'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('第 5 顆蘿蔔跳三選一；選完要再滑動', (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
@@ -310,6 +380,49 @@ void main() {
     expect(find.byKey(const ValueKey('snake-arcade-page')), findsOneWidget);
     expect(tester.takeException(), isNull);
 
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('骰子彩蛋開啟時，上方三指長按會無縫切到菜園小蛇', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: MascotPageShell(
+            accent: Colors.green,
+            scene: ColoredBox(color: Colors.white),
+            child: Text('原本功能卡'),
+          ),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(MascotPageShell));
+    final diceA = await tester.createGesture(pointer: 81);
+    final diceB = await tester.createGesture(pointer: 82);
+    await diceA.down(origin + const Offset(120, 60));
+    await diceB.down(origin + const Offset(250, 60));
+    await tester.pump(const Duration(milliseconds: 1900));
+    await diceA.up();
+    await diceB.up();
+    await _pumpCurtainCycle(tester);
+    expect(find.byType(DiceDuelEgg), findsOneWidget);
+
+    final snakeA = await tester.createGesture(pointer: 83);
+    final snakeB = await tester.createGesture(pointer: 84);
+    final snakeC = await tester.createGesture(pointer: 85);
+    await snakeA.down(origin + const Offset(80, 60));
+    await snakeB.down(origin + const Offset(180, 60));
+    await snakeC.down(origin + const Offset(280, 60));
+    await tester.pump(const Duration(milliseconds: 1900));
+    await snakeA.up();
+    await snakeB.up();
+    await snakeC.up();
+    await _pumpCurtainCycle(tester);
+
+    expect(find.byType(DiceDuelEgg), findsNothing);
+    expect(find.byType(SnakeArcadeEgg), findsOneWidget);
+    expect(find.byKey(const ValueKey('snake-arcade-page')), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 }

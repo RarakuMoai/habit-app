@@ -97,6 +97,7 @@ class _MascotPageShellState extends State<MascotPageShell> {
   double _sceneRegionHeight = 0; // build 時記下，開彩蛋算面板頂緣用
 
   bool get _anyEggOpen => _diceDuelEntry != null || _snakeArcadeEntry != null;
+  bool get _snakeEggOpen => _snakeArcadeEntry != null;
 
   void _openDiceDuel() {
     if (_anyEggOpen || !mounted) return;
@@ -142,11 +143,16 @@ class _MascotPageShellState extends State<MascotPageShell> {
   /// 菜園小蛇是全螢幕彩蛋：蓋掉場景、AppBar 與分頁列，遊戲中兔咪隱藏。
   /// 關閉 overlay 即回到觸發前的頁面與狀態。
   void _openSnakeArcade() {
-    if (_anyEggOpen || !mounted) return;
+    if (_snakeEggOpen || !mounted) return;
+    final switchingFromDice = _diceDuelEntry != null;
     _markSceneActive();
     final entry = OverlayEntry(
-      builder: (_) =>
-          Positioned.fill(child: SnakeArcadeEgg(onClosed: _closeSnakeArcade)),
+      builder: (_) => Positioned.fill(
+        child: SnakeArcadeEgg(
+          onClosed: _closeSnakeArcade,
+          onCovered: switchingFromDice ? _closeDiceDuel : null,
+        ),
+      ),
     );
     _snakeArcadeEntry = entry;
     Overlay.of(context, rootOverlay: true).insert(entry);
@@ -250,7 +256,9 @@ class _MascotPageShellState extends State<MascotPageShell> {
                     child: TwoFingerEggDetector(
                       enabled: !_anyEggOpen && openValue > 0.85,
                       onTrigger: _openDiceDuel,
-                      threeFingerEnabled: !_anyEggOpen && openValue > 0.85,
+                      // 骰子面板只蓋場景下方；骰子開著時仍允許在上方
+                      // 以三指長按切進小蛇。小蛇窗簾蓋滿後才卸骰子，無閃屏。
+                      threeFingerEnabled: !_snakeEggOpen && openValue > 0.85,
                       onThreeFingerTrigger: _openThreeFingerEgg,
                       child: pauseScene
                           ? TickerMode(enabled: false, child: scene)

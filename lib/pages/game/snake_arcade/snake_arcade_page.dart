@@ -24,6 +24,7 @@ import '../../../utils/mini_game_session.dart';
 import '../../../utils/prefs_keys.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../utils/usage_stats.dart';
+import '../../../widgets/app_dialogs.dart';
 import '../../timer/game/table_timer_theme.dart'
     show kGameAccent, kGameAccentDark;
 import 'snake_arcade_engine.dart';
@@ -93,11 +94,16 @@ class SnakeArcadeEgg extends StatefulWidget {
   const SnakeArcadeEgg({
     super.key,
     required this.onClosed,
+    this.onCovered,
     this.engineBuilder,
     this.recordsClock,
   });
 
   final VoidCallback onClosed;
+
+  /// 開場窗簾第一次完全蓋住畫面時觸發。骰子彩蛋用這個時機卸載自己，
+  /// 玩家只會看到連續換景，不會閃回原頁面。
+  final VoidCallback? onCovered;
 
   /// 測試注入固定種子引擎用；正式彩蛋用時間種子。
   final SnakeArcadeEngine Function()? engineBuilder;
@@ -144,6 +150,7 @@ class _SnakeArcadeEggState extends State<SnakeArcadeEgg>
     try {
       await _curtain.forward().orCancel;
       if (!mounted) return;
+      widget.onCovered?.call();
       setState(() => _panelVisible = true);
       playFeedback(SfxCue.snakePower, haptic: HapticLevel.light);
       await _curtain.reverse().orCancel;
@@ -226,7 +233,6 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   /// 每幀 +1，只驅動棋盤／小地圖重畫，HUD 靠事件 setState。
   final ValueNotifier<int> _frame = ValueNotifier(0);
-  final GlobalKey _boardKey = GlobalKey();
 
   double _cameraX = 0;
   double _cameraY = 0;
@@ -242,8 +248,8 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   bool _finishRecorded = false;
   final TextEditingController _nameController = TextEditingController();
 
-  // 手勢：單指滑動轉向、棋盤內單點射擊（raw pointer 不參與 GestureArena，
-  // 不參與 GestureArena，按鈕照常可點）。
+  // 手勢：全螢幕單指滑動轉向。射擊只走下方種子按鈕，避免點棋盤
+  // 看物件或調整握姿時誤發。
   static const _swipeThreshold = 22.0;
   int? _activePointer;
   Offset? _origin;
@@ -418,18 +424,9 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   void _pointerUp(PointerUpEvent event) {
     if (event.pointer != _activePointer) return;
-    final tapped = !_swiped;
-    final position = event.position;
     _activePointer = null;
     _origin = null;
     _swiped = false;
-    if (!tapped) return;
-    // 只有落在棋盤內的單點才射擊，操作台與按鈕不誤發。
-    final box = _boardKey.currentContext?.findRenderObject();
-    if (box is! RenderBox || !box.hasSize) return;
-    final local = box.globalToLocal(position);
-    if (!(Offset.zero & box.size).contains(local)) return;
-    _engine.shoot();
   }
 
   void _pointerCancel(PointerCancelEvent event) {
@@ -456,6 +453,63 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     _engine.chooseAbility(index);
     playFeedback(SfxCue.snakeCollect, haptic: HapticLevel.light);
     setState(() {});
+  }
+
+  void _shoot() {
+    if (!_engine.shoot()) return;
+    setState(() {});
+  }
+
+  bool get _hasActiveProgress {
+    if (_engine.phase == ArcadePhase.gameOver) return false;
+    if (_engine.phase == ArcadePhase.waiting &&
+        _engine.waitReason == ArcadeWaitReason.newGame &&
+        _engine.physicalCount == 0 &&
+        _engine.score == 0) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _requestExit() async {
+    if (!_hasActiveProgress) {
+      widget.onClose();
+      return;
+    }
+    final pausedHere = _engine.pause();
+    if (pausedHere && mounted) setState(() {});
+    final leave = await showAppConfirmDialog(
+      context,
+      title: '離開菜園小蛇？',
+      message: '這一局的進度不會保留。',
+      confirmLabel: '離開遊戲',
+      danger: true,
+    );
+    if (!mounted) return;
+    if (leave) {
+      widget.onClose();
+      return;
+    }
+    if (pausedHere) {
+      _engine.leavePause();
+      setState(() {});
+    }
+  }
+
+  Future<void> _requestRestart() async {
+    if (!_hasActiveProgress) {
+      _restart();
+      return;
+    }
+    final restart = await showAppConfirmDialog(
+      context,
+      title: '重新開始？',
+      message: '目前這一局的分數與能力會清除。',
+      confirmLabel: '重新開始',
+      danger: true,
+    );
+    if (!mounted || !restart) return;
+    _restart();
   }
 
   void _restart() {
@@ -498,51 +552,57 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   @override
   Widget build(BuildContext context) {
     final phase = _engine.phase;
-    return Material(
-      key: const ValueKey('snake-arcade-page'),
-      color: _cream,
-      child: Listener(
-        key: const ValueKey('snake-arcade-input'),
-        behavior: HitTestBehavior.opaque,
-        onPointerDown: _pointerDown,
-        onPointerMove: _pointerMove,
-        onPointerUp: _pointerUp,
-        onPointerCancel: _pointerCancel,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            SafeArea(
-              child: LayoutBuilder(
-                builder: (context, box) {
-                  // 直式手機＝全寬正方形；其他比例（或極端小螢幕）以
-                  // 「高度扣掉 HUD 與操作台最小高」為上限，遊戲格不拉伸。
-                  final side = math.max(
-                    120.0,
-                    math.min(box.maxWidth - 20, box.maxHeight - 200),
-                  );
-                  return Column(
-                    children: [
-                      _buildHud(),
-                      _buildBoard(side),
-                      Expanded(child: _buildConsole()),
-                    ],
-                  );
-                },
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_requestExit());
+      },
+      child: Material(
+        key: const ValueKey('snake-arcade-page'),
+        color: _cream,
+        child: Listener(
+          key: const ValueKey('snake-arcade-input'),
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: _pointerDown,
+          onPointerMove: _pointerMove,
+          onPointerUp: _pointerUp,
+          onPointerCancel: _pointerCancel,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    // 直式手機＝全寬正方形；其他比例（或極端小螢幕）以
+                    // 「高度扣掉 HUD 與操作台最小高」為上限，遊戲格不拉伸。
+                    final side = math.max(
+                      120.0,
+                      math.min(box.maxWidth - 20, box.maxHeight - 200),
+                    );
+                    return Column(
+                      children: [
+                        _buildHud(),
+                        _buildBoard(side),
+                        Expanded(child: _buildConsole()),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-            if (phase == ArcadePhase.choosingAbility)
-              _AbilityOverlay(
-                abilities: _engine.offeredAbilities,
-                onPick: _chooseAbility,
-              ),
-            if (phase == ArcadePhase.paused)
-              _PauseOverlay(
-                onResume: _leavePause,
-                onRestart: _restart,
-                onExit: widget.onClose,
-              ),
-            if (phase == ArcadePhase.gameOver) _buildResultOverlay(),
-          ],
+              if (phase == ArcadePhase.choosingAbility)
+                _AbilityOverlay(
+                  abilities: _engine.offeredAbilities,
+                  onPick: _chooseAbility,
+                ),
+              if (phase == ArcadePhase.paused)
+                _PauseOverlay(
+                  onResume: _leavePause,
+                  onRestart: () => unawaited(_requestRestart()),
+                  onExit: () => unawaited(_requestExit()),
+                ),
+              if (phase == ArcadePhase.gameOver) _buildResultOverlay(),
+            ],
+          ),
         ),
       ),
     );
@@ -610,7 +670,6 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
       width: side,
       height: side,
       child: DecoratedBox(
-        key: _boardKey,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: ArcadePalette.fence, width: 2),
@@ -667,6 +726,8 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
           const SizedBox(width: 12),
           Expanded(child: _buildConsoleStatus()),
           const SizedBox(width: 10),
+          _buildSeedButton(),
+          const SizedBox(width: 8),
           Column(
             children: [
               _RoundButton(
@@ -682,7 +743,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
                 key: const ValueKey('arcade-exit-button'),
                 icon: Icons.close_rounded,
                 tooltip: '離開遊戲',
-                onPressed: widget.onClose,
+                onPressed: () => unawaited(_requestExit()),
               ),
             ],
           ),
@@ -720,7 +781,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         children: [
           Expanded(
             child: Text(
-              _engine.molesUnlocked ? '點棋盤吐種子趕鼴鼠' : '收蘿蔔，長大一點',
+              _engine.molesUnlocked ? '按種子鈕趕走鼴鼠' : '收蘿蔔，長大一點',
               style: const TextStyle(
                 color: AppInk.soft,
                 fontSize: 12,
@@ -728,31 +789,92 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
               ),
             ),
           ),
-          if (_engine.molesUnlocked)
-            ValueListenableBuilder<int>(
-              valueListenable: _frame,
-              builder: (_, _, _) {
-                final total = _engine.shootCooldownTotalMs;
-                final ready = _engine.shootCooldownLeftMs == 0;
-                return SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(
-                    value: total == 0
-                        ? 1
-                        : 1 - _engine.shootCooldownLeftMs / total,
-                    strokeWidth: 3,
-                    color: ready ? kGameAccent : AppInk.faint,
-                    backgroundColor: AppSurfaces.divider,
-                  ),
-                );
-              },
-            ),
         ],
       ),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
+    );
+  }
+
+  Widget _buildSeedButton() {
+    return ValueListenableBuilder<int>(
+      valueListenable: _frame,
+      builder: (_, _, _) {
+        final total = _engine.shootCooldownTotalMs;
+        final progress = total == 0
+            ? 1.0
+            : 1 - _engine.shootCooldownLeftMs / total;
+        final hunting = _engine.huntActive;
+        final unlocked = _engine.molesUnlocked;
+        final laser = _engine.laserActive;
+        final label = hunting
+            ? '狩獵中'
+            : laser
+            ? '雷射'
+            : '種子';
+        return SizedBox(
+          width: 64,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox.square(
+                dimension: 58,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox.square(
+                      dimension: 58,
+                      child: CircularProgressIndicator(
+                        value: progress.clamp(0.0, 1.0),
+                        strokeWidth: 4,
+                        color: laser ? ArcadePalette.gold : kGameAccent,
+                        backgroundColor: AppSurfaces.divider,
+                      ),
+                    ),
+                    SizedBox.square(
+                      dimension: 48,
+                      child: Material(
+                        color: unlocked && !hunting
+                            ? (laser ? ArcadePalette.huntBody : kGameAccent)
+                            : AppSurfaces.fill,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          key: const ValueKey('arcade-seed-button'),
+                          customBorder: const CircleBorder(),
+                          onTap: _engine.canShoot ? _shoot : null,
+                          child: Icon(
+                            hunting
+                                ? Icons.pets_rounded
+                                : laser
+                                ? Icons.bolt_rounded
+                                : Icons.grain_rounded,
+                            color: unlocked && !hunting
+                                ? Colors.white
+                                : AppInk.faint,
+                            size: 25,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: AppInk.soft,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
