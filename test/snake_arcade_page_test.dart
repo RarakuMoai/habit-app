@@ -160,7 +160,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('手機直式棋盤在上、兔咪在下；橫式改為棋盤左兔咪右且不裁切', (tester) async {
+  testWidgets('手機直式棋盤在上、資訊列在下；橫式改為棋盤左導航右且不裁切', (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     for (final size in const [
@@ -174,10 +174,10 @@ void main() {
       final board = tester.getRect(
         find.byKey(const ValueKey('snake-arcade-board')),
       );
-      final mascot = tester.getRect(
-        find.byKey(const ValueKey('arcade-mascot')),
+      final dock = tester.getRect(
+        find.byKey(const ValueKey('arcade-control-dock')),
       );
-      expect(board.top, lessThan(mascot.top), reason: '$size 應為上下版型');
+      expect(board.top, lessThan(dock.top), reason: '$size 應為上下版型');
       expect(
         board.height,
         greaterThan(board.width),
@@ -188,7 +188,7 @@ void main() {
         findsOneWidget,
         reason: '$size 手機／平板都要常駐小地圖',
       );
-      expect(mascot.bottom, lessThanOrEqualTo(size.height));
+      expect(dock.bottom, lessThanOrEqualTo(size.height));
       expect(tester.takeException(), isNull, reason: '$size 不應 overflow');
     }
 
@@ -199,18 +199,21 @@ void main() {
       final board = tester.getRect(
         find.byKey(const ValueKey('snake-arcade-board')),
       );
-      final mascot = tester.getRect(
-        find.byKey(const ValueKey('arcade-mascot')),
+      final dock = tester.getRect(
+        find.byKey(const ValueKey('arcade-control-dock')),
       );
-      expect(board.left, lessThan(mascot.left), reason: '$size 應為左右版型');
+      expect(board.left, lessThan(dock.left), reason: '$size 應為左右版型');
       expect(
         find.byKey(const ValueKey('snake-arcade-minimap')),
         findsOneWidget,
         reason: '$size 橫向也要常駐小地圖',
       );
-      expect(mascot.bottom, lessThanOrEqualTo(size.height));
+      expect(dock.bottom, lessThanOrEqualTo(size.height));
       expect(tester.takeException(), isNull, reason: '$size 不應 overflow');
     }
+
+    expect(find.byKey(const ValueKey('arcade-mascot')), findsNothing);
+    expect(find.byKey(const ValueKey('arcade-seed-button')), findsNothing);
   });
 
   testWidgets('暫停面板；繼續後仍要滑動才動', (tester) async {
@@ -232,20 +235,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('點棋盤不再射擊；只有下方種子鍵會發射並進入冷卻', (tester) async {
+  testWidgets('全螢幕點擊發射；暫停控制鍵不會誤射', (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
-    engine.debugSetPhysicalCount(SnakeArcadeEngine.moleUnlockAt);
+    engine
+      ..debugSetPhysicalCount(SnakeArcadeEngine.moleUnlockAt)
+      ..debugClearCollectibles();
     await _swipe(tester, const Offset(0, -40));
 
     await tester.tap(find.byKey(const ValueKey('snake-arcade-board')));
     await tester.pump();
-    expect(engine.bullets, isEmpty);
-
-    await tester.tap(find.byKey(const ValueKey('arcade-seed-button')));
-    await tester.pump();
     expect(engine.bullets, hasLength(1));
     expect(engine.shootCooldownLeftMs, greaterThan(0));
+
+    await _run(tester, 950);
+    expect(engine.canShoot, isTrue);
+    await tester.tap(find.byKey(const ValueKey('arcade-pause-button')));
+    await tester.pump();
+    expect(engine.phase, ArcadePhase.paused);
+    expect(engine.bullets, hasLength(1));
     expect(tester.takeException(), isNull);
   });
 
@@ -327,7 +335,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('第 15 顆會顯示鼴鼠與下方種子鈕引導', (tester) async {
+  testWidgets('第 15 顆會顯示鼴鼠與全螢幕點擊引導', (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
     engine
@@ -340,7 +348,7 @@ void main() {
 
     await _swipe(tester, const Offset(40, 0));
     await _run(tester, 400);
-    expect(find.text('鼴鼠來了！用下方種子鈕反擊'), findsOneWidget);
+    expect(find.text('鼴鼠來了！點畫面任意位置發射'), findsOneWidget);
     expect(find.byKey(const ValueKey('arcade-notice')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

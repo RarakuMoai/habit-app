@@ -1,11 +1,11 @@
 // 三指彩蛋：菜園小蛇（大地圖貪食蛇）。
 //
 // 與二指骰子不同，這是「全螢幕」root overlay：遊戲盤放在視線較容易追蹤的
-// 上方，兔咪縮成下方陪玩角落；全畫面滑動都能操作，不必用手遮住棋盤。
+// 上方；全畫面滑動轉向、點擊發射，不必用手遮住棋盤。
 // 像素窗簾沿用同一套復古進出場儀式；關閉 overlay 即完整回到觸發前狀態。
 //
-// 版型：手機直式＝上 HUD＋直向長方形視窗＋下方兩層操作台；橫式／平板橫向
-// 改為棋盤在左、兔咪操作台在右。小地圖常駐，種子只由專用按鈕發射。
+// 版型：手機直式＝上 HUD＋直向長方形視窗＋下方單層資訊列；橫式／平板橫向
+// 改為棋盤在左、導航資訊在右。小地圖常駐且不遮棋盤。
 //
 // 規則全部在 SnakeArcadeEngine；這個檔案只做輸入、鏡頭、演出與資料存取。
 
@@ -18,15 +18,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
-import '../../../utils/mascot.dart';
 import '../../../utils/mini_game_session.dart';
 import '../../../utils/prefs_keys.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../utils/usage_stats.dart';
-import '../../../utils/wardrobe_catalog.dart';
-import '../../../utils/wardrobe_store.dart';
 import '../../../widgets/app_dialogs.dart';
-import '../../../widgets/mascot_scene.dart';
 import '../../timer/game/table_timer_theme.dart'
     show kGameAccent, kGameAccentDark;
 import 'snake_arcade_engine.dart';
@@ -281,9 +277,6 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   double _pulse = 0;
   String? _notice;
   Timer? _noticeTimer;
-  MascotEmotion? _gameMascotEmotion;
-  int _mascotReactionTick = 0;
-  Timer? _mascotReactionTimer;
 
   SharedPreferences? _prefs;
   SnakeArcadeRecords _records = SnakeArcadeRecords.empty();
@@ -295,8 +288,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   bool _finishRecorded = false;
   final TextEditingController _nameController = TextEditingController();
 
-  // 手勢：全螢幕單指滑動轉向。射擊只走下方種子按鈕，避免點棋盤
-  // 看物件或調整握姿時誤發。
+  // 手勢：全螢幕單指滑動轉向、點擊發射；控制按鈕自己的手勢會優先取得 tap。
   static const _swipeThreshold = 22.0;
   int? _activePointer;
   Offset? _origin;
@@ -323,7 +315,6 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     _ticker.dispose();
     _frame.dispose();
     _noticeTimer?.cancel();
-    _mascotReactionTimer?.cancel();
     _nameController.dispose();
     super.dispose();
   }
@@ -367,15 +358,11 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   }
 
   void _updateCamera(int dtMs) {
-    final previous = _engine.previousBody.first;
-    final progress = _engine.snakeRenderProgress;
-    final headX = previous.x + (_engine.head.x - previous.x) * progress + 0.5;
-    final headY = previous.y + (_engine.head.y - previous.y) * progress + 0.5;
     final target = snakeArcadeCameraTarget(
       cameraX: _cameraX,
       cameraY: _cameraY,
-      headX: headX,
-      headY: headY,
+      headX: _engine.head.x + 0.5,
+      headY: _engine.head.y + 0.5,
       viewportColumns: _viewportColumns,
       viewportRows: _viewportRows,
     );
@@ -427,16 +414,6 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     });
   }
 
-  void _reactMascot(MascotEmotion emotion) {
-    _gameMascotEmotion = emotion;
-    _mascotReactionTick += 1;
-    _mascotReactionTimer?.cancel();
-    _mascotReactionTimer = Timer(const Duration(milliseconds: 2200), () {
-      if (!mounted || _gameMascotEmotion != emotion) return;
-      setState(() => _gameMascotEmotion = null);
-    });
-  }
-
   void _handleEvents() {
     final events = _engine.takeEvents();
     if (events.isEmpty) return;
@@ -453,37 +430,30 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         case ArcadeEvent.ateCarrot:
           needsSetState = true;
         case ArcadeEvent.ateGold:
-          _reactMascot(MascotEmotion.smile);
           needsSetState = true;
         case ArcadeEvent.ateFiveFold:
-          _reactMascot(MascotEmotion.popHappy);
           needsSetState = true;
         case ArcadeEvent.carrotPulled:
           needsSetState = true;
         case ArcadeEvent.magnetFruitSpawned:
           _showNotice('磁力果實出現！吃下去吸光全場');
-          _reactMascot(MascotEmotion.expect);
           needsSetState = true;
         case ArcadeEvent.magnetFruitCollected:
           _showNotice('全場收割！蘿蔔全算，成長最多 4 格');
-          _reactMascot(MascotEmotion.popHappy);
           needsSetState = true;
         case ArcadeEvent.abilityOffered:
           if (!eventSet.contains(ArcadeEvent.molesUnlocked) &&
               !eventSet.contains(ArcadeEvent.magnetFruitCollected)) {
             _showNotice('能力到了！選一個再滑動繼續');
-            _reactMascot(MascotEmotion.expect);
           }
           needsSetState = true;
         case ArcadeEvent.molesUnlocked:
-          _showNotice('鼴鼠來了！用下方種子鈕反擊');
-          _reactMascot(MascotEmotion.question);
+          _showNotice('鼴鼠來了！點畫面任意位置發射');
           needsSetState = true;
         case ArcadeEvent.shot:
           needsSetState = true;
         case ArcadeEvent.laserStarted:
           _showNotice('三排雷射啟動｜10 秒');
-          _reactMascot(MascotEmotion.happy);
           needsSetState = true;
         case ArcadeEvent.laserShot:
           needsSetState = true;
@@ -491,28 +461,23 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
           _showNotice('雷射結束，恢復種子射擊');
           needsSetState = true;
         case ArcadeEvent.moleKilled:
-          _reactMascot(MascotEmotion.smile);
           needsSetState = true;
         case ArcadeEvent.huntStarted:
           _showNotice('狩獵時刻｜20 秒內追到 3 隻');
-          _reactMascot(MascotEmotion.expect);
           needsSetState = true;
         case ArcadeEvent.huntWarnTick:
           needsSetState = true;
         case ArcadeEvent.huntFull:
           _showNotice('三隻達成！獲得狩獵加碼');
-          _reactMascot(MascotEmotion.popHappy);
           needsSetState = true;
         case ArcadeEvent.huntEnded:
           if (feedback == null) playHaptic(HapticLevel.light);
           needsSetState = true;
         case ArcadeEvent.died:
-          _reactMascot(MascotEmotion.sad);
           needsSetState = true;
         case ArcadeEvent.revived:
           _snapCamera();
-          _showNotice('兔咪把你帶回安全位置了');
-          _reactMascot(MascotEmotion.happy);
+          _showNotice('已回到安全位置');
           needsSetState = true;
         case ArcadeEvent.gameOver:
           _onGameOver();
@@ -653,8 +618,6 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     _engine = widget.engineBuilder?.call() ?? SnakeArcadeEngine();
     _noticeTimer?.cancel();
     _notice = null;
-    _mascotReactionTimer?.cancel();
-    _gameMascotEmotion = null;
     _finishRecorded = false;
     _resultRegistered = false;
     _showBoards = false;
@@ -708,27 +671,31 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
           onPointerMove: _pointerMove,
           onPointerUp: _pointerUp,
           onPointerCancel: _pointerCancel,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              SafeArea(
-                child: LayoutBuilder(
-                  builder: (_, box) => _buildGameLayout(box),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _shoot,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                SafeArea(
+                  child: LayoutBuilder(
+                    builder: (_, box) => _buildGameLayout(box),
+                  ),
                 ),
-              ),
-              if (phase == ArcadePhase.choosingAbility)
-                _AbilityOverlay(
-                  abilities: _engine.offeredAbilities,
-                  onPick: _chooseAbility,
-                ),
-              if (phase == ArcadePhase.paused)
-                _PauseOverlay(
-                  onResume: _leavePause,
-                  onRestart: () => unawaited(_requestRestart()),
-                  onExit: () => unawaited(_requestExit()),
-                ),
-              if (phase == ArcadePhase.gameOver) _buildResultOverlay(),
-            ],
+                if (phase == ArcadePhase.choosingAbility)
+                  _AbilityOverlay(
+                    abilities: _engine.offeredAbilities,
+                    onPick: _chooseAbility,
+                  ),
+                if (phase == ArcadePhase.paused)
+                  _PauseOverlay(
+                    onResume: _leavePause,
+                    onRestart: () => unawaited(_requestRestart()),
+                    onExit: () => unawaited(_requestExit()),
+                  ),
+                if (phase == ArcadePhase.gameOver) _buildResultOverlay(),
+              ],
+            ),
           ),
         ),
       ),
@@ -768,7 +735,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     }
 
     final compact = box.maxWidth < 360 || box.maxHeight < 650;
-    final dockHeight = compact ? 156.0 : 166.0;
+    final dockHeight = compact ? 122.0 : 128.0;
     return Column(
       children: [
         _buildHud(),
@@ -888,37 +855,36 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   Widget _buildBottomDock({required bool compact}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
       child: Container(
-        key: const ValueKey('arcade-mascot-dock'),
+        key: const ValueKey('arcade-control-dock'),
         padding: EdgeInsets.symmetric(
           horizontal: compact ? 8 : 10,
-          vertical: 7,
+          vertical: 6,
         ),
         decoration: _dockDecoration(),
         child: LayoutBuilder(
           builder: (_, box) {
-            final mapSize = compact ? 70.0 : 80.0;
-            return Column(
+            final mapSize = compact ? 72.0 : 82.0;
+            return Row(
               children: [
+                _buildMinimap(mapSize),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildMinimap(mapSize),
-                      _buildGardenMascot(
-                        width: compact ? 76 : 88,
-                        height: compact ? 76 : 88,
-                      ),
-                      _buildSeedButton(),
+                      _buildConsoleStatus(compact: true),
+                      const SizedBox(height: 8),
+                      _buildInputGuide(),
                     ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Row(
+                const SizedBox(width: 8),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(child: _buildConsoleStatus(compact: true)),
-                    const SizedBox(width: 8),
                     _RoundButton(
                       key: const ValueKey('arcade-pause-button'),
                       icon: Icons.pause_rounded,
@@ -927,7 +893,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
                           ? _pauseGame
                           : null,
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(height: 6),
                     _RoundButton(
                       key: const ValueKey('arcade-exit-button'),
                       icon: Icons.close_rounded,
@@ -948,31 +914,32 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 8, 10, 8),
       child: Container(
-        key: const ValueKey('arcade-mascot-dock'),
+        key: const ValueKey('arcade-control-dock'),
         padding: EdgeInsets.all(compact ? 8 : 12),
         decoration: _dockDecoration(),
         child: LayoutBuilder(
           builder: (_, box) {
-            final mascotHeight = compact
-                ? 68.0
-                : math.min(172.0, box.maxHeight * 0.34);
+            final mapSize = math.min(
+              compact ? 86.0 : 128.0,
+              box.maxWidth * 0.62,
+            );
             return Column(
               children: [
-                _buildGardenMascot(
-                  width: math.min(170, box.maxWidth),
-                  height: mascotHeight,
+                Text(
+                  '菜園全圖',
+                  style: TextStyle(
+                    color: kGameAccentDark.withValues(alpha: 0.75),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                SizedBox(height: compact ? 3 : 10),
+                const SizedBox(height: 5),
+                _buildMinimap(mapSize),
+                SizedBox(height: compact ? 7 : 14),
                 _buildConsoleStatus(compact: compact),
+                SizedBox(height: compact ? 7 : 12),
+                _buildInputGuide(centered: true),
                 const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildMinimap(compact ? 58 : 82),
-                    _buildSeedButton(),
-                  ],
-                ),
-                SizedBox(height: compact ? 3 : 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1025,39 +992,6 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             cameraY: _cameraY,
             viewportColumns: _viewportColumns,
             viewportRows: _viewportRows,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGardenMascot({required double width, required double height}) {
-    return SizedBox(
-      key: const ValueKey('arcade-mascot'),
-      width: width,
-      height: height,
-      child: IgnorePointer(
-        child: ValueListenableBuilder<MascotState>(
-          valueListenable: MascotPersona.current,
-          builder: (_, state, _) => ValueListenableBuilder<String>(
-            valueListenable: WardrobeStore.selectedOutfit,
-            builder: (_, outfitId, _) => FittedBox(
-              alignment: Alignment.bottomCenter,
-              child: MascotStage(
-                asset: skinnedMascotAsset(
-                  _gameMascotEmotion?.assetPath ?? state.assetPath,
-                  outfitById(outfitId).skinKey,
-                ),
-                accent: kGameAccent,
-                bubble: state.bubble,
-                bubbleTick: state.bubbleTick,
-                reactionTick: _mascotReactionTick,
-                onTap: () => MascotPersona.interact(MascotContext.tapReaction),
-                onHeadPet: () => MascotPersona.interact(MascotContext.headPet),
-                onEnergize: () =>
-                    MascotPersona.interact(MascotContext.energize),
-              ),
-            ),
           ),
         ),
       ),
@@ -1121,7 +1055,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     children.add(
       abilityBadges.isEmpty
           ? Text(
-              _engine.molesUnlocked ? '按種子鈕趕走鼴鼠' : '收蘿蔔，長大一點',
+              _engine.molesUnlocked ? '點畫面趕走鼴鼠' : '收蘿蔔，長大一點',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -1138,81 +1072,55 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     );
   }
 
-  Widget _buildSeedButton() {
+  Widget _buildInputGuide({bool centered = false}) {
     return ValueListenableBuilder<int>(
       valueListenable: _frame,
       builder: (_, _, _) {
-        final total = _engine.shootCooldownTotalMs;
-        final progress = total == 0
-            ? 1.0
-            : 1 - _engine.shootCooldownLeftMs / total;
-        final hunting = _engine.huntActive;
-        final unlocked = _engine.molesUnlocked;
-        final laser = _engine.laserActive;
-        final label = hunting
-            ? '狩獵中'
-            : laser
-            ? '雷射'
-            : '種子';
-        return SizedBox(
-          width: 64,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox.square(
-                dimension: 58,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox.square(
-                      dimension: 58,
-                      child: CircularProgressIndicator(
-                        value: progress.clamp(0.0, 1.0),
-                        strokeWidth: 4,
-                        color: laser ? ArcadePalette.gold : kGameAccent,
-                        backgroundColor: AppSurfaces.divider,
-                      ),
-                    ),
-                    SizedBox.square(
-                      dimension: 48,
-                      child: Material(
-                        color: unlocked && !hunting
-                            ? (laser ? ArcadePalette.huntBody : kGameAccent)
-                            : AppSurfaces.fill,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          key: const ValueKey('arcade-seed-button'),
-                          customBorder: const CircleBorder(),
-                          onTap: _engine.canShoot ? _shoot : null,
-                          child: Icon(
-                            hunting
-                                ? Icons.pets_rounded
-                                : laser
-                                ? Icons.bolt_rounded
-                                : Icons.grain_rounded,
-                            color: unlocked && !hunting
-                                ? Colors.white
-                                : AppInk.faint,
-                            size: 25,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                label,
+        final shootEnabled = !_engine.huntActive;
+        final ready = _engine.canShoot;
+        final text = _engine.huntActive
+            ? '滑動追獵 · 射擊暫停'
+            : shootEnabled
+            ? '滑動轉向 · 點擊發射'
+            : '滑動轉向';
+        return Row(
+          key: const ValueKey('arcade-input-guide'),
+          mainAxisSize: centered ? MainAxisSize.min : MainAxisSize.max,
+          mainAxisAlignment: centered
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
+          children: [
+            Icon(
+              shootEnabled ? Icons.touch_app_rounded : Icons.swipe_rounded,
+              size: 16,
+              color: shootEnabled && ready ? kGameAccent : AppInk.soft,
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                text,
                 maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppInk.soft,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                 ),
               ),
+            ),
+            if (shootEnabled) ...[
+              const SizedBox(width: 6),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: ready ? kGameAccent : AppSurfaces.divider,
+                  shape: BoxShape.circle,
+                ),
+              ),
             ],
-          ),
+          ],
         );
       },
     );
@@ -1818,14 +1726,28 @@ class _ResultHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final emotion = qualified ? MascotEmotion.popHappy : MascotEmotion.smile;
-    final line = qualified ? '好快的蛇…我有看到。' : '呼…休息一下，再來嗎？';
+    final line = qualified ? '新紀錄！這局跑得很漂亮。' : '先休息一下，隨時可以再來。';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
-            Image.asset(emotion.assetPath, height: 64, fit: BoxFit.contain),
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: (qualified ? ArcadePalette.gold : kGameAccent)
+                    .withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                qualified
+                    ? Icons.emoji_events_rounded
+                    : Icons.sports_score_rounded,
+                color: qualified ? ArcadePalette.huntHead : kGameAccentDark,
+                size: 30,
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

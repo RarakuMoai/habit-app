@@ -202,7 +202,6 @@ class SnakeArcadeEngine {
 
   // ── 蛇 ─────────────────────────────────────────────────
   final List<ArcadePoint> _body = [];
-  final List<ArcadePoint> _previousBody = [];
   ArcadeDirection _direction = ArcadeDirection.right;
   bool _hasMoved = false; // 復活後長度 1 時任何方向都合法
   int _pendingGrowth = 0;
@@ -259,7 +258,6 @@ class SnakeArcadeEngine {
     for (var i = 0; i < initialLength; i++) {
       _body.add(ArcadePoint(center - i, center));
     }
-    _previousBody.addAll(_body);
     _direction = ArcadeDirection.right;
     _moleSpawnIn = _nextMoleSpawnDelay();
     _magnetFruitSpawnIn = _nextMagnetFruitSpawnDelay();
@@ -272,7 +270,6 @@ class SnakeArcadeEngine {
   ArcadePhase get phase => _phase;
   ArcadeWaitReason get waitReason => _waitReason;
   List<ArcadePoint> get body => List.unmodifiable(_body);
-  List<ArcadePoint> get previousBody => List.unmodifiable(_previousBody);
   ArcadePoint get head => _body.first;
   ArcadeDirection get direction => _direction;
   List<ArcadeCollectible> get collectibles => List.unmodifiable(_collectibles);
@@ -317,9 +314,6 @@ class SnakeArcadeEngine {
   int get shotKills => _shotKills;
   int get shootCooldownLeftMs => _shootCooldownLeft;
   int get shootCooldownTotalMs => _currentShootCooldown();
-  double get snakeRenderProgress => _phase == ArcadePhase.running
-      ? (_snakeAcc / (stepIntervalMs * 0.78)).clamp(0.0, 1.0)
-      : 1;
   double get moleRenderProgress => _phase == ArcadePhase.running
       ? (_moleAcc / ((_huntActive ? moleHuntStepMs : moleStepMs) * 0.78)).clamp(
           0.0,
@@ -603,9 +597,6 @@ class SnakeArcadeEngine {
       }
     }
 
-    _previousBody
-      ..clear()
-      ..addAll(_body);
     _body.insert(0, target);
     if (_pendingGrowth > 0) {
       _pendingGrowth--;
@@ -1144,9 +1135,6 @@ class SnakeArcadeEngine {
     final keptLength = math.max(initialLength, length ~/ 2);
     final spot = _findReviveSpot();
     _body
-      ..clear()
-      ..add(spot);
-    _previousBody
       ..clear()
       ..add(spot);
     _pendingGrowth = keptLength - 1;

@@ -255,19 +255,8 @@ class SnakeArcadeBoardPainter extends CustomPainter {
       };
       final (px, py) = (-dy, dx);
       for (var lane = -1; lane <= 1; lane++) {
-        final previousHead = engine.previousBody.first;
-        final headX = _lerpCell(
-          previousHead.x,
-          engine.head.x,
-          engine.snakeRenderProgress,
-        );
-        final headY = _lerpCell(
-          previousHead.y,
-          engine.head.y,
-          engine.snakeRenderProgress,
-        );
-        final startX = headX + 0.5 + px * lane;
-        final startY = headY + 0.5 + py * lane;
+        final startX = engine.head.x + 0.5 + px * lane;
+        final startY = engine.head.y + 0.5 + py * lane;
         if (startX < 0 || startX >= world || startY < 0 || startY >= world) {
           continue;
         }
@@ -314,27 +303,21 @@ class SnakeArcadeBoardPainter extends CustomPainter {
         ? ArcadePalette.huntHead
         : ArcadePalette.snakeHead;
     final body = engine.body;
-    final previousBody = engine.previousBody;
-    final snakeProgress = engine.snakeRenderProgress;
     final segmentPaint = Paint();
     for (var i = body.length - 1; i >= 1; i--) {
-      final previous = previousBody[math.min(i, previousBody.length - 1)];
-      final x = _lerpCell(previous.x, body[i].x, snakeProgress);
-      final y = _lerpCell(previous.y, body[i].y, snakeProgress);
-      if (!visibleAt(x, y)) continue;
+      if (!visible(body[i])) continue;
       segmentPaint.color = i.isEven ? bodyColor : bodyAlt;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          worldCellRect(x, y, inset: 0.06),
+          cellRect(body[i], inset: 0.06),
           Radius.circular(cell * 0.22),
         ),
         segmentPaint,
       );
     }
-    final previousHead = previousBody.first;
-    final headX = _lerpCell(previousHead.x, engine.head.x, snakeProgress);
-    final headY = _lerpCell(previousHead.y, engine.head.y, snakeProgress);
-    final headRect = worldCellRect(headX, headY, inset: 0.02);
+    final headX = engine.head.x.toDouble();
+    final headY = engine.head.y.toDouble();
+    final headRect = cellRect(engine.head, inset: 0.02);
     _paintHead(canvas, headRect, cell, headColor);
 
     // 五倍待發：頭頂星光。
