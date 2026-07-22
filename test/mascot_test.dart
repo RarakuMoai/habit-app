@@ -147,6 +147,31 @@ void main() {
     expect(state.speech, isNull, reason: '充電互動是高頻演出，靠符號與語音就好');
   });
 
+  test(
+    'dice outcomes use dedicated matching emotions instead of tap questions',
+    () {
+      final cases = <MascotContext, (MascotEmotion, EmotionBubble)>{
+        MascotContext.diceMascotWin: (
+          MascotEmotion.popHappy,
+          EmotionBubble.star,
+        ),
+        MascotContext.diceMascotLoss: (
+          MascotEmotion.expect,
+          EmotionBubble.sweat,
+        ),
+        MascotContext.diceTie: (MascotEmotion.expect, EmotionBubble.note),
+      };
+
+      for (final MapEntry(key: context, value: expected) in cases.entries) {
+        expect(MascotPersona.interact(context, force: true), isTrue);
+        final state = MascotPersona.current.value;
+        expect(state.assetPath, expected.$1.assetPath, reason: '$context');
+        expect(state.bubble, expected.$2, reason: '$context');
+        expect(state.bubble, isNot(EmotionBubble.question), reason: '$context');
+      }
+    },
+  );
+
   test('high-frequency contexts stay silent (symbol only, no speech text)', () {
     for (final ctx in [
       MascotContext.completedOne,

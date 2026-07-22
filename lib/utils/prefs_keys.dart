@@ -119,6 +119,11 @@ abstract final class PrefsKeys {
   static const gameTableCustomBankSeconds = 'game_table_custom_bank_seconds';
   static const gameTableDiceCount = 'game_table_dice_count'; // 骰盤顆數 1–6
 
+  // ── 隱藏彩蛋：菜園小蛇（三指大地圖）──────────────────────
+  // 單一版本化 JSON（排行榜、上次署名、最近署名）；schema 版本存在
+  // JSON 內的 version 欄位。
+  static const snakeArcadeData = 'snake_arcade_data_v1';
+
   // ── 功能開關 ─────────────────────────────────────────────
   static const timerEnabled = 'timer_enabled';
   static const waterEnabled = 'water_enabled';

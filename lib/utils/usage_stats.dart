@@ -43,6 +43,10 @@ abstract final class UsageEvents {
 
   /// 回憶本開啟。
   static const memoryBookOpen = 'memory_book.open';
+
+  /// 三指彩蛋「菜園小蛇」開啟／單局結算。
+  static const snakeArcadeOpen = 'snake_arcade.open';
+  static const snakeArcadeFinish = 'snake_arcade.finish';
 }
 
 abstract final class UsageStats {

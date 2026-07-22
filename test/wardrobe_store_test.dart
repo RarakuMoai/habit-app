@@ -92,14 +92,16 @@ void main() {
     expect(await WardrobeStore.setCurrentTrack(_b), false);
   });
 
-  test('reorder 重排清單並持久化、指標不變', () async {
+  test('reorder 同步發布新順序再持久化、指標不變', () async {
     await seed(current: _b);
 
-    await WardrobeStore.reorder(2, 0); // 把 _c 移到最前
-
+    final persistence = WardrobeStore.reorder(2, 0); // 把 _c 移到最前
+    // ReorderableList drop callback 結束前，畫面資料就必須是新順序；若等 prefs
+    // 寫完才發布，拖曳 proxy 會先回舊位置再瞬間交換。
     expect(WardrobeStore.playlist.value, [_c, _a, _b]);
     expect(WardrobeStore.currentTrackId.value, _b); // 指標跟著 id，不受位置影響
 
+    await persistence;
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getStringList(PrefsKeys.bgmPlaylist), [_c, _a, _b]);
   });

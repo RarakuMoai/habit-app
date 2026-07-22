@@ -70,6 +70,7 @@ class _WardrobePageState extends State<WardrobePage>
   _WardrobeSection _section = _WardrobeSection.outfits;
   bool _loaded = false;
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _playlistScrollController = ScrollController();
 
   // 播放清單「拖曳排序模式」：長按或 …→移動 進入，整列 Q 版抖動，底部出完成 bar。
   // 與遊戲玩家列共用按壓回饋、抖動與 Delayed/Immediate 拖曳辨識器。
@@ -89,6 +90,7 @@ class _WardrobePageState extends State<WardrobePage>
   @override
   void dispose() {
     _scrollController.dispose();
+    _playlistScrollController.dispose();
     _jiggleCtrl.dispose();
     unawaited(WardrobePreviewController.restore());
     super.dispose();
@@ -430,6 +432,10 @@ class _WardrobePageState extends State<WardrobePage>
                       hasUnreadMemories: StoryStore.hasUnread,
                       onChanged: (value) {
                         playHaptic(HapticLevel.selection);
+                        if (value != _WardrobeSection.music &&
+                            _playlistEditMode) {
+                          _finishMovingTracks();
+                        }
                         setState(() => _section = value);
                       },
                     ),
@@ -514,6 +520,8 @@ class _WardrobePageState extends State<WardrobePage>
           playMode: WardrobeStore.playMode.value,
           editMode: _playlistEditMode,
           jiggle: _jiggleCtrl,
+          scrollController: _playlistScrollController,
+          pageScrollController: _scrollController,
           onCyclePlayMode: _cyclePlayMode,
           onTogglePlay: _togglePlaylistTrackPlayback,
           onDetail: _openTrackDetail,
@@ -1400,6 +1408,41 @@ class _PlaybackEqualizerPainter extends CustomPainter {
 // 播放清單列同時也是主要觸控區：維持接近標準 ListTile 的 60pt，
 // 中間 InkWell 與兩側操作都至少有 44pt 高，避免封面／播放鍵太小難按。
 const double _kPlaylistRowExtent = 60;
+// 長清單固定顯示五列完整歌曲，再以細捲動條表示後面還有內容；
+// 標題列不會被歌曲數量推離，排序的「完成」也能整合在卡片內。
+const double _kPlaylistViewportMaxExtent = _kPlaylistRowExtent * 5;
+// 排序命中區只跟著「封面＋實際歌名」；短歌名仍保留足夠好抓的最低寬度。
+// 其餘中間空白與右側操作欄都不掛重排辨識器，專門留給上下捲動。
+const double _kPlaylistDragAreaMinWidth = 112;
+const double _kPlaylistTrailingReservedExtent = 98;
+
+double _playlistDragAreaWidth({
+  required BuildContext context,
+  required String title,
+  required bool emphasized,
+  required double rowWidth,
+}) {
+  final style = DefaultTextStyle.of(context).style.merge(
+    TextStyle(
+      fontSize: 15,
+      fontWeight: emphasized ? FontWeight.w900 : FontWeight.w800,
+    ),
+  );
+  final painter = TextPainter(
+    text: TextSpan(text: title, style: style),
+    maxLines: 1,
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    locale: Localizations.maybeLocaleOf(context),
+  )..layout();
+  // 左 padding 4 + 封面 42 + 間距 11 + 實際文字 + 尾端 8pt 容錯。
+  final contentWidth = 65 + painter.width;
+  painter.dispose();
+
+  final maxWidth = math.max(0.0, rowWidth - _kPlaylistTrailingReservedExtent);
+  if (maxWidth <= _kPlaylistDragAreaMinWidth) return maxWidth;
+  return contentWidth.clamp(_kPlaylistDragAreaMinWidth, maxWidth).toDouble();
+}
 
 class _PlaylistCard extends StatelessWidget {
   final List<MusicTrackSpec> tracks;
@@ -1408,6 +1451,8 @@ class _PlaylistCard extends StatelessWidget {
   final PlayMode playMode;
   final bool editMode;
   final Animation<double> jiggle;
+  final ScrollController scrollController;
+  final ScrollController pageScrollController;
   final VoidCallback onCyclePlayMode;
   final ValueChanged<MusicTrackSpec> onTogglePlay;
   final ValueChanged<MusicTrackSpec> onDetail;
@@ -1423,6 +1468,8 @@ class _PlaylistCard extends StatelessWidget {
     required this.playMode,
     required this.editMode,
     required this.jiggle,
+    required this.scrollController,
+    required this.pageScrollController,
     required this.onCyclePlayMode,
     required this.onTogglePlay,
     required this.onDetail,
@@ -1432,9 +1479,62 @@ class _PlaylistCard extends StatelessWidget {
     required this.onFinishMove,
   });
 
+  void _startPageBallistic(double velocity) {
+    if (velocity == 0 || !pageScrollController.hasClients) return;
+    final position = pageScrollController.position;
+    if (position is ScrollPositionWithSingleContext) {
+      // 直接交給外層 ScrollPosition，沿用它在目前平台上的原生摩擦、
+      // 減速與邊界效果；不能自己猜距離或 duration，否則手感會不同。
+      // ScrollEnd 所在的 pointer frame 還會繼續收尾內層 drag activity；
+      // 等整幀完成後再啟動，避免同一輪收尾的 goBallistic(0) 把外層
+      // 動量立即蓋掉。仍由外層 position 自己建立 simulation，因此
+      // 平台原生摩擦、減速與邊界手感都不變。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (pageScrollController.positions.contains(position)) {
+          position.goBallistic(velocity);
+        }
+      });
+    }
+  }
+
+  bool _forwardBoundaryScroll(ScrollNotification notification) {
+    if (notification.depth != 0 || !pageScrollController.hasClients) {
+      return false;
+    }
+    final outer = pageScrollController.position;
+    if (notification is OverscrollNotification) {
+      final target = (outer.pixels + notification.overscroll).clamp(
+        outer.minScrollExtent,
+        outer.maxScrollExtent,
+      );
+      if (target != outer.pixels) outer.jumpTo(target);
+      // 清單本身的慣性滑行撞到邊界時，notification 會帶著尚未耗盡
+      // 的速度；把它原封不動交給外層，動量才不會在接縫突然消失。
+      if (notification.dragDetails == null && notification.velocity != 0) {
+        _startPageBallistic(notification.velocity);
+      }
+    } else if (notification is ScrollEndNotification) {
+      final primaryVelocity = notification.dragDetails?.primaryVelocity ?? 0;
+      if (primaryVelocity != 0) {
+        // 手指向上為負，但 scroll offset 的前進速度為正，與 Flutter
+        // DragScrollActivity 使用同一個符號轉換。
+        final scrollVelocity = -primaryVelocity;
+        final atTop = notification.metrics.extentBefore <= 0.5;
+        final atBottom = notification.metrics.extentAfter <= 0.5;
+        if ((atTop && scrollVelocity < 0) || (atBottom && scrollVelocity > 0)) {
+          _startPageBallistic(scrollVelocity);
+        }
+      }
+    }
+    // 不吃掉通知，讓外層 Scrollbar／語意監聽仍能收到內層狀態。
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final canModify = tracks.length > 1;
+    final hasOverflow =
+        tracks.length * _kPlaylistRowExtent > _kPlaylistViewportMaxExtent;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1448,113 +1548,232 @@ class _PlaylistCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 30,
-                height: 30,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  color: kMusicAccent.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(10),
+                  color: kMusicAccent.withValues(alpha: editMode ? 0.16 : 0.10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Icon(
-                  Icons.queue_music_rounded,
-                  color: kMusicAccent,
-                  size: 17,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 150),
+                  child: Icon(
+                    editMode
+                        ? Icons.swap_vert_rounded
+                        : Icons.queue_music_rounded,
+                    key: ValueKey(editMode),
+                    color: kMusicAccent,
+                    size: 19,
+                  ),
                 ),
               ),
               const SizedBox(width: 9),
-              const Expanded(
-                child: Text(
-                  '播放清單',
-                  style: TextStyle(
-                    color: AppInk.strong,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      '播放清單',
+                      style: TextStyle(
+                        color: AppInk.strong,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 150),
+                      child: Text(
+                        editMode ? '拖曳歌曲調整順序' : '${tracks.length} 首歌曲',
+                        key: ValueKey(editMode),
+                        style: TextStyle(
+                          color: editMode
+                              ? kMusicAccent
+                              : AppInk.soft.withValues(alpha: 0.82),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          height: 1.15,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.94, end: 1).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    ),
+                    child: child,
+                  ),
+                ),
+                child: editMode
+                    ? _PlaylistSortDoneAction(
+                        key: const ValueKey('playlist-sort-done-action'),
+                        onTap: onFinishMove,
+                      )
+                    : KeyedSubtree(
+                        key: const ValueKey('playlist-play-mode-action'),
+                        child: _PlayModeButton(
+                          mode: playMode,
+                          onTap: onCyclePlayMode,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            key: const ValueKey('playlist-scroll-region'),
+            constraints: const BoxConstraints(
+              maxHeight: _kPlaylistViewportMaxExtent,
+            ),
+            child: ScrollbarTheme(
+              data: ScrollbarTheme.of(context).copyWith(
+                thumbColor: WidgetStatePropertyAll(
+                  kMusicAccent.withValues(alpha: 0.30),
+                ),
+              ),
+              child: Scrollbar(
+                controller: scrollController,
+                thumbVisibility: hasOverflow,
+                interactive: false,
+                thickness: 3,
+                radius: const Radius.circular(99),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _forwardBoundaryScroll,
+                  child: ReorderableListView.builder(
+                    key: const ValueKey('playlist-reorder-list'),
+                    scrollController: scrollController,
+                    shrinkWrap: true,
+                    physics: hasOverflow
+                        ? const ClampingScrollPhysics()
+                        : const NeverScrollableScrollPhysics(),
+                    itemExtent: _kPlaylistRowExtent,
+                    buildDefaultDragHandles: false,
+                    padding: EdgeInsets.zero,
+                    itemCount: tracks.length,
+                    onReorder: onReorder,
+                    // 長按拖曳剛啟動時切進「拖曳模式」（抖動）；本幀後再翻，避免啟動當下重建。
+                    onReorderStart: (_) {
+                      if (!editMode) {
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => onStartMove(),
+                        );
+                      }
+                    },
+                    proxyDecorator: (child, index, animation) => Material(
+                      key: const ValueKey('playlist-drag-proxy'),
+                      color: Colors.transparent,
+                      child: child,
+                    ),
+                    itemBuilder: (_, i) {
+                      final track = tracks[i];
+                      final row = ReorderJiggle(
+                        animation: jiggle,
+                        enabled: editMode && canModify,
+                        seed: track.id.hashCode,
+                        child: LayoutBuilder(
+                          builder: (rowContext, rowConstraints) {
+                            final dragAreaWidth = _playlistDragAreaWidth(
+                              context: rowContext,
+                              title: track.title,
+                              emphasized: track.id == currentId,
+                              rowWidth: rowConstraints.maxWidth,
+                            );
+                            return Stack(
+                              children: [
+                                Slidable(
+                                  key: ValueKey('sl_${track.id}'),
+                                  // 拖曳模式中 / 只剩一首時不給左滑刪除。
+                                  enabled: !editMode && canModify,
+                                  endActionPane: ActionPane(
+                                    motion: const BehindMotion(),
+                                    extentRatio: 0.26,
+                                    children: [
+                                      SlidableAction(
+                                        onPressed: (_) => onRemove(track),
+                                        backgroundColor: Colors.red.shade400,
+                                        foregroundColor: Colors.white,
+                                        icon: Icons.delete_outline_rounded,
+                                        label: '移除',
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ],
+                                  ),
+                                  child: _PlaylistRow(
+                                    key: ValueKey('playlist-row-${track.id}'),
+                                    track: track,
+                                    isCurrent: track.id == currentId,
+                                    muted: muted,
+                                    editMode: editMode,
+                                    removable: canModify,
+                                    onPlayTap: () => onTogglePlay(track),
+                                    onMove: onStartMove,
+                                    onRemove: () => onRemove(track),
+                                    onDetail: () => onDetail(track),
+                                  ),
+                                ),
+                                // 只覆蓋封面＋實際歌名；短歌名套最低抓取寬度。
+                                // 從這塊右緣直到整列最右側，都由清單接收上下捲動。
+                                Positioned(
+                                  top: 0,
+                                  bottom: 0,
+                                  left: 0,
+                                  width: dragAreaWidth,
+                                  child: IgnorePointer(
+                                    ignoring: !editMode || !canModify,
+                                    child: ReorderableDragStartListener(
+                                      key: ValueKey(
+                                        'playlist-drag-area-${track.id}',
+                                      ),
+                                      index: i,
+                                      child: const ColoredBox(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      );
+                      // 只有一首時不掛拖曳辨識器（不能排序），但仍要 keyed 給 ReorderableListView。
+                      return canModify
+                          ? ReorderHoldDragListener(
+                              key: ValueKey('pl_${track.id}'),
+                              index: i,
+                              immediate: editMode,
+                              enabled: !editMode,
+                              child: row,
+                            )
+                          : KeyedSubtree(
+                              key: ValueKey('pl_${track.id}'),
+                              child: row,
+                            );
+                    },
                   ),
                 ),
               ),
-              _PlayModeButton(mode: playMode, onTap: onCyclePlayMode),
-            ],
+            ),
           ),
-          const SizedBox(height: 4),
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemExtent: _kPlaylistRowExtent,
-            buildDefaultDragHandles: false,
-            padding: EdgeInsets.zero,
-            itemCount: tracks.length,
-            onReorder: onReorder,
-            // 長按拖曳剛啟動時切進「拖曳模式」（抖動）；本幀後再翻，避免啟動當下重建。
-            onReorderStart: (_) {
-              if (!editMode) {
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => onStartMove(),
-                );
-              }
-            },
-            proxyDecorator: (child, index, animation) =>
-                Material(color: Colors.transparent, child: child),
-            itemBuilder: (_, i) {
-              final track = tracks[i];
-              final row = ReorderJiggle(
-                animation: jiggle,
-                enabled: editMode && canModify,
-                seed: track.id.hashCode,
-                child: Slidable(
-                  key: ValueKey('sl_${track.id}'),
-                  // 拖曳模式中 / 只剩一首時不給左滑刪除。
-                  enabled: !editMode && canModify,
-                  endActionPane: ActionPane(
-                    motion: const BehindMotion(),
-                    extentRatio: 0.26,
-                    children: [
-                      SlidableAction(
-                        onPressed: (_) => onRemove(track),
-                        backgroundColor: Colors.red.shade400,
-                        foregroundColor: Colors.white,
-                        icon: Icons.delete_outline_rounded,
-                        label: '移除',
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ],
-                  ),
-                  child: _PlaylistRow(
-                    key: ValueKey('playlist-row-${track.id}'),
-                    track: track,
-                    isCurrent: track.id == currentId,
-                    muted: muted,
-                    editMode: editMode,
-                    removable: canModify,
-                    onPlayTap: () => onTogglePlay(track),
-                    onMove: onStartMove,
-                    onRemove: () => onRemove(track),
-                    onDetail: () => onDetail(track),
-                  ),
-                ),
-              );
-              // 只有一首時不掛拖曳辨識器（不能排序），但仍要 keyed 給 ReorderableListView。
-              return canModify
-                  ? ReorderHoldDragListener(
-                      key: ValueKey('pl_${track.id}'),
-                      index: i,
-                      immediate: editMode,
-                      child: row,
-                    )
-                  : KeyedSubtree(key: ValueKey('pl_${track.id}'), child: row);
-            },
-          ),
-          if (editMode) ...[
-            const SizedBox(height: 8),
-            _MoveDoneButton(onTap: onFinishMove),
-          ],
         ],
       ),
     );
   }
 }
 
-// 播放清單的一列：單點＝立即的整列 InkWell 漣漪、不留下選取；
-// 右側播放鈕才切歌/暫停，詳細資訊由「⋯」進入。
+// 播放清單的一列：任意按下＝整列即時光暈；封面＋歌名單點不留選取、雙點開詳細；
+// 右側播放／更多是獨立手勢區，不被歌曲內容的雙點辨識器包住。
 // 移除走左滑或「…」。排序模式只用整列抖動表意，不插入圖示、不改列的幾何。
 enum _PlaylistRowAction { move, remove, detail }
 
@@ -1601,28 +1820,53 @@ class _PlaylistRow extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        child: InkWell(
+        child: _ImmediatePlaylistRipple(
+          key: ValueKey('playlist-ripple-${track.id}'),
+          enabled: !editMode,
           borderRadius: BorderRadius.circular(12),
-          // 不掛 onDoubleTap：雙擊辨識器會讓單點等待第二下，漣漪明顯延遲。
-          // 空 onTap 只負責啟用即時 Material 漣漪，不改播放或選取狀態。
-          onTap: editMode ? null : () {},
-          excludeFromSemantics: true,
           child: Padding(
             // 60pt 列高扣除上下 1pt 邊框與 5pt padding，內容正好 48pt。
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
             child: Row(
               children: [
-                _TrackCover(track: track, size: 42),
-                const SizedBox(width: 11),
+                // 雙點只屬於「歌曲內容」，不能包住右側播放／更多按鈕；否則
+                // 父層 DoubleTapGestureRecognizer 會讓子按鈕等待雙點逾時才回應。
                 Expanded(
-                  child: Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppInk.strong,
-                      fontSize: 15,
-                      fontWeight: isCurrent ? FontWeight.w900 : FontWeight.w800,
+                  child: InkWell(
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(10),
+                    ),
+                    // 空 onTap 只保留單點手勢語意，不改播放或選取狀態。
+                    // 整列的可見回饋由外層 immediate ripple 處理，
+                    // 不受這裡的單點／雙點手勢競速影響。
+                    onTap: editMode ? null : () {},
+                    onDoubleTap: editMode ? null : onDetail,
+                    splashFactory: NoSplash.splashFactory,
+                    highlightColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
+                    excludeFromSemantics: true,
+                    child: SizedBox(
+                      height: 48,
+                      child: Row(
+                        children: [
+                          _TrackCover(track: track, size: 42),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Text(
+                              track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppInk.strong,
+                                fontSize: 15,
+                                fontWeight: isCurrent
+                                    ? FontWeight.w900
+                                    : FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1657,6 +1901,102 @@ class _PlaylistRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// Material 原生 InkRipple，但由 raw pointer-down 直接啟動：因此既保留
+// 舊版從觸點擴散、覆蓋整列才淡出的手感，也不會被雙點辨識的
+// gesture arena 延遲。這層只畫 ink，不接管任何 tap 行為。
+class _ImmediatePlaylistRipple extends StatefulWidget {
+  final bool enabled;
+  final BorderRadius borderRadius;
+  final Widget child;
+
+  const _ImmediatePlaylistRipple({
+    super.key,
+    required this.enabled,
+    required this.borderRadius,
+    required this.child,
+  });
+
+  @override
+  State<_ImmediatePlaylistRipple> createState() =>
+      _ImmediatePlaylistRippleState();
+}
+
+class _ImmediatePlaylistRippleState extends State<_ImmediatePlaylistRipple> {
+  final Map<int, InkRipple> _ripples = <int, InkRipple>{};
+  final Set<InkRipple> _activeRipples = <InkRipple>{};
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!widget.enabled) return;
+    final referenceBox = context.findRenderObject()! as RenderBox;
+    // pointer id 可能在前一圈尚未淡完時重複使用（例如雙點）；
+    // 舊圈繼續自然淡出，新圈另外追蹤。
+    _ripples.remove(event.pointer);
+
+    InkRipple? ripple;
+    ripple = InkRipple(
+      controller: Material.of(context),
+      referenceBox: referenceBox,
+      position: event.localPosition,
+      color: Theme.of(context).splashColor,
+      textDirection: Directionality.of(context),
+      containedInkWell: true,
+      rectCallback: () => Offset.zero & referenceBox.size,
+      borderRadius: widget.borderRadius,
+      onRemoved: () {
+        _activeRipples.remove(ripple);
+        if (identical(_ripples[event.pointer], ripple)) {
+          _ripples.remove(event.pointer);
+        }
+      },
+    );
+    _ripples[event.pointer] = ripple;
+    _activeRipples.add(ripple);
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    // confirm 會先把半途的漣漪擴展到完整半徑，才進入淡出。
+    _ripples[event.pointer]?.confirm();
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    _ripples[event.pointer]?.cancel();
+  }
+
+  void _disposeAllRipples() {
+    final ripples = _activeRipples.toList(growable: false);
+    _ripples.clear();
+    _activeRipples.clear();
+    for (final ripple in ripples) {
+      // Material / reorder proxy 可能在漣漪尚未淡完時就被重建。
+      // 這裡必須同步釋放 controller，不能只啟動 cancel 動畫。
+      ripple.dispose();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ImmediatePlaylistRipple oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled && !widget.enabled) _disposeAllRipples();
+  }
+
+  @override
+  void dispose() {
+    _disposeAllRipples();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: _handlePointerDown,
+      onPointerUp: _handlePointerUp,
+      onPointerCancel: _handlePointerCancel,
+      child: widget.child,
     );
   }
 }
@@ -1797,43 +2137,60 @@ class _PlaylistPlayButton extends StatelessWidget {
   }
 }
 
-// 拖曳排序模式的「完成排序」綠色 bar（沿用習慣頁的綠＝完成語彙）。
-class _MoveDoneButton extends StatelessWidget {
+// 排序操作直接收在播放清單標題列裡，用實心藍紫色讓主要出口夠醒目。
+// 清單內部負責捲動，所以這顆按鈕在拖到任何歌曲時都維持可見。
+class _PlaylistSortDoneAction extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _MoveDoneButton({required this.onTap});
+  const _PlaylistSortDoneAction({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.green.shade500, Colors.green.shade600],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check_rounded, size: 18, color: Colors.white),
-              SizedBox(width: 8),
-              Text(
-                '完成排序',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13.5,
-                ),
+    return Semantics(
+      button: true,
+      label: '完成播放清單排序',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color.lerp(kMusicAccent, Colors.white, 0.08)!,
+                  Color.lerp(kMusicAccent, Colors.black, 0.08)!,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: kMusicAccent.withValues(alpha: 0.24),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_rounded, size: 17, color: Colors.white),
+                  SizedBox(width: 5),
+                  Text(
+                    '完成排序',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

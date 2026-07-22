@@ -87,6 +87,11 @@ enum MascotContext {
   headPet,
   // 充電互動：長按兔咪蓄力、放開（或蓄滿）爆發大跳
   energize,
+  // 骰子彩蛋的三種結果有自己的表情／符號／聲音語意，不能借用
+  // tapReaction，否則稱讚或認輸時也會冒問號並播放疑問聲。
+  diceMascotWin,
+  diceMascotLoss,
+  diceTie,
   // 還沒有任何習慣時（空狀態）
   emptyHabits,
   // 喝水高量提醒（目前 >=4L/day）：兔咪驚訝 + 溫和提示，
@@ -122,8 +127,10 @@ enum EmotionBubble {
       case MascotContext.allDone:
       case MascotContext.streak:
       case MascotContext.energize:
+      case MascotContext.diceMascotWin:
         return EmotionBubble.star;
       case MascotContext.undone:
+      case MascotContext.diceMascotLoss:
         return EmotionBubble.sweat;
       case MascotContext.notStarted:
       case MascotContext.night:
@@ -136,6 +143,7 @@ enum EmotionBubble {
       case MascotContext.emptyHabits:
         return null;
       case MascotContext.focusStarted:
+      case MascotContext.diceTie:
         return EmotionBubble.note;
     }
   }
@@ -156,6 +164,9 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.headPet: MascotEmotion.smile,
   // 充電爆發：雙手高舉雀躍，正好接住「蓄力→放開」的演出弧線
   MascotContext.energize: MascotEmotion.popHappy,
+  MascotContext.diceMascotWin: MascotEmotion.popHappy,
+  MascotContext.diceMascotLoss: MascotEmotion.expect,
+  MascotContext.diceTie: MascotEmotion.expect,
   // 空狀態用「伸手邀請」姿勢，比中性更主動地邀使用者新增第一個習慣
   MascotContext.emptyHabits: MascotEmotion.invite,
   // 喝水過量改用「歪頭疑問」溫柔提醒，而非心疼的 sad
@@ -244,6 +255,13 @@ const Map<MascotContext, List<String>> _lines = {
   // 台詞池備著給之後「明確帶 speech」的場合（登入禮、活動）取用。
   MascotContext.energize: ['充飽電了！', '嗯！力氣滿滿。', '謝謝你幫我打氣。', '好像可以跳得更高了。'],
 
+  // ── 骰子彩蛋結果 ──
+  // 顯示時由小遊戲明確帶 speech；放在角色資料層，讓台詞、表情符號與
+  // 聲音情境維持同一份可稽核來源。
+  MascotContext.diceMascotWin: ['我贏了…嘿嘿。', '這次是我的。', '骰子今天站我這邊。'],
+  MascotContext.diceMascotLoss: ['你贏了…好厲害。', '輸了…再來一次好不好？', '嗯…下次換我贏。'],
+  MascotContext.diceTie: ['一樣大。', '平手…再來一次。', '嗯？同點。'],
+
   // ── 還沒新增任何習慣（空狀態） ──
   MascotContext.emptyHabits: ['要不要先放一個小習慣？', '從一個小小的開始。', '不用很多，一個就好。'],
 
@@ -330,6 +348,9 @@ class MascotLines {
       case MascotContext.tapReaction:
       case MascotContext.headPet:
       case MascotContext.energize:
+      case MascotContext.diceMascotWin:
+      case MascotContext.diceMascotLoss:
+      case MascotContext.diceTie:
         return false;
       case MascotContext.openApp:
       case MascotContext.focusStarted:
@@ -495,7 +516,10 @@ class MascotPersona {
     return switch (ctx) {
       MascotContext.tapReaction ||
       MascotContext.headPet ||
-      MascotContext.energize => true,
+      MascotContext.energize ||
+      MascotContext.diceMascotWin ||
+      MascotContext.diceMascotLoss ||
+      MascotContext.diceTie => true,
       _ => false,
     };
   }
@@ -556,12 +580,15 @@ class MascotPersona {
       case MascotContext.allDone:
       case MascotContext.streak:
       case MascotContext.energize:
+      case MascotContext.diceMascotWin:
         return SfxCue.tumiCheer;
       // 輕聲確認：打卡、進度過半、開場招呼（最高頻，選最短促的）
       case MascotContext.completedOne:
       case MascotContext.halfDone:
       case MascotContext.openApp:
       case MascotContext.focusStarted:
+      case MascotContext.diceMascotLoss:
+      case MascotContext.diceTie:
         return SfxCue.tumiConfirm;
       // 開心：摸頭（表情 smile）
       case MascotContext.headPet:
@@ -606,6 +633,9 @@ class MascotPersona {
         return 10;
       case MascotContext.headPet:
       case MascotContext.energize:
+      case MascotContext.diceMascotWin:
+      case MascotContext.diceMascotLoss:
+      case MascotContext.diceTie:
         return 6;
       case MascotContext.tapReaction:
       case MascotContext.openApp:

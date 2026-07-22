@@ -145,11 +145,18 @@ class WardrobeStore {
 
   // ── 播放清單 ───────────────────────────────────────────
   // 清單順序與「目前曲指標」分離持久化：清單寫 bgmPlaylist，指標寫 bgmSelectedTrack。
-  static Future<void> _persistPlaylist(List<String> next) async {
+  static Future<void> _persistPlaylist(
+    List<String> next, {
+    bool publishBeforeWrite = false,
+  }) async {
     final safe = next.isEmpty ? [defaultTrack.id] : next;
+    final snapshot = List<String>.from(safe);
+    // ReorderableList 在 drop callback 回來後會立刻清除拖曳 proxy；排序必須在
+    // callback 的同步階段發布，否則列會先回舊位置，prefs 寫完後才瞬間交換。
+    if (publishBeforeWrite) playlist.value = snapshot;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(PrefsKeys.bgmPlaylist, safe);
-    playlist.value = List<String>.from(safe);
+    await prefs.setStringList(PrefsKeys.bgmPlaylist, snapshot);
+    if (!publishBeforeWrite) playlist.value = snapshot;
   }
 
   static Future<void> _persistCurrent(String id) async {
@@ -173,7 +180,7 @@ class WardrobeStore {
     if (clamped == oldIndex) return;
     final item = list.removeAt(oldIndex);
     list.insert(clamped, item);
-    await _persistPlaylist(list);
+    await _persistPlaylist(list, publishBeforeWrite: true);
   }
 
   /// 從清單移除；回傳目前曲是否改變。最後一首不可移除。

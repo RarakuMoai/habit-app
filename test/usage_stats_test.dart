@@ -22,18 +22,32 @@ void main() {
   });
 
   test('bump 跨日分開存，recordedDays 新到舊', () async {
-    await UsageStats.bump(UsageEvents.habitCheck, now: DateTime(2026, 7, 1, 12));
-    await UsageStats.bump(UsageEvents.habitCheck, now: DateTime(2026, 7, 2, 12));
+    await UsageStats.bump(
+      UsageEvents.habitCheck,
+      now: DateTime(2026, 7, 1, 12),
+    );
+    await UsageStats.bump(
+      UsageEvents.habitCheck,
+      now: DateTime(2026, 7, 2, 12),
+    );
 
     final prefs = await SharedPreferences.getInstance();
     expect(UsageStats.recordedDays(prefs), ['2026-07-02', '2026-07-01']);
-    expect(UsageStats.dayCounts(prefs, '2026-07-01')[UsageEvents.habitCheck], 1);
-    expect(UsageStats.dayCounts(prefs, '2026-07-02')[UsageEvents.habitCheck], 1);
+    expect(
+      UsageStats.dayCounts(prefs, '2026-07-01')[UsageEvents.habitCheck],
+      1,
+    );
+    expect(
+      UsageStats.dayCounts(prefs, '2026-07-02')[UsageEvents.habitCheck],
+      1,
+    );
   });
 
   test('事件名 helper 組出預期字串', () {
     expect(UsageEvents.tab('water'), 'tab.water');
     expect(UsageEvents.timerStart('focus'), 'timer.focus.start');
+    expect(UsageEvents.snakeArcadeOpen, 'snake_arcade.open');
+    expect(UsageEvents.snakeArcadeFinish, 'snake_arcade.finish');
   });
 
   test('decodeDay 對壞 JSON / 非 map / 非數字值容錯', () {
@@ -50,10 +64,7 @@ void main() {
     });
     await UsageStats.bump(UsageEvents.waterAdd, now: DateTime(2026, 7, 2));
     final prefs = await SharedPreferences.getInstance();
-    expect(
-      UsageStats.dayCounts(prefs, '2026-07-02')[UsageEvents.waterAdd],
-      1,
-    );
+    expect(UsageStats.dayCounts(prefs, '2026-07-02')[UsageEvents.waterAdd], 1);
   });
 
   test('寫入新的一天時，超過保留期的舊 key 被清掉、期內保留', () async {

@@ -11,7 +11,8 @@ enum SfxCue {
   cancel('assets/sounds/sfx_cancel.wav', 0.9),
   // 衣櫃購買／回憶揭曉：溫暖木質起音＋短促星光尾音。
   unlock('assets/sounds/sfx_unlock.wav', 0.85),
-  // 每日足跡幣：先用柔軟吸入聲，命中時再疊 POKA03 的短促獲得聲。
+  // 每日足跡幣：兔咪手前灑開 → 柔軟吸入 → POKA03 短促命中。
+  footprintCoinScatter('assets/sounds/sfx_footprint_coin_scatter.wav', 0.62),
   footprintCoinAbsorb('assets/sounds/sfx_footprint_coin_absorb.wav', 0.72),
   footprintCoinReward('assets/sounds/sfx_footprint_coin_reward.wav', 0.50),
   // 兔咪語音（2026-07 新錄音組，取代舊 tumi_mi_*）。
@@ -28,6 +29,17 @@ enum SfxCue {
   tumiJump('assets/sounds/sfx_tumi_jump.wav', 0.72),
   // 只取 swish 最前方乾淨毛茸段，首尾交叉淡化成 0.64 秒無縫循環。
   tumiPet('assets/sounds/sfx_tumi_pet.wav', 0.78),
+  // 菜園小蛇專屬：短音色各自對應遊戲語意，不借用棋鐘／骰子／一般 UI 聲。
+  snakeStart('assets/sounds/sfx_snake_start.wav', 0.70),
+  snakeCollect('assets/sounds/sfx_snake_collect.wav', 0.58),
+  snakeBonus('assets/sounds/sfx_snake_bonus.wav', 0.72),
+  snakePower('assets/sounds/sfx_snake_power.wav', 0.68),
+  snakeSeed('assets/sounds/sfx_snake_seed.wav', 0.46),
+  snakeHit('assets/sounds/sfx_snake_hit.wav', 0.68),
+  snakeHunt('assets/sounds/sfx_snake_hunt.wav', 0.72),
+  snakeWarning('assets/sounds/sfx_snake_warning.wav', 0.54),
+  snakeGameOver('assets/sounds/sfx_snake_game_over.wav', 0.76),
+  snakeRevive('assets/sounds/sfx_snake_revive.wav', 0.72),
   // 桌遊計時器專屬（ElevenLabs 生成、剪裁後 peak 對齊上面同類音效）
   gamePass('assets/sounds/sfx_game_pass.wav', 0.9), // 棋鐘喀噠：換人
   gameWarn('assets/sounds/sfx_game_warn.wav', 0.85), // 木質 tick：倒數警示

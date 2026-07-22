@@ -6,11 +6,13 @@
 // 功能卡「與底部分頁列」，退去時露出遊戲桌骰盤（[DiceDuelEgg]，
 // 由 shell 掛在 root overlay 上，所以能蓋到 tab bar）。
 //
-// 規則刻意極簡：一顆對一顆、比點數、平手自動再擲；沒有任何獎勵、
+// 規則刻意極簡：一顆對一顆、比點數；結果出現後直接再抓同一顆骰子
+// 就開始下一局，落點與朝向都延續，不插入「再來一場」或自動重置。
+// 底部只記錄這次彩蛋期間的勝場與平手，關閉即清空；沒有任何獎勵、
 // 沒有教學文字——彩蛋的樂趣就是自己摸索（骰盤墊本身就是「在這裡甩」
 // 的暗示）。骰子物理與畫家整組重用計時遊戲的 dice_world.dart /
 // dice_tray.dart（DiceWorldPainter）；兔咪的輸贏反應走既有 persona
-// 情境（贏＝energize 星星＋歡呼、輸與平手＝tapReaction 問號＋疑問聲），
+// 情境（贏＝星星＋歡呼、輸＝汗滴＋確認、平手＝音符＋確認），
 // 不需要新 CG 素材。
 //
 // 手勢互讓：偵測層把場景區指數同步到 MascotScenePointers.count，
@@ -33,15 +35,21 @@ import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import 'mascot_scene.dart';
 
-/// 兩指長按偵測層：包住兔咪場景區，恰好兩指、都近乎靜止地按滿
-/// [holdDuration] 才觸發。任何一指滑動超過 slop、第三指落下或提前
-/// 放開都取消；一次觸控最多觸發一次（放光手指才重新武裝）。
+/// 二／三指長按彩蛋的共用仲裁層：包住兔咪場景區，恰好指定
+/// 指數、且每指都近乎靜止地按滿 [holdDuration] 才觸發。指數改變
+/// （第 3 指落下、第 4 指讓三指失格或任一指抬起）時立即取消計時，並從當下
+/// 以新指數重新計算長按；一次觸控 session 所有彩蛋合計最多觸發一次，
+/// 放光手指才重新武裝。指數精確比對讓兩種彩蛋互斥、不會誤觸。
 ///
 /// 不論 [enabled] 與否都會把指數同步進 [MascotScenePointers]，
 /// 單指互動的互讓（取消充電）不因彩蛋面板開著而失效。
 class TwoFingerEggDetector extends StatefulWidget {
   final bool enabled;
   final VoidCallback onTrigger;
+
+  /// 三指彩蛋為 optional，未提供時完全保持原本二指偵測器行為。
+  final bool threeFingerEnabled;
+  final VoidCallback? onThreeFingerTrigger;
   final Widget child;
 
   /// 彩蛋門檻刻意比一般長按（~0.5s）久，誤觸率趨近零。
@@ -51,6 +59,8 @@ class TwoFingerEggDetector extends StatefulWidget {
     super.key,
     required this.enabled,
     required this.onTrigger,
+    this.threeFingerEnabled = true,
+    this.onThreeFingerTrigger,
     required this.child,
   });
 
@@ -92,19 +102,46 @@ class _TwoFingerEggDetectorState extends State<TwoFingerEggDetector> {
     _rearm();
   }
 
+  VoidCallback? _callbackFor(int pointerCount) => switch (pointerCount) {
+    2 when widget.enabled => widget.onTrigger,
+    3 when widget.threeFingerEnabled => widget.onThreeFingerTrigger,
+    _ => null,
+  };
+
   void _rearm() {
     _disarm();
     if (_firedThisTouch) return;
-    if (_origin.length != 2 || _moved.isNotEmpty) return;
+    if (_moved.isNotEmpty) return;
+    final pointerCount = _origin.length;
+    if (_callbackFor(pointerCount) == null) return;
     _holdTimer = Timer(TwoFingerEggDetector.holdDuration, () {
+      // shell 可能在按住期間收起功能卡或關閉彩蛋；觸發
+      // 前重讀當下 widget 門檻，避免執行已失效的舊 callback。
+      final callback = _callbackFor(pointerCount);
+      if (callback == null ||
+          _origin.length != pointerCount ||
+          _moved.isNotEmpty) {
+        return;
+      }
       _firedThisTouch = true;
-      if (widget.enabled) widget.onTrigger();
+      callback();
     });
   }
 
   void _disarm() {
     _holdTimer?.cancel();
     _holdTimer = null;
+  }
+
+  @override
+  void didUpdateWidget(covariant TwoFingerEggDetector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled != widget.enabled ||
+        oldWidget.threeFingerEnabled != widget.threeFingerEnabled ||
+        (oldWidget.onThreeFingerTrigger == null) !=
+            (widget.onThreeFingerTrigger == null)) {
+      _rearm();
+    }
   }
 
   @override
@@ -350,10 +387,195 @@ class _MatDecorPainter extends CustomPainter {
   bool shouldRepaint(_MatDecorPainter old) => false;
 }
 
-/// 對決回合：你擲 → 定格交棒 → 兔咪擲（throwAll 自動）→ 結果。
-enum _DuelPhase { player, handoff, bunny, result }
+/// 對決回合：你擲 → 定格交棒 → 角色擲（throwAll 自動）→ 結果。
+enum _DuelPhase { player, handoff, mascot, result }
 
-enum _DuelOutcome { playerWin, bunnyWin, tie }
+enum DiceDuelOutcome { playerWin, mascotWin, tie }
+
+/// 只存在這次骰子彩蛋生命週期內的戰績；不讀寫 SharedPreferences。
+@immutable
+class DiceDuelSessionScore {
+  final int rounds;
+  final int playerWins;
+  final int mascotWins;
+  final int ties;
+
+  const DiceDuelSessionScore({
+    this.rounds = 0,
+    this.playerWins = 0,
+    this.mascotWins = 0,
+    this.ties = 0,
+  });
+
+  DiceDuelSessionScore record(DiceDuelOutcome outcome) {
+    return DiceDuelSessionScore(
+      rounds: rounds + 1,
+      playerWins: playerWins + (outcome == DiceDuelOutcome.playerWin ? 1 : 0),
+      mascotWins: mascotWins + (outcome == DiceDuelOutcome.mascotWin ? 1 : 0),
+      ties: ties + (outcome == DiceDuelOutcome.tie ? 1 : 0),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DiceDuelSessionScore &&
+          rounds == other.rounds &&
+          playerWins == other.playerWins &&
+          mascotWins == other.mascotWins &&
+          ties == other.ties;
+
+  @override
+  int get hashCode => Object.hash(rounds, playerWins, mascotWins, ties);
+}
+
+/// 常駐在骰盤底部的本次戰績。完整名稱交給語意朗讀；畫面文字會在
+/// 狹窄空間等比縮小，避免改名後把「結束遊戲」擠出畫面。
+class DiceDuelScoreboard extends StatelessWidget {
+  final DiceDuelSessionScore score;
+  final String mascotName;
+
+  const DiceDuelScoreboard({
+    super.key,
+    required this.score,
+    required this.mascotName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final detail =
+        '你 ${score.playerWins} 勝・$mascotName ${score.mascotWins} 勝・平手 ${score.ties}';
+    return Semantics(
+      container: true,
+      label:
+          '本次 ${score.rounds} 局，你 ${score.playerWins} 勝，$mascotName ${score.mascotWins} 勝，平手 ${score.ties}',
+      child: ExcludeSemantics(
+        child: Container(
+          key: const ValueKey('dice-duel-scoreboard'),
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFDF9),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: kGameAccent.withValues(alpha: 0.22)),
+            boxShadow: [
+              BoxShadow(
+                color: kGameAccent.withValues(alpha: 0.10),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.emoji_events_rounded,
+                size: 19,
+                color: kGameAccent.withValues(alpha: 0.82),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '本次 ${score.rounds} 局',
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: AppInk.strong,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        detail,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: TableTheme.tableInkSoft,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 對決結果文字獨立成可縮放的摘要。角色名稱雖然目前輸入上限是 12 字，
+/// 仍不能假設一定叫「兔咪」或一定是短中文；結果標題與比分各自縮放，
+/// 狹窄螢幕也維持單行，而完整內容交給語意標籤朗讀。
+class DiceDuelResultSummary extends StatelessWidget {
+  final DiceDuelOutcome outcome;
+  final String mascotName;
+  final int playerValue;
+  final int mascotValue;
+
+  const DiceDuelResultSummary({
+    super.key,
+    required this.outcome,
+    required this.mascotName,
+    required this.playerValue,
+    required this.mascotValue,
+  });
+
+  String get _resultLabel => switch (outcome) {
+    DiceDuelOutcome.playerWin => '你贏了！',
+    DiceDuelOutcome.mascotWin => '$mascotName贏了！',
+    DiceDuelOutcome.tie => '平手！',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$_resultLabel，你 $playerValue 點，$mascotName $mascotValue 點',
+      child: ExcludeSemantics(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _resultLabel,
+                maxLines: 1,
+                style: AppType.digits(
+                  fontSize: 25,
+                  fontWeight: FontWeight.w800,
+                  color: AppInk.strong,
+                ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '你 $playerValue・$mascotName $mascotValue',
+                maxLines: 1,
+                style: AppType.digits(
+                  fontSize: 13.5,
+                  color: TableTheme.tableInkSoft,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// 骰盤本體：暖奶油桌面（與對局面同款）＋中央淡鼠尾草布墊＝物理範圍。
 /// 沒有擲骰鈕、沒有教學文字——墊上一顆骰子，自己摸索怎麼甩。
@@ -370,16 +592,6 @@ class DiceDuelPanel extends StatefulWidget {
 
 class _DiceDuelPanelState extends State<DiceDuelPanel>
     with SingleTickerProviderStateMixin {
-  // 台詞照角色指南：短句、慢熱、真誠；贏了小得意、輸了不氣餒。
-  static const List<String> _bunnyWinLines = ['我贏了…嘿嘿。', '這次是我的。', '骰子今天站我這邊。'];
-  static const List<String> _playerWinLines = [
-    '你贏了…好厲害。',
-    '輸了…再來一次好不好？',
-    '嗯…下次換我贏。',
-  ];
-  static const List<String> _tieLines = ['一樣大。', '平手…再來一次。', '嗯？同點。'];
-
-  final math.Random _rng = math.Random();
   final DiceWorld _world = DiceWorld();
   final Map<int, Offset> _pointers = {};
 
@@ -389,12 +601,12 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
 
   _DuelPhase _phase = _DuelPhase.player;
   int? _playerValue;
-  int? _bunnyValue;
-  _DuelOutcome? _outcome;
+  int? _mascotValue;
+  DiceDuelOutcome? _outcome;
+  DiceDuelSessionScore _score = const DiceDuelSessionScore();
   Timer? _handoffTimer;
-  Timer? _tieTimer;
 
-  String _bunnyName = '兔咪';
+  String _mascotName = '兔咪';
   DateTime _lastImpactFeedback = DateTime.fromMillisecondsSinceEpoch(0);
   bool _matReady = false;
 
@@ -407,14 +619,13 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     SharedPreferences.getInstance().then((p) {
       if (!mounted) return;
       final name = p.getString(PrefsKeys.mascotName)?.trim();
-      if (name != null && name.isNotEmpty) setState(() => _bunnyName = name);
+      if (name != null && name.isNotEmpty) setState(() => _mascotName = name);
     });
   }
 
   @override
   void dispose() {
     _handoffTimer?.cancel();
-    _tieTimer?.cancel();
     _ticker.dispose();
     _world.dispose();
     super.dispose();
@@ -445,12 +656,12 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
         // 交棒小停頓：看清自己的點數，兔咪才出手。
         _handoffTimer = Timer(const Duration(milliseconds: 1100), () {
           if (!mounted) return;
-          setState(() => _phase = _DuelPhase.bunny);
+          setState(() => _phase = _DuelPhase.mascot);
           playFeedback(SfxCue.gameDice);
           _world.throwAll();
         });
-      case _DuelPhase.bunny:
-        _bunnyValue = _world.total;
+      case _DuelPhase.mascot:
+        _mascotValue = _world.total;
         _finishRound();
       case _DuelPhase.handoff:
       case _DuelPhase.result:
@@ -458,47 +669,44 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     }
   }
 
-  String _pick(List<String> lines) => lines[_rng.nextInt(lines.length)];
-
   void _finishRound() {
     final p = _playerValue!;
-    final b = _bunnyValue!;
+    final b = _mascotValue!;
     final outcome = p == b
-        ? _DuelOutcome.tie
-        : (b > p ? _DuelOutcome.bunnyWin : _DuelOutcome.playerWin);
-    _outcome = outcome;
-    setState(() => _phase = _DuelPhase.result);
+        ? DiceDuelOutcome.tie
+        : (b > p ? DiceDuelOutcome.mascotWin : DiceDuelOutcome.playerWin);
+    setState(() {
+      _outcome = outcome;
+      _score = _score.record(outcome);
+      _phase = _DuelPhase.result;
+    });
     switch (outcome) {
-      case _DuelOutcome.bunnyWin:
+      case DiceDuelOutcome.mascotWin:
         playHaptic(HapticLevel.medium);
-        // 星星泡泡＋歡呼聲＋雙手高舉，跟充電爆發同一組演出語彙。
+        // 星星泡泡＋歡呼聲＋雙手高舉。
         MascotPersona.setForContext(
           MascotEmotion.popHappy.assetPath,
-          MascotContext.energize,
-          speech: _pick(_bunnyWinLines),
+          MascotContext.diceMascotWin,
+          speech: MascotLines.randomLineFor(MascotContext.diceMascotWin),
           force: true,
         );
-      case _DuelOutcome.playerWin:
+      case DiceDuelOutcome.playerWin:
         playHaptic(HapticLevel.light);
-        // 輸了不難過（sad 太重），圓眼期待「再來一次」＋問號泡泡。
+        // 輸了不難過（sad 太重）：圓眼期待＋小汗滴，並用確認聲接住稱讚／認輸台詞。
         MascotPersona.setForContext(
           MascotEmotion.expect.assetPath,
-          MascotContext.tapReaction,
-          speech: _pick(_playerWinLines),
+          MascotContext.diceMascotLoss,
+          speech: MascotLines.randomLineFor(MascotContext.diceMascotLoss),
           force: true,
         );
-      case _DuelOutcome.tie:
+      case DiceDuelOutcome.tie:
         playHaptic(HapticLevel.light);
         MascotPersona.setForContext(
-          MascotEmotion.question.assetPath,
-          MascotContext.tapReaction,
-          speech: _pick(_tieLines),
+          MascotEmotion.expect.assetPath,
+          MascotContext.diceTie,
+          speech: MascotLines.randomLineFor(MascotContext.diceTie),
           force: true,
         );
-        // 停得夠久才自動重擲：台詞要來得及看（太快會被下一句蓋掉）。
-        _tieTimer = Timer(const Duration(milliseconds: 2600), () {
-          if (mounted) _startRound();
-        });
     }
   }
 
@@ -511,13 +719,17 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     }
   }
 
-  void _startRound() {
+  /// 結果後直接接續同一顆骰子：不 spawn、不改位置、不改朝向。
+  /// 下一個 pointer-down 會立刻把這顆已停穩的骰子重新喚醒並吸向手指。
+  void _continueFromResult() {
+    if (_phase != _DuelPhase.result) return;
     _handoffTimer?.cancel();
-    _tieTimer?.cancel();
+    _pointers.clear();
     _playerValue = null;
-    _bunnyValue = null;
+    _mascotValue = null;
     _outcome = null;
-    _spawnCentered();
+    _settleHandled = false;
+    _world.wake();
     setState(() => _phase = _DuelPhase.player);
   }
 
@@ -537,6 +749,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
 
   void _pointerDown(PointerDownEvent e) {
     widget.onActivity?.call();
+    if (_phase == _DuelPhase.result) _continueFromResult();
     if (_phase != _DuelPhase.player) return;
     _pointers[e.pointer] = e.localPosition;
     _world.wake();
@@ -558,12 +771,6 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
     }
   }
 
-  String get _resultLabel => switch (_outcome!) {
-    _DuelOutcome.playerWin => '你贏了！',
-    _DuelOutcome.bunnyWin => '$_bunnyName贏了！',
-    _DuelOutcome.tie => '平手，再來！',
-  };
-
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
@@ -571,7 +778,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
       builder: (context, box) {
         // 底部按鈕帶以外都是骰盤墊；墊內縮一圈＝物理牆，
         // 骰子尺寸跟墊高走（SE 超緊湊高度也要能玩）。
-        final buttonZone = 64.0 + bottomPad;
+        final buttonZone = 68.0 + bottomPad;
         final mat = Rect.fromLTRB(
           14,
           14,
@@ -623,8 +830,10 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
             ),
             // 物理場：你的回合整面都能按住吸骰子、甩出去。
             IgnorePointer(
-              ignoring: _phase != _DuelPhase.player,
+              ignoring:
+                  _phase != _DuelPhase.player && _phase != _DuelPhase.result,
               child: Listener(
+                key: const ValueKey('dice-duel-physics-field'),
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: _pointerDown,
                 onPointerMove: _pointerMove,
@@ -638,7 +847,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
             ),
             // 你的點數：定格後小膠囊浮在墊頂，兔咪擲的時候還看得到。
             if (_playerValue != null &&
-                (_phase == _DuelPhase.handoff || _phase == _DuelPhase.bunny))
+                (_phase == _DuelPhase.handoff || _phase == _DuelPhase.mascot))
               Positioned(
                 top: mat.top + 10,
                 left: 0,
@@ -666,56 +875,42 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
                 child: Align(
                   alignment: const Alignment(0, -0.55),
                   child: IgnorePointer(
-                    child: _capsule(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 26,
-                        vertical: 12,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _resultLabel,
-                            style: AppType.digits(
-                              fontSize: 25,
-                              fontWeight: FontWeight.w800,
-                              color: AppInk.strong,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '你 $_playerValue・$_bunnyName $_bunnyValue',
-                            style: AppType.digits(
-                              fontSize: 13.5,
-                              color: TableTheme.tableInkSoft,
-                            ),
-                          ),
-                        ],
+                    child: SizedBox(
+                      width: math.min(mat.width - 24, 320),
+                      child: _capsule(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 26,
+                          vertical: 12,
+                        ),
+                        child: DiceDuelResultSummary(
+                          outcome: _outcome!,
+                          mascotName: _mascotName,
+                          playerValue: _playerValue!,
+                          mascotValue: _mascotValue!,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            // 底部：功能按鍵。分出勝負才多一顆「再來一場」。
+            // 底部只保留本次戰績＋退出；下一局直接抓骰子，不插入按鈕。
             Positioned(
-              left: 0,
-              right: 0,
+              left: 14,
+              right: 14,
               bottom: bottomPad + 10,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (_phase == _DuelPhase.result &&
-                      _outcome != _DuelOutcome.tie) ...[
-                    _pillButton(
-                      label: '再來一場',
-                      filled: true,
-                      onTap: _startRound,
+                  Expanded(
+                    child: DiceDuelScoreboard(
+                      score: _score,
+                      mascotName: _mascotName,
                     ),
-                    const SizedBox(width: 12),
-                  ],
+                  ),
+                  const SizedBox(width: 9),
                   _pillButton(
                     label: '結束遊戲',
                     filled: false,
+                    width: 100,
                     onTap: widget.onClose,
                   ),
                 ],
@@ -752,6 +947,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
   Widget _pillButton({
     required String label,
     required bool filled,
+    double width = 132,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -768,7 +964,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
         customBorder: const StadiumBorder(),
         onTap: onTap,
         child: SizedBox(
-          width: 132,
+          width: width,
           height: 46,
           child: Center(
             child: Text(

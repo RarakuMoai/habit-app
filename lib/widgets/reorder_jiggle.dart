@@ -213,6 +213,7 @@ class ReorderHoldDragListener extends ReorderableDragStartListener {
     super.key,
     required super.child,
     required super.index,
+    super.enabled,
     required this.immediate,
   });
 

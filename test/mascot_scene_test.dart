@@ -29,9 +29,15 @@ void main() {
     }
   });
 
-  test('足跡幣獲得音已收入 asset bundle', () async {
-    final data = await rootBundle.load(SfxCue.footprintCoinReward.assetPath);
-    expect(data.lengthInBytes, greaterThan(1000));
+  test('足跡幣三段演出音已收入 asset bundle', () async {
+    for (final cue in [
+      SfxCue.footprintCoinScatter,
+      SfxCue.footprintCoinAbsorb,
+      SfxCue.footprintCoinReward,
+    ]) {
+      final data = await rootBundle.load(cue.assetPath);
+      expect(data.lengthInBytes, greaterThan(1000), reason: cue.assetPath);
+    }
   });
 
   Future<void> pumpStage(

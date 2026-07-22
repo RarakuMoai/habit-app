@@ -14,11 +14,16 @@ class AudioControlButton extends StatefulWidget {
   final Color accent;
   final VoidCallback? onMusicEnabled;
 
+  /// 音訊面板打開前呼叫。全螢幕遊戲可用它先暫停，避免使用者調整
+  /// 聲音時遊戲仍在背景前進；一般頁面不傳就維持原行為。
+  final VoidCallback? onBeforeOpen;
+
   const AudioControlButton({
     super.key,
     required this.style,
     required this.accent,
     this.onMusicEnabled,
+    this.onBeforeOpen,
   });
 
   @override
@@ -40,6 +45,7 @@ class _AudioControlButtonState extends State<AudioControlButton> {
       _hidePanel();
       return;
     }
+    widget.onBeforeOpen?.call();
     unawaited(SfxService.instance.play(SfxCue.tap));
 
     final buttonBox =

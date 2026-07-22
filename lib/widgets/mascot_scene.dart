@@ -25,6 +25,7 @@ import '../utils/sfx_service.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import 'mascot_bubbles.dart';
+import 'reward_animation_anchor.dart';
 
 /// 搓動頭部時從指尖冒出的小愛心壽命；原本約 0.83 秒，延長 0.3 秒。
 @visibleForTesting
@@ -364,17 +365,22 @@ class MascotScene extends StatelessWidget {
                 maxHeight: box.maxHeight,
               ),
               alignment: Alignment.bottomCenter,
-              child: MascotStage(
-                asset: asset,
-                accent: accent,
-                bubble: bubble,
-                bubbleTick: bubbleTick,
-                reactionTick: reactionTick,
-                onTap: onTap ?? () {},
-                onHeadPet: onHeadPet,
-                onEnergize: onEnergize,
-                paused: paused,
-                lighting: lighting,
+              child: RewardAnimationAnchor(
+                kind: RewardAnimationAnchorKind.mascot,
+                // 252×252 stage 的胸前／兩手之間，避免看起來像從肚子噴出。
+                alignment: const Alignment(0, 0.08),
+                child: MascotStage(
+                  asset: asset,
+                  accent: accent,
+                  bubble: bubble,
+                  bubbleTick: bubbleTick,
+                  reactionTick: reactionTick,
+                  onTap: onTap ?? () {},
+                  onHeadPet: onHeadPet,
+                  onEnergize: onEnergize,
+                  paused: paused,
+                  lighting: lighting,
+                ),
               ),
             ),
           ),

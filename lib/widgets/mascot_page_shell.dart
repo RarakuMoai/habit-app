@@ -23,6 +23,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../pages/game/snake_arcade/snake_arcade_page.dart';
 import '../pages/home/room_metrics.dart';
 
 import '../utils/mascot.dart';
@@ -64,6 +65,10 @@ class MascotPageShell extends StatefulWidget {
   final bool autoPauseScene;
   final Duration sceneIdleDelay;
 
+  /// 三指長按場景彩蛋的覆寫回呼。一般頁面不傳時由 shell 以全螢幕
+  /// root overlay 掛上 [SnakeArcadeEgg]（菜園小蛇）。
+  final VoidCallback? onThreeFingerEggTrigger;
+
   const MascotPageShell({
     super.key,
     required this.scene,
@@ -73,6 +78,7 @@ class MascotPageShell extends StatefulWidget {
     this.peekHeight = 20,
     this.autoPauseScene = true,
     this.sceneIdleDelay = const Duration(seconds: 20),
+    this.onThreeFingerEggTrigger,
   });
 
   @override
@@ -87,10 +93,13 @@ class _MascotPageShellState extends State<MascotPageShell> {
   // 面板要蓋住功能卡「與底部分頁列」，所以掛在 root overlay 而不是
   // shell 自己的 Stack（shell 在分頁列上方的頁面區內，蓋不到）。
   OverlayEntry? _diceDuelEntry;
+  OverlayEntry? _snakeArcadeEntry;
   double _sceneRegionHeight = 0; // build 時記下，開彩蛋算面板頂緣用
 
+  bool get _anyEggOpen => _diceDuelEntry != null || _snakeArcadeEntry != null;
+
   void _openDiceDuel() {
-    if (_diceDuelEntry != null || !mounted) return;
+    if (_anyEggOpen || !mounted) return;
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return;
     // 面板頂緣＝場景區下緣的螢幕座標；蓋掉場景以下的一切。
@@ -121,6 +130,37 @@ class _MascotPageShellState extends State<MascotPageShell> {
     if (mounted) setState(() {});
   }
 
+  void _openThreeFingerEgg() {
+    final callback = widget.onThreeFingerEggTrigger;
+    if (callback != null) {
+      callback();
+      return;
+    }
+    _openSnakeArcade();
+  }
+
+  /// 菜園小蛇是全螢幕彩蛋：蓋掉場景、AppBar 與分頁列，遊戲中兔咪隱藏。
+  /// 關閉 overlay 即回到觸發前的頁面與狀態。
+  void _openSnakeArcade() {
+    if (_anyEggOpen || !mounted) return;
+    _markSceneActive();
+    final entry = OverlayEntry(
+      builder: (_) =>
+          Positioned.fill(child: SnakeArcadeEgg(onClosed: _closeSnakeArcade)),
+    );
+    _snakeArcadeEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    setState(() {});
+  }
+
+  void _closeSnakeArcade() {
+    _snakeArcadeEntry?.remove();
+    _snakeArcadeEntry = null;
+    if (!mounted) return;
+    _markSceneActive(); // 遊戲期間場景可能已閒置凍結，回來先喚醒
+    setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -143,6 +183,8 @@ class _MascotPageShellState extends State<MascotPageShell> {
     _sceneIdleTimer?.cancel();
     _diceDuelEntry?.remove();
     _diceDuelEntry = null;
+    _snakeArcadeEntry?.remove();
+    _snakeArcadeEntry = null;
     super.dispose();
   }
 
@@ -206,8 +248,10 @@ class _MascotPageShellState extends State<MascotPageShell> {
                     // 彩蛋偵測層只包場景區：兩指長按觸發、指數同步給
                     // MascotStage 做單指互動互讓；功能卡展開時不觸發。
                     child: TwoFingerEggDetector(
-                      enabled: _diceDuelEntry == null && openValue > 0.85,
+                      enabled: !_anyEggOpen && openValue > 0.85,
                       onTrigger: _openDiceDuel,
+                      threeFingerEnabled: !_anyEggOpen && openValue > 0.85,
+                      onThreeFingerTrigger: _openThreeFingerEgg,
                       child: pauseScene
                           ? TickerMode(enabled: false, child: scene)
                           : scene,

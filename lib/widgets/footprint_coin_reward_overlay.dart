@@ -7,9 +7,10 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_service.dart';
 import '../utils/sfx_service.dart';
+import 'reward_animation_anchor.dart';
 
-/// 每日登入足跡幣演出：幣從底部（慶祝頁 CTA 的位置）爆出，
-/// 沿弧線升起後吸入 AppBar 餘額——接在 LoginStreakPage pop 之後演。
+/// 每日登入足跡幣演出：兔咪手前聚光、足跡幣向四周灑開，再依序吸入
+/// AppBar 餘額——接在 LoginStreakPage pop 之後演。
 class FootprintCoinRewardOverlay extends StatefulWidget {
   const FootprintCoinRewardOverlay({
     super.key,
@@ -32,19 +33,34 @@ class FootprintCoinRewardOverlay extends StatefulWidget {
 class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     with SingleTickerProviderStateMixin {
   static const _coinCount = 7;
+  // 三段節奏：灑開約 0.8 秒 → 展示停留約 0.35 秒 → 依序吸入。
+  // 讓使用者看清楚錢確實從兔咪身上散出，又不會拖成等待畫面；提示仍可點擊略過。
+  static const _animationDuration = Duration(milliseconds: 2600);
+  static const _scatterOffsets = <Offset>[
+    Offset(-78, -18),
+    Offset(-58, -68),
+    Offset(-22, -94),
+    Offset(20, -84),
+    Offset(62, -58),
+    Offset(82, -12),
+    Offset(48, 34),
+  ];
+
   late final AnimationController _controller;
   bool _started = false;
   bool _landed = false;
   bool _finished = false;
   Timer? _reducedMotionTimer;
+  Timer? _scatterSoundTimer;
+  Timer? _absorbSoundTimer;
+  Offset? _origin;
+  Offset? _target;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..addListener(_onTick);
+    _controller = AnimationController(vsync: this, duration: _animationDuration)
+      ..addListener(_onTick);
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) _finish();
     });
@@ -59,6 +75,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
   void _start() {
     if (!mounted || _started) return;
     _started = true;
+    _resolveAnchors();
     if (_reduceMotion) {
       CoinService.presentationBalance.value = widget.targetBalance;
       _playLanding();
@@ -66,21 +83,55 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
       setState(() {});
       return;
     }
-    unawaited(SfxService.instance.play(SfxCue.footprintCoinAbsorb));
+    _scatterSoundTimer = Timer(const Duration(milliseconds: 140), () {
+      if (mounted && !_finished) {
+        unawaited(SfxService.instance.play(SfxCue.footprintCoinScatter));
+      }
+    });
+    _absorbSoundTimer = Timer(const Duration(milliseconds: 1120), () {
+      if (mounted && !_finished) {
+        unawaited(SfxService.instance.play(SfxCue.footprintCoinAbsorb));
+      }
+    });
     _controller.forward();
   }
 
+  void _resolveAnchors() {
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+    final mascotGlobal = RewardAnimationAnchors.globalPoint(
+      RewardAnimationAnchorKind.mascot,
+    );
+    final coinGlobal = RewardAnimationAnchors.globalPoint(
+      RewardAnimationAnchorKind.coinBalance,
+    );
+    final origin = mascotGlobal == null
+        ? null
+        : renderObject.globalToLocal(mascotGlobal);
+    final target = coinGlobal == null
+        ? null
+        : renderObject.globalToLocal(coinGlobal);
+    if (origin != _origin || target != _target) {
+      setState(() {
+        _origin = origin;
+        _target = target;
+      });
+    }
+  }
+
+  double _coinLandAt(int index) => 0.72 + index * 0.035;
+
   void _onTick() {
-    final progress = const Interval(
-      0.20,
-      0.82,
-      curve: Curves.easeInOutCubic,
-    ).transform(_controller.value);
-    final shown = widget.startBalance + (widget.amount * progress).round();
+    final arrived = List.generate(
+      _coinCount,
+      (index) => _controller.value >= _coinLandAt(index),
+    ).where((value) => value).length;
+    final shown =
+        widget.startBalance + (widget.amount * arrived / _coinCount).round();
     if (CoinService.presentationBalance.value != shown) {
       CoinService.presentationBalance.value = shown;
     }
-    if (!_landed && _controller.value >= 0.82) _playLanding();
+    if (!_landed && arrived == _coinCount) _playLanding();
   }
 
   void _playLanding() {
@@ -96,6 +147,8 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     if (_finished) return;
     _finished = true;
     _reducedMotionTimer?.cancel();
+    _scatterSoundTimer?.cancel();
+    _absorbSoundTimer?.cancel();
     CoinService.presentationBalance.value = null;
     widget.onFinished();
   }
@@ -103,6 +156,8 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
   @override
   void dispose() {
     _reducedMotionTimer?.cancel();
+    _scatterSoundTimer?.cancel();
+    _absorbSoundTimer?.cancel();
     _controller
       ..removeListener(_onTick)
       ..dispose();
@@ -112,13 +167,26 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
 
   void _skip() {
     _started = true;
+    _scatterSoundTimer?.cancel();
+    _absorbSoundTimer?.cancel();
     _controller.stop();
+    unawaited(SfxService.instance.stop(SfxCue.footprintCoinScatter));
+    unawaited(SfxService.instance.stop(SfxCue.footprintCoinAbsorb));
     _playLanding();
     _finish();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final origin = _origin ?? Offset(size.width * 0.5, size.height * 0.43);
+    final target =
+        _target ?? Offset(size.width - 134, safeTop + kToolbarHeight / 2);
+    final labelTop = (origin.dy + 92).clamp(
+      safeTop + kToolbarHeight + 24,
+      size.height - 150,
+    );
     return Stack(
       children: [
         Positioned.fill(
@@ -127,8 +195,11 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
               animation: _controller,
               builder: (context, _) => Stack(
                 children: [
-                  if (!_reduceMotion)
-                    for (var i = 0; i < _coinCount; i++) _buildCoin(context, i),
+                  if (!_reduceMotion) ...[
+                    _buildOriginGlow(origin),
+                    for (var i = 0; i < _coinCount; i++)
+                      _buildCoin(i, origin: origin, target: target),
+                  ],
                 ],
               ),
             ),
@@ -137,7 +208,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
         Positioned(
           left: 0,
           right: 0,
-          top: MediaQuery.sizeOf(context).height * 0.43,
+          top: labelTop,
           child: Center(child: _buildRewardLabel()),
         ),
       ],
@@ -148,7 +219,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     final t = _reduceMotion ? 1.0 : _controller.value;
     final opacity = t < 0.12
         ? (t / 0.12).clamp(0.0, 1.0)
-        : ((1 - t) / 0.18).clamp(0.0, 1.0);
+        : ((1 - t) / 0.10).clamp(0.0, 1.0);
     return Semantics(
       liveRegion: true,
       label: '今日獲得 ${widget.amount} 枚足跡幣',
@@ -192,57 +263,165 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     );
   }
 
-  Widget _buildCoin(BuildContext context, int index) {
-    final size = MediaQuery.sizeOf(context);
-    final safeTop = MediaQuery.paddingOf(context).top;
-    final startAt = 0.08 + index * 0.035;
-    final endAt = startAt + 0.52;
-    final flight = Interval(
+  Widget _buildOriginGlow(Offset origin) {
+    final t = _controller.value;
+    final emerge = const Interval(
+      0,
+      0.15,
+      curve: Curves.easeOutBack,
+    ).transform(t);
+    final fade =
+        1 - const Interval(0.20, 0.46, curve: Curves.easeOut).transform(t);
+    const glowSize = 104.0;
+    return Positioned(
+      key: const ValueKey('footprint-coin-origin-glow'),
+      left: origin.dx - glowSize / 2,
+      top: origin.dy - glowSize / 2,
+      child: Opacity(
+        opacity: fade.clamp(0.0, 1.0),
+        child: Transform.scale(
+          scale: 0.35 + emerge * 0.65,
+          child: SizedBox.square(
+            dimension: glowSize,
+            child: CustomPaint(painter: _RewardOriginGlowPainter(progress: t)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCoin(
+    int index, {
+    required Offset origin,
+    required Offset target,
+  }) {
+    final startAt = 0.055 + index * 0.015;
+    final scatterEnd = 0.28 + index * 0.007;
+    final gatherStart = 0.43 + index * 0.008;
+    final landAt = _coinLandAt(index);
+    final scatter = Interval(
       startAt,
-      endAt,
-      curve: Curves.easeInCubic,
+      scatterEnd,
+      curve: Curves.easeOutCubic,
     ).transform(_controller.value);
-    // 起點聚在底部 CTA 一帶（慶祝頁按鈕位置），控制點錯開讓幣扇形升起。
-    final start = Offset(
-      size.width * (0.335 + index * 0.055),
-      size.height * (0.84 + (index.isEven ? -0.012 : 0.012)),
-    );
-    final target = Offset(size.width - 134, safeTop + kToolbarHeight / 2);
+    final gather = Interval(
+      gatherStart,
+      landAt,
+      curve: Curves.easeInOutCubic,
+    ).transform(_controller.value);
+    final scatterPoint = origin + _scatterOffsets[index];
     final control = Offset(
-      start.dx + (target.dx - start.dx) * (0.08 + index * 0.05),
-      size.height * (0.40 - index * 0.018),
+      scatterPoint.dx + (target.dx - scatterPoint.dx) * (0.30 + index * 0.025),
+      math.min(scatterPoint.dy, target.dy) - 34 - index * 3,
     );
-    final oneMinus = 1 - flight;
-    final point = Offset(
-      oneMinus * oneMinus * start.dx +
-          2 * oneMinus * flight * control.dx +
-          flight * flight * target.dx,
-      oneMinus * oneMinus * start.dy +
-          2 * oneMinus * flight * control.dy +
-          flight * flight * target.dy,
-    );
-    final opacity = flight >= 0.96
-        ? ((1 - flight) / 0.04).clamp(0.0, 1.0)
-        : (flight / 0.08).clamp(0.0, 1.0);
+    final point = _controller.value <= scatterEnd
+        ? Offset.lerp(origin, scatterPoint, scatter)!
+        : _quadraticPoint(scatterPoint, control, target, gather);
+    final appear = Interval(
+      startAt,
+      startAt + 0.045,
+      curve: Curves.easeOut,
+    ).transform(_controller.value);
+    final disappear = Interval(
+      landAt - 0.045,
+      landAt,
+      curve: Curves.easeIn,
+    ).transform(_controller.value);
+    final opacity = (appear * (1 - disappear)).clamp(0.0, 1.0);
     final coinSize = 24.0 + (index % 3) * 3;
     return Positioned(
+      key: ValueKey('footprint-coin-$index'),
       left: point.dx - coinSize / 2,
       top: point.dy - coinSize / 2,
       child: Opacity(
         opacity: opacity,
         child: Transform.rotate(
-          angle: (index.isEven ? 1 : -1) * flight * math.pi * 1.4,
+          angle:
+              (index.isEven ? 1 : -1) *
+              (scatter * 0.45 + gather * 1.15) *
+              math.pi,
           child: Transform.scale(
-            scale: 0.78 + 0.22 * math.sin(flight * math.pi),
-            child: Image.asset(
-              'assets/icon/ui/paw_footprint_coin_round.png',
-              width: coinSize,
-              height: coinSize,
-              filterQuality: FilterQuality.high,
+            scale: 0.58 + appear * 0.42 - disappear * 0.28,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFFD66B).withValues(alpha: 0.42),
+                    blurRadius: 9,
+                  ),
+                ],
+              ),
+              child: Image.asset(
+                'assets/icon/ui/paw_footprint_coin_round.png',
+                width: coinSize,
+                height: coinSize,
+                filterQuality: FilterQuality.high,
+              ),
             ),
           ),
         ),
       ),
     );
   }
+
+  Offset _quadraticPoint(Offset start, Offset control, Offset end, double t) {
+    final oneMinus = 1 - t;
+    return Offset(
+      oneMinus * oneMinus * start.dx +
+          2 * oneMinus * t * control.dx +
+          t * t * end.dx,
+      oneMinus * oneMinus * start.dy +
+          2 * oneMinus * t * control.dy +
+          t * t * end.dy,
+    );
+  }
+}
+
+class _RewardOriginGlowPainter extends CustomPainter {
+  const _RewardOriginGlowPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final rect = Offset.zero & size;
+    final glow = Paint()
+      ..shader = const RadialGradient(
+        colors: [Color(0xE6FFF8D9), Color(0x99FFD05A), Color(0x00F2A51D)],
+        stops: [0, 0.38, 1],
+      ).createShader(rect);
+    canvas.drawCircle(center, size.shortestSide * 0.48, glow);
+
+    final ringProgress = Curves.easeOut.transform(
+      (progress / 0.32).clamp(0.0, 1.0),
+    );
+    final ring = Paint()
+      ..color = const Color(
+        0xFFFFCC4D,
+      ).withValues(alpha: (1 - ringProgress) * 0.72)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2;
+    canvas.drawCircle(center, 12 + 34 * ringProgress, ring);
+
+    final sparkle = Paint()
+      ..color = const Color(0xFFFFE59A).withValues(alpha: 0.90)
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2;
+    for (var i = 0; i < 8; i++) {
+      final angle = i * math.pi / 4 + progress * 0.7;
+      final inner = 29.0 + (i.isEven ? 3 : 0);
+      final outer = inner + 6.0 + (i % 3) * 2;
+      canvas.drawLine(
+        center + Offset(math.cos(angle), math.sin(angle)) * inner,
+        center + Offset(math.cos(angle), math.sin(angle)) * outer,
+        sparkle,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RewardOriginGlowPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

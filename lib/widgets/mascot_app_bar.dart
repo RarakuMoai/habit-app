@@ -14,7 +14,9 @@ import '../pages/review_page.dart';
 import '../pages/settings_page.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_service.dart';
+import '../utils/mini_game_session.dart';
 import 'audio_control_button.dart';
+import 'reward_animation_anchor.dart';
 
 class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// 頁面識別色（用於音量按鈕）。
@@ -30,12 +32,17 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// 從設定頁返回後要做的事（重新載入資料等）。
   final VoidCallback? onSettingsReturn;
 
+  /// 足跡、聲音或設定開始動作前呼叫。顯示中的 overlay 小遊戲會由
+  /// [MiniGameSession] 自動暫停；這個 callback 留給頁面自己的額外狀態。
+  final VoidCallback? onBeforeAction;
+
   const MascotAppBar({
     super.key,
     required this.accent,
     this.extraActions = const [],
     this.showReview = true,
     this.onSettingsReturn,
+    this.onBeforeAction,
   });
 
   @override
@@ -68,11 +75,20 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
           // 金幣餘額兼足跡入口：和音量/設定一樣是白色圓鈕，
           // 腳印內顯示短版金幣數，完整數字留給足跡頁與語意標籤。
           child: CoinPill(
-            onReviewTap: showReview ? () => _openReview(context) : null,
+            onReviewTap: showReview
+                ? () {
+                    _beforeAction();
+                    _openReview(context);
+                  }
+                : null,
           ),
         ),
         ...extraActions,
-        AudioControlButton(style: AudioControlStyle.appBar, accent: accent),
+        AudioControlButton(
+          style: AudioControlStyle.appBar,
+          accent: accent,
+          onBeforeOpen: _beforeAction,
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: _circleAction(
@@ -80,6 +96,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
             iconColor: AppInk.strong,
             tooltip: '設定',
             onPressed: () async {
+              _beforeAction();
               await Navigator.of(
                 context,
               ).push(_slideRoute((_) => const SettingsPage()));
@@ -89,6 +106,11 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ],
     );
+  }
+
+  void _beforeAction() {
+    MiniGameSession.pauseActive();
+    onBeforeAction?.call();
   }
 
   // 白圓底 + 陰影的 AppBar 圓鈕；足跡 / 設定共用同一視覺語言。
@@ -193,16 +215,19 @@ class _CoinPillState extends State<CoinPill>
 
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scale,
-      child: ListenableBuilder(
-        listenable: Listenable.merge([
-          CoinService.notifier,
-          CoinService.presentationBalance,
-        ]),
-        builder: (_, _) => _CoinBalanceButton(
-          coins: CoinService.visibleBalance,
-          onReviewTap: widget.onReviewTap,
+    return RewardAnimationAnchor(
+      kind: RewardAnimationAnchorKind.coinBalance,
+      child: ScaleTransition(
+        scale: _scale,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            CoinService.notifier,
+            CoinService.presentationBalance,
+          ]),
+          builder: (_, _) => _CoinBalanceButton(
+            coins: CoinService.visibleBalance,
+            onReviewTap: widget.onReviewTap,
+          ),
         ),
       ),
     );
