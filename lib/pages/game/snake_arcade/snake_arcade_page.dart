@@ -92,34 +92,37 @@ import 'snake_arcade_records.dart';
 
 const _cream = Color(0xFFF6F1E7);
 
-/// 蛇頭可在中央安全區內自由移動；只有跨出邊界時，鏡頭才移動剛好足夠的距離。
-/// 這能避免每走一格就整張地圖跟著跳。
+/// 相位鎖定鏡頭：方向一確定便以「每個蛇節拍一格」等速移動。蛇在畫面上的
+/// 正常相位差為前後半格；只有超出容錯才以有限速度校正，永不瞬移補位。
 @visibleForTesting
-({double x, double y}) snakeArcadeCameraTarget({
+({double x, double y}) snakeArcadeCameraVelocity({
   required double cameraX,
   required double cameraY,
   required double headX,
   required double headY,
   required double viewportColumns,
   required double viewportRows,
+  required ArcadeDirection direction,
+  required int stepIntervalMs,
 }) {
-  final deadWidth = math.min(7.0, math.max(3.0, viewportColumns - 4));
-  final deadHeight = math.min(9.0, math.max(3.0, viewportRows - 4));
-  final left = (viewportColumns - deadWidth) / 2;
-  final right = left + deadWidth;
-  final top = (viewportRows - deadHeight) / 2;
-  final bottom = top + deadHeight;
-  final localX = headX - cameraX;
-  final localY = headY - cameraY;
-  var targetX = cameraX;
-  var targetY = cameraY;
-  if (localX < left) targetX = headX - left;
-  if (localX > right) targetX = headX - right;
-  if (localY < top) targetY = headY - top;
-  if (localY > bottom) targetY = headY - bottom;
+  final speed = 1000 / stepIntervalMs;
+  final anchorX = viewportColumns / 2 - direction.dx * 0.5;
+  final anchorY = viewportRows / 2 - direction.dy * 0.5;
+  final errorX = headX - cameraX - anchorX;
+  final errorY = headY - cameraY - anchorY;
+
+  double correction(double error) {
+    const toleranceCells = 0.55;
+    final magnitude = error.abs();
+    if (magnitude <= toleranceCells) return 0;
+    final maxFraction = magnitude > 1.25 ? 0.55 : 0.22;
+    final raw = (magnitude - toleranceCells) * speed * 0.55;
+    return error.sign * math.min(raw, speed * maxFraction);
+  }
+
   return (
-    x: clampArcadeCamera(targetX, viewportColumns),
-    y: clampArcadeCamera(targetY, viewportRows),
+    x: direction.dx * speed + correction(errorX),
+    y: direction.dy * speed + correction(errorY),
   );
 }
 
@@ -358,22 +361,28 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
   }
 
   void _updateCamera(int dtMs) {
-    final target = snakeArcadeCameraTarget(
+    if (_engine.phase != ArcadePhase.running) return;
+    final velocity = snakeArcadeCameraVelocity(
       cameraX: _cameraX,
       cameraY: _cameraY,
       headX: _engine.head.x + 0.5,
       headY: _engine.head.y + 0.5,
       viewportColumns: _viewportColumns,
       viewportRows: _viewportRows,
+      direction: _engine.cameraDirection,
+      stepIntervalMs: _engine.stepIntervalMs,
     );
-    // 約 90ms 半衰期並限制最大速度；跨安全區時柔順跟上，不瞬間抽動。
+    // 掉幀時最多補 50ms，寧可下一幀以限速校正，也不瞬間跳完整格。
     final cameraDtMs = math.min(dtMs, 50);
-    final smoothing = 1 - math.pow(0.5, cameraDtMs / 90).toDouble();
-    final maxStep = 9.0 * cameraDtMs / 1000;
-    final stepX = ((target.x - _cameraX) * smoothing).clamp(-maxStep, maxStep);
-    final stepY = ((target.y - _cameraY) * smoothing).clamp(-maxStep, maxStep);
-    _cameraX = clampArcadeCamera(_cameraX + stepX, _viewportColumns);
-    _cameraY = clampArcadeCamera(_cameraY + stepY, _viewportRows);
+    final seconds = cameraDtMs / 1000;
+    _cameraX = clampArcadeCamera(
+      _cameraX + velocity.x * seconds,
+      _viewportColumns,
+    );
+    _cameraY = clampArcadeCamera(
+      _cameraY + velocity.y * seconds,
+      _viewportRows,
+    );
   }
 
   void _snapCamera() {

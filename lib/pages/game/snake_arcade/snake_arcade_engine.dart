@@ -272,6 +272,11 @@ class SnakeArcadeEngine {
   List<ArcadePoint> get body => List.unmodifiable(_body);
   ArcadePoint get head => _body.first;
   ArcadeDirection get direction => _direction;
+
+  /// 鏡頭可預讀下一個已接受、實際會執行的方向；第二個緩衝轉向仍要等第一步
+  /// 完成後才會成為鏡頭方向，避免畫面比規則多偷跑一步。
+  ArcadeDirection get cameraDirection =>
+      _inputQueue.isEmpty ? _direction : _inputQueue.first;
   List<ArcadeCollectible> get collectibles => List.unmodifiable(_collectibles);
   List<ArcadeMole> get moles => List.unmodifiable(_moles);
   List<ArcadeBullet> get bullets => List.unmodifiable(_bullets);

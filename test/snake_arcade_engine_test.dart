@@ -51,8 +51,10 @@ void main() {
     final start = engine.head;
     engine.enqueueDirection(ArcadeDirection.up);
     engine.enqueueDirection(ArcadeDirection.left);
+    expect(engine.cameraDirection, ArcadeDirection.up);
     engine.advance(engine.stepIntervalMs);
     expect(engine.head, ArcadePoint(start.x, start.y - 1));
+    expect(engine.cameraDirection, ArcadeDirection.left);
     engine.advance(engine.stepIntervalMs);
     expect(engine.head, ArcadePoint(start.x - 1, start.y - 1));
   });

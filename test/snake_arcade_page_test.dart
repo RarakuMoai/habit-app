@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/game/snake_arcade/snake_arcade_engine.dart';
 import 'package:habit_app/pages/game/snake_arcade/snake_arcade_page.dart';
+import 'package:habit_app/pages/game/snake_arcade/snake_arcade_painters.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/sfx_service.dart';
 import 'package:habit_app/widgets/dice_duel_panel.dart';
@@ -47,12 +48,36 @@ Future<void> _run(WidgetTester tester, int ms) async {
   }
 }
 
+/// 用接近實機的幀距推進，專門驗證每幀鏡頭位移。
+Future<void> _runFrames(WidgetTester tester, int ms) async {
+  var left = ms;
+  while (left > 0) {
+    final chunk = math.min(16, left);
+    await tester.pump(Duration(milliseconds: chunk));
+    left -= chunk;
+  }
+}
+
 Future<void> _pumpCurtainCycle(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 600));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 600));
   await tester.pump();
+}
+
+double _cameraX(WidgetTester tester) {
+  final paint = tester.widget<CustomPaint>(
+    find.byKey(const ValueKey('snake-arcade-minimap')),
+  );
+  return (paint.painter! as SnakeArcadeMinimapPainter).cameraX;
+}
+
+double _cameraY(WidgetTester tester) {
+  final paint = tester.widget<CustomPaint>(
+    find.byKey(const ValueKey('snake-arcade-minimap')),
+  );
+  return (paint.painter! as SnakeArcadeMinimapPainter).cameraY;
 }
 
 void main() {
@@ -120,28 +145,71 @@ void main() {
     );
   });
 
-  test('鏡頭安全區內不移動，蛇頭跨界後只補足超出的距離', () {
-    final inside = snakeArcadeCameraTarget(
-      cameraX: 10,
-      cameraY: 8,
-      headX: 18,
-      headY: 17,
+  test('相位鎖定鏡頭正常等速，只有落差超標才限速校正', () {
+    const interval = 310;
+    final speed = 1000 / interval;
+    final normal = snakeArcadeCameraVelocity(
+      cameraX: 13,
+      cameraY: 11.5,
+      headX: 20.5,
+      headY: 20.5,
       viewportColumns: 15,
       viewportRows: 18,
+      direction: ArcadeDirection.right,
+      stepIntervalMs: interval,
     );
-    expect(inside.x, 10);
-    expect(inside.y, 8);
+    expect(normal.x, closeTo(speed, 0.0001));
+    expect(normal.y, 0);
 
-    final outside = snakeArcadeCameraTarget(
-      cameraX: 10,
-      cameraY: 8,
-      headX: 22,
-      headY: 18,
+    final lagged = snakeArcadeCameraVelocity(
+      cameraX: 11,
+      cameraY: 11.5,
+      headX: 20.5,
+      headY: 20.5,
       viewportColumns: 15,
       viewportRows: 18,
+      direction: ArcadeDirection.right,
+      stepIntervalMs: interval,
     );
-    expect(outside.x, 11); // 水平安全區右界是畫面內第 11 格。
-    expect(outside.y, 8); // 垂直仍在安全區內，不連帶重置。
+    expect(lagged.x, greaterThan(speed));
+    expect(lagged.x, lessThanOrEqualTo(speed * 1.55));
+    expect(lagged.y, 0);
+  });
+
+  testWidgets('鏡頭在蛇跳格前持續移動，蛇跳格當幀不會跟著跳一格', (tester) async {
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+    engine.debugClearCollectibles();
+    final headBefore = engine.head;
+    final cameraBefore = _cameraX(tester);
+
+    await _swipe(tester, const Offset(40, 0));
+    await _runFrames(tester, 100);
+    expect(engine.head, headBefore);
+    expect(_cameraX(tester), greaterThan(cameraBefore + 0.2));
+
+    await _runFrames(tester, engine.stepIntervalMs - 110);
+    expect(engine.head, headBefore);
+    final cameraBeforeStep = _cameraX(tester);
+    await _runFrames(tester, 15);
+    expect(engine.head.x, headBefore.x + 1);
+    expect((_cameraX(tester) - cameraBeforeStep).abs(), lessThan(0.2));
+  });
+
+  testWidgets('合法轉向一確認，鏡頭會在蛇下一次跳格前先平滑轉向', (tester) async {
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+    engine.debugClearCollectibles();
+
+    await _swipe(tester, const Offset(40, 0));
+    await _runFrames(tester, 40);
+    final headBeforeTurn = engine.head;
+    await _swipe(tester, const Offset(0, -40));
+    final cameraBeforeTurn = _cameraY(tester);
+    await _runFrames(tester, 50);
+
+    expect(engine.head, headBeforeTurn);
+    expect(_cameraY(tester), lessThan(cameraBeforeTurn - 0.1));
   });
 
   testWidgets('進場等待滑動；滑動後才開始移動', (tester) async {
