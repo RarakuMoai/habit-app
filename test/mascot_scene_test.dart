@@ -29,11 +29,12 @@ void main() {
     }
   });
 
-  test('足跡幣三段演出音已收入 asset bundle', () async {
+  test('每日登入短樂句、蓋章、吸入與逐枚入袋音已收入 asset bundle', () async {
     for (final cue in [
-      SfxCue.footprintCoinScatter,
+      SfxCue.loginStreakIntro,
+      SfxCue.footprintStamp,
       SfxCue.footprintCoinAbsorb,
-      SfxCue.footprintCoinReward,
+      SfxCue.footprintCoinTick,
     ]) {
       final data = await rootBundle.load(cue.assetPath);
       expect(data.lengthInBytes, greaterThan(1000), reason: cue.assetPath);

@@ -71,6 +71,36 @@ void main() {
     expect(CoinService.visibleBalance, 25);
   });
 
+  testWidgets('一般獎勵依實際金額出幣，里程碑最多壓縮成九枚', (tester) async {
+    Future<void> pumpReward(int amount) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FootprintCoinRewardOverlay(
+              amount: amount,
+              startBalance: 0,
+              targetBalance: amount,
+              onFinished: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    await pumpReward(5);
+    expect(find.byKey(const ValueKey('footprint-coin-4')), findsOneWidget);
+    expect(find.byKey(const ValueKey('footprint-coin-5')), findsNothing);
+
+    await pumpReward(9);
+    expect(find.byKey(const ValueKey('footprint-coin-8')), findsOneWidget);
+    expect(find.byKey(const ValueKey('footprint-coin-9')), findsNothing);
+
+    await pumpReward(30);
+    expect(find.byKey(const ValueKey('footprint-coin-8')), findsOneWidget);
+    expect(find.byKey(const ValueKey('footprint-coin-9')), findsNothing);
+  });
+
   testWidgets('足跡幣從兔咪錨點散開後飛向 AppBar 錨點', (tester) async {
     CoinService.notifier.value = 7;
     CoinService.presentationBalance.value = 0;

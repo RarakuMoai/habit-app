@@ -122,7 +122,6 @@ class _LoginStreakPageState extends State<LoginStreakPage>
       vsync: this,
       duration: const Duration(seconds: 24),
     )..repeat();
-    playFeedback(SfxCue.unlock, haptic: HapticLevel.light);
     _startShow();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureSealFlight());
   }
@@ -174,9 +173,11 @@ class _LoginStreakPageState extends State<LoginStreakPage>
         Timer(Duration(milliseconds: steps[i]), () {
           if (!mounted) return;
           setState(() => _step = i + 1);
-          // 大墨印第一拍重擊畫面，先給一下輕震；
+          // 大字第一拍用短樂句揭曉今天的連續天數，並給一下輕震；
           // 之後印章真正接觸卡面時再由 _markImpact 給中震。
-          if (i + 1 == 1) playHaptic(HapticLevel.light);
+          if (i + 1 == 1) {
+            playFeedback(SfxCue.loginStreakIntro, haptic: HapticLevel.light);
+          }
         }),
       );
     }
@@ -192,7 +193,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
     _impact = true;
     if (_impactPlayed) return;
     _impactPlayed = true;
-    playFeedback(SfxCue.success, haptic: HapticLevel.medium);
+    playFeedback(SfxCue.footprintStamp, haptic: HapticLevel.medium);
     // 里程碑日是大事件：疊兔咪歡呼。
     if (_isMilestoneDay) playFeedback(SfxCue.tumiCheer);
   }
@@ -201,6 +202,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   void _fastForward() {
     if (_step >= 7) return;
     _cancelTimers();
+    unawaited(SfxService.instance.stop(SfxCue.loginStreakIntro));
     setState(() {
       _step = 7;
       _markImpact();

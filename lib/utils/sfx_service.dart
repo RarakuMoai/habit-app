@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -11,10 +13,16 @@ enum SfxCue {
   cancel('assets/sounds/sfx_cancel.wav', 0.9),
   // 衣櫃購買／回憶揭曉：溫暖木質起音＋短促星光尾音。
   unlock('assets/sounds/sfx_unlock.wav', 0.85),
-  // 每日足跡幣：兔咪手前灑開 → 柔軟吸入 → POKA03 短促命中。
-  footprintCoinScatter('assets/sounds/sfx_footprint_coin_scatter.wav', 0.62),
-  footprintCoinAbsorb('assets/sounds/sfx_footprint_coin_absorb.wav', 0.72),
-  footprintCoinReward('assets/sounds/sfx_footprint_coin_reward.wav', 0.50),
+  // 每日足跡幣：Mixkit 揭曉樂句 → 紙面蓋章 → 柔和吸入 → 逐枚入袋。
+  // intro 裁掉原檔前 50ms 空白；stamp 是使用者挑選的原檔裁成單一撞擊；
+  // tick 由原始 MP3 四聲道輪替連奏。
+  loginStreakIntro('assets/sounds/sfx_login_streak_intro.wav', 0.64),
+  footprintStamp('assets/sounds/sfx_footprint_stamp_impact.wav', 0.82),
+  footprintCoinAbsorb('assets/sounds/sfx_footprint_coin_absorb.wav', 0.80),
+  footprintCoinTick('assets/sounds/sfx_footprint_coin_tick.mp3', 0.52),
+  // 喝水頁：短泡泡回應每次加水；魔法藥水音只在跨過今日目標時慶祝。
+  waterAdd('assets/sounds/sfx_water_add.wav', 0.78),
+  waterGoal('assets/sounds/sfx_water_goal.wav', 0.62),
   // 兔咪語音（2026-07 新錄音組，取代舊 tumi_mi_*）。
   // 各檔原始響度不齊（RMS -20.8 ~ -28.3 dBFS），用音量係數拉齊到
   // 「輕聲陪伴」水準；歡呼是大事件慶祝，刻意比日常亮一點。
@@ -61,7 +69,10 @@ class SfxService {
   SfxService._();
   static final SfxService instance = SfxService._();
 
-  final Map<SfxCue, AudioPlayer> _players = {};
+  // 一般 cue 只需要一個 player；逐枚入袋聲用四聲道輪替，快速連奏時不會
+  // stop/seek 掉上一枚仍在衰減的尾音。
+  final Map<SfxCue, List<AudioPlayer>> _players = {};
+  final Map<SfxCue, int> _cursors = {};
   bool _initialized = false;
   Future<void>? _initializing;
 
@@ -84,46 +95,85 @@ class SfxService {
   Future<void> _initialize() async {
     await AudioSettingsService.instance.init();
     await AppAudioSession.ensureConfigured();
-    final loaded = <SfxCue, AudioPlayer>{};
+    final loaded = <SfxCue, List<AudioPlayer>>{};
     try {
       for (final cue in SfxCue.values) {
-        final player = AudioPlayer();
-        loaded[cue] = player;
-        await player.setAudioSource(AudioSource.asset(cue.assetPath));
-        await player.setVolume(cue.volume);
+        final voiceCount = cue == SfxCue.footprintCoinTick ? 4 : 1;
+        final voices = <AudioPlayer>[];
+        loaded[cue] = voices;
+        for (var i = 0; i < voiceCount; i++) {
+          final player = AudioPlayer();
+          voices.add(player);
+          await player.setAudioSource(AudioSource.asset(cue.assetPath));
+          await player.setVolume(cue.volume);
+        }
       }
     } catch (_) {
-      for (final player in loaded.values) {
-        await player.dispose();
+      for (final voices in loaded.values) {
+        for (final player in voices) {
+          await player.dispose();
+        }
       }
       rethrow;
     }
     _players.addAll(loaded);
+    for (final cue in loaded.keys) {
+      _cursors[cue] = 0;
+    }
     _initialized = true;
   }
 
   /// [volumeScale] 疊在 cue 預設音量上（0–1），碰撞聲隨力道縮放用。
-  Future<void> play(SfxCue cue, {double volumeScale = 1}) =>
-      _play(cue, volumeScale: volumeScale, loop: false);
+  Future<void> play(SfxCue cue, {double volumeScale = 1, double speed = 1}) =>
+      _play(cue, volumeScale: volumeScale, speed: speed, pitch: 1, loop: false);
+
+  /// 可重疊的短音效。足跡幣逐枚入袋時用輪替聲道保留前一枚尾音；
+  /// [pitch] 做極小音高變化，避免九枚聽起來像機械複製。
+  Future<void> playPolyphonic(
+    SfxCue cue, {
+    double volumeScale = 1,
+    double pitch = 1,
+  }) => _play(
+    cue,
+    volumeScale: volumeScale,
+    speed: 1,
+    pitch: pitch,
+    loop: false,
+    polyphonic: true,
+  );
 
   /// 持續動作音（目前用於摸毛）：呼叫 [stop] 前會無縫循環。
   Future<void> playLoop(SfxCue cue, {double volumeScale = 1}) =>
-      _play(cue, volumeScale: volumeScale, loop: true);
+      _play(cue, volumeScale: volumeScale, speed: 1, pitch: 1, loop: true);
 
   Future<void> _play(
     SfxCue cue, {
     required double volumeScale,
+    required double speed,
+    required double pitch,
     required bool loop,
+    bool polyphonic = false,
   }) async {
     if (AudioSettingsService.sfxMuted.value) return;
     try {
       if (!_initialized) await init();
-      final player = _players[cue];
-      if (player == null) return;
-      await AppAudioSession.activate();
+      final voices = _players[cue];
+      if (voices == null || voices.isEmpty) return;
+      final cursor = polyphonic ? (_cursors[cue] ?? 0) : 0;
+      final player = voices[cursor % voices.length];
+      if (polyphonic) _cursors[cue] = (cursor + 1) % voices.length;
+      // 逐枚金幣的落點間隔很短；session 在 init 與前一段吸入聲都已啟用，
+      // 不 await 平台 setActive，避免九次呼叫把節奏拖散。
+      if (polyphonic) {
+        unawaited(AppAudioSession.activate());
+      } else {
+        await AppAudioSession.activate();
+      }
       await player.stop();
       await player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
       await player.seek(Duration.zero);
+      await player.setSpeed(speed.clamp(0.5, 2.0).toDouble());
+      await player.setPitch(pitch.clamp(0.5, 2.0).toDouble());
       await player.setVolume(cue.volume * volumeScale.clamp(0.0, 1.0));
       await player.play();
     } catch (e) {
@@ -140,7 +190,9 @@ class SfxService {
         if (pending == null) return;
         await pending;
       }
-      await _players[cue]?.stop();
+      for (final player in _players[cue] ?? const <AudioPlayer>[]) {
+        await player.stop();
+      }
     } catch (e) {
       debugPrint('SFX stop failed: $e');
     }
@@ -155,10 +207,13 @@ class SfxService {
         // 初始化失敗時沒有可釋放的完整 player 集合，照常清理已知項目。
       }
     }
-    for (final player in _players.values) {
-      await player.dispose();
+    for (final voices in _players.values) {
+      for (final player in voices) {
+        await player.dispose();
+      }
     }
     _players.clear();
+    _cursors.clear();
     _initialized = false;
     _initializing = null;
   }

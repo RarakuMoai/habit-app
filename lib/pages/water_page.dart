@@ -30,6 +30,12 @@ const Color _kWaterBright = Color(0xFF35BFE3);
 const Color _kWaterDeep = Color(0xFF1284A3);
 const Color _kGoalGold = Color(0xFFFFC857);
 
+/// 一般加水用短泡泡；只有從未達標跨到達標的那一杯改播完整慶祝音。
+SfxCue waterAddFeedbackCue({
+  required bool wasReached,
+  required bool isReached,
+}) => !wasReached && isReached ? SfxCue.waterGoal : SfxCue.waterAdd;
+
 class WaterPage extends StatefulWidget {
   final void Function(bool)? onGoalStatusChanged;
   final int reloadTrigger;
@@ -323,9 +329,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     await _saveEntries();
     _notifyGoalStatus();
     unawaited(UsageStats.bump(UsageEvents.waterAdd));
-    // 音效＋觸覺統一走 playFeedback（對齊習慣/體重/計時頁的回饋慣例）
     playFeedback(
-      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+      waterAddFeedbackCue(wasReached: wasReached, isReached: _goalReached),
     );
     MascotPersona.interact(_mascotCtx);
     _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
@@ -336,6 +341,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _entries = _entries.sublist(0, _entries.length - 1));
     await _saveEntries();
     _notifyGoalStatus();
+    unawaited(SfxService.instance.stop(SfxCue.waterGoal));
     playFeedback(SfxCue.cancel);
     MascotPersona.interact(_mascotCtx);
   }
@@ -348,6 +354,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     });
     await _saveEntries();
     _notifyGoalStatus();
+    unawaited(SfxService.instance.stop(SfxCue.waterGoal));
     playFeedback(SfxCue.cancel);
     MascotPersona.interact(_mascotCtx);
   }
@@ -368,7 +375,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     _notifyGoalStatus();
     unawaited(UsageStats.bump(UsageEvents.waterAdd));
     playFeedback(
-      !wasReached && _goalReached ? SfxCue.complete : SfxCue.success,
+      waterAddFeedbackCue(wasReached: wasReached, isReached: _goalReached),
     );
     MascotPersona.interact(_mascotCtx);
     _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);

@@ -16,6 +16,8 @@ abstract final class PrefsKeys {
   static const userWeight = 'user_weight'; // 公制 kg // units-ok
   static const targetWeight = 'target_weight'; // 公制 kg // units-ok
   static const userActivityLevel = 'user_activity_level';
+  // 兔咪面板的展開教學只需顯示一次；面板本身每次冷啟動固定露出兔咪。
+  static const mascotPanelHintSeen = 'mascot_panel_hint_seen';
 
   // ── 金幣 ─────────────────────────────────────────────────
   static const coinBalance = 'coin_balance';

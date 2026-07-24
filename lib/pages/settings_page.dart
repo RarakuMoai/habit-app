@@ -20,6 +20,7 @@ import 'family/parent_pin_recovery.dart';
 import 'feature_settings_page.dart';
 import 'mascot_profile_page.dart';
 import 'profile_edit_page.dart';
+import 'review_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final bool openPinSettingsOnLoad;
@@ -174,6 +175,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   name: _mascotName,
                   companionDays: _companionDays,
                   coinBalance: _coinBalance,
+                  onCoinTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ReviewPage(),
+                      ),
+                    );
+                  },
                   onTap: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute<void>(

@@ -32,29 +32,35 @@ class FootprintCoinRewardOverlay extends StatefulWidget {
 
 class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     with SingleTickerProviderStateMixin {
-  static const _coinCount = 7;
+  static const _maxCoinCount = 9;
   // 三段節奏：灑開約 0.8 秒 → 展示停留約 0.35 秒 → 依序吸入。
   // 讓使用者看清楚錢確實從兔咪身上散出，又不會拖成等待畫面；提示仍可點擊略過。
   static const _animationDuration = Duration(milliseconds: 2600);
   static const _scatterOffsets = <Offset>[
-    Offset(-78, -18),
-    Offset(-58, -68),
-    Offset(-22, -94),
-    Offset(20, -84),
-    Offset(62, -58),
-    Offset(82, -12),
-    Offset(48, 34),
+    Offset(-82, -10),
+    Offset(-70, -50),
+    Offset(-48, -82),
+    Offset(-16, -100),
+    Offset(20, -96),
+    Offset(52, -76),
+    Offset(76, -42),
+    Offset(86, -5),
+    Offset(62, 36),
   ];
 
   late final AnimationController _controller;
   bool _started = false;
   bool _landed = false;
   bool _finished = false;
+  int _arrivedCoins = 0;
   Timer? _reducedMotionTimer;
-  Timer? _scatterSoundTimer;
   Timer? _absorbSoundTimer;
   Offset? _origin;
   Offset? _target;
+
+  /// 一般登入獎勵 5～10 枚會依實際數量呈現與發聲；里程碑的 25～30 枚
+  /// 壓縮成九枚，保留「很多錢」的密度但不連響三十次。
+  int get _coinCount => widget.amount.clamp(1, _maxCoinCount).toInt();
 
   @override
   void initState() {
@@ -83,14 +89,13 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
       setState(() {});
       return;
     }
-    _scatterSoundTimer = Timer(const Duration(milliseconds: 140), () {
+    // 第一枚幣冒出時就開始灑錢聲；以 0.68 倍速把原檔延長到約 1.47 秒，
+    // 尾韻在第一枚入袋前收掉，保留「散出很多錢」的份量又不蓋住逐枚入袋。
+    _absorbSoundTimer = Timer(const Duration(milliseconds: 140), () {
       if (mounted && !_finished) {
-        unawaited(SfxService.instance.play(SfxCue.footprintCoinScatter));
-      }
-    });
-    _absorbSoundTimer = Timer(const Duration(milliseconds: 1120), () {
-      if (mounted && !_finished) {
-        unawaited(SfxService.instance.play(SfxCue.footprintCoinAbsorb));
+        unawaited(
+          SfxService.instance.play(SfxCue.footprintCoinAbsorb, speed: 0.68),
+        );
       }
     });
     _controller.forward();
@@ -119,13 +124,29 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     }
   }
 
-  double _coinLandAt(int index) => 0.72 + index * 0.035;
+  double _coinLandAt(int index) {
+    if (_coinCount == 1) return 0.86;
+    return 0.70 + index * (0.24 / (_coinCount - 1));
+  }
 
   void _onTick() {
     final arrived = List.generate(
       _coinCount,
       (index) => _controller.value >= _coinLandAt(index),
     ).where((value) => value).length;
+    if (arrived > _arrivedCoins) {
+      for (var index = _arrivedCoins; index < arrived; index++) {
+        final progress = _coinCount == 1 ? 0.5 : index / (_coinCount - 1);
+        unawaited(
+          SfxService.instance.playPolyphonic(
+            SfxCue.footprintCoinTick,
+            volumeScale: 0.80 + progress * 0.14,
+            pitch: 0.94 + progress * 0.14,
+          ),
+        );
+      }
+      _arrivedCoins = arrived;
+    }
     final shown =
         widget.startBalance + (widget.amount * arrived / _coinCount).round();
     if (CoinService.presentationBalance.value != shown) {
@@ -139,7 +160,11 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     _landed = true;
     CoinService.presentationBalance.value = widget.targetBalance;
     CoinService.pulseRewardIcon();
-    unawaited(SfxService.instance.play(SfxCue.footprintCoinReward));
+    // 正常流程的最後一枚已在 _onTick 發聲，不再疊另一種結算音色。
+    // 減少動態或點擊略過沒有逐枚落點時，至少保留一聲入袋提示。
+    if (_arrivedCoins == 0) {
+      unawaited(SfxService.instance.playPolyphonic(SfxCue.footprintCoinTick));
+    }
     playHaptic(HapticLevel.light);
   }
 
@@ -147,7 +172,6 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
     if (_finished) return;
     _finished = true;
     _reducedMotionTimer?.cancel();
-    _scatterSoundTimer?.cancel();
     _absorbSoundTimer?.cancel();
     CoinService.presentationBalance.value = null;
     widget.onFinished();
@@ -156,7 +180,6 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
   @override
   void dispose() {
     _reducedMotionTimer?.cancel();
-    _scatterSoundTimer?.cancel();
     _absorbSoundTimer?.cancel();
     _controller
       ..removeListener(_onTick)
@@ -167,10 +190,8 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
 
   void _skip() {
     _started = true;
-    _scatterSoundTimer?.cancel();
     _absorbSoundTimer?.cancel();
     _controller.stop();
-    unawaited(SfxService.instance.stop(SfxCue.footprintCoinScatter));
     unawaited(SfxService.instance.stop(SfxCue.footprintCoinAbsorb));
     _playLanding();
     _finish();
@@ -309,7 +330,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
       landAt,
       curve: Curves.easeInOutCubic,
     ).transform(_controller.value);
-    final scatterPoint = origin + _scatterOffsets[index];
+    final scatterPoint = origin + _scatterOffsetAt(index);
     final control = Offset(
       scatterPoint.dx + (target.dx - scatterPoint.dx) * (0.30 + index * 0.025),
       math.min(scatterPoint.dy, target.dy) - 34 - index * 3,
@@ -363,6 +384,13 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
         ),
       ),
     );
+  }
+
+  Offset _scatterOffsetAt(int index) {
+    if (_coinCount == 1) return _scatterOffsets[4];
+    final mapped = (index * (_scatterOffsets.length - 1) / (_coinCount - 1))
+        .round();
+    return _scatterOffsets[mapped];
   }
 
   Offset _quadraticPoint(Offset start, Offset control, Offset end, double t) {

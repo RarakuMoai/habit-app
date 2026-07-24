@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'prefs_keys.dart';
 import 'sfx_service.dart';
 
 // 兔咪情緒。每個情緒 = assets/mascot/core/tumi_<assetKey>.png 一張 CG 立繪。
@@ -688,16 +689,16 @@ class MascotPersona {
   }
 }
 
-// 兔咪面板展開／收合偏好。
+// 兔咪面板展開／收合狀態。
 //
 // 為了讓拖曳能即時跟隨手指（iOS bottom sheet 感），這裡用
 // `ValueNotifier<double>`：0.0 = 完全收合、1.0 = 完全展開、中間
 // 浮點 = 拖曳過程中的瞬時狀態。
 //
-// 永久化偏好只存最終態（>=0.5 視為展開），不存中間值。
+// 面板只在本次 App 使用期間記住；每次冷啟動固定展開兔咪區（也就是把下方
+// 功能卡收小），避免開場問候與每日足跡幣演出被功能卡遮住。只有教學提示
+// 是否看過需要永久化。
 class MascotPanelPrefs {
-  static const String _key = 'mascot_panel_expanded';
-  static const String _hintSeenKey = 'mascot_panel_hint_seen';
   static final ValueNotifier<double> openValue = ValueNotifier<double>(1.0);
   static final ValueNotifier<bool> hintSeenValue = ValueNotifier<bool>(false);
   static final ValueNotifier<MascotPanelSettleRequest?> settleRequest =
@@ -709,21 +710,16 @@ class MascotPanelPrefs {
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    openValue.value = (prefs.getBool(_key) ?? true) ? 1.0 : 0.0;
-    hintSeenValue.value = prefs.getBool(_hintSeenKey) ?? false;
-  }
-
-  // 把目前狀態落地到 prefs（呼叫端在拖曳/動畫結束後再存）
-  static Future<void> persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_key, expanded);
+    // 不讀舊版 mascot_panel_expanded：冷啟動一律先露出兔咪。
+    openValue.value = 1.0;
+    hintSeenValue.value = prefs.getBool(PrefsKeys.mascotPanelHintSeen) ?? false;
   }
 
   static Future<void> markHintSeen() async {
     if (hintSeenValue.value) return;
     hintSeenValue.value = true;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_hintSeenKey, true);
+    await prefs.setBool(PrefsKeys.mascotPanelHintSeen, true);
   }
 
   static void requestSettle(double target) {
@@ -737,6 +733,12 @@ class MascotPanelPrefs {
 
   /// 展開兔咪面板＝把功能卡收回縮小狀態（設定頁「完成」鈕用）。
   static void requestExpanded() => requestSettle(1.0);
+
+  /// 每日獎勵開始前立即露出兔咪，再通知前景把手停止可能尚未完成的拖曳動畫。
+  static void revealMascotForDailyReward() {
+    openValue.value = 1.0;
+    requestExpanded();
+  }
 }
 
 class MascotPanelSettleRequest {

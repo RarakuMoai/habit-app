@@ -85,9 +85,6 @@ class _MascotToggleBarState extends State<MascotToggleBar>
     super.dispose();
   }
 
-  // 落地到 prefs（拖曳/動畫結束才呼叫）
-  Future<void> _persist() => MascotPanelPrefs.persist();
-
   void _handleSettleRequest() {
     final request = MascotPanelPrefs.settleRequest.value;
     if (request == null) return;
@@ -157,7 +154,6 @@ class _MascotToggleBarState extends State<MascotToggleBar>
     _ctl.value = MascotPanelPrefs.openValue.value;
     unawaited(_pressCtl.reverse());
     await _animateToWithSpring(target, velocity: velocity);
-    await _persist();
   }
 
   Future<void> _animateToWithSpring(double target, {double velocity = 0}) {
@@ -185,7 +181,6 @@ class _MascotToggleBarState extends State<MascotToggleBar>
         if (!mounted) return;
         _ctl.value = target; // 同步 notify → openValue 收斂到端點、停掉 sim
         _animTarget = null;
-        unawaited(_persist());
       });
     } else if (!_ticking && ticking) {
       // 背景 → 前景：對齊共用真相並丟棄任何殘留 sim，避免被凍住的 spring

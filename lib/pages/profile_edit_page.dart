@@ -20,8 +20,12 @@ class ProfileEditPage extends StatefulWidget {
 }
 
 class _ProfileEditPageState extends State<ProfileEditPage> {
-  // 全頁主色（暖橘，沿用個人/體重系；版面語彙比照專注計時設定頁）
-  static const Color _accent = Color(0xFFFF9800);
+  // 儲存動作用珊瑚橘；內容分區各自有識別色，對齊功能開關頁的彩色圖示語彙。
+  static const Color _accent = Color(0xFFF07961);
+  static const Color _identityAccent = Color(0xFFF07961);
+  static const Color _basicsAccent = Color(0xFF9875D1);
+  static const Color _bodyAccent = Color(0xFF329888);
+  static const Color _activityAccent = Color(0xFFE58A34);
 
   final TextEditingController _nicknameCtrl = TextEditingController();
   final TextEditingController _mascotCtrl = TextEditingController();
@@ -222,21 +226,66 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       UserValidators.birthday(_birthday) == null &&
       _bmiError == null;
 
-  // ── 共用版型（比照專注計時設定頁：圓角卡 + 區塊標題 + 暖色）──
+  // ── 彩色分區版型：大標題、淡色卡面、各區獨立識別色。──
 
-  Widget _sectionTitle(IconData icon, String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+  Widget _introCard() {
+    return Container(
+      key: const ValueKey('profile-edit-intro'),
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      padding: const EdgeInsets.fromLTRB(18, 17, 16, 17),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFE6D9), Color(0xFFFFF2D9), Color(0xFFF2EAFE)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _identityAccent.withValues(alpha: 0.16)),
+        boxShadow: AppShadows.flat,
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 17, color: _accent),
-          const SizedBox(width: 6),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: AppInk.strong,
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.78),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _identityAccent.withValues(alpha: 0.18),
+              ),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: _identityAccent,
+              size: 27,
+            ),
+          ),
+          const SizedBox(width: 13),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '讓兔咪更認識你',
+                  style: TextStyle(
+                    fontSize: 20,
+                    height: 1.15,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  '只有暱稱必填，其他資料都可以慢慢補上。',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: AppInk.soft,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -244,16 +293,78 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     );
   }
 
-  // 卡片外殼：白底、圓角、髮絲邊、扁平陰影
-  Widget _card({required Widget child, EdgeInsets? padding}) {
+  Widget _sectionTitle({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color accent,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 24, 2, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.11),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    height: 1.1,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.25,
+                    fontWeight: FontWeight.w600,
+                    color: AppInk.soft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 卡片外殼：分區色只淡淡進入底色與描邊，保留輸入內容的清晰度。
+  Widget _card({
+    required Widget child,
+    required Color accent,
+    EdgeInsets? padding,
+  }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: padding ?? const EdgeInsets.fromLTRB(14, 11, 12, 13),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: padding ?? const EdgeInsets.fromLTRB(15, 14, 14, 15),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFCF8),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x0A46342B)),
-        boxShadow: AppShadows.flat,
+        color: Color.lerp(AppSurfaces.card, accent, 0.035),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.16)),
+        boxShadow: [
+          ...AppShadows.flat,
+          BoxShadow(
+            color: accent.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: child,
     );
@@ -272,19 +383,29 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     String? errorText,
     Widget? trailing,
     String? hint,
+    required Color accent,
   }) {
     return _card(
+      accent: accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: _accent),
-              const SizedBox(width: 8),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.11),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: accent),
+              ),
+              const SizedBox(width: 10),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 16,
                   fontWeight: FontWeight.w900,
                   color: AppInk.strong,
                 ),
@@ -293,7 +414,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 Text(
                   ' *',
                   style: TextStyle(
-                    fontSize: 13.5,
+                    fontSize: 16,
                     fontWeight: FontWeight.w900,
                     color: Colors.red.shade400,
                   ),
@@ -302,14 +423,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               ?trailing,
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 10),
           TextField(
             controller: controller,
             keyboardType: keyboardType,
             maxLength: maxLength,
             inputFormatters: inputFormatters,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 17,
               fontWeight: FontWeight.w700,
               color: AppInk.strong,
             ),
@@ -317,15 +438,31 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               isDense: true,
               counterText: '',
               hintText: hint,
-              hintStyle: const TextStyle(color: AppInk.faint, fontSize: 15),
+              hintStyle: const TextStyle(color: AppInk.faint, fontSize: 16),
               suffixText: suffix,
               suffixStyle: const TextStyle(
                 color: AppInk.soft,
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
               ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.78),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 13,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: accent.withValues(alpha: 0.16)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: accent.withValues(alpha: 0.16)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: accent, width: 1.6),
+              ),
             ),
           ),
           if (errorText != null)
@@ -353,7 +490,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         fontWeight: FontWeight.w700,
       ),
       filled: true,
-      fillColor: const Color(0xFFFAF7F2),
+      fillColor: Colors.white.withValues(alpha: 0.78),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -365,21 +502,34 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _accent, width: 1.6),
+        borderSide: const BorderSide(color: _bodyAccent, width: 1.6),
       ),
     );
     return _card(
+      accent: _bodyAccent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.straighten_rounded, size: 18, color: _accent),
-              const SizedBox(width: 8),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: _bodyAccent.withValues(alpha: 0.11),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.straighten_rounded,
+                  size: 18,
+                  color: _bodyAccent,
+                ),
+              ),
+              const SizedBox(width: 10),
               const Text(
                 '身高',
                 style: TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 16,
                   fontWeight: FontWeight.w900,
                   color: AppInk.strong,
                 ),
@@ -393,6 +543,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 child: TextField(
                   controller: _heightCtrl,
                   keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppInk.strong,
+                  ),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(2),
@@ -405,6 +560,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 child: TextField(
                   controller: _heightInCtrl,
                   keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppInk.strong,
+                  ),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(2),
@@ -432,29 +592,30 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     required String label,
     required bool selected,
     required VoidCallback onSelected,
+    required Color accent,
   }) {
     return Material(
-      color: selected ? _accent : const Color(0xFFFAF7F2),
-      borderRadius: BorderRadius.circular(20),
+      color: selected ? accent : accent.withValues(alpha: 0.065),
+      borderRadius: BorderRadius.circular(22),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         onTap: () {
           if (!selected) playHaptic(HapticLevel.selection);
           onSelected();
         },
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: selected ? _accent : const Color(0xFFE8DDD4),
+              color: selected ? accent : accent.withValues(alpha: 0.20),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 10),
           child: Text(
             label,
             style: TextStyle(
               color: selected ? Colors.white : AppInk.soft,
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -468,19 +629,29 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     required IconData icon,
     required String label,
     required List<Widget> chips,
+    required Color accent,
   }) {
     return _card(
+      accent: accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: _accent),
-              const SizedBox(width: 8),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.11),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: accent),
+              ),
+              const SizedBox(width: 10),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 16,
                   fontWeight: FontWeight.w900,
                   color: AppInk.strong,
                 ),
@@ -506,7 +677,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final suggestion = _targetWeightSuggestion;
     if (suggestion == null) return null;
     return Material(
-      color: _accent.withValues(alpha: 0.10),
+      color: _bodyAccent.withValues(alpha: 0.10),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -523,7 +694,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: Color(0xFFD9820A),
+              color: Color(0xFF267B6E),
             ),
           ),
         ),
@@ -541,19 +712,20 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Widget _birthdayCard() {
     final now = DateTime.now();
     return _card(
+      accent: _basicsAccent,
       padding: EdgeInsets.zero,
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           onTap: () async {
             final picked = await showBirthdayPicker(
               context,
               initial: _birthday,
               firstDate: DateTime(now.year - UserRanges.birthdayMaxAgeYears),
               lastDate: now,
-              accent: _accent,
+              accent: _basicsAccent,
             );
             if (picked != null) setState(() => _birthday = picked);
           },
@@ -561,12 +733,24 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
             child: Row(
               children: [
-                const Icon(Icons.cake_rounded, size: 18, color: _accent),
-                const SizedBox(width: 8),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: _basicsAccent.withValues(alpha: 0.11),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.cake_rounded,
+                    size: 18,
+                    color: _basicsAccent,
+                  ),
+                ),
+                const SizedBox(width: 10),
                 const Text(
                   '生日',
                   style: TextStyle(
-                    fontSize: 13.5,
+                    fontSize: 16,
                     fontWeight: FontWeight.w900,
                     color: AppInk.strong,
                   ),
@@ -584,7 +768,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 const Icon(
                   Icons.calendar_today_rounded,
                   size: 18,
-                  color: _accent,
+                  color: _basicsAccent,
                 ),
               ],
             ),
@@ -609,7 +793,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           style: TextStyle(
             color: AppInk.strong,
             fontWeight: FontWeight.w900,
-            fontSize: 18,
+            fontSize: 20,
           ),
         ),
       ),
@@ -621,7 +805,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     children: [
-                      _sectionTitle(Icons.badge_rounded, '稱呼'),
+                      _introCard(),
+                      _sectionTitle(
+                        icon: Icons.badge_rounded,
+                        title: '稱呼',
+                        subtitle: '你和兔咪想怎麼被叫',
+                        accent: _identityAccent,
+                      ),
                       _textCard(
                         icon: Icons.person_rounded,
                         label: '暱稱',
@@ -632,6 +822,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         errorText: _nicknameCtrl.text.trim().isEmpty
                             ? '暱稱不能為空'
                             : null,
+                        accent: _identityAccent,
                       ),
                       _textCard(
                         icon: Icons.pets_rounded,
@@ -639,24 +830,37 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _mascotCtrl,
                         maxLength: 12,
                         hint: '兔咪',
+                        accent: _identityAccent,
                       ),
 
-                      _sectionTitle(Icons.face_rounded, '基本'),
+                      _sectionTitle(
+                        icon: Icons.face_rounded,
+                        title: '關於你',
+                        subtitle: '選填，照舒服的方式留下',
+                        accent: _basicsAccent,
+                      ),
                       _chipsCard(
                         icon: Icons.wc_rounded,
                         label: '性別',
+                        accent: _basicsAccent,
                         chips: [
                           for (final g in _genders)
                             _choiceChip(
                               label: g,
                               selected: _gender == g,
                               onSelected: () => setState(() => _gender = g),
+                              accent: _basicsAccent,
                             ),
                         ],
                       ),
                       _birthdayCard(),
 
-                      _sectionTitle(Icons.straighten_rounded, '身體數據'),
+                      _sectionTitle(
+                        icon: Icons.straighten_rounded,
+                        title: '身體數據',
+                        subtitle: '協助產生更適合你的健康建議',
+                        accent: _bodyAccent,
+                      ),
                       if (_unit == UnitSystem.imperial)
                         _ftInCard(errorText: _heightError)
                       else
@@ -674,6 +878,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           ],
                           errorText: _heightError,
                           hint: '170',
+                          accent: _bodyAccent,
                         ),
                       _textCard(
                         icon: Icons.monitor_weight_rounded,
@@ -692,6 +897,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         ],
                         errorText: _weightError ?? _bmiError,
                         hint: '60',
+                        accent: _bodyAccent,
                       ),
                       _textCard(
                         icon: Icons.flag_rounded,
@@ -710,12 +916,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         errorText: _targetWeightError,
                         trailing: _targetWeightSuggestSuffix(),
                         hint: '選填',
+                        accent: _bodyAccent,
                       ),
 
-                      _sectionTitle(Icons.directions_run_rounded, '活動量'),
+                      _sectionTitle(
+                        icon: Icons.directions_run_rounded,
+                        title: '活動量',
+                        subtitle: '用一週的節奏來選，會比較好判斷',
+                        accent: _activityAccent,
+                      ),
                       _chipsCard(
                         icon: Icons.local_fire_department_rounded,
                         label: '一週大概運動幾天？',
+                        accent: _activityAccent,
                         chips: [
                           for (final k in _activityDayLabels.keys)
                             _choiceChip(
@@ -723,6 +936,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                               selected: _activityLevel == k,
                               onSelected: () =>
                                   setState(() => _activityLevel = k),
+                              accent: _activityAccent,
                             ),
                         ],
                       ),

@@ -22,6 +22,7 @@ import '../utils/story_store.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import 'profile_edit_page.dart';
+import 'review_page.dart';
 
 // ── 足跡家族色票（同 login_streak_page 的暖金舞台）──
 const _kStageBase = Color(0xFFFFF7E8);
@@ -58,6 +59,7 @@ class MascotCallingCard extends StatelessWidget {
   final int companionDays;
   final int coinBalance;
   final VoidCallback onTap;
+  final VoidCallback? onCoinTap;
 
   const MascotCallingCard({
     super.key,
@@ -65,125 +67,345 @@ class MascotCallingCard extends StatelessWidget {
     required this.companionDays,
     required this.coinBalance,
     required this.onTap,
+    this.onCoinTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      container: true,
       button: true,
       label: '$name 的名片，相識第 $companionDays 天，足跡幣 $coinBalance，查看檔案',
-      child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFFFFBF0), Color(0xFFFFF3DC)],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _kRayGold.withValues(alpha: 0.65)),
-            boxShadow: AppShadows.card,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFFBF2), Color(0xFFFFEED3), Color(0xFFFFE2CC)],
+            stops: [0, 0.58, 1],
           ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              splashColor: _kRayGold.withValues(alpha: 0.30),
-              highlightColor: _kRayGold.withValues(alpha: 0.12),
-              onTap: () {
-                playHaptic(HapticLevel.selection);
-                onTap();
-              },
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Stack(
-                  children: [
-                    // 右下角淡淡的腳印幣浮水印，一眼認出這張卡的世界觀。
-                    Positioned(
-                      right: -8,
-                      bottom: -12,
-                      child: Transform.rotate(
-                        angle: -0.28,
-                        child: Opacity(
-                          opacity: 0.10,
-                          child: Image.asset(_kCoinAsset, width: 68),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _kRayGold.withValues(alpha: 0.72)),
+          boxShadow: AppShadows.card,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            splashColor: _kRayGold.withValues(alpha: 0.24),
+            highlightColor: _kRayGold.withValues(alpha: 0.10),
+            onTap: () {
+              playHaptic(HapticLevel.selection);
+              onTap();
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Stack(
+                children: [
+                  const Positioned(
+                    right: -30,
+                    top: -38,
+                    child: _CallingCardGlow(
+                      size: 112,
+                      color: Color(0x45F39A7A),
+                    ),
+                  ),
+                  Positioned(
+                    right: -14,
+                    bottom: -20,
+                    child: Transform.rotate(
+                      angle: -0.24,
+                      child: Opacity(
+                        opacity: 0.08,
+                        child: Image.asset(
+                          _kCoinAsset,
+                          width: 92,
+                          excludeFromSemantics: true,
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 13, 10, 13),
-                      child: Row(
-                        children: [
-                          const _FaceAvatar(diameter: 58),
-                          const SizedBox(width: 13),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppInk.strong,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Row(
-                                  children: [
-                                    Text.rich(
-                                      TextSpan(
-                                        children: [
-                                          const TextSpan(text: '相識第 '),
-                                          TextSpan(
-                                            text: '$companionDays',
-                                            style: AppType.digits(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w800,
-                                              color: _kNumberInk,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const _FaceAvatar(diameter: 76),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFF18A72,
+                                      ).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.favorite_rounded,
+                                          size: 12,
+                                          color: Color(0xFFE46F5B),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            '$name夥伴證',
+                                            key: const ValueKey(
+                                              'mascot-calling-card-title',
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: Color(0xFFB95747),
                                             ),
                                           ),
-                                          const TextSpan(text: ' 天'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 7),
+                                  Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      height: 1.05,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppInk.strong,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text.rich(
+                                    TextSpan(
+                                      children: [
+                                        const TextSpan(text: '我們一起走到第 '),
+                                        TextSpan(
+                                          text: '$companionDays',
+                                          style: AppType.digits(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            color: _kNumberInk,
+                                          ),
+                                        ),
+                                        const TextSpan(text: ' 天'),
+                                      ],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: _kNumberInk,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 13),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: _CallingCardAction(
+                                icon: Icons.badge_rounded,
+                                label: '查看檔案',
+                                foreground: Color(0xFF9C5D3D),
+                                background: Color(0xB3FFFFFF),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Semantics(
+                                button: onCoinTap != null,
+                                label: '查看足跡與足跡幣，目前 $coinBalance 枚',
+                                child: Material(
+                                  key: const ValueKey(
+                                    'mascot-calling-card-coins',
+                                  ),
+                                  color: const Color(0xFFFFD873),
+                                  borderRadius: BorderRadius.circular(15),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(15),
+                                    onTap: onCoinTap == null
+                                        ? null
+                                        : () {
+                                            playHaptic(HapticLevel.selection);
+                                            onCoinTap!();
+                                          },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 9,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Image.asset(_kCoinAsset, width: 20),
+                                          const SizedBox(width: 5),
+                                          Flexible(
+                                            child: Text(
+                                              '$coinBalance',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: AppType.digits(
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.w900,
+                                                color: _kNumberInk,
+                                              ),
+                                            ),
+                                          ),
+                                          if (onCoinTap != null) ...[
+                                            const SizedBox(width: 2),
+                                            const Icon(
+                                              Icons.chevron_right_rounded,
+                                              size: 18,
+                                              color: _kDeepGold,
+                                            ),
+                                          ],
                                         ],
                                       ),
-                                      style: const TextStyle(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: _kNumberInk,
-                                      ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Image.asset(_kCoinAsset, width: 16),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      '$coinBalance',
-                                      style: AppType.digits(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: _kNumberInk,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: _kDeepGold.withValues(alpha: 0.65),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CallingCardGlow extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _CallingCardGlow({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: SizedBox.square(dimension: size),
+    );
+  }
+}
+
+/// 檔案頁底色：奶油紙張上疊很淡的晨光與薰衣草光暈，讓內容有場景感，
+/// 但裝飾留在卡片外圍，不穿過文字或操作區。
+class _ProfileBackdrop extends StatelessWidget {
+  const _ProfileBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      key: const ValueKey('mascot-profile-backdrop'),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFF8EA), Color(0xFFFFF2E9), Color(0xFFF6F0FF)],
+          stops: [0, 0.56, 1],
+        ),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Positioned(
+            right: -86,
+            top: 30,
+            child: _CallingCardGlow(size: 220, color: Color(0x20F39A7A)),
+          ),
+          const Positioned(
+            left: -118,
+            top: 360,
+            child: _CallingCardGlow(size: 250, color: Color(0x189C7DDA)),
+          ),
+          Positioned(
+            right: -18,
+            bottom: 46,
+            child: Transform.rotate(
+              angle: -0.22,
+              child: Opacity(
+                opacity: 0.035,
+                child: Image.asset(
+                  _kCoinAsset,
+                  width: 132,
+                  excludeFromSemantics: true,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CallingCardAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color foreground;
+  final Color background;
+
+  const _CallingCardAction({
+    required this.icon,
+    required this.label,
+    required this.foreground,
+    required this.background,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: foreground.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 17, color: foreground),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: foreground,
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          Icon(Icons.chevron_right_rounded, size: 17, color: foreground),
+        ],
       ),
     );
   }
@@ -201,22 +423,32 @@ class _FaceAvatar extends StatelessWidget {
     return Container(
       width: diameter,
       height: diameter,
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFD66B), Color(0xFFF18A72)],
+        ),
         shape: BoxShape.circle,
-        border: Border.all(color: _kRayGold, width: 2),
         boxShadow: AppShadows.flat,
       ),
-      child: ClipOval(
-        child: Transform.scale(
-          scale: 1.65,
-          alignment: const Alignment(0, -0.52),
-          child: ValueListenableBuilder<String>(
-            valueListenable: WardrobeStore.selectedOutfit,
-            builder: (_, outfitId, _) => Image.asset(
-              _skinnedSmileAsset(outfitId),
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFFCF7),
+          shape: BoxShape.circle,
+        ),
+        child: ClipOval(
+          child: Transform.scale(
+            scale: 1.65,
+            alignment: const Alignment(0, -0.52),
+            child: ValueListenableBuilder<String>(
+              valueListenable: WardrobeStore.selectedOutfit,
+              builder: (_, outfitId, _) => Image.asset(
+                _skinnedSmileAsset(outfitId),
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
             ),
           ),
         ),
@@ -299,25 +531,51 @@ class _MascotProfilePageState extends State<MascotProfilePage>
     if (mounted) await _load();
   }
 
+  void _openReview() {
+    playHaptic(HapticLevel.selection);
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ReviewPage()));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final pageTitle = _loaded ? '${_name}的夥伴檔案' : '夥伴檔案';
     return Scaffold(
       backgroundColor: _kStageBase,
       appBar: AppBar(
-        backgroundColor: _kStageBase,
+        title: Text(pageTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        centerTitle: true,
+        foregroundColor: _kNumberInk,
+        iconTheme: const IconThemeData(color: _kNumberInk),
+        titleTextStyle: const TextStyle(
+          color: AppInk.strong,
+          fontSize: 18,
+          fontWeight: FontWeight.w900,
+        ),
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFF8EA), Color(0xFFFFF0E8)],
+            ),
+          ),
+        ),
       ),
-      body: _loaded
-          ? ListView(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const _ProfileBackdrop(),
+          if (_loaded)
+            ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: [
-                _buildPortrait(),
-                const SizedBox(height: 6),
-                _buildNameRow(),
-                const SizedBox(height: 10),
-                Center(child: _buildDaysSeal()),
-                const SizedBox(height: 24),
+                _buildIdentityCard(),
+                const SizedBox(height: 18),
                 _buildStampCard(),
                 const SizedBox(height: 14),
                 _buildStatsRow(),
@@ -328,13 +586,72 @@ class _MascotProfilePageState extends State<MascotProfilePage>
                     style: TextStyle(
                       fontSize: 12.5,
                       color: AppInk.soft,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ],
             )
-          : const Center(child: CircularProgressIndicator()),
+          else
+            const Center(child: CircularProgressIndicator()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIdentityCard() {
+    return DecoratedBox(
+      key: const ValueKey('mascot-profile-identity-card'),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xEFFFFFFF), Color(0xF5FFF4E2), Color(0xF5FFE8E3)],
+          stops: [0, 0.58, 1],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: _kRayGold.withValues(alpha: 0.62)),
+        boxShadow: AppShadows.card,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Stack(
+          children: [
+            const Positioned(
+              right: -42,
+              top: -54,
+              child: _CallingCardGlow(size: 154, color: Color(0x38F39A7A)),
+            ),
+            Positioned(
+              left: -26,
+              top: 78,
+              child: Transform.rotate(
+                angle: 0.18,
+                child: Opacity(
+                  opacity: 0.055,
+                  child: Image.asset(
+                    _kCoinAsset,
+                    width: 104,
+                    excludeFromSemantics: true,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
+              child: Column(
+                children: [
+                  _buildPortrait(),
+                  const SizedBox(height: 2),
+                  _buildNameRow(),
+                  const SizedBox(height: 10),
+                  Center(child: _buildDaysSeal()),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -583,6 +900,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
             leading: Image.asset(_kCoinAsset, width: 30),
             label: '足跡幣',
             value: '$_coins',
+            onTap: _openReview,
           ),
         ),
         const SizedBox(width: 12),
@@ -615,27 +933,31 @@ class _StatTile extends StatelessWidget {
   final Widget leading;
   final String label;
   final String value;
+  final VoidCallback? onTap;
 
   const _StatTile({
     required this.leading,
     required this.label,
     required this.value,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kRayGold.withValues(alpha: 0.55)),
+        border: Border.all(
+          color: _kRayGold.withValues(alpha: onTap == null ? 0.55 : 0.82),
+        ),
         boxShadow: AppShadows.flat,
       ),
       child: Row(
         children: [
           leading,
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -660,7 +982,28 @@ class _StatTile extends StatelessWidget {
               ],
             ),
           ),
+          if (onTap != null)
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: _kDeepGold,
+            ),
         ],
+      ),
+    );
+    if (onTap == null) return content;
+    return Semantics(
+      button: true,
+      label: '$label $value，查看足跡',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          key: const ValueKey('mascot-profile-coins'),
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: content,
+        ),
       ),
     );
   }

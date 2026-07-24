@@ -61,7 +61,7 @@ Future<_StartupState> _loadStartupState() async {
   // 舊版明文 PIN 啟動時就地雜湊遷移（hasPin 內含遷移邏輯）
   await ParentPin.hasPin(prefs);
   final onboardingDone = prefs.getBool(PrefsKeys.onboardingDone) ?? false;
-  // 載入兔咪展開/收合偏好（全 app 共用同一個 toggle）
+  // 冷啟動固定露出兔咪；只載入「展開教學是否看過」。
   await MascotPanelPrefs.load();
   // 金幣餘額載進全域 notifier（UI 反應式讀取）
   await CoinService.load();
@@ -483,8 +483,20 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       _claimingDailyReward = false;
       return;
     }
-    // 讓開場第一幀先落地，再亮慶祝舞台。
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    // 冷啟動或跨日真的領到獎勵時，把功能卡收小，確保後續兔咪噴出金幣
+    // 與入袋演出完整可見。沒有新獎勵的 resumed 不動使用者目前面板狀態。
+    MascotPanelPrefs.revealMascotForDailyReward();
+    // 讓開場第一幀先落地；同時把慶祝頁全部音訊載好才亮舞台，
+    // 避免首次播放延遲到印章落下時才出聲，和蓋章音誤疊。
+    try {
+      await Future.wait<void>([
+        Future<void>.delayed(const Duration(milliseconds: 350)),
+        SfxService.instance.init(),
+      ]);
+    } catch (e, st) {
+      // 音訊失敗不該吃掉已入帳的每日獎勵；頁面仍照常顯示，SFX 自行降級。
+      debugPrint('Daily reward audio preload failed: $e\n$st');
+    }
     if (!mounted) {
       CoinService.presentationBalance.value = null;
       CoinService.dailyRewardShowing.value = false;
