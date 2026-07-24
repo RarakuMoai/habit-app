@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/coin_service.dart';
 import '../utils/feature_flags.dart';
 import '../utils/logical_date.dart';
 import '../utils/parent_pin.dart';
@@ -17,6 +18,7 @@ import 'advanced_settings_page.dart';
 import 'dev_test_page.dart';
 import 'family/parent_pin_recovery.dart';
 import 'feature_settings_page.dart';
+import 'mascot_profile_page.dart';
 import 'profile_edit_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -41,6 +43,11 @@ class _SettingsPageState extends State<SettingsPage> {
   // 換日線：一天從幾點開始（0~6 小時）
   int _dayStartHour = LogicalDate.defaultHour;
 
+  // 兔咪名片資料（名字可在編輯基本資料改，回到本頁要刷新）
+  String _mascotName = '兔咪';
+  int _companionDays = 1;
+  int _coinBalance = 0;
+
   SharedPreferences? _prefs;
   bool _openedInitialPinSettings = false;
 
@@ -53,12 +60,14 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     final hasPin = await ParentPin.hasPin(_prefs!);
+    final balance = await CoinService.balance();
     if (!mounted) return;
     setState(() {
       _hasPin = hasPin;
       _pinDigits = _prefs!.getInt(PrefsKeys.pinDigits) ?? 4;
       _unitSystem = UnitSystem.load(_prefs!);
       _dayStartHour = LogicalDate.load(_prefs!);
+      _applyCardData(balance);
       _loaded = true;
     });
     if (widget.openPinSettingsOnLoad && !_openedInitialPinSettings) {
@@ -67,6 +76,23 @@ class _SettingsPageState extends State<SettingsPage> {
         if (mounted) unawaited(_showPinSettings());
       });
     }
+  }
+
+  // setState 內套用名片資料（名字空白視同預設名）。
+  void _applyCardData(int balance) {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final name = prefs.getString(PrefsKeys.mascotName)?.trim();
+    _mascotName = (name == null || name.isEmpty) ? '兔咪' : name;
+    _companionDays = companionDays(prefs, DateTime.now());
+    _coinBalance = balance;
+  }
+
+  // 從檔案頁 / 編輯基本資料回來時刷新名片（名字可能剛改過）。
+  Future<void> _refreshCard() async {
+    final balance = await CoinService.balance();
+    if (!mounted) return;
+    setState(() => _applyCardData(balance));
   }
 
   Future<void> _setUnitSystem(UnitSystem v) async {
@@ -143,6 +169,23 @@ class _SettingsPageState extends State<SettingsPage> {
           ? ListView(
               padding: const EdgeInsets.all(24),
               children: [
+                // ── 兔咪名片：點進檔案頁（足跡總覽）──
+                MascotCallingCard(
+                  name: _mascotName,
+                  companionDays: _companionDays,
+                  coinBalance: _coinBalance,
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const MascotProfilePage(),
+                      ),
+                    );
+                    await _refreshCard();
+                  },
+                ),
+
+                const Divider(height: 32, thickness: 1),
+
                 // ── 區塊1：基本資料（進入子頁面編輯）──
                 _sectionTitle('基本資料', Icons.person_outline),
 
@@ -152,12 +195,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   // 卡片標題與區塊標題錯開，避免同字重複兩次
                   title: '編輯基本資料',
                   subtitle: '暱稱、吉祥物名字、身高體重…',
-                  onTap: () {
-                    Navigator.of(context).push(
+                  onTap: () async {
+                    await Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => const ProfileEditPage(),
                       ),
                     );
+                    await _refreshCard();
                   },
                 ),
 
