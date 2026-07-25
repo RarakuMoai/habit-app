@@ -231,6 +231,41 @@ Output: three separate PNG files, transparent background.
 
 ---
 
+## 造型與「基本圖」的關係（先看這段，會影響生圖順序）
+
+**基本圖 ＝ `assets/mascot/core/` 裡的 12 個情緒。** 穿造型時
+`skinnedMascotAsset()` 會把路徑的 `/mascot/core/` 換成 `/mascot/<skinKey>/`，
+所以**一套造型要覆蓋這 12 張**，少一張穿上去就會缺圖。
+
+**目前 12 個情緒全部都有**（`MascotEmotion` 的 neutralFront／sleep／wake／
+expect／smile／happy／popHappy／streak／sad／night／invite／question），
+所以造型可以直接做，不必等任何基本圖補齊。
+
+### ⚠️ 差分（blink／bliss）目前在造型上不生效
+
+`MascotEmotion.blinkAssetForPath()` 比對的是 **core 路徑**，而穿造型後傳進去的
+是 skin 路徑，對不上 → 回 `null`。這是刻意的安全 fallback（程式註解有寫），
+不是 bug。
+
+**後果**：
+- 一套造型只需要 **12 張主圖**。
+- 造型資料夾放 `_blink.png` 或 `pet_bliss.png` **也不會被讀到**，等於白做。
+- 穿造型的兔咪**不會眨眼、摸頭也不會瞇眼**，比原始造型「死」一點。
+
+要讓造型也支援差分就得改路由邏輯，而且每套造型會多 2 張圖（成本 +17%），
+「同一套衣服的閉眼版」對 AI 又更難。**建議先確認造型本身能不能成，再談差分。**
+
+### 因此生圖順序是
+
+1. **造型驗證 spike（3 張）** ← 用現有 core 圖，**現在就能做**，不受上述限制影響
+2. spike 過了 → 決定要不要改路由支援差分
+3. 量產完整造型（12 張，或改路由後 14 張）
+
+第 1 節的摸頭瞇眼差分（`tumi_pet_bliss.png`）只影響**原始造型**，跟造型量產
+互不阻擋，兩邊可以並行。
+
+---
+
 ## 0. ⭐ 造型一致性驗證（最優先，先做這個）
 
 **這不是素材需求，是風險驗證。** 你的內容供給計畫（一套造型＝一次上新）
