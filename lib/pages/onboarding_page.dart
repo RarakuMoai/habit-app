@@ -21,7 +21,14 @@ import '../widgets/audio_control_button.dart';
 import '../widgets/birthday_picker.dart';
 import '../widgets/mascot_scene.dart';
 
-// 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
+// 引導頁 accent：與全 app 主色同一家族（main.dart 的 seedColor）。
+// 集中成常數，換色只改這裡，不再散落 Colors.orange。
+const MaterialColor _kAccent = Colors.orange;
+
+// 引導頁底色：比主 app 更暖一階的米白，與 onboarding 背景圖搭配。
+const Color _kOnboardingBg = Color(0xFFFFF8F0);
+
+// 引導頁「習慣選擇」清單（喝水由「一起做什麼」頁的功能卡處理，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
 const List<({String emoji, String name, bool freq})> _kOnboardingHabits = [
   (emoji: '🦷', name: '刷牙', freq: false),
@@ -46,9 +53,11 @@ class _OnboardingPageState extends State<OnboardingPage>
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // 身體資訊頁專用 scroll controller：鍵盤彈出時自動捲到底，把按鈕推到鍵盤上緣
-  // （兔咪會被擠到畫面外，但這頁欄位/按鈕優先）
+  // 有輸入框的頁面專用 scroll controller：鍵盤彈出時自動捲到底，把按鈕推到
+  // 鍵盤上緣（兔咪會被擠到畫面外，但這頁欄位/按鈕優先）。
+  // 一個 controller 不能同時掛在 PageView 的兩頁上，故各頁一個。
   final ScrollController _bodyInfoScrollCtrl = ScrollController();
+  final ScrollController _introduceScrollCtrl = ScrollController();
 
   // 畫面1：打字動畫
   final List<String> _lines = ['嗯...你來了。', '我平常有點愛睡。', '你想開始時，我會陪你。'];
@@ -106,14 +115,15 @@ class _OnboardingPageState extends State<OnboardingPage>
   ];
   final math.Random _nameRng = math.Random();
 
-  // 畫面3：用戶暱稱
+  // 畫面2：用戶暱稱
   final TextEditingController _nicknameController = TextEditingController();
-  String _mascotName = '兔咪';
 
-  // 畫面4/5/6：功能引導（預設開啟，按「不用了」確認後才關）
-  bool? _waterEnabled;
-  bool? _timerEnabled;
-  bool? _familyEnabled;
+  // 畫面3 功能卡：預設值 = 直接跳過這頁時的結果。
+  // 喝水／專注計時多數人用得到，預設開；家庭模式只有帶小孩的人需要，
+  // 預設關才不會平白多一個主分頁（見 docs/roadmap.md 主分頁策略）。
+  bool _waterEnabled = true;
+  bool _timerEnabled = true;
+  bool _familyEnabled = false;
 
   // 畫面7：身體資訊
   String _gender = '';
@@ -148,34 +158,28 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 用戶暱稱（畫面3填完後存起來）
   String _nickname = '';
 
-  // ── 頁面定義表：頁數、順序、返回鍵的子步驟邏輯都從這裡推導 ──
+  // ── 頁面定義表：頁數、順序、換頁邊界都從這裡推導 ──
   // 新增/刪除頁面只要改這張表，進度點數量與換頁邊界會自動跟上。
-  // inSubStep 回 true 時返回鍵先退出追問子步驟（exitSubStep）而不換頁。
-  late final List<
-    ({
-      Widget Function() build,
-      bool Function() inSubStep,
-      VoidCallback exitSubStep,
-    })
-  >
+  //
+  // 流程設計（2026-07-25 改版）：先相遇，再認識，最後才問資料。
+  // 舊版 9 頁把「喝水/計時/家庭」拆成三頁一模一樣的 y/n 問答，
+  // 且拒絕時是紅色按鈕＋確認框（懲罰說不的人，與陪伴定位衝突）。
+  // 現在合併成一頁「想一起做什麼」的多選，選不選都不會被追問。
+  // keyboardScroll：該頁有輸入框時掛上，鍵盤彈出會自動捲到底把按鈕推上來。
+  late final List<({Widget Function() build, ScrollController? keyboardScroll})>
   _pages = [
-    (build: _buildPage1, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage2, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage3, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage4, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage5, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildFamilyPage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildMeetPage, keyboardScroll: null), // 1 相遇（打字動畫）
     (
-      build: _buildHabitPickerPage,
-      inSubStep: _noSubStep,
-      exitSubStep: _noopSubStep,
+      build: _buildIntroducePage, // 2 互相認識（兔咪名 + 你的名字）
+      keyboardScroll: _introduceScrollCtrl,
     ),
-    (build: _buildPage6, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage7, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildTogetherPage, keyboardScroll: null), // 3 想一起做什麼
+    (
+      build: _buildBodyInfoPage, // 4 身體資訊（可跳過）
+      keyboardScroll: _bodyInfoScrollCtrl,
+    ),
+    (build: _buildFinishPage, keyboardScroll: null), // 5 收尾
   ];
-
-  static bool _noSubStep() => false;
-  static void _noopSubStep() {}
 
   // 身體資訊頁：使用者按過一次「填寫完成」後變 true。
   // 行為：按鈕永遠可按，按下去才檢查必填；空著的必填欄會跳「請填寫 X」紅字。
@@ -269,10 +273,11 @@ class _OnboardingPageState extends State<OnboardingPage>
     _targetWeightFocus.dispose();
     _birthdayFocus.dispose();
     _bodyInfoScrollCtrl.dispose();
+    _introduceScrollCtrl.dispose();
     super.dispose();
   }
 
-  // 鍵盤狀態變化時，把身體資訊頁的 scroll view 跟著捲到底
+  // 鍵盤狀態變化時，把當前頁的 scroll view 跟著捲到底
   // ─ iOS 鍵盤動畫期間 didChangeMetrics 會連發多次（viewport 漸縮）
   // ─ 改用 jumpTo 每次同步跳到當前 maxScrollExtent，視覺上跟鍵盤同步上來
   //   （比 animateTo 等鍵盤動畫跑完再起一段動畫快很多）
@@ -280,12 +285,12 @@ class _OnboardingPageState extends State<OnboardingPage>
   void didChangeMetrics() {
     super.didChangeMetrics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_bodyInfoScrollCtrl.hasClients) return;
+      if (!mounted) return;
+      final ctrl = _pages[_currentPage].keyboardScroll;
+      if (ctrl == null || !ctrl.hasClients) return;
       final kb = MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
       if (kb > 0) {
-        _bodyInfoScrollCtrl.jumpTo(
-          _bodyInfoScrollCtrl.position.maxScrollExtent,
-        );
+        ctrl.jumpTo(ctrl.position.maxScrollExtent);
       }
     });
   }
@@ -311,13 +316,36 @@ class _OnboardingPageState extends State<OnboardingPage>
         charIndex++;
       } else {
         timer.cancel();
-        Future.delayed(const Duration(milliseconds: 900), () {
-          if (!mounted) return;
-          _lineIndex++;
-          _startTyping();
-        });
+        _scheduleNextLine();
       }
     });
+  }
+
+  // 一句打完後的停頓。用 Timer（而非 Future.delayed）才能被快轉取消。
+  void _scheduleNextLine() {
+    _typingTimer?.cancel();
+    _typingTimer = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      _lineIndex++;
+      _startTyping();
+    });
+  }
+
+  // 點畫面快轉：整句還沒打完就先補完，已經打完則直接進下一句。
+  // 舊版必須乾等約 6 秒才會出現「繼續」，對再次安裝或看過一次的人是純等待。
+  void _skipTyping() {
+    if (_page1Done) return;
+    _playOnboardingSfx(SfxCue.tap);
+    final line = _lines[_lineIndex];
+    if (_displayText != line) {
+      _typingTimer?.cancel();
+      setState(() => _displayText = line);
+      _scheduleNextLine();
+      return;
+    }
+    _typingTimer?.cancel();
+    _lineIndex++;
+    _startTyping();
   }
 
   void _nextPage({bool playSound = true}) {
@@ -513,7 +541,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       initial: _birthdayPickerInitialDate(),
       firstDate: _birthdayFirstDate,
       lastDate: _birthdayLastDate,
-      accent: Colors.orange,
+      accent: _kAccent,
     );
     if (picked == null || !mounted) return;
     _playOnboardingSfx(SfxCue.success);
@@ -562,7 +590,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
-          Icon(Icons.favorite_outline, size: 14, color: Colors.orange.shade400),
+          Icon(Icons.favorite_outline, size: 14, color: _kAccent.shade400),
           const SizedBox(width: 5),
           Expanded(
             child: Text(
@@ -588,14 +616,14 @@ class _OnboardingPageState extends State<OnboardingPage>
           );
         },
         style: TextButton.styleFrom(
-          foregroundColor: Colors.orange.shade800,
-          backgroundColor: Colors.orange.shade50,
+          foregroundColor: _kAccent.shade800,
+          backgroundColor: _kAccent.shade50,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.orange.shade200),
+            side: BorderSide(color: _kAccent.shade200),
           ),
         ),
         child: Text(
@@ -634,16 +662,11 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 兔咪 sad 跟對話切換，跟欄位下方紅字共用同一個顯示條件
   bool get _bmiOddOnboarding => _bmiOddVisible;
 
-  // 回上一步：若該頁正處於追問子步驟，先退回初始選項；否則回上一畫面
+  // 回上一步
   void _handleBack() {
     _playOnboardingSfx(SfxCue.cancel);
     // 換頁前先收起鍵盤，與 _nextPage 一致
     FocusScope.of(context).unfocus();
-    final page = _pages[_currentPage];
-    if (page.inSubStep()) {
-      setState(page.exitSubStep);
-      return;
-    }
     if (_currentPage > 0) {
       _pageController.previousPage(
         duration: const Duration(milliseconds: 350),
@@ -670,9 +693,9 @@ class _OnboardingPageState extends State<OnboardingPage>
           ? '你'
           : _nicknameController.text.trim(),
     );
-    await prefs.setBool(PrefsKeys.waterEnabled, _waterEnabled ?? false);
-    await prefs.setBool(PrefsKeys.timerEnabled, _timerEnabled ?? false);
-    await prefs.setBool(PrefsKeys.familyEnabled, _familyEnabled ?? false);
+    await prefs.setBool(PrefsKeys.waterEnabled, _waterEnabled);
+    await prefs.setBool(PrefsKeys.timerEnabled, _timerEnabled);
+    await prefs.setBool(PrefsKeys.familyEnabled, _familyEnabled);
 
     // 身體資訊
     if (_gender.isNotEmpty) {
@@ -703,7 +726,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       await prefs.setDouble(PrefsKeys.targetWeight, targetKg);
     }
     // 選了喝水功能 → 自動加入「喝足夠的水」習慣
-    if (_waterEnabled == true) _selectedHabits.add('喝足夠的水');
+    if (_waterEnabled) _selectedHabits.add('喝足夠的水');
     // 引導頁「習慣選擇頁」勾選的習慣
     await _addPickedHabits(prefs);
 
@@ -777,23 +800,18 @@ class _OnboardingPageState extends State<OnboardingPage>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.88),
+            color: AppSurfaces.card.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.orange.withValues(alpha: 0.22)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.orange.withValues(alpha: 0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            // 暖橘描邊是兔咪對話的識別，保留；陰影改用全 app 的暖棕雙層
+            border: Border.all(color: _kAccent.withValues(alpha: 0.22)),
+            boxShadow: AppShadows.card,
           ),
           child: Text(
             text,
             style: TextStyle(
               fontSize: fontSize,
               height: 1.38,
-              color: Colors.orange.shade900,
+              color: AppInk.strong,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -810,14 +828,10 @@ class _OnboardingPageState extends State<OnboardingPage>
                 width: 15,
                 height: 15,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.88),
+                  color: AppSurfaces.card.withValues(alpha: 0.92),
                   border: Border(
-                    left: BorderSide(
-                      color: Colors.orange.withValues(alpha: 0.16),
-                    ),
-                    top: BorderSide(
-                      color: Colors.orange.withValues(alpha: 0.16),
-                    ),
+                    left: BorderSide(color: _kAccent.withValues(alpha: 0.16)),
+                    top: BorderSide(color: _kAccent.withValues(alpha: 0.16)),
                   ),
                 ),
               ),
@@ -845,7 +859,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       child: FittedBox(
         child: MascotStage(
           asset: asset,
-          accent: Colors.orange,
+          accent: _kAccent,
           reactionTick: 0,
           onTap: () => _playOnboardingSfx(SfxCue.tap),
         ),
@@ -853,51 +867,6 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // 選項按鈕
-  Widget _optionButton(String label, VoidCallback onTap, {Color? color}) {
-    final accent = color ?? Colors.orange;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(16),
-        shadowColor: accent.withValues(alpha: 0.22),
-        elevation: 1.5,
-        child: InkWell(
-          onTap: () {
-            _playOnboardingSfx(SfxCue.tap);
-            unawaited(_ensureOnboardingBgm());
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(16),
-          splashColor: accent.withValues(alpha: 0.10),
-          highlightColor: accent.withValues(alpha: 0.06),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: accent.withValues(alpha: 0.24)),
-              // 純色 accent 淡底（不再用 gradient，避免兩端白氣感）
-              color: accent.withValues(alpha: 0.10),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.2,
-                color: accent == Colors.orange
-                    ? Colors.orange.shade800
-                    : accent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   // ── 畫面1：吉祥物甦醒 ──
   // 引導頁版型：兔咪固定在上方，內容在下方區域置中（可捲動）。
@@ -913,10 +882,15 @@ class _OnboardingPageState extends State<OnboardingPage>
     double mascotSize = 200,
     EdgeInsets contentPadding = const EdgeInsets.all(32),
     double mascotBottomSpacing = 16,
+    // 點空白處的額外行為（相遇頁用來快轉打字）
+    VoidCallback? onTapBackground,
   }) {
     return GestureDetector(
       // 點空白處收起鍵盤
-      onTap: () => FocusScope.of(context).unfocus(),
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        onTapBackground?.call();
+      },
       behavior: HitTestBehavior.opaque,
       child: SafeArea(
         child: Center(
@@ -943,7 +917,52 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  Widget _buildPage1() {
+  // ── 主要行動按鈕：一頁只有一顆實色 CTA（全 app 視覺規範）──
+  Widget _primaryButton(
+    String label,
+    VoidCallback? onPressed, {
+    double fontSize = 16,
+    bool expand = true,
+  }) {
+    final button = ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _kAccent,
+        disabledBackgroundColor: AppInk.faint,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: expand ? 16 : 48,
+          vertical: 15,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700),
+      ),
+    );
+    return expand ? SizedBox(width: double.infinity, child: button) : button;
+  }
+
+  // 次要行動：純文字，不搶 CTA 的視覺重量，也不用紅色嚇人
+  Widget _secondaryButton(String label, VoidCallback onPressed) {
+    return TextButton(
+      onPressed: () {
+        _playOnboardingSfx(SfxCue.tap);
+        onPressed();
+      },
+      style: TextButton.styleFrom(
+        foregroundColor: AppInk.soft,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 14)),
+    );
+  }
+
+  // ── 畫面1：相遇 ──
+  Widget _buildMeetPage() {
     // 依打字進度切換情緒：第1句剛醒(wake) → 自我介紹(neutral) → 陪伴宣告(smile)
     final wakeEmotion = _page1Done
         ? 'smile'
@@ -952,30 +971,26 @@ class _OnboardingPageState extends State<OnboardingPage>
               : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
     return _mascotPage(
       emotion: wakeEmotion,
+      onTapBackground: _skipTyping,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _speechBubble(_displayText, fontSize: 18),
           const SizedBox(height: 40),
-          // 打字完成後才出現「繼續」按鈕
-          AnimatedOpacity(
-            opacity: _page1Done ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 400),
-            child: ElevatedButton(
-              onPressed: _page1Done ? _nextPage : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 48,
-                  vertical: 14,
-                ),
-              ),
-              child: const Text(
-                '繼續',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+          // 打字期間放「點一下繼續」的快轉提示，打完換成 CTA。
+          // 固定高度避免兩者切換時整頁跳動。
+          SizedBox(
+            height: 52,
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                child: _page1Done
+                    ? _primaryButton('繼續', _nextPage, expand: false)
+                    : const Text(
+                        '點一下繼續',
+                        key: ValueKey('typing-hint'),
+                        style: TextStyle(fontSize: 13, color: AppInk.faint),
+                      ),
               ),
             ),
           ),
@@ -996,265 +1011,272 @@ class _OnboardingPageState extends State<OnboardingPage>
       _mascotController.selection = TextSelection.collapsed(
         offset: pick.length,
       );
-      _mascotName = pick;
     });
   }
 
+  // 骰子用淡染而非實色：同一頁的實色只留給「下一步」CTA
   Widget _diceButton() {
     return Material(
-      color: Colors.orange,
+      color: _kAccent.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: _rollMascotName,
-        child: const Padding(
-          padding: EdgeInsets.all(15),
-          child: Icon(Icons.casino_rounded, color: Colors.white, size: 24),
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Icon(
+            Icons.casino_rounded,
+            color: _kAccent.shade700,
+            size: 24,
+          ),
         ),
       ),
     );
   }
 
-  // ── 畫面2：幫吉祥物命名 ──
-  Widget _buildPage2() {
+  // 引導頁輸入框樣式（暖色 token 版，取代白底＋橘框硬編碼）
+  InputDecoration _onboardingFieldDeco({String? hintText}) {
+    OutlineInputBorder border(Color color) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: color),
+    );
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: const TextStyle(color: AppInk.faint, fontSize: 15),
+      counterText: '',
+      filled: true,
+      fillColor: AppSurfaces.card,
+      border: border(AppSurfaces.divider),
+      enabledBorder: border(AppSurfaces.divider),
+      focusedBorder: border(_kAccent),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
+
+  // 欄位小標（靠左，比欄位內容輕）
+  Widget _fieldLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppInk.soft,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── 畫面2：互相認識（兔咪名字 + 你的名字）──
+  // 舊版拆成兩頁，各只有一個輸入框，講的卻是同一件事。合併後少一次換頁，
+  // 「幫我取名字」也才有「互相介紹」的上下文。
+  Widget _buildIntroducePage() {
+    final canContinue = _nicknameController.text.trim().isNotEmpty;
     return _mascotPage(
-      emotion: 'smile',
+      emotion: 'expect',
+      mascotSize: 168,
+      scrollController: _introduceScrollCtrl,
+      contentPadding: const EdgeInsets.fromLTRB(32, 20, 32, 20),
+      mascotBottomSpacing: 12,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('對了...\n你可以幫我取個名字。\n想不到的話，按旁邊骰子幫我抽一個。'),
-          const SizedBox(height: 32),
+          _speechBubble('對了...\n我們還沒互相認識。'),
+          const SizedBox(height: 24),
+          _fieldLabel('我的名字'),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _mascotController,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 18),
+                  style: const TextStyle(fontSize: 17),
                   maxLength: 12,
-                  decoration: InputDecoration(
-                    hintText: '幫我取個名字',
-                    counterText: '',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.orange.shade200),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Colors.orange),
-                    ),
-                  ),
+                  decoration: _onboardingFieldDeco(hintText: '幫我取個名字'),
                 ),
               ),
               const SizedBox(width: 10),
               _diceButton(),
             ],
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                setState(
-                  () => _mascotName = _mascotController.text.trim().isEmpty
-                      ? '兔咪'
-                      : _mascotController.text.trim(),
-                );
-                _nextPage();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text(
-                '下一步',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+          const Padding(
+            padding: EdgeInsets.only(top: 6, left: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '想不到的話，按骰子幫我抽一個',
+                style: TextStyle(fontSize: 12, color: AppInk.faint),
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // ── 畫面3：用戶暱稱 ──
-  Widget _buildPage3() {
-    return _mascotPage(
-      emotion: 'expect',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble('那...你呢？\n$_mascotName 以後要怎麼叫你？'),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          _fieldLabel('你的名字'),
           TextField(
             controller: _nicknameController,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18),
+            style: const TextStyle(fontSize: 17),
             maxLength: 12,
-            decoration: InputDecoration(
-              hintText: '輸入你的暱稱',
-              counterText: '',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-            ),
+            decoration: _onboardingFieldDeco(hintText: '我以後要怎麼叫你'),
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _nicknameController.text.trim().isEmpty
-                  ? null
-                  : () {
-                      setState(
-                        () => _nickname = _nicknameController.text.trim(),
-                      );
-                      _nextPage();
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                disabledBackgroundColor: AppInk.faint,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text(
-                '下一步',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
+          const SizedBox(height: 26),
+          _primaryButton(
+            '下一步',
+            canContinue
+                ? () {
+                    setState(
+                      () => _nickname = _nicknameController.text.trim(),
+                    );
+                    _nextPage();
+                  }
+                : null,
           ),
         ],
       ),
-    );
-  }
-
-  // 功能引導三頁共用：預設開啟的單一問題。
-  // 「好」= 開啟並前進；紅色「不用了」= 跳確認框，確定才關閉並前進。
-  Widget _featureIntroPage({
-    required String bubble,
-    required String acceptLabel,
-    required VoidCallback onAccept,
-    required String declineName,
-    required VoidCallback onDeclineConfirmed,
-  }) {
-    return _mascotPage(
-      emotion: 'neutral_front',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble(bubble),
-          const SizedBox(height: 32),
-          _optionButton(acceptLabel, onAccept),
-          _optionButton(
-            '不用了',
-            () => _confirmDecline(declineName, onDeclineConfirmed),
-            color: Colors.red.shade400,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 按「不用了」跳確認框：確定才關閉（之後仍能在設定再開）。
-  Future<void> _confirmDecline(String name, VoidCallback onConfirmed) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('確定先關掉$name嗎？'),
-        content: const Text('之後想用，可以在「設定 → 功能開關」隨時打開喔。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('還是留著'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
-            child: const Text('確定關掉'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      _playOnboardingSfx(SfxCue.cancel);
-      onConfirmed();
-    }
-  }
-
-  // ── 畫面4：喝水功能引導 ──
-  Widget _buildPage4() {
-    return _featureIntroPage(
-      bubble: '口渴前，我會輕輕提醒你喝水。\n先幫你開著好嗎？',
-      acceptLabel: '好，幫我記',
-      onAccept: () {
-        setState(() => _waterEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: '喝水提醒',
-      onDeclineConfirmed: () {
-        setState(() => _waterEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
-
-  // ── 畫面5：專注計時功能引導 ──
-  Widget _buildPage5() {
-    return _featureIntroPage(
-      bubble: '專心的時候，我幫你顧著時間。\n要先開著專注計時嗎？',
-      acceptLabel: '好，開著',
-      onAccept: () {
-        setState(() => _timerEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: '專注計時',
-      onDeclineConfirmed: () {
-        setState(() => _timerEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
-
-  // ── 畫面6：家庭功能引導 ──
-  Widget _buildFamilyPage() {
-    return _featureIntroPage(
-      bubble: '家裡有小朋友的話，\n我也能陪他們記小任務。\n要先開著嗎？',
-      acceptLabel: '好，開著',
-      onAccept: () {
-        setState(() => _familyEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: '家庭模式',
-      onDeclineConfirmed: () {
-        setState(() => _familyEnabled = false);
-        _nextPage(playSound: false);
-      },
     );
   }
 
   // ── 畫面7：身體資訊（可跳過）──
   // 結構：頂部兔咪+對話 + 可滾動欄位區 + 底部固定按鈕（避免下次再說被擠到 fold 下方）
   // 習慣選擇頁：勾選想養成的習慣，完成後寫入習慣清單
-  Widget _buildHabitPickerPage() {
+  // 分區小標：中間文字、兩側細線
+  Widget _sectionDivider(String text) {
+    Widget line() => const Expanded(
+      child: Divider(color: AppSurfaces.divider, height: 1, thickness: 1),
+    );
+    return Row(
+      children: [
+        line(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 12, color: AppInk.soft),
+          ),
+        ),
+        line(),
+      ],
+    );
+  }
+
+  // 勾選圈：選中填 accent，未選只留淡框
+  Widget _checkMark(bool selected) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: selected ? _kAccent : Colors.transparent,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? _kAccent : AppSurfaces.dragHandle,
+          width: 1.5,
+        ),
+      ),
+      child: Icon(
+        Icons.check_rounded,
+        size: 16,
+        color: selected ? Colors.white : Colors.transparent,
+      ),
+    );
+  }
+
+  // 功能卡：可勾選、預設值見欄位宣告。
+  // 舊版是三個長得一樣的獨立頁面（好／不用了），拒絕還要再跳確認框；
+  // 現在收成一頁三張卡，取消勾選不會被追問（設定頁隨時能再開）。
+  Widget _featureCard({
+    required IconData icon,
+    required String title,
+    required String desc,
+    required bool selected,
+    required VoidCallback onToggle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: selected ? _kAccent.withValues(alpha: 0.10) : AppSurfaces.card,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          onTap: () {
+            _playOnboardingSfx(SfxCue.tap);
+            unawaited(_ensureOnboardingBgm());
+            onToggle();
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: Border.all(
+                color: selected
+                    ? _kAccent.withValues(alpha: 0.42)
+                    : AppSurfaces.divider,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 22,
+                  color: selected ? _kAccent.shade700 : AppInk.iconFaint,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        desc,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppInk.soft,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _checkMark(selected),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── 畫面3：想一起做什麼（習慣 + 功能）──
+  // 舊版把「習慣挑選」和「喝水／計時／家庭」拆成四頁，其中三頁版型與語意
+  // 完全相同。合併成一頁兩區：上面選習慣，下面選要兔咪幫忙顧的功能。
+  Widget _buildTogetherPage() {
+    final nothingPicked =
+        _selectedHabits.isEmpty &&
+        !_waterEnabled &&
+        !_timerEnabled &&
+        !_familyEnabled;
     return _mascotPage(
       emotion: 'smile',
-      // 兔咪大小跟引導頁其他頁面統一（不再壓縮為 140）。內容若超出（小機型 + freq 全選）
-      // 走 ClampingScrollPhysics 正常 scroll
+      // 這頁內容最多，兔咪縮小讓習慣與功能卡在多數機型上一屏可見；
+      // 塞不下時走 ClampingScrollPhysics 正常 scroll
+      mascotSize: 132,
+      mascotBottomSpacing: 10,
+      contentPadding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1269,24 +1291,32 @@ class _OnboardingPageState extends State<OnboardingPage>
                 .toList(),
           ),
           _freqSection(),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _nextPage,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(
-                _selectedHabits.isEmpty ? '略過' : '下一步',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
+          const SizedBox(height: 22),
+          _sectionDivider('這些我也可以幫你顧著'),
+          const SizedBox(height: 12),
+          _featureCard(
+            icon: Icons.water_drop_rounded,
+            title: '喝水提醒',
+            desc: '口渴前，我會輕輕提醒你',
+            selected: _waterEnabled,
+            onToggle: () => setState(() => _waterEnabled = !_waterEnabled),
           ),
+          _featureCard(
+            icon: Icons.hourglass_bottom_rounded,
+            title: '專注計時',
+            desc: '專心的時候，我幫你顧著時間',
+            selected: _timerEnabled,
+            onToggle: () => setState(() => _timerEnabled = !_timerEnabled),
+          ),
+          _featureCard(
+            icon: Icons.family_restroom_rounded,
+            title: '家庭模式',
+            desc: '家裡有小朋友的話，我也能陪他們記小任務',
+            selected: _familyEnabled,
+            onToggle: () => setState(() => _familyEnabled = !_familyEnabled),
+          ),
+          const SizedBox(height: 14),
+          _primaryButton(nothingPicked ? '略過' : '下一步', _nextPage),
         ],
       ),
     );
@@ -1327,16 +1357,10 @@ class _OnboardingPageState extends State<OnboardingPage>
                 margin: const EdgeInsets.only(top: 20),
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.orange.shade100),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.orange.withValues(alpha: 0.10),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                  color: AppSurfaces.card.withValues(alpha: 0.86),
+                  borderRadius: BorderRadius.circular(AppCardStyle.radius),
+                  border: Border.all(color: AppSurfaces.divider),
+                  boxShadow: AppShadows.card,
                 ),
                 child: Column(
                   children: [
@@ -1346,14 +1370,14 @@ class _OnboardingPageState extends State<OnboardingPage>
                         Icon(
                           Icons.repeat_rounded,
                           size: 15,
-                          color: Colors.orange.shade700,
+                          color: _kAccent.shade700,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           '想多久做一次？',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.orange.shade700,
+                            color: _kAccent.shade700,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1449,7 +1473,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     return Container(
       key: ValueKey('weekly-stepper-$name'),
       decoration: BoxDecoration(
-        color: Colors.orange,
+        color: _kAccent,
         borderRadius: BorderRadius.circular(14),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1514,10 +1538,10 @@ class _OnboardingPageState extends State<OnboardingPage>
       curve: Curves.easeOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: selected ? Colors.orange : Colors.white,
+        color: selected ? _kAccent : AppSurfaces.fill,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: selected ? Colors.orange : const Color(0xFFDDD0C4),
+          color: selected ? _kAccent : AppSurfaces.divider,
         ),
       ),
       child: Text(
@@ -1557,15 +1581,15 @@ class _OnboardingPageState extends State<OnboardingPage>
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: selected ? Colors.orange : Colors.white,
+            color: selected ? _kAccent : AppSurfaces.fill,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected ? Colors.orange : Colors.orange.shade100,
+              color: selected ? _kAccent : AppSurfaces.divider,
             ),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: Colors.orange.withValues(alpha: 0.20),
+                      color: _kAccent.withValues(alpha: 0.20),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -1599,11 +1623,11 @@ class _OnboardingPageState extends State<OnboardingPage>
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppSurfaces.card,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.orange.withValues(alpha: 0.24),
+                              color: _kAccent.withValues(alpha: 0.24),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -1612,7 +1636,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                         child: Icon(
                           Icons.check_rounded,
                           size: 14,
-                          color: Colors.orange.shade700,
+                          color: _kAccent.shade700,
                         ),
                       ),
                     ),
@@ -1651,41 +1675,19 @@ class _OnboardingPageState extends State<OnboardingPage>
         else
           maxValueFormatter(999),
       ],
-      decoration: InputDecoration(
+      decoration: _onboardingFieldDeco().copyWith(
         labelText: label,
         errorText: errorText,
         suffixIcon: suffixWidget,
         suffixIconConstraints: const BoxConstraints(),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.orange.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.orange),
-        ),
       ),
     );
   }
 
   // imperial 模式的 ft/in 兩欄並排
   Widget _onboardingFtInRow() {
-    InputDecoration deco(String label, String suffix) => InputDecoration(
-      labelText: label,
-      suffixText: suffix,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.orange.shade200),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.orange),
-      ),
-    );
+    InputDecoration deco(String label, String suffix) =>
+        _onboardingFieldDeco().copyWith(labelText: label, suffixText: suffix);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1723,14 +1725,15 @@ class _OnboardingPageState extends State<OnboardingPage>
             padding: const EdgeInsets.only(top: 6, left: 4),
             child: Text(
               _heightErrText!,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              style: const TextStyle(color: AppInk.danger, fontSize: 12),
             ),
           ),
       ],
     );
   }
 
-  Widget _buildPage6() {
+  // ── 畫面4：身體資訊（可跳過）──
+  Widget _buildBodyInfoPage() {
     final bmiOdd = _bmiOddOnboarding;
     final emotion = bmiOdd ? 'sad' : 'smile';
     final bubbleText = bmiOdd ? '嗯…身高或體重好像需要再確認一下。' : '我可以幫你紀錄身高、體重喔！';
@@ -1739,6 +1742,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       emotion: emotion,
       scrollController: _bodyInfoScrollCtrl,
       // 緊湊：兔咪間距 + padding 縮小，盡量單頁能塞下完整身體資訊
+      mascotSize: 150,
       mascotBottomSpacing: 8,
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       content: Column(
@@ -1749,10 +1753,10 @@ class _OnboardingPageState extends State<OnboardingPage>
           // 性別選擇
           Row(
             children: [
-              Text(
+              const Text(
                 '性別',
                 style: TextStyle(
-                  color: Colors.orange.shade800,
+                  color: AppInk.strong,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1769,7 +1773,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               padding: const EdgeInsets.only(top: 4, left: 4),
               child: Text(
                 _genderError!,
-                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                style: const TextStyle(color: AppInk.danger, fontSize: 12),
               ),
             ),
           // 活動量（選填）— 跟性別放一起，兩個都是 chip 選擇器，視覺一致
@@ -1819,107 +1823,50 @@ class _OnboardingPageState extends State<OnboardingPage>
             readOnly: true,
             showCursor: false,
             onTap: _openBirthdayPicker,
-            decoration: InputDecoration(
+            decoration: _onboardingFieldDeco(hintText: '點這裡選生日').copyWith(
               labelText: '生日',
-              hintText: '點這裡選生日',
               errorText: _birthdayError,
               errorMaxLines: 2,
-              suffixIcon: const Icon(
+              suffixIcon: Icon(
                 Icons.calendar_today_outlined,
                 size: 18,
-                color: Colors.orange,
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
+                color: _kAccent.shade700,
               ),
             ),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              // 按鈕永遠可按，按下去才驗證。空著 / 超範圍會跳紅字提示
-              onPressed: _tryFinishBodyInfo,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Text(
-                '填寫完成',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: _nextPage,
-            child: const Text('下次再說', style: TextStyle(color: AppInk.soft)),
-          ),
+          // 按鈕永遠可按，按下去才驗證。空著 / 超範圍會跳紅字提示
+          _primaryButton('填寫完成', _tryFinishBodyInfo),
+          _secondaryButton('下次再說', () => _nextPage(playSound: false)),
         ],
       ),
     );
   }
 
-  // 性別選擇按鈕
-  Widget _genderChip(String label) {
-    final selected = _gender == label;
+  // 性別 / 活動量共用的單選 chip（未選走暖淺填色，不用純白）
+  Widget _selectChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelect,
+  }) {
     return GestureDetector(
       onTap: () {
         if (!selected) _playOnboardingSfx(SfxCue.tap);
-        setState(() => _gender = label);
+        setState(onSelect);
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
+          color: selected ? _kAccent : AppSurfaces.fill,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
+            color: selected ? _kAccent : AppSurfaces.divider,
           ),
         ),
         child: Text(
           label,
-          style: TextStyle(
-            color: selected ? Colors.white : AppInk.soft,
-            fontSize: 14,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 活動量 chip（樣式跟 _genderChip 一致）
-  Widget _activityChip(String label) {
-    final selected = _activityLevel == label;
-    return GestureDetector(
-      onTap: () {
-        if (!selected) _playOnboardingSfx(SfxCue.tap);
-        setState(() => _activityLevel = label);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
-          ),
-        ),
-        child: Text(
-          _activityDayLabels[label] ?? label,
           style: TextStyle(
             color: selected ? Colors.white : AppInk.soft,
             fontSize: 14,
@@ -1930,6 +1877,18 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
+  Widget _genderChip(String label) => _selectChip(
+    label: label,
+    selected: _gender == label,
+    onSelect: () => _gender = label,
+  );
+
+  Widget _activityChip(String label) => _selectChip(
+    label: _activityDayLabels[label] ?? label,
+    selected: _activityLevel == label,
+    onSelect: () => _activityLevel = label,
+  );
+
   // 活動量選擇區：用「一週運動幾天」取代抽象的輕度/中度。
   Widget _onboardingActivitySelector() {
     return Container(
@@ -1937,17 +1896,17 @@ class _OnboardingPageState extends State<OnboardingPage>
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.74),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.16)),
+        color: AppSurfaces.card.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: Border.all(color: AppSurfaces.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             '一週大概運動幾天？',
             style: TextStyle(
-              color: Colors.orange.shade800,
+              color: AppInk.strong,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -1963,8 +1922,8 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // ── 畫面7：收尾 ──
-  Widget _buildPage7() {
+  // ── 畫面5：收尾 ──
+  Widget _buildFinishPage() {
     return _mascotPage(
       emotion: 'pop_happy',
       content: Column(
@@ -1972,29 +1931,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         children: [
           _speechBubble('好了，$_nickname。\n以後也一起慢慢來。', fontSize: 18),
           const SizedBox(height: 48),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _finish,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                elevation: 4,
-                shadowColor: Colors.orange.withValues(alpha: 0.4),
-              ),
-              child: const Text(
-                '開始',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
+          _primaryButton('開始', _finish, fontSize: 18),
         ],
       ),
     );
@@ -2006,7 +1943,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         alignment: Alignment.topRight,
         child: AudioControlButton(
           style: AudioControlStyle.onboarding,
-          accent: Colors.orange.shade700,
+          accent: _kAccent.shade700,
           onMusicEnabled: () => unawaited(_ensureOnboardingBgm(unmute: true)),
         ),
       ),
@@ -2015,19 +1952,19 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   @override
   Widget build(BuildContext context) {
-    // 第1頁沒有返回按鈕；任何頁在追問子步驟時也要顯示返回
-    final showBack = _currentPage > 0 || _pages[_currentPage].inSubStep();
+    // 第1頁沒有返回按鈕
+    final showBack = _currentPage > 0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // 引導頁背景是 #FFF8F0 米黃淡色，預設 iOS status bar 是淺色字會看不見
       // 時間/訊號/電量。強制 dark icons（深色字）才看得清楚
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFFF8F0),
+        backgroundColor: _kOnboardingBg,
         // 進度點指示器
         bottomNavigationBar: Container(
           height: 48,
-          color: const Color(0xFFFFF8F0),
+          color: _kOnboardingBg,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(_pages.length, (i) {
@@ -2038,7 +1975,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                 width: active ? 20 : 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: active ? Colors.orange : Colors.orange.shade200,
+                  color: active ? _kAccent : _kAccent.shade200,
                   borderRadius: BorderRadius.circular(4),
                 ),
               );
@@ -2064,9 +2001,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        const Color(0xFFFFF8F0).withValues(alpha: 0.12),
+                        _kOnboardingBg.withValues(alpha: 0.12),
                         Colors.white.withValues(alpha: 0.10),
-                        const Color(0xFFFFF8F0).withValues(alpha: 0.34),
+                        _kOnboardingBg.withValues(alpha: 0.34),
                       ],
                       stops: const [0.0, 0.45, 1.0],
                     ),
@@ -2093,7 +2030,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                   child: IconButton(
                     icon: const Icon(
                       Icons.arrow_back_ios_new_rounded,
-                      color: Colors.orange,
+                      color: _kAccent,
                     ),
                     onPressed: _handleBack,
                     tooltip: '回上一步',
