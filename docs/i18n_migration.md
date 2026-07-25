@@ -11,8 +11,19 @@
 | `l10n.yaml` | ✅ 專案根目錄 |
 | ARB | ✅ `lib/l10n/app_zh.arb`（模板）、`app_en.arb` |
 | `AppLocalizations` 掛上 MaterialApp | ✅ |
-| 已遷移的字串 | **7 個**（app 標題＋6 個分頁名） |
-| **還沒遷移** | **約 1,890 個** |
+| 已遷移的字串 | **163 個 key**（app 標題、分頁名、設定頁系全部、基本資料表單、驗證錯誤） |
+| **還沒遷移** | 各功能頁內文、空狀態說明、兔咪台詞（最後） |
+
+已完成的範圍（2026-07-25，遷移順序第 1、2 類）：
+- 共用對話框按鈕（`app_dialogs` 預設「取消／確定」走 l10n）
+- 設定頁、功能開關頁、進階設定頁、資料刪除頁（含 PIN 面板與救援問題）
+- 分頁名接線：`TabMeta` 不再帶 label，統一走 `tabLabel(context, id)`
+- 基本資料表單（`profile_edit_page`）與 `UserValidators` 錯誤訊息
+  （驗證器改收 `AppLocalizations`，測試用 `lookupAppLocalizations`）
+
+注意：頁面用了 `AppLocalizations` 之後，widget 測試要改用
+`test/l10n_test_app.dart` 的 `l10nTestApp(home: ...)`，裸 `MaterialApp` 會 crash。
+性別／活動量等「儲存值」仍是中文字串（跨頁邏輯比對它們），只換顯示標籤。
 
 `zh` 直接就是**繁體**（主要市場台灣）。未來加簡中用 `app_zh_Hans.arb`——Flutter
 要求有 script／country code 的 locale 必須有無後綴的 base 當 fallback。
