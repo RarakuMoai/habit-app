@@ -540,7 +540,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
 
   @override
   Widget build(BuildContext context) {
-    final pageTitle = _loaded ? '${_name}的夥伴檔案' : '夥伴檔案';
+    final pageTitle = _loaded ? '$_name的夥伴檔案' : '夥伴檔案';
     return Scaffold(
       backgroundColor: _kStageBase,
       appBar: AppBar(
