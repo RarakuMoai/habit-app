@@ -1,18 +1,21 @@
 # 兔咪對話與觸發目錄
 
-> 這份文件追蹤 app 內「被當成兔咪說的話」。角色原則以
-> [`tumi_character_guide.md`](tumi_character_guide.md) 為準；程式實際行為以 repo 為準。
+> **兔咪所有反應的單一追蹤表**：什麼事件 → 觸發什麼回應（表情／泡泡／文字／語音）。
+> 角色原則以 [`tumi_character_guide.md`](tumi_character_guide.md) 為準；
+> 程式實際行為以 repo 為準。
 >
-> 最後盤點：2026-07-22。
+> 最後盤點：2026-07-25。
 
-## 使用方式
+## 怎麼用這份文件
 
-- 改共用互動台詞：`lib/utils/mascot.dart` 的 `_lines` 與 `_homeTapLines`。
-- 改特定功能台詞：按下方「功能專屬對話」表格前往對應檔案。
-- 新增或修改對話時，同步更新本目錄，並確認「誰在說、什麼時候說、多久會再說」。
+- **想知道某個事件會發生什麼** → 看總表 A（共用情境）或總表 B（功能專屬）。
+- **想改台詞** → 共用的在 `lib/utils/mascot.dart` 的 `_lines` / `_homeTapLines`；
+  功能專屬的看總表 B 的「程式來源」欄。
+- **想新增事件** → 照最下方的「新增或修改事件時的檢查清單」。
+- **想知道哪些還要處理** → 看「狀態圖例與待辦」。
 
 本目錄不收一般按鈕、表單、SnackBar、通知與狀態卡文案；那些是介面說明，
-不是兔咪的直接對話。回憶繪本的旁白會收錄，並另外標示。
+不是兔咪的直接對話。回憶繪本的旁白會收錄（那是兔咪自己在回憶，不是外部旁白）。
 
 ## 三種聲音（2026-07-25 定案）
 
@@ -35,24 +38,67 @@
 4. 高頻情境預設不顯示文字，只用情緒圖、符號泡泡與 SFX；呼叫端明確傳入 `speech` 時例外。
 5. 直接互動語音有 7 秒冷卻，日常事件語音有 18 秒冷卻；全完成、連勝、撤銷與高量喝水提醒會突破冷卻。
 
-## 共用情境
+## 總表 A：共用情境（`MascotContext`）
 
-| 情境 | 主要觸發 | 預設文字 | 情緒／泡泡 | 優先度 |
-|---|---|---|---|---:|
-| `openApp` | App 冷啟動 | 有 | 中性／無 | 5 |
-| `focusStarted` | 專注計時開始、休息後回到專注 | 有 | 期待／無 | 5 |
-| `notStarted` | 首頁零進度、喝水零紀錄、計時重設 | 有 | 睡眠／Zzz | 5 |
-| `completedOne` | 完成一筆習慣、喝水、體重、家庭任務等 | 無 | 微笑／音符 | 10 |
-| `halfDone` | 進度過半、計時休息／運動開始 | 無 | 期待／音符 | 12 |
-| `allDone` | 當日全完成、喝水達標、計時結束 | 有 | 開心／星星 | 30 |
-| `streak` | 首頁全完成且連續天數≥7 | 有 | 雀躍／星星 | 30 |
-| `undone` | 首頁撤銷習慣 | 有 | 心疼／無 | 20 |
-| `night` | 22:00–06:00 且當天尚未開始 | 有 | 夜晚／Zzz | 5 |
-| `tapReaction` | 點兔咪；首頁另用進度專屬台詞 | 無 | 中性／問號 | 5 |
-| `headPet` | 摸頭 | 無 | 微笑／愛心 | 6 |
-| `energize` | 長按蓄力放開 | 無 | 雀躍／星星 | 6 |
-| `emptyHabits` | 首頁尚未建立任何習慣 | 有 | 邀請／無 | 5 |
-| `overhydration` | 喝水頁紀錄後總量達高量提醒線 | 有 | 疑問／問號 | 40 |
+程式來源：情緒 `_defaultEmotion`、泡泡 `EmotionBubble.forContext`、台詞 `_lines`、
+語音 `_voiceCueFor`、是否出文字 `MascotLines.speaksFor` — 全在 `lib/utils/mascot.dart`。
+
+| 事件 | 什麼時候發生（呼叫端） | 表情 | 泡泡 | 文字 | 語音 | 優先 | 狀態 |
+|---|---|---|---|:-:|---|--:|:-:|
+| `openApp` | App 冷啟動（`main.dart` → `resetToOpening`） | 中性 | — | ✅ 4 句 | 輕聲確認 | 5 | ✅ |
+| `focusStarted` | 專注計時開始／休息後回專注（`timer_page`、`exercise_timer`） | 期待 | — | ✅ 3 句 | 輕聲確認 | 5 | ✅ |
+| `notStarted` | 首頁零進度／喝水零杯／計時重設（`home_page`、`water_page`、`timer_page`、`exercise_timer`） | 睡眠 | Zzz | ✅ 5 句 | 靜音 | 5 | ✅ |
+| `completedOne` | 完成一筆習慣／喝水一杯／體重紀錄／家庭任務／計時跨階段（`home_page`、`water_page`、`weight_page`、`family_page`、`timer_page`） | 微笑 | 音符 | ❌ 池備用 | 輕聲確認 | 10 | ⚠️ |
+| `halfDone` | 進度過半／運動計時進休息（`home_page`、`water_page`、`exercise_timer`） | 期待 | 音符 | ❌ 池備用 | 輕聲確認 | 12 | ✅ |
+| `allDone` | 當日全完成／喝水達標／計時結束（`home_page`、`water_page`、`timer_page`、`exercise_timer`） | 開心 | 星星 | ✅ 4 句 | 歡呼 | 30 | ✅ |
+| `streak` | 首頁全完成且連續 ≥7 天（`home_page`） | 雀躍 | 星星 | ✅ 4 句 | 歡呼 | 30 | ✅ |
+| `undone` | 首頁撤銷習慣（`home_page`） | 心疼 | — | ✅ 4 句 | 難過 | 20 | ✅ |
+| `night` | 22:00–06:00 且當天尚未開始（`home_page`） | 夜晚 | Zzz | ✅ 4 句 | 靜音 | 5 | ✅ |
+| `tapReaction` | 點兔咪（`mascot_scene`）；首頁改用進度專屬池（`home_page`） | 中性 | 問號 | ❌ 池備用 | 70% 疑問／30% 確認 | 5 | ✅ |
+| `headPet` | 摸頭（`mascot_scene`、`home_page`） | 微笑 | 愛心 | ❌ 池備用 | 開心 | 6 | ✅ |
+| `energize` | 長按蓄力放開（`mascot_scene`）；報到卡領完足跡幣（`main.dart`） | 雀躍 | 星星 | ❌ 池備用 | 歡呼 | 6 | ✅ |
+| `emptyHabits` | 首頁尚未建立任何習慣（`home_page`） | 邀請 | — | ✅ 3 句 | 疑問 | 5 | ✅ |
+| `overhydration` | 喝水總量達高量線（≥4L，`water_page`） | 疑問 | 問號 | ✅ 4 句 | 疑問 | 40 | ⚠️ |
+| `diceMascotWin` | 骰子對決：角色贏（`dice_duel_panel`） | 雀躍 | 星星 | 遊戲帶入 | 歡呼 | — | ✅ |
+| `diceMascotLoss` | 骰子對決：使用者贏（`dice_duel_panel`） | 期待 | 汗滴 | 遊戲帶入 | 輕聲確認 | — | ✅ |
+| `diceTie` | 骰子對決：平手（`dice_duel_panel`） | 期待 | 音符 | 遊戲帶入 | 輕聲確認 | — | ✅ |
+
+**情境判斷順序**（同一頁多個條件時誰優先）：
+- 首頁 `home_page._mascotContext`：撤銷 → 點擊台詞 → 無習慣 → 全完成（連續 ≥7 走 `streak`）→ 過半 → 完成一件 → 夜晚 → 未開始。
+- 喝水頁 `water_page._mascotCtx`：**過量優先於達標** → 達標 → 零杯 → 過半 → 完成一杯。
+
+## 總表 B：功能專屬事件
+
+這些不走 `MascotContext` 的預設台詞，由各功能自己帶文字。
+
+| 事件 | 什麼時候發生 | 回應 | 程式來源 | 狀態 |
+|---|---|---|---|:-:|
+| 當日問候 | 當天首次打開首頁。順序：生日 → 離開 14 天 → 離開 2 天 → 30 天倍數連勝 → 14 天 → 7 天 → 昨日全完成 → 第 1/3/7 天 → 週一 → 時段問候 | 14 種分支文字，帶 `{nickname}` | `home_page.dart` | ✅ |
+| 每日報到卡 | 當日首次領足跡幣。分支：寬限日／里程碑／回歸／第一天／滿級／一般日 | 6 種分支文字 | `login_streak_page.dart` | ⬜ 待補印章 CG |
+| Onboarding | 首次使用的各步驟 | 逐頁提問 ＋ 開場 3 句 ＋ 收尾 | `onboarding_page.dart` | ⚠️ 改版在分支 |
+| 衣櫃穿上造型 | 套用造型成功 | 「嗯...這套很好看。」 | `wardrobe_page.dart` | ✅ |
+| 衣櫃購買造型 | 購買成功 | 「謝謝你...我很喜歡。」 | `wardrobe_page.dart` | ✅ |
+| 回憶繪本 | 4 個事件各解鎖一次：第一個習慣／首次全完成／連續 7 天／離開 ≥7 天回來 | 每事件 3–4 句兔咪回憶旁白 | `story_catalog.dart` | ⬜ 待補正式回憶圖 |
+| 菜園小蛇結算 | 三指彩蛋結束 | 進榜／未進榜各一句 | `snake_arcade_page.dart` | ✅ |
+
+## 狀態圖例與待辦
+
+- ✅ 已依 [`tumi_character_guide.md`](tumi_character_guide.md) 的審稿清單檢視過（2026-07-25）。
+- ⚠️ 有待決事項：
+  - `completedOne`：「做到了，我有看到。」——「看到什麼」的指涉靠前半句撐著，
+    語意成立但偏抽象，待決定是否帶入習慣名稱。
+  - `overhydration`：整組於 2026-07-25 重寫（舊版像健康 app 的警告），待實機確認語氣。
+  - Onboarding：5 頁改版在 `feat/onboarding-redesign` 分支，尚未合併；合併後本表要更新。
+- ⬜ 待補素材：報到卡的兔咪拿印章 CG、繪本 4 個事件的正式回憶圖
+  （目前暫借場景圖，程式有 `TODO(story-art)`）。
+
+## 新增或修改事件時的檢查清單
+
+1. 先在**總表 A 或 B 加一行**，再寫程式——沒進表的事件等於沒人追蹤得到。
+2. 四個面向都要決定：**表情、泡泡、要不要出文字、語音**。高頻互動預設不出文字。
+3. 台詞先過 [`tumi_character_guide.md`](tumi_character_guide.md) 的審稿清單與「三種聲音」。
+4. 跑 `flutter test test/mascot_test.dart`——寫死「兔咪」、自稱 `{name}`、單句超過 20 字都會被擋。
+5. 新泡泡要同時在 `EmotionBubble` 與 `widgets/mascot_bubbles.dart` 的 `_specs` 註冊。
 
 ### 共用台詞池
 
