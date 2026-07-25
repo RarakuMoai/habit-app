@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
 import 'data_deletion_page.dart';
 
@@ -8,8 +9,12 @@ class AdvancedSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('進階'), centerTitle: true),
+      appBar: AppBar(
+        title: Text(l10n.settingsSectionAdvanced),
+        centerTitle: true,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
@@ -41,18 +46,18 @@ class AdvancedSettingsPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '較少使用的設定',
-                        style: TextStyle(
+                      Text(
+                        l10n.advancedInfoTitle,
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFF5F4331),
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        '這裡放影響範圍比較大的操作，進入前可以先確認自己真的需要。',
-                        style: TextStyle(
+                      Text(
+                        l10n.advancedInfoBody,
+                        style: const TextStyle(
                           fontSize: 12.5,
                           height: 1.4,
                           color: AppInk.soft,
@@ -87,17 +92,17 @@ class AdvancedSettingsPage extends StatelessWidget {
                   size: 20,
                 ),
               ),
-              title: const Text(
-                '資料刪除',
-                style: TextStyle(
+              title: Text(
+                l10n.dataDeletionTitle,
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppInk.strong,
                 ),
               ),
-              subtitle: const Text(
-                '清除體重、喝水、家庭資料，或重置全部',
-                style: TextStyle(fontSize: 12, color: AppInk.soft),
+              subtitle: Text(
+                l10n.dataDeletionEntrySubtitle,
+                style: const TextStyle(fontSize: 12, color: AppInk.soft),
               ),
               trailing: const Icon(
                 Icons.chevron_right,

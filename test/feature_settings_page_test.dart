@@ -5,6 +5,8 @@ import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/tab_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   test('底部導覽與設定預覽共用同一個換排門檻', () {
     expect(bottomNavUsesTwoRows(width: 390, itemCount: 6), isFalse);
@@ -25,7 +27,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: FeatureSettingsPage()));
+    await tester.pumpWidget(l10nTestApp(home: const FeatureSettingsPage()));
     await tester.pumpAndSettle();
 
     final labels = ['習慣', '計時', '喝水', '體重', '家庭', '衣櫃'];

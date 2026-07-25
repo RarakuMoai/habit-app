@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+
 /// 底部主分頁的穩定識別碼。持久化排序（PrefsKeys.tabOrder）只存這些字串，
 /// 不存 index，這樣即使之後新增/移除分頁，使用者排序也不會錯位。
 class TabIds {
@@ -13,13 +15,27 @@ class TabIds {
   const TabIds._();
 }
 
-/// 分頁的「顯示用」中繼資料（圖示 + 標籤）。實際頁面 widget 仍在 main.dart
-/// 組（要帶各種 callback），這裡只放排序設定 UI 與預設順序需要的資訊。
+/// 分頁的「顯示用」中繼資料（圖示；標籤走 [tabLabel] 取 l10n）。實際頁面
+/// widget 仍在 main.dart 組（要帶各種 callback），這裡只放排序設定 UI 與
+/// 預設順序需要的資訊。
 class TabMeta {
   final String id;
   final IconData icon;
-  final String label;
-  const TabMeta(this.id, this.icon, this.label);
+  const TabMeta(this.id, this.icon);
+}
+
+/// 分頁的顯示名稱（i18n）。未知 id（debug 模擬分頁）回傳 id 本身當保底。
+String tabLabel(BuildContext context, String id) {
+  final l10n = AppLocalizations.of(context);
+  return switch (id) {
+    TabIds.habit => l10n.tabHabits,
+    TabIds.timer => l10n.tabTimer,
+    TabIds.water => l10n.tabWater,
+    TabIds.weight => l10n.tabWeight,
+    TabIds.family => l10n.tabFamily,
+    TabIds.wardrobe => l10n.tabWardrobe,
+    _ => id,
+  };
 }
 
 /// 底部導覽的換排規則。六個分頁在一般手機寬度維持單排，只有窄到每格
@@ -32,12 +48,12 @@ bool bottomNavUsesTwoRows({required double width, required int itemCount}) =>
 /// 預設順序：使用者沒自訂排序時的 fallback，也決定「新啟用但還沒排過」的
 /// 分頁附加在尾端的先後。圖示用底部列實際顯示的實心版本。
 const List<TabMeta> kTabCatalog = [
-  TabMeta(TabIds.habit, Icons.home, '習慣'),
-  TabMeta(TabIds.timer, Icons.timer, '計時'),
-  TabMeta(TabIds.water, Icons.water_drop, '喝水'),
-  TabMeta(TabIds.weight, Icons.monitor_weight, '體重'),
-  TabMeta(TabIds.family, Icons.family_restroom, '家庭'),
-  TabMeta(TabIds.wardrobe, Icons.checkroom_rounded, '衣櫃'),
+  TabMeta(TabIds.habit, Icons.home),
+  TabMeta(TabIds.timer, Icons.timer),
+  TabMeta(TabIds.water, Icons.water_drop),
+  TabMeta(TabIds.weight, Icons.monitor_weight),
+  TabMeta(TabIds.family, Icons.family_restroom),
+  TabMeta(TabIds.wardrobe, Icons.checkroom_rounded),
 ];
 
 /// 分頁圖示改用手繪貼紙 PNG（取代原本的 Material `IconData`）。只有這 6 個

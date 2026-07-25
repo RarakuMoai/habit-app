@@ -796,7 +796,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     setState(() => _waterReloadTrigger++);
   }
 
-  // 依功能開關動態組裝頁籤
+  // 依功能開關動態組裝頁籤（標籤走 tabLabel 取 l10n）
   List<_TabItem> get _tabs {
     // 先建「已啟用」分頁（id -> 分頁）。習慣永遠在。
     final enabled = <String, _TabItem>{
@@ -809,7 +809,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           onWaterHabitToggled: _handleWaterHabitToggle,
         ),
         icon: Icons.home,
-        label: '習慣',
+        label: tabLabel(context, TabIds.habit),
       ),
     };
     if (_timerEnabled) {
@@ -817,7 +817,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         id: TabIds.timer,
         page: const TimerPage(),
         icon: Icons.timer,
-        label: '計時',
+        label: tabLabel(context, TabIds.timer),
       );
     }
     if (_waterEnabled) {
@@ -828,7 +828,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           reloadTrigger: _waterReloadTrigger,
         ),
         icon: Icons.water_drop,
-        label: '喝水',
+        label: tabLabel(context, TabIds.water),
       );
     }
     // 體重頁籤，依 weight_tracking_enabled 開關決定是否顯示
@@ -837,7 +837,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         id: TabIds.weight,
         page: WeightPage(onRecordsChanged: _handleWeightRecordsChanged),
         icon: Icons.monitor_weight,
-        label: '體重',
+        label: tabLabel(context, TabIds.weight),
       );
     }
     if (_familyEnabled) {
@@ -845,15 +845,15 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         id: TabIds.family,
         page: FamilyPage(onSettingsChanged: _loadSettings),
         icon: Icons.family_restroom,
-        label: '家庭',
+        label: tabLabel(context, TabIds.family),
       );
     }
     // 衣櫃固定分頁：造型/金幣消耗是核心留存迴圈，比照習慣不可停用（roadmap §4）。
-    enabled[TabIds.wardrobe] = const _TabItem(
+    enabled[TabIds.wardrobe] = _TabItem(
       id: TabIds.wardrobe,
-      page: WardrobePage(),
+      page: const WardrobePage(),
       icon: Icons.checkroom_rounded,
-      label: '衣櫃',
+      label: tabLabel(context, TabIds.wardrobe),
     );
 
     // 依使用者自訂排序排好（未排過的新分頁照預設順序補在後面）。

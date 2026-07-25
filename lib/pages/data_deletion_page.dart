@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_restart.dart';
 import '../utils/app_style.dart';
@@ -110,7 +111,9 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
   Future<bool> _verifyBeforeEntry() async {
     if (_verifying || _authorized) return _authorized;
     setState(() => _verifying = true);
-    final ok = await _verifyPin(title: '請輸入密碼以進入資料刪除');
+    final ok = await _verifyPin(
+      title: AppLocalizations.of(context).ddPinEntryTitle,
+    );
     if (!mounted) return false;
     if (ok) {
       setState(() {
@@ -163,14 +166,14 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
                 const SizedBox(height: 18),
                 _HoldToConfirmButton(
                   color: color,
-                  label: '長按確認刪除',
+                  label: AppLocalizations.of(dialogCtx).holdToConfirmDelete,
                   onConfirmed: () => Navigator.pop(dialogCtx, true),
                 ),
                 const SizedBox(height: 8),
-                const Center(
+                Center(
                   child: Text(
-                    '按住直到填滿才會刪除，中途放開即取消',
-                    style: TextStyle(
+                    AppLocalizations.of(dialogCtx).holdToConfirmHint,
+                    style: const TextStyle(
                       color: AppInk.soft,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -183,7 +186,10 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
               TextButton(
                 style: TextButton.styleFrom(minimumSize: const Size(72, 46)),
                 onPressed: () => Navigator.pop(dialogCtx, false),
-                child: const Text('取消', style: TextStyle(color: AppInk.soft)),
+                child: Text(
+                  AppLocalizations.of(dialogCtx).commonCancel,
+                  style: const TextStyle(color: AppInk.soft),
+                ),
               ),
             ],
           ),
@@ -218,20 +224,22 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
   }
 
   Future<void> _clearWeightRecords() async {
+    final l10n = AppLocalizations.of(context);
     final confirm = await _confirmLongPress(
-      title: '清除體重紀錄',
-      message: '會刪除體重歷史紀錄，但保留體重功能開關、連續天數與已得足跡幣。',
+      title: l10n.ddClearWeightTitle,
+      message: l10n.ddClearWeightMessage,
       color: Colors.orange,
     );
     if (!confirm) return;
     await _runDelete((prefs) => prefs.remove(PrefsKeys.weightRecords));
-    _showDone('已清除體重紀錄');
+    _showDone(l10n.ddClearedWeight);
   }
 
   Future<void> _clearWaterRecords() async {
+    final l10n = AppLocalizations.of(context);
     final confirm = await _confirmLongPress(
-      title: '清除喝水紀錄',
-      message: '會刪除每日喝水明細，保留每杯容量、每日目標、功能開關與已得足跡幣。',
+      title: l10n.ddClearWaterTitle,
+      message: l10n.ddClearWaterMessage,
       color: Colors.orange,
     );
     if (!confirm) return;
@@ -241,13 +249,14 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
         await prefs.remove(key);
       }
     });
-    _showDone('已清除喝水紀錄');
+    _showDone(l10n.ddClearedWater);
   }
 
   Future<void> _clearFamilyData() async {
+    final l10n = AppLocalizations.of(context);
     final confirm = await _confirmLongPress(
-      title: '清除家庭資料',
-      message: '會刪除小孩、家庭習慣、扣分項目、獎勵、積分紀錄與票券紀錄。家庭模式開關會保留。',
+      title: l10n.ddClearFamilyTitle,
+      message: l10n.ddClearFamilyMessage,
       color: Colors.deepOrange,
     );
     if (!confirm) return;
@@ -260,7 +269,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
       await prefs.remove(PrefsKeys.voucherLogs);
       await prefs.remove(PrefsKeys.legacyRedemptionLogs);
     });
-    _showDone('已清除家庭資料');
+    _showDone(l10n.ddClearedFamily);
   }
 
   Future<void> _resetAll() async {
@@ -300,14 +309,15 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (!_loaded || !_authorized) {
       return Scaffold(
-        appBar: AppBar(title: const Text('資料刪除'), centerTitle: true),
+        appBar: AppBar(title: Text(l10n.dataDeletionTitle), centerTitle: true),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('資料刪除'), centerTitle: true),
+      appBar: AppBar(title: Text(l10n.dataDeletionTitle), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
@@ -316,9 +326,11 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
           _DeleteItemCard(
             icon: Icons.monitor_weight_outlined,
             color: Colors.orange,
-            title: '清除體重紀錄',
-            subtitle: _weightCount == 0 ? '目前沒有體重紀錄' : '$_weightCount 筆體重紀錄',
-            detail: '保留功能開關、連續天數與足跡幣紀錄',
+            title: l10n.ddClearWeightTitle,
+            subtitle: _weightCount == 0
+                ? l10n.ddWeightCountNone
+                : l10n.ddWeightCount(_weightCount),
+            detail: l10n.ddWeightDetail,
             enabled: !_busy && _weightCount > 0,
             onTap: _clearWeightRecords,
           ),
@@ -326,11 +338,11 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
           _DeleteItemCard(
             icon: Icons.water_drop_outlined,
             color: Colors.orange,
-            title: '清除喝水紀錄',
+            title: l10n.ddClearWaterTitle,
             subtitle: _waterDayCount == 0
-                ? '目前沒有喝水紀錄'
-                : '$_waterDayCount 天喝水紀錄',
-            detail: '保留每杯容量、每日目標與足跡幣紀錄',
+                ? l10n.ddWaterCountNone
+                : l10n.ddWaterCount(_waterDayCount),
+            detail: l10n.ddWaterDetail,
             enabled: !_busy && _waterDayCount > 0,
             onTap: _clearWaterRecords,
           ),
@@ -338,9 +350,11 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
           _DeleteItemCard(
             icon: Icons.family_restroom_rounded,
             color: Colors.deepOrange,
-            title: '清除家庭資料',
-            subtitle: _familyCount == 0 ? '目前沒有家庭資料' : '$_familyCount 筆家庭資料',
-            detail: '會刪除小孩、積分、獎勵與票券資料',
+            title: l10n.ddClearFamilyTitle,
+            subtitle: _familyCount == 0
+                ? l10n.ddFamilyCountNone
+                : l10n.ddFamilyCount(_familyCount),
+            detail: l10n.ddFamilyDetail,
             enabled: !_busy && _familyCount > 0,
             onTap: _clearFamilyData,
           ),
@@ -380,9 +394,9 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '刪除前請再確認',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).ddWarningTitle,
+                  style: const TextStyle(
                     color: Color(0xFF6F2E24),
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
@@ -390,7 +404,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '單項刪除需要長按確認；重置全部資料需要輸入 DELETE。',
+                  AppLocalizations.of(context).ddWarningBody,
                   style: TextStyle(
                     color: Colors.red.shade700,
                     fontSize: 12.5,
@@ -535,9 +549,9 @@ class _ResetAllCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '重置全部資料',
-                      style: TextStyle(
+                    Text(
+                      AppLocalizations.of(context).ddResetAllTitle,
+                      style: const TextStyle(
                         color: Color(0xFF8D211D),
                         fontSize: 15.5,
                         fontWeight: FontWeight.w900,
@@ -545,7 +559,7 @@ class _ResetAllCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '回到初始狀態，需要輸入 DELETE',
+                      AppLocalizations.of(context).ddResetAllSubtitle,
                       style: TextStyle(
                         color: Colors.red.shade700,
                         fontSize: 12.5,
@@ -677,7 +691,9 @@ class _HoldToConfirmButtonState extends State<_HoldToConfirmButton>
                   Icon(Icons.touch_app_rounded, size: 22, color: onFill),
                   const SizedBox(width: 8),
                   Text(
-                    _holding ? '持續按住…' : widget.label,
+                    _holding
+                        ? AppLocalizations.of(context).holdKeepHolding
+                        : widget.label,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
@@ -738,7 +754,7 @@ class _PinVerifyDialogState extends State<_PinVerifyDialog> {
     } else {
       playHaptic(HapticLevel.medium);
       setState(() {
-        _errorText = '密碼錯誤，請再試一次';
+        _errorText = AppLocalizations.of(context).pinWrongRetry;
         _ctrl.clear();
       });
     }
@@ -759,7 +775,7 @@ class _PinVerifyDialogState extends State<_PinVerifyDialog> {
           LengthLimitingTextInputFormatter(widget.digits),
         ],
         decoration: InputDecoration(
-          hintText: '請輸入 ${widget.digits} 位數字密碼',
+          hintText: AppLocalizations.of(context).pinVerifyHint(widget.digits),
           counterText: '',
           errorText: _errorText,
           suffixIcon: IconButton(
@@ -776,7 +792,10 @@ class _PinVerifyDialogState extends State<_PinVerifyDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, _PinResult.forgot),
-          child: const Text('忘記密碼？', style: TextStyle(color: AppInk.soft)),
+          child: Text(
+            AppLocalizations.of(context).forgotPasscode,
+            style: const TextStyle(color: AppInk.soft),
+          ),
         ),
         dialogCancelAction(context),
       ],
@@ -805,21 +824,22 @@ class _DeleteWordDialogState extends State<_DeleteWordDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('重置全部資料'),
+      title: Text(l10n.ddResetAllTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('這會清除所有資料並回到初始狀態，包含習慣、喝水、體重、家庭、足跡幣、衣櫃與密碼設定。'),
+          Text(l10n.ddResetDialogBody),
           const SizedBox(height: 14),
           TextField(
             controller: _ctrl,
             autofocus: true,
             textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
-              labelText: '輸入 DELETE 以確認',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: l10n.ddDeleteWordLabel,
+              border: const OutlineInputBorder(),
             ),
             onChanged: (v) => setState(() => _enabled = v.trim() == 'DELETE'),
           ),
@@ -829,7 +849,10 @@ class _DeleteWordDialogState extends State<_DeleteWordDialog> {
         TextButton(
           style: TextButton.styleFrom(minimumSize: const Size(72, 46)),
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('取消', style: TextStyle(color: AppInk.soft)),
+          child: Text(
+            l10n.commonCancel,
+            style: const TextStyle(color: AppInk.soft),
+          ),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -843,7 +866,7 @@ class _DeleteWordDialogState extends State<_DeleteWordDialog> {
           ),
           onPressed: _enabled ? () => Navigator.pop(context, true) : null,
           icon: const Icon(Icons.delete_forever_rounded, size: 20),
-          label: const Text('永久刪除'),
+          label: Text(l10n.ddPermanentDelete),
         ),
       ],
     );

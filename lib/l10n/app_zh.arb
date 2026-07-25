@@ -349,5 +349,208 @@
   "qaPresetFavoriteDish": "我最喜歡的一道菜是什麼？",
   "@qaPresetFavoriteDish": {
     "description": "預設救援問題之一。"
+  },
+
+  "tabOrderTitle": "底部分頁順序",
+  "@tabOrderTitle": {
+    "description": "功能開關頁「分頁排序」區塊的標題。"
+  },
+  "tabOrderEdit": "排序",
+  "@tabOrderEdit": {
+    "description": "進入分頁排序模式的小按鈕（與「完成」切換）。要短。"
+  },
+  "tabOrderHintIdle": "點右上「排序」即可調整順序，排好的樣子跟手機底部功能列完全一致。",
+  "@tabOrderHintIdle": {
+    "description": "分頁排序區塊的說明（非排序狀態）。「排序」要跟 tabOrderEdit 的字一致。"
+  },
+  "tabOrderHintEditing": "直接拖曳圖示，拖到另一格放開，兩個位置就會對調。",
+  "@tabOrderHintEditing": {
+    "description": "分頁排序區塊的說明（排序中）。說明拖曳交換的操作方式。"
+  },
+  "featureTimerTitle": "計時",
+  "@featureTimerTitle": {
+    "description": "功能開關：計時分頁的開關列標題。與底部分頁「計時」指同一功能。"
+  },
+  "featureTimerSubtitle": "顯示底部計時頁籤（專注、運動、節拍器、遊戲）",
+  "@featureTimerSubtitle": {
+    "description": "計時開關列副標，括號列出計時頁內含的模式。"
+  },
+  "featureWaterTitle": "喝水紀錄",
+  "@featureWaterTitle": {
+    "description": "功能開關：喝水分頁的開關列標題。"
+  },
+  "featureWaterSubtitle": "顯示底部喝水頁籤",
+  "@featureWaterSubtitle": {
+    "description": "喝水開關列副標。"
+  },
+  "featureWeightTitle": "體重紀錄習慣",
+  "@featureWeightTitle": {
+    "description": "功能開關：把「量體重」當成一個習慣項目的開關列標題。"
+  },
+  "featureWeightSubtitle": "在習慣清單顯示體重紀錄項目",
+  "@featureWeightSubtitle": {
+    "description": "體重紀錄開關列副標：開啟後習慣清單會多一個量體重項目。"
+  },
+  "featureFamilyTitle": "家庭模式",
+  "@featureFamilyTitle": {
+    "description": "功能開關：家庭模式（小朋友任務與獎勵）的開關列標題。"
+  },
+  "featureFamilySubtitle": "顯示底部家庭頁籤",
+  "@featureFamilySubtitle": {
+    "description": "家庭模式開關列副標。"
+  },
+
+  "advancedInfoTitle": "較少使用的設定",
+  "@advancedInfoTitle": {
+    "description": "進階設定頁頂部說明卡的標題。"
+  },
+  "advancedInfoBody": "這裡放影響範圍比較大的操作，進入前可以先確認自己真的需要。",
+  "@advancedInfoBody": {
+    "description": "進階設定頁頂部說明卡的內文，語氣提醒但不嚇人。"
+  },
+  "dataDeletionTitle": "資料刪除",
+  "@dataDeletionTitle": {
+    "description": "資料刪除頁的 AppBar 標題，也是進階設定頁的入口列標題。"
+  },
+  "dataDeletionEntrySubtitle": "清除體重、喝水、家庭資料，或重置全部",
+  "@dataDeletionEntrySubtitle": {
+    "description": "進階設定頁資料刪除入口列的副標。"
+  },
+
+  "ddPinEntryTitle": "請輸入密碼以進入資料刪除",
+  "@ddPinEntryTitle": {
+    "description": "進入資料刪除頁前的家長密碼驗證對話框標題。"
+  },
+  "pinVerifyHint": "請輸入 {digits} 位數字密碼",
+  "@pinVerifyHint": {
+    "description": "家長密碼驗證對話框的輸入欄提示。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinWrongRetry": "密碼錯誤，請再試一次",
+  "@pinWrongRetry": {
+    "description": "家長密碼驗證失敗時的行內錯誤訊息。"
+  },
+  "holdToConfirmDelete": "長按確認刪除",
+  "@holdToConfirmDelete": {
+    "description": "長按確認鈕的預設文字：要按住約 1 秒才會真的刪除。"
+  },
+  "holdKeepHolding": "持續按住…",
+  "@holdKeepHolding": {
+    "description": "長按確認鈕按住期間的文字，提示不要放開。"
+  },
+  "holdToConfirmHint": "按住直到填滿才會刪除，中途放開即取消",
+  "@holdToConfirmHint": {
+    "description": "長按確認鈕下方的操作說明小字。"
+  },
+  "ddClearWeightTitle": "清除體重紀錄",
+  "@ddClearWeightTitle": {
+    "description": "刪除體重紀錄的卡片標題與確認對話框標題。"
+  },
+  "ddClearWeightMessage": "會刪除體重歷史紀錄，但保留體重功能開關、連續天數與已得足跡幣。",
+  "@ddClearWeightMessage": {
+    "description": "清除體重紀錄確認對話框的內文，講清楚刪什麼、留什麼。「足跡幣」是 app 內貨幣。"
+  },
+  "ddClearedWeight": "已清除體重紀錄",
+  "@ddClearedWeight": {
+    "description": "SnackBar：體重紀錄清除完成。"
+  },
+  "ddClearWaterTitle": "清除喝水紀錄",
+  "@ddClearWaterTitle": {
+    "description": "刪除喝水紀錄的卡片標題與確認對話框標題。"
+  },
+  "ddClearWaterMessage": "會刪除每日喝水明細，保留每杯容量、每日目標、功能開關與已得足跡幣。",
+  "@ddClearWaterMessage": {
+    "description": "清除喝水紀錄確認對話框的內文，講清楚刪什麼、留什麼。"
+  },
+  "ddClearedWater": "已清除喝水紀錄",
+  "@ddClearedWater": {
+    "description": "SnackBar：喝水紀錄清除完成。"
+  },
+  "ddClearFamilyTitle": "清除家庭資料",
+  "@ddClearFamilyTitle": {
+    "description": "刪除家庭模式資料的卡片標題與確認對話框標題。"
+  },
+  "ddClearFamilyMessage": "會刪除小孩、家庭習慣、扣分項目、獎勵、積分紀錄與票券紀錄。家庭模式開關會保留。",
+  "@ddClearFamilyMessage": {
+    "description": "清除家庭資料確認對話框的內文，逐項列出會刪除的資料。"
+  },
+  "ddClearedFamily": "已清除家庭資料",
+  "@ddClearedFamily": {
+    "description": "SnackBar：家庭資料清除完成。"
+  },
+  "ddWeightCountNone": "目前沒有體重紀錄",
+  "@ddWeightCountNone": {
+    "description": "資料刪除頁體重卡的狀態副標：沒有可刪的資料。"
+  },
+  "ddWeightCount": "{count} 筆體重紀錄",
+  "@ddWeightCount": {
+    "description": "資料刪除頁體重卡的狀態副標：現有紀錄筆數。",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "ddWeightDetail": "保留功能開關、連續天數與足跡幣紀錄",
+  "@ddWeightDetail": {
+    "description": "體重卡第三行小字：說明保留哪些東西。"
+  },
+  "ddWaterCountNone": "目前沒有喝水紀錄",
+  "@ddWaterCountNone": {
+    "description": "資料刪除頁喝水卡的狀態副標：沒有可刪的資料。"
+  },
+  "ddWaterCount": "{count} 天喝水紀錄",
+  "@ddWaterCount": {
+    "description": "資料刪除頁喝水卡的狀態副標：有紀錄的天數。",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "ddWaterDetail": "保留每杯容量、每日目標與足跡幣紀錄",
+  "@ddWaterDetail": {
+    "description": "喝水卡第三行小字：說明保留哪些東西。"
+  },
+  "ddFamilyCountNone": "目前沒有家庭資料",
+  "@ddFamilyCountNone": {
+    "description": "資料刪除頁家庭卡的狀態副標：沒有可刪的資料。"
+  },
+  "ddFamilyCount": "{count} 筆家庭資料",
+  "@ddFamilyCount": {
+    "description": "資料刪除頁家庭卡的狀態副標：現有資料筆數（小孩、積分等加總）。",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "ddFamilyDetail": "會刪除小孩、積分、獎勵與票券資料",
+  "@ddFamilyDetail": {
+    "description": "家庭卡第三行小字：說明會刪除哪些東西。"
+  },
+  "ddWarningTitle": "刪除前請再確認",
+  "@ddWarningTitle": {
+    "description": "資料刪除頁頂部紅色警告卡的標題。"
+  },
+  "ddWarningBody": "單項刪除需要長按確認；重置全部資料需要輸入 DELETE。",
+  "@ddWarningBody": {
+    "description": "警告卡內文。「DELETE」是使用者實際要打的英文字，所有語言都保留原文。"
+  },
+  "ddResetAllTitle": "重置全部資料",
+  "@ddResetAllTitle": {
+    "description": "重置全部資料卡的標題與確認對話框標題。最高風險操作。"
+  },
+  "ddResetAllSubtitle": "回到初始狀態，需要輸入 DELETE",
+  "@ddResetAllSubtitle": {
+    "description": "重置全部資料卡的副標。「DELETE」保留原文。"
+  },
+  "ddResetDialogBody": "這會清除所有資料並回到初始狀態，包含習慣、喝水、體重、家庭、足跡幣、衣櫃與密碼設定。",
+  "@ddResetDialogBody": {
+    "description": "重置全部資料確認對話框的內文，逐項列出會被清除的資料。"
+  },
+  "ddDeleteWordLabel": "輸入 DELETE 以確認",
+  "@ddDeleteWordLabel": {
+    "description": "重置確認輸入欄的標籤。使用者必須輸入英文字 DELETE（程式比對固定字串），翻譯時保留 DELETE 原文。"
+  },
+  "ddPermanentDelete": "永久刪除",
+  "@ddPermanentDelete": {
+    "description": "重置全部資料對話框的紅色主按鈕。"
   }
 }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/feature_flags.dart';
@@ -144,11 +145,11 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
       children: [
         _BottomBarReorder(metas: metas, onReorder: _applyOrder),
         const SizedBox(height: 28),
-        const Padding(
-          padding: EdgeInsets.only(left: 4, bottom: 12),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
-            '功能開關',
-            style: TextStyle(
+            AppLocalizations.of(context).featureSettingsTitle,
+            style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               color: AppInk.strong,
@@ -161,8 +162,12 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('功能開關'), centerTitle: true),
+      appBar: AppBar(
+        title: Text(l10n.featureSettingsTitle),
+        centerTitle: true,
+      ),
       body: _loaded
           ? ListView(
               padding: const EdgeInsets.all(24),
@@ -174,8 +179,8 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 _toggleTile(
                   icon: Icons.timer_outlined,
                   iconColor: Colors.red.shade400,
-                  title: '計時',
-                  subtitle: '顯示底部計時頁籤（專注、運動、節拍器、遊戲）',
+                  title: l10n.featureTimerTitle,
+                  subtitle: l10n.featureTimerSubtitle,
                   value: _timerEnabled,
                   onChanged: (v) async {
                     setState(() => _timerEnabled = v);
@@ -187,8 +192,8 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 _toggleTile(
                   icon: Icons.water_drop_outlined,
                   iconColor: Colors.blue,
-                  title: '喝水紀錄',
-                  subtitle: '顯示底部喝水頁籤',
+                  title: l10n.featureWaterTitle,
+                  subtitle: l10n.featureWaterSubtitle,
                   value: _waterEnabled,
                   onChanged: (v) async {
                     if (_prefs != null) {
@@ -207,8 +212,8 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 _toggleTile(
                   icon: Icons.monitor_weight_outlined,
                   iconColor: Colors.green.shade600,
-                  title: '體重紀錄習慣',
-                  subtitle: '在習慣清單顯示體重紀錄項目',
+                  title: l10n.featureWeightTitle,
+                  subtitle: l10n.featureWeightSubtitle,
                   value: _weightTrackingEnabled,
                   onChanged: (v) async {
                     setState(() => _weightTrackingEnabled = v);
@@ -224,8 +229,8 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 _toggleTile(
                   icon: Icons.family_restroom,
                   iconColor: Colors.purple,
-                  title: '家庭模式',
-                  subtitle: '顯示底部家庭頁籤',
+                  title: l10n.featureFamilyTitle,
+                  subtitle: l10n.featureFamilySubtitle,
                   value: _familyEnabled,
                   onChanged: (v) async {
                     setState(() => _familyEnabled = v);
@@ -330,7 +335,9 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
               ),
               const SizedBox(width: 5),
               Text(
-                editing ? '完成' : '排序',
+                editing
+                    ? AppLocalizations.of(context).commonDone
+                    : AppLocalizations.of(context).tabOrderEdit,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -346,10 +353,8 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
 
   // 依排序狀態給對應說明文字。
   String _hint() {
-    if (!_editMode) {
-      return '點右上「排序」即可調整順序，排好的樣子跟手機底部功能列完全一致。';
-    }
-    return '直接拖曳圖示，拖到另一格放開，兩個位置就會對調。';
+    final l10n = AppLocalizations.of(context);
+    return _editMode ? l10n.tabOrderHintEditing : l10n.tabOrderHintIdle;
   }
 
   @override
@@ -372,9 +377,9 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
           padding: const EdgeInsets.only(left: 4, bottom: 6),
           child: Row(
             children: [
-              const Text(
-                '底部分頁順序',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context).tabOrderTitle,
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppInk.strong,
@@ -553,7 +558,7 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
           ),
           const SizedBox(height: 3),
           Text(
-            meta.label,
+            tabLabel(context, meta.id),
             maxLines: 1,
             style: TextStyle(
               fontSize: fontSize,
