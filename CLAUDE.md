@@ -6,7 +6,9 @@
 ## 需要時才讀（不要一次全載入）
 
 - 產品方向與優先順序：`docs/roadmap.md`（策略 SSOT；實作現況仍以 repo 為準）。
-- 兔咪性格與台詞：`docs/tumi_character_guide.md`。
+- 兔咪性格與說話原則：`docs/tumi_character_guide.md`。
+- 動到兔咪的對話或反應（台詞／表情／泡泡／語音／觸發）：先讀
+  `docs/tumi_dialogue_catalog.md` 的事件總表，先進表再寫程式。
 - 單位、SharedPreferences、音訊、視覺、兔咪素材：
   `docs/engineering_guardrails.md` 的對應小節。
 

@@ -7,7 +7,10 @@
 
 - 產品方向、優先順序：讀 `docs/roadmap.md`。程式現況以 repo 為準；roadmap 是策略，
   不是已完成功能清單。
-- 兔咪性格、台詞：讀 `docs/tumi_character_guide.md`。
+- 兔咪性格、說話原則：讀 `docs/tumi_character_guide.md`（含「三種聲音」規則）。
+- **調整兔咪的對話或反應行為**（台詞、表情、泡泡、語音、觸發條件、優先度）：
+  先讀 `docs/tumi_dialogue_catalog.md` 的事件總表，**先進表再寫程式**；改完
+  跑 `flutter test test/mascot_test.dart`，沒進表的新情境與違規台詞都會被擋。
 - 修改單位、偏好儲存、音訊、視覺或兔咪素材前：讀
   `docs/engineering_guardrails.md` 的對應小節。
 - 既有兔咪 PNG/CG 的差分或表情編輯：必須使用 repo skill

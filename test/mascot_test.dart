@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:characters/characters.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -286,6 +287,21 @@ void main() {
           );
         }
       }
+    }
+  });
+
+  // 事件總表是兔咪所有反應的追蹤點（docs/tumi_dialogue_catalog.md）。
+  // 新增情境卻忘了進表，這條會失敗——規範靠人記會腐爛，靠測試才不會。
+  test('每個 MascotContext 都在對話總表裡有一行', () {
+    final doc = File('docs/tumi_dialogue_catalog.md').readAsStringSync();
+    for (final ctx in MascotContext.values) {
+      expect(
+        doc.contains('`${ctx.name}`'),
+        isTrue,
+        reason:
+            '${ctx.name} 沒出現在 docs/tumi_dialogue_catalog.md 的事件總表。'
+            '新增或修改兔咪反應要先進表再寫程式（見該文件最下方的檢查清單）。',
+      );
     }
   });
 
