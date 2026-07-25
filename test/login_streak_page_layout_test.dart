@@ -56,7 +56,8 @@ void main() {
     expect(find.text('兔咪報到卡'), findsNothing);
     expect(find.text('連續第 12 天'), findsOneWidget);
     expect(find.text('今日足跡幣 +10'), findsOneWidget);
-    expect(find.text('開始吧'), findsOneWidget);
+    // 連續 12 天：零食升級成紅蘿蔔（第 7 天起）
+    expect(find.text('拿紅蘿蔔給牠'), findsOneWidget);
     expect(
       find.bySemanticsLabel(RegExp(r'連續登入 12 天，今日足跡幣 \+10')),
       findsWidgets,
@@ -151,6 +152,23 @@ void main() {
     expect(find.text('第一天。以後也一起慢慢來。'), findsOneWidget);
   });
 
+  testWidgets('零食隨連續天數升級：里程碑日給最好的', (tester) async {
+    // 第 7 天＝里程碑（milestoneAmount > 0）：不管天數多少，里程碑優先
+    await pumpPage(
+      tester,
+      size: const Size(390, 844),
+      streak: 7,
+      reward: const LoginReward(
+        level: 5,
+        amount: 9,
+        milestoneAmount: 20,
+        graceUsed: false,
+      ),
+    );
+    expect(find.text('拿特別的點心給牠'), findsOneWidget);
+    expect(find.text('拿紅蘿蔔給牠'), findsNothing);
+  });
+
   testWidgets('寬限日換台詞；點畫面快轉後 CTA 可關頁', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -192,11 +210,23 @@ void main() {
     expect(pawStamps(), findsNWidgets(5));
     // 快轉後沒有殘留的演出 Timer，pump 大段時間也不再變化。
     await tester.pump(const Duration(seconds: 3));
-    expect(find.text('開始吧'), findsOneWidget);
+    expect(find.text('拿小餅乾給牠'), findsOneWidget);
 
-    await tester.tap(find.text('開始吧'));
+    // 遞出零食：飛向兔咪（440ms）→ 牠收下彈一下 → 760ms 後才關頁，
+    // 讓 main.dart 的足跡幣動畫接手。
+    await tester.tap(find.text('拿小餅乾給牠'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.byType(LoginStreakPage),
+      findsOneWidget,
+      reason: '零食還在飛，不該立刻關頁',
+    );
+    // 分段 pump 推完 760ms 的關頁 timer 與 380ms 的淡出轉場
+    //（_ambient 是無限循環，不能用 pumpAndSettle）
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
     expect(find.byType(LoginStreakPage), findsNothing);
   });
 }

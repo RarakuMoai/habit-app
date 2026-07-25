@@ -85,8 +85,44 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   late final AnimationController _ambient;
 
   // 演出階段：0 無 → 1 大墨印重擊 → 2 墨印縮小落款＋兔咪＋報到卡
-  // → 3 印章懸停 → 4 印章壓下 → 5 印章抬離 → 6 演出定位 → 7 全亮。
+  // → 3 印章懸停 → 4 印章壓下 → 5 印章抬離 → 6 演出定位 → 7 全亮
+  // → 8 把零食遞給兔咪（按下 CTA 才進入，之後關頁）。
   int _step = 0;
+
+  /// 今天能給的零食。連續越久給得越好——讓「連續天數」不只是數字，
+  /// 而是「你能給牠的東西變好了」。emoji 是暫時素材，正式圖到位後換掉。
+  ({String emoji, String label}) get _treat {
+    if (_isMilestoneDay) return (emoji: '🎂', label: '特別的點心');
+    if (widget.streak >= 7) return (emoji: '🥕', label: '紅蘿蔔');
+    return (emoji: '🍪', label: '小餅乾');
+  }
+
+  /// 遞出零食：兔咪收下 → 開心 → 關頁，讓 main.dart 的足跡幣動畫接手。
+  /// 幣因此變成「兔咪高興的產物」，不再是系統憑空發給你的獎勵。
+  void _giveTreat() {
+    if (_step >= 8) return;
+    _cancelTimers();
+    if (_reduceMotion) {
+      playFeedback(SfxCue.tumiCheer, haptic: HapticLevel.medium);
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() => _step = 8);
+    playFeedback(SfxCue.tap, haptic: HapticLevel.light);
+    // 零食飛到兔咪身上的瞬間才歡呼（不是按下去就叫）
+    _timers.add(
+      Timer(const Duration(milliseconds: 420), () {
+        if (!mounted) return;
+        setState(() => _treatLanded = true);
+        playFeedback(SfxCue.tumiCheer, haptic: HapticLevel.medium);
+      }),
+    );
+    _timers.add(
+      Timer(const Duration(milliseconds: 760), () {
+        if (mounted) Navigator.of(context).pop();
+      }),
+    );
+  }
 
   // 大墨印飛行參數：post-frame 量出落款定位點 → 畫面中央的位移與倍率。
   // 量測時矩陣的平移為零、縮放/旋轉都以中心為軸，中心點不受影響。
@@ -97,6 +133,8 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   // 印章接觸瞬間（壓下後約 150ms）：腳印現身／漣漪／音效震動以此為準。
   bool _impact = false;
   bool _impactPlayed = false;
+  // 零食真正飛到兔咪身上的瞬間（不是按下去的瞬間）
+  bool _treatLanded = false;
   final List<Timer> _timers = [];
 
   bool get _isMilestoneDay => widget.reward.milestoneAmount > 0;
@@ -210,11 +248,6 @@ class _LoginStreakPageState extends State<LoginStreakPage>
     playHaptic(HapticLevel.selection);
   }
 
-  void _dismiss() {
-    playFeedback(SfxCue.tap, haptic: HapticLevel.light);
-    Navigator.of(context).pop();
-  }
-
   String get _caption {
     final r = widget.reward;
     if (r.graceUsed) return '昨天休息了一天，連續天數還留著。';
@@ -278,7 +311,36 @@ class _LoginStreakPageState extends State<LoginStreakPage>
                 ),
               ),
             ),
+            _buildTreatFlight(),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 零食飛向兔咪：從 CTA 位置拋進牠懷裡，抵達時淡出＝被收下。
+  /// 演的是「收下」不是「吃掉」——兔咪嘴巴永遠不變是人設鐵則。
+  Widget _buildTreatFlight() {
+    if (_step < 8) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 440),
+        curve: Curves.easeOutCubic,
+        builder: (_, t, _) => Align(
+          alignment: Alignment.lerp(
+            const Alignment(0, 0.86),
+            const Alignment(0, -0.32),
+            t,
+          )!,
+          child: Opacity(
+            // 最後 15% 淡出，看起來像被兔咪接住而不是穿過去
+            opacity: t < 0.85 ? 1 : (1 - t) / 0.15,
+            child: Transform.scale(
+              scale: 1 + 0.45 * t,
+              child: Text(_treat.emoji, style: const TextStyle(fontSize: 34)),
+            ),
+          ),
         ),
       ),
     );
@@ -287,8 +349,9 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   Widget _buildMascot(bool compact) {
     final shown = _step >= 2;
     return AnimatedScale(
-      scale: shown ? 1 : 0.82,
-      duration: const Duration(milliseconds: 640),
+      // 收下零食時彈一下：兔咪嘴巴不會動（人設鐵則），開心只能靠身體
+      scale: shown ? (_treatLanded ? 1.1 : 1) : 0.82,
+      duration: Duration(milliseconds: _treatLanded ? 240 : 640),
       curve: Curves.easeOutBack,
       child: AnimatedOpacity(
         key: const ValueKey('login-streak-mascot'),
@@ -770,8 +833,15 @@ class _LoginStreakPageState extends State<LoginStreakPage>
                 letterSpacing: 2,
               ),
             ),
-            onPressed: _dismiss,
-            child: const Text('開始吧'),
+            onPressed: _giveTreat,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(_treat.emoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Text('拿${_treat.label}給牠'),
+              ],
+            ),
           ),
         ),
       ),
