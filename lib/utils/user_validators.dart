@@ -6,7 +6,12 @@
 //
 // 範圍永遠以公制定義。UI 若在英制顯示，請先用 [UnitParse] 轉成公制
 // 後再呼叫這裡的驗證器。
+//
+// 錯誤訊息走 i18n：所有會回傳訊息的驗證器都收 [AppLocalizations]，
+// 呼叫端用 AppLocalizations.of(context) 取得後傳入（測試用
+// lookupAppLocalizations）。
 
+import '../l10n/app_localizations.dart';
 import 'units.dart';
 
 class UserRanges {
@@ -73,75 +78,107 @@ class UserValidators {
   /// Returns an error message for [raw], or null when [raw] is acceptable.
   /// Empty input is treated as "not provided" (no error) — callers decide
   /// whether to require it.
-  static String? height(String raw) {
+  static String? height(AppLocalizations l10n, String raw) {
     final t = raw.trim();
     if (t.isEmpty) return null;
     final v = double.tryParse(t);
-    if (v == null) return '請輸入數字';
+    if (v == null) return l10n.valEnterNumber;
     if (v < UserRanges.heightMinCm || v > UserRanges.heightMaxCm) {
-      return '請輸入 ${UserRanges.heightMinCm.toInt()}–${UserRanges.heightMaxCm.toInt()} cm'; // units-ok
+      return l10n.valRangeWithUnit(
+        UserRanges.heightMinCm.toInt(),
+        UserRanges.heightMaxCm.toInt(),
+        UnitFormat.heightLabel(UnitSystem.metric),
+      );
     }
     return null;
   }
 
-  static String? weight(String raw) {
+  static String? weight(AppLocalizations l10n, String raw) {
     final t = raw.trim();
     if (t.isEmpty) return null;
     final v = double.tryParse(t);
-    if (v == null) return '請輸入數字';
+    if (v == null) return l10n.valEnterNumber;
     if (v < UserRanges.weightMinKg || v > UserRanges.weightMaxKg) {
-      return '請輸入 ${UserRanges.weightMinKg.toInt()}–${UserRanges.weightMaxKg.toInt()} kg'; // units-ok
+      return l10n.valRangeWithUnit(
+        UserRanges.weightMinKg.toInt(),
+        UserRanges.weightMaxKg.toInt(),
+        UnitFormat.weightLabel(UnitSystem.metric),
+      );
     }
     return null;
   }
 
   /// Unit-aware weight check：raw 在 [system] 單位裡，內部轉公制驗證。
-  static String? weightIn(String raw, UnitSystem system) {
+  static String? weightIn(AppLocalizations l10n, String raw, UnitSystem system) {
     final t = raw.trim();
     if (t.isEmpty) return null;
     final v = double.tryParse(t);
-    if (v == null) return '請輸入數字';
+    if (v == null) return l10n.valEnterNumber;
     if (system == UnitSystem.imperial) {
       final lbMin = UnitConvert.kgToLb(UserRanges.weightMinKg).round();
       final lbMax = UnitConvert.kgToLb(UserRanges.weightMaxKg).round();
-      if (v < lbMin || v > lbMax) return '請輸入 $lbMin–$lbMax lb'; // units-ok
+      if (v < lbMin || v > lbMax) {
+        return l10n.valRangeWithUnit(
+          lbMin,
+          lbMax,
+          UnitFormat.weightLabel(UnitSystem.imperial),
+        );
+      }
       return null;
     }
-    return weight(raw);
+    return weight(l10n, raw);
   }
 
   /// Unit-aware target weight check.
-  static String? targetWeightIn(String raw, UnitSystem system) {
+  static String? targetWeightIn(
+    AppLocalizations l10n,
+    String raw,
+    UnitSystem system,
+  ) {
     final t = raw.trim();
     if (t.isEmpty) return null;
     final v = double.tryParse(t);
-    if (v == null) return '請輸入數字';
+    if (v == null) return l10n.valEnterNumber;
     if (system == UnitSystem.imperial) {
       final lbMin = UnitConvert.kgToLb(UserRanges.targetWeightMinKg).round();
       final lbMax = UnitConvert.kgToLb(UserRanges.targetWeightMaxKg).round();
-      if (v < lbMin || v > lbMax) return '請輸入 $lbMin–$lbMax lb'; // units-ok
+      if (v < lbMin || v > lbMax) {
+        return l10n.valRangeWithUnit(
+          lbMin,
+          lbMax,
+          UnitFormat.weightLabel(UnitSystem.imperial),
+        );
+      }
       return null;
     }
-    return targetWeight(raw);
+    return targetWeight(l10n, raw);
   }
 
   /// Unit-aware height check：imperial 模式直接驗 cm（呼叫端先用
   /// [UnitConvert.ftInToCm] 把 ft/in 合併成 cm 再傳入）。
-  static String? heightCm(double? cm) {
+  static String? heightCm(AppLocalizations l10n, double? cm) {
     if (cm == null) return null;
     if (cm < UserRanges.heightMinCm || cm > UserRanges.heightMaxCm) {
-      return '請輸入 ${UserRanges.heightMinCm.toInt()}–${UserRanges.heightMaxCm.toInt()} cm'; // units-ok
+      return l10n.valRangeWithUnit(
+        UserRanges.heightMinCm.toInt(),
+        UserRanges.heightMaxCm.toInt(),
+        UnitFormat.heightLabel(UnitSystem.metric),
+      );
     }
     return null;
   }
 
-  static String? targetWeight(String raw) {
+  static String? targetWeight(AppLocalizations l10n, String raw) {
     final t = raw.trim();
     if (t.isEmpty) return null;
     final v = double.tryParse(t);
-    if (v == null) return '請輸入數字';
+    if (v == null) return l10n.valEnterNumber;
     if (v < UserRanges.targetWeightMinKg || v > UserRanges.targetWeightMaxKg) {
-      return '請輸入 ${UserRanges.targetWeightMinKg.toInt()}–${UserRanges.targetWeightMaxKg.toInt()} kg'; // units-ok
+      return l10n.valRangeWithUnit(
+        UserRanges.targetWeightMinKg.toInt(),
+        UserRanges.targetWeightMaxKg.toInt(),
+        UnitFormat.weightLabel(UnitSystem.metric),
+      );
     }
     return null;
   }
@@ -153,7 +190,11 @@ class UserValidators {
   /// Tolerant by design — only catches obvious typos (digit-swap, missing
   /// digit, swapped fields). Real edge cases like severe anorexia (BMI 12)
   /// or extreme obesity (BMI 60) still pass.
-  static String? bmiPair(String rawHeight, String rawWeight) {
+  static String? bmiPair(
+    AppLocalizations l10n,
+    String rawHeight,
+    String rawWeight,
+  ) {
     final h = double.tryParse(rawHeight.trim());
     final w = double.tryParse(rawWeight.trim());
     if (h == null || w == null) return null;
@@ -161,24 +202,24 @@ class UserValidators {
     final hM = h / 100;
     final bmi = w / (hM * hM);
     if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) {
-      return '身高與體重的比例怪怪的，請再確認';
+      return l10n.valBmiImplausible;
     }
     return null;
   }
 
   /// Birthday is constrained at the picker level (firstDate / lastDate),
   /// so this just defends against bad stored values.
-  static String? birthday(DateTime? value) {
+  static String? birthday(AppLocalizations l10n, DateTime? value) {
     if (value == null) return null;
     final now = DateTime.now();
-    if (value.isAfter(now)) return '生日不能是未來日期';
+    if (value.isAfter(now)) return l10n.valBirthdayFuture;
     final maxBack = DateTime(
       now.year - UserRanges.birthdayMaxAgeYears,
       now.month,
       now.day,
     );
     if (value.isBefore(maxBack)) {
-      return '請確認生日（超過 ${UserRanges.birthdayMaxAgeYears} 歲）';
+      return l10n.valBirthdayTooOld(UserRanges.birthdayMaxAgeYears);
     }
     return null;
   }

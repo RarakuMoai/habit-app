@@ -4,6 +4,8 @@ import 'package:habit_app/pages/profile_edit_page.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -19,7 +21,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: ProfileEditPage()));
+    await tester.pumpWidget(l10nTestApp(home: const ProfileEditPage()));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('profile-edit-intro')), findsOneWidget);

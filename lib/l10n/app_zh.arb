@@ -552,5 +552,168 @@
   "ddPermanentDelete": "永久刪除",
   "@ddPermanentDelete": {
     "description": "重置全部資料對話框的紅色主按鈕。"
+  },
+
+  "peIntroTitle": "讓兔咪更認識你",
+  "@peIntroTitle": {
+    "description": "基本資料頁頂部介紹卡的大標。「兔咪」是吉祥物的預設名（產品識別），目前不隨改名變動。"
+  },
+  "peIntroSubtitle": "只有暱稱必填，其他資料都可以慢慢補上。",
+  "@peIntroSubtitle": {
+    "description": "基本資料頁介紹卡副標，降低填表壓力的語氣。"
+  },
+  "peSectionName": "稱呼",
+  "@peSectionName": {
+    "description": "基本資料頁「稱呼」分區標題（暱稱＋吉祥物名字）。"
+  },
+  "peSectionNameSubtitle": "你和兔咪想怎麼被叫",
+  "@peSectionNameSubtitle": {
+    "description": "稱呼分區的副標。「兔咪」同 peIntroTitle 的說明。"
+  },
+  "peNicknameLabel": "暱稱",
+  "@peNicknameLabel": {
+    "description": "暱稱輸入卡的標籤（必填欄位）。"
+  },
+  "peNicknameHint": "想被怎麼稱呼？",
+  "@peNicknameHint": {
+    "description": "暱稱輸入欄的提示文字，口語、輕鬆。"
+  },
+  "peNicknameRequired": "暱稱不能為空",
+  "@peNicknameRequired": {
+    "description": "暱稱留空時的行內錯誤訊息。"
+  },
+  "peMascotNameLabel": "吉祥物名字",
+  "@peMascotNameLabel": {
+    "description": "吉祥物（兔咪）改名輸入卡的標籤。"
+  },
+  "peSectionAbout": "關於你",
+  "@peSectionAbout": {
+    "description": "基本資料頁「關於你」分區標題（性別＋生日）。"
+  },
+  "peSectionAboutSubtitle": "選填，照舒服的方式留下",
+  "@peSectionAboutSubtitle": {
+    "description": "關於你分區的副標，強調選填、不強迫。"
+  },
+  "genderLabel": "性別",
+  "@genderLabel": {
+    "description": "性別選擇卡的標籤。"
+  },
+  "genderMale": "男",
+  "@genderMale": {
+    "description": "性別選項。內部儲存值仍是中文字串，這裡只是顯示標籤。"
+  },
+  "genderFemale": "女",
+  "@genderFemale": {
+    "description": "性別選項。內部儲存值仍是中文字串，這裡只是顯示標籤。"
+  },
+  "genderUndisclosed": "不透露",
+  "@genderUndisclosed": {
+    "description": "性別選項：不願透露。內部儲存值仍是中文字串，這裡只是顯示標籤。"
+  },
+  "birthdayLabel": "生日",
+  "@birthdayLabel": {
+    "description": "生日選擇卡的標籤。"
+  },
+  "notSetLabel": "未設定",
+  "@notSetLabel": {
+    "description": "選填欄位還沒填時的佔位顯示（例如生日）。"
+  },
+  "dateYmd": "{year} 年 {month} 月 {day} 日",
+  "@dateYmd": {
+    "description": "日期的顯示格式（生日等）。month／day 已補零成兩位字串。",
+    "placeholders": {
+      "year": { "type": "int" },
+      "month": { "type": "String" },
+      "day": { "type": "String" }
+    }
+  },
+  "peSectionBody": "身體數據",
+  "@peSectionBody": {
+    "description": "基本資料頁「身體數據」分區標題（身高／體重／目標體重）。"
+  },
+  "peSectionBodySubtitle": "協助產生更適合你的健康建議",
+  "@peSectionBodySubtitle": {
+    "description": "身體數據分區的副標，說明填寫的好處。"
+  },
+  "heightLabel": "身高",
+  "@heightLabel": {
+    "description": "身高輸入卡的標籤。"
+  },
+  "weightInputLabel": "體重",
+  "@weightInputLabel": {
+    "description": "體重輸入卡的標籤（表單欄位，不是底部分頁名）。"
+  },
+  "targetWeightLabel": "目標體重",
+  "@targetWeightLabel": {
+    "description": "目標體重輸入卡的標籤（選填）。"
+  },
+  "optionalHint": "選填",
+  "@optionalHint": {
+    "description": "選填輸入欄的提示文字。"
+  },
+  "peSuggestChip": "建議 {value}{unit}",
+  "@peSuggestChip": {
+    "description": "目標體重欄旁的建議值小膠囊，點了直接帶入。unit 是單位符號（kg／lb）。",
+    "placeholders": {
+      "value": { "type": "int" },
+      "unit": { "type": "String" }
+    }
+  },
+  "peSectionActivity": "活動量",
+  "@peSectionActivity": {
+    "description": "基本資料頁「活動量」分區標題。"
+  },
+  "peSectionActivitySubtitle": "用一週的節奏來選，會比較好判斷",
+  "@peSectionActivitySubtitle": {
+    "description": "活動量分區的副標：引導用「一週幾天」思考而不是抽象程度。"
+  },
+  "peActivityQuestion": "一週大概運動幾天？",
+  "@peActivityQuestion": {
+    "description": "活動量選擇卡的標籤（問句）。"
+  },
+  "activityAlmostNone": "幾乎沒有",
+  "@activityAlmostNone": {
+    "description": "活動量選項：一週幾乎不運動（內部值「久坐」，只是顯示標籤）。"
+  },
+  "activityDays1to2": "1-2 天",
+  "@activityDays1to2": {
+    "description": "活動量選項：一週運動 1-2 天（內部值「輕度」）。"
+  },
+  "activityDays3to4": "3-4 天",
+  "@activityDays3to4": {
+    "description": "活動量選項：一週運動 3-4 天（內部值「中度」）。"
+  },
+  "activityDays5plus": "5 天以上",
+  "@activityDays5plus": {
+    "description": "活動量選項：一週運動 5 天以上（內部值「高度」）。"
+  },
+
+  "valEnterNumber": "請輸入數字",
+  "@valEnterNumber": {
+    "description": "數值欄位輸入了非數字時的錯誤訊息。"
+  },
+  "valRangeWithUnit": "請輸入 {min}–{max} {unit}",
+  "@valRangeWithUnit": {
+    "description": "數值超出合理範圍的錯誤訊息。unit 是單位符號（cm／kg／lb），跨語言相同。",
+    "placeholders": {
+      "min": { "type": "int" },
+      "max": { "type": "int" },
+      "unit": { "type": "String" }
+    }
+  },
+  "valBmiImplausible": "身高與體重的比例怪怪的，請再確認",
+  "@valBmiImplausible": {
+    "description": "身高體重比例（BMI）明顯不合理時的錯誤，通常是打錯字。語氣輕鬆不指責。"
+  },
+  "valBirthdayFuture": "生日不能是未來日期",
+  "@valBirthdayFuture": {
+    "description": "生日選到未來日期時的錯誤訊息。"
+  },
+  "valBirthdayTooOld": "請確認生日（超過 {years} 歲）",
+  "@valBirthdayTooOld": {
+    "description": "生日推算年齡超過上限（防打錯字）時的錯誤訊息。",
+    "placeholders": {
+      "years": { "type": "int" }
+    }
   }
 }

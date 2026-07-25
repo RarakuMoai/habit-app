@@ -6,6 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/input_formatters.dart';
@@ -654,7 +655,11 @@ class _WeightPageState extends State<WeightPage> {
                 Navigator.pop(ctx);
                 return;
               }
-              final wErr = UserValidators.weightIn(rawText, _unit);
+              final wErr = UserValidators.weightIn(
+                AppLocalizations.of(ctx),
+                rawText,
+                _unit,
+              );
               String? fErr;
               final fatText = _fatCtrl.text.trim();
               double? fat;

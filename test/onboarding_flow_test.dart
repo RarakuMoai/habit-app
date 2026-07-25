@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/onboarding_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -21,7 +23,7 @@ void main() {
 
   testWidgets('點畫面可快轉打字，不用等完整動畫', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const MaterialApp(home: OnboardingPage()));
+    await tester.pumpWidget(l10nTestApp(home: const OnboardingPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('點一下繼續'), findsOneWidget);
@@ -45,7 +47,7 @@ void main() {
 
   testWidgets('從打字動畫一路走到最後一頁', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const MaterialApp(home: OnboardingPage()));
+    await tester.pumpWidget(l10nTestApp(home: const OnboardingPage()));
 
     // 畫面1：等打字動畫播完（3 句 × 60ms/字 + 句間 900ms），「繼續」浮現
     await tester.pump();

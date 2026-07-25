@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/input_formatters.dart';
@@ -43,15 +44,25 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   UnitSystem _unit = UnitSystem.metric;
   bool _loaded = false;
 
+  // 性別與活動量的「內部儲存值」。prefs 與跨頁邏輯（weight/water page 的
+  // TDEE 計算）都比對這些中文字串，i18n 只換顯示標籤、不動儲存值。
   static const List<String> _genders = ['男', '女', '不透露'];
+  static const List<String> _activityLevels = ['久坐', '輕度', '中度', '高度'];
 
-  // 畫面顯示為一週運動天數，內部仍存既有活動量值。
-  static const Map<String, String> _activityDayLabels = {
-    '久坐': '幾乎沒有',
-    '輕度': '1-2 天',
-    '中度': '3-4 天',
-    '高度': '5 天以上',
+  // 內部值 → 顯示標籤（畫面顯示為一週運動天數）。
+  String _genderLabel(AppLocalizations l10n, String value) => switch (value) {
+    '男' => l10n.genderMale,
+    '女' => l10n.genderFemale,
+    _ => l10n.genderUndisclosed,
   };
+
+  String _activityLabel(AppLocalizations l10n, String value) =>
+      switch (value) {
+        '久坐' => l10n.activityAlmostNone,
+        '輕度' => l10n.activityDays1to2,
+        '中度' => l10n.activityDays3to4,
+        _ => l10n.activityDays5plus,
+      };
 
   @override
   void initState() {
@@ -191,21 +202,24 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     if (mounted) Navigator.pop(context);
   }
 
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   // 取得目前單位下顯示用的錯誤訊息（null 表示沒問題）
   String? get _heightError {
     if (_unit == UnitSystem.imperial) {
       final ft = _heightCtrl.text.trim();
       final inches = _heightInCtrl.text.trim();
       if (ft.isEmpty && inches.isEmpty) return null;
-      return UserValidators.heightCm(_heightCmFromInputs());
+      return UserValidators.heightCm(_l10n, _heightCmFromInputs());
     }
-    return UserValidators.height(_heightCtrl.text);
+    return UserValidators.height(_l10n, _heightCtrl.text);
   }
 
-  String? get _weightError => UserValidators.weightIn(_weightCtrl.text, _unit);
+  String? get _weightError =>
+      UserValidators.weightIn(_l10n, _weightCtrl.text, _unit);
 
   String? get _targetWeightError =>
-      UserValidators.targetWeightIn(_targetWeightCtrl.text, _unit);
+      UserValidators.targetWeightIn(_l10n, _targetWeightCtrl.text, _unit);
 
   // BMI 比例檢查（用公制換算後判斷）
   String? get _bmiError {
@@ -217,7 +231,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final hM = cm / 100;
     final bmi = kg / (hM * hM);
     if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) {
-      return '身高與體重的比例怪怪的，請再確認';
+      return _l10n.valBmiImplausible;
     }
     return null;
   }
@@ -228,7 +242,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _heightError == null &&
       _weightError == null &&
       _targetWeightError == null &&
-      UserValidators.birthday(_birthday) == null &&
+      UserValidators.birthday(_l10n, _birthday) == null &&
       _bmiError == null;
 
   // ── 彩色分區版型：大標題、淡色卡面、各區獨立識別色。──
@@ -267,23 +281,23 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             ),
           ),
           const SizedBox(width: 13),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '讓兔咪更認識你',
-                  style: TextStyle(
+                  _l10n.peIntroTitle,
+                  style: const TextStyle(
                     fontSize: 20,
                     height: 1.15,
                     fontWeight: FontWeight.w900,
                     color: AppInk.strong,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
-                  '只有暱稱必填，其他資料都可以慢慢補上。',
-                  style: TextStyle(
+                  _l10n.peIntroSubtitle,
+                  style: const TextStyle(
                     fontSize: 13,
                     height: 1.35,
                     fontWeight: FontWeight.w600,
@@ -531,9 +545,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ),
               ),
               const SizedBox(width: 10),
-              const Text(
-                '身高',
-                style: TextStyle(
+              Text(
+                _l10n.heightLabel,
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
                   color: AppInk.strong,
@@ -695,7 +709,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Text(
-            '建議 ${suggestion.suggest}${suggestion.unit}',
+            _l10n.peSuggestChip(suggestion.suggest, suggestion.unit),
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
@@ -707,11 +721,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     );
   }
 
-  // 將 DateTime 格式化為「yyyy 年 MM 月 dd 日」顯示用
-  String _formatDate(DateTime d) =>
-      '${d.year} 年 '
-      '${d.month.toString().padLeft(2, '0')} 月 '
-      '${d.day.toString().padLeft(2, '0')} 日';
+  // 將 DateTime 格式化為日期顯示（格式在 ARB 的 dateYmd，隨語言變）
+  String _formatDate(DateTime d) => _l10n.dateYmd(
+    d.year,
+    d.month.toString().padLeft(2, '0'),
+    d.day.toString().padLeft(2, '0'),
+  );
 
   // 生日卡：點擊開啟「月曆 + 手動輸入」單一畫面選擇器
   Widget _birthdayCard() {
@@ -752,9 +767,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const Text(
-                  '生日',
-                  style: TextStyle(
+                Text(
+                  _l10n.birthdayLabel,
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
                     color: AppInk.strong,
@@ -762,7 +777,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ),
                 const Spacer(),
                 Text(
-                  _birthday == null ? '未設定' : _formatDate(_birthday!),
+                  _birthday == null
+                      ? _l10n.notSetLabel
+                      : _formatDate(_birthday!),
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -793,9 +810,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         scrolledUnderElevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: AppInk.strong),
-        title: const Text(
-          '基本資料',
-          style: TextStyle(
+        title: Text(
+          _l10n.basicInfoTitle,
+          style: const TextStyle(
             color: AppInk.strong,
             fontWeight: FontWeight.w900,
             fontSize: 20,
@@ -813,25 +830,25 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       _introCard(),
                       _sectionTitle(
                         icon: Icons.badge_rounded,
-                        title: '稱呼',
-                        subtitle: '你和兔咪想怎麼被叫',
+                        title: _l10n.peSectionName,
+                        subtitle: _l10n.peSectionNameSubtitle,
                         accent: _identityAccent,
                       ),
                       _textCard(
                         icon: Icons.person_rounded,
-                        label: '暱稱',
+                        label: _l10n.peNicknameLabel,
                         controller: _nicknameCtrl,
                         required: true,
                         maxLength: 12,
-                        hint: '想被怎麼稱呼？',
+                        hint: _l10n.peNicknameHint,
                         errorText: _nicknameCtrl.text.trim().isEmpty
-                            ? '暱稱不能為空'
+                            ? _l10n.peNicknameRequired
                             : null,
                         accent: _identityAccent,
                       ),
                       _textCard(
                         icon: Icons.pets_rounded,
-                        label: '吉祥物名字',
+                        label: _l10n.peMascotNameLabel,
                         controller: _mascotCtrl,
                         // 與 onboarding 一致：名字會進系統文案，上限比暱稱短
                         maxLength: 6,
@@ -841,18 +858,18 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
                       _sectionTitle(
                         icon: Icons.face_rounded,
-                        title: '關於你',
-                        subtitle: '選填，照舒服的方式留下',
+                        title: _l10n.peSectionAbout,
+                        subtitle: _l10n.peSectionAboutSubtitle,
                         accent: _basicsAccent,
                       ),
                       _chipsCard(
                         icon: Icons.wc_rounded,
-                        label: '性別',
+                        label: _l10n.genderLabel,
                         accent: _basicsAccent,
                         chips: [
                           for (final g in _genders)
                             _choiceChip(
-                              label: g,
+                              label: _genderLabel(_l10n, g),
                               selected: _gender == g,
                               onSelected: () => setState(() => _gender = g),
                               accent: _basicsAccent,
@@ -863,8 +880,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
                       _sectionTitle(
                         icon: Icons.straighten_rounded,
-                        title: '身體數據',
-                        subtitle: '協助產生更適合你的健康建議',
+                        title: _l10n.peSectionBody,
+                        subtitle: _l10n.peSectionBodySubtitle,
                         accent: _bodyAccent,
                       ),
                       if (_unit == UnitSystem.imperial)
@@ -872,7 +889,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       else
                         _textCard(
                           icon: Icons.straighten_rounded,
-                          label: '身高',
+                          label: _l10n.heightLabel,
                           controller: _heightCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
@@ -888,7 +905,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         ),
                       _textCard(
                         icon: Icons.monitor_weight_rounded,
-                        label: '體重',
+                        label: _l10n.weightInputLabel,
                         controller: _weightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -907,7 +924,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       ),
                       _textCard(
                         icon: Icons.flag_rounded,
-                        label: '目標體重',
+                        label: _l10n.targetWeightLabel,
                         controller: _targetWeightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -921,24 +938,24 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         ],
                         errorText: _targetWeightError,
                         trailing: _targetWeightSuggestSuffix(),
-                        hint: '選填',
+                        hint: _l10n.optionalHint,
                         accent: _bodyAccent,
                       ),
 
                       _sectionTitle(
                         icon: Icons.directions_run_rounded,
-                        title: '活動量',
-                        subtitle: '用一週的節奏來選，會比較好判斷',
+                        title: _l10n.peSectionActivity,
+                        subtitle: _l10n.peSectionActivitySubtitle,
                         accent: _activityAccent,
                       ),
                       _chipsCard(
                         icon: Icons.local_fire_department_rounded,
-                        label: '一週大概運動幾天？',
+                        label: _l10n.peActivityQuestion,
                         accent: _activityAccent,
                         chips: [
-                          for (final k in _activityDayLabels.keys)
+                          for (final k in _activityLevels)
                             _choiceChip(
-                              label: _activityDayLabels[k]!,
+                              label: _activityLabel(_l10n, k),
                               selected: _activityLevel == k,
                               onSelected: () =>
                                   setState(() => _activityLevel = k),
@@ -969,9 +986,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           ),
                         ),
                         icon: const Icon(Icons.check_rounded, size: 20),
-                        label: const Text(
-                          '儲存',
-                          style: TextStyle(
+                        label: Text(
+                          _l10n.commonSave,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),

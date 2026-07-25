@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/bgm_service.dart';
@@ -401,15 +402,26 @@ class _OnboardingPageState extends State<OnboardingPage>
           _heightInController.text.trim().isEmpty) {
         return null;
       }
-      return UserValidators.heightCm(_heightCm());
+      return UserValidators.heightCm(AppLocalizations.of(context), _heightCm());
     }
-    return UserValidators.height(_heightController.text);
+    return UserValidators.height(
+      AppLocalizations.of(context),
+      _heightController.text,
+    );
   }
 
   String? get _weightErrTextRaw =>
-      UserValidators.weightIn(_weightController.text, _unit);
+      UserValidators.weightIn(
+    AppLocalizations.of(context),
+    _weightController.text,
+    _unit,
+  );
   String? get _targetWeightErrTextRaw =>
-      UserValidators.targetWeightIn(_targetWeightController.text, _unit);
+      UserValidators.targetWeightIn(
+    AppLocalizations.of(context),
+    _targetWeightController.text,
+    _unit,
+  );
 
   // 「輸入完畢」= 該欄失焦過、或使用者按過「填寫完成」
   bool get _heightInputFinished => _heightTouched || _bodyInfoSubmitAttempted;
@@ -507,7 +519,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         value.isAfter(_birthdayLastDate)) {
       return '日期超出可選範圍';
     }
-    return UserValidators.birthday(value);
+    return UserValidators.birthday(AppLocalizations.of(context), value);
   }
 
   void _setBirthday(DateTime value) {
@@ -644,7 +656,10 @@ class _OnboardingPageState extends State<OnboardingPage>
     if (_heightErrTextRaw != null) return false;
     if (_weightErrTextRaw != null) return false;
     if (_targetWeightErrTextRaw != null) return false;
-    if (UserValidators.birthday(_birthday) != null) return false;
+    if (UserValidators.birthday(AppLocalizations.of(context), _birthday) !=
+        null) {
+      return false;
+    }
     // BMI 比例檢查（用公制換算）
     if (cm != null && kg != null && cm > 0) {
       final hM = cm / 100;
