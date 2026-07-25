@@ -311,13 +311,36 @@ class _OnboardingPageState extends State<OnboardingPage>
         charIndex++;
       } else {
         timer.cancel();
-        Future.delayed(const Duration(milliseconds: 900), () {
-          if (!mounted) return;
-          _lineIndex++;
-          _startTyping();
-        });
+        _scheduleNextLine();
       }
     });
+  }
+
+  // 一句打完後的停頓。用 Timer（而非 Future.delayed）才能被快轉取消。
+  void _scheduleNextLine() {
+    _typingTimer?.cancel();
+    _typingTimer = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      _lineIndex++;
+      _startTyping();
+    });
+  }
+
+  // 點畫面快轉：整句還沒打完就先補完，已經打完則直接進下一句。
+  // 舊版必須乾等約 6 秒才會出現「繼續」，對再次安裝或看過一次的人是純等待。
+  void _skipTyping() {
+    if (_page1Done) return;
+    _playOnboardingSfx(SfxCue.tap);
+    final line = _lines[_lineIndex];
+    if (_displayText != line) {
+      _typingTimer?.cancel();
+      setState(() => _displayText = line);
+      _scheduleNextLine();
+      return;
+    }
+    _typingTimer?.cancel();
+    _lineIndex++;
+    _startTyping();
   }
 
   void _nextPage({bool playSound = true}) {
@@ -915,10 +938,15 @@ class _OnboardingPageState extends State<OnboardingPage>
     double mascotSize = 200,
     EdgeInsets contentPadding = const EdgeInsets.all(32),
     double mascotBottomSpacing = 16,
+    // 點空白處的額外行為（第一頁用來快轉打字）
+    VoidCallback? onTapBackground,
   }) {
     return GestureDetector(
       // 點空白處收起鍵盤
-      onTap: () => FocusScope.of(context).unfocus(),
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        onTapBackground?.call();
+      },
       behavior: HitTestBehavior.opaque,
       child: SafeArea(
         child: Center(
@@ -954,12 +982,25 @@ class _OnboardingPageState extends State<OnboardingPage>
               : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
     return _mascotPage(
       emotion: wakeEmotion,
+      onTapBackground: _skipTyping,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _speechBubble(_displayText, fontSize: 18),
           const SizedBox(height: 40),
           // 打字完成後才出現「繼續」按鈕
+          // 打字期間提示可以點畫面快轉，打完才換成「繼續」
+          AnimatedOpacity(
+            opacity: _page1Done ? 0.0 : 1.0,
+            duration: const Duration(milliseconds: 300),
+            child: const Padding(
+              padding: EdgeInsets.only(bottom: 14),
+              child: Text(
+                '點一下繼續',
+                style: TextStyle(fontSize: 13, color: AppInk.faint),
+              ),
+            ),
+          ),
           AnimatedOpacity(
             opacity: _page1Done ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 400),

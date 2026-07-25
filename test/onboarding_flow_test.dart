@@ -19,6 +19,30 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
+  testWidgets('點畫面可快轉打字，不用等完整動畫', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const MaterialApp(home: OnboardingPage()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('點一下繼續'), findsOneWidget);
+
+    // 點畫面左下角空白處（避開兔咪自己的點擊區與底部進度列）。
+    // 三句 × 每句最多兩下（補完當前句 → 進下一句）
+    final body = tester.getRect(find.byType(PageView));
+    final blankSpot = Offset(body.left + 12, body.bottom - 24);
+    for (var i = 0; i < 8 && find.text('繼續').evaluate().isEmpty; i++) {
+      await tester.tapAt(blankSpot);
+      await tester.pump();
+    }
+    expect(
+      find.text('繼續'),
+      findsOneWidget,
+      reason: '點畫面應該能跳過打字動畫，不必乾等 6 秒',
+    );
+
+    await tester.pump(const Duration(seconds: 10));
+  });
+
   testWidgets('從打字動畫一路走到最後一頁', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const MaterialApp(home: OnboardingPage()));
