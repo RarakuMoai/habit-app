@@ -928,8 +928,11 @@ class _OnboardingPageState extends State<OnboardingPage>
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: _kAccent,
-        disabledBackgroundColor: AppInk.faint,
         foregroundColor: Colors.white,
+        // 停用態走 accent 淡染而非灰棕實色：在暖色底上灰實色又重又髒，
+        // 淡染仍看得出是同一顆按鈕，只是還不能按
+        disabledBackgroundColor: _kAccent.withValues(alpha: 0.22),
+        disabledForegroundColor: _kAccent.shade700,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppCardStyle.radius),
         ),
@@ -1270,11 +1273,14 @@ class _OnboardingPageState extends State<OnboardingPage>
         !_waterEnabled &&
         !_timerEnabled &&
         !_familyEnabled;
+    // SE（667pt）這頁一定超出一屏，兔咪再縮一階換取多露一張功能卡，
+    // 讓「有三個功能可選」在首屏就看得到；其餘機型維持 132
+    final compact = MediaQuery.sizeOf(context).height < 700;
     return _mascotPage(
       emotion: 'smile',
-      // 這頁內容最多，兔咪縮小讓習慣與功能卡在多數機型上一屏可見；
+      // 這頁內容最多，兔咪縮小讓習慣與功能卡盡量一屏可見；
       // 塞不下時走 ClampingScrollPhysics 正常 scroll
-      mascotSize: 132,
+      mascotSize: compact ? 96 : 132,
       mascotBottomSpacing: 10,
       contentPadding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
       content: Column(
