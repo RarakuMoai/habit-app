@@ -1,0 +1,12 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Tumi Habits",
+
+  "tabHabits": "Habits",
+  "tabTimer": "Timer",
+  "tabWater": "Water",
+  "tabWeight": "Weight",
+  "tabFamily": "Family",
+  "tabWardrobe": "Closet"
+}

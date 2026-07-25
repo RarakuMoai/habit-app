@@ -1,0 +1,33 @@
+{
+  "@@locale": "zh",
+
+  "appTitle": "兔咪好習慣",
+  "@appTitle": {
+    "description": "App 名稱。這是產品名，不隨兔咪改名而變。"
+  },
+
+  "tabHabits": "習慣",
+  "@tabHabits": {
+    "description": "底部分頁：習慣追蹤"
+  },
+  "tabTimer": "計時",
+  "@tabTimer": {
+    "description": "底部分頁：專注計時"
+  },
+  "tabWater": "喝水",
+  "@tabWater": {
+    "description": "底部分頁：喝水紀錄"
+  },
+  "tabWeight": "體重",
+  "@tabWeight": {
+    "description": "底部分頁：體重紀錄"
+  },
+  "tabFamily": "家庭",
+  "@tabFamily": {
+    "description": "底部分頁：家庭模式（小朋友的任務與獎勵）"
+  },
+  "tabWardrobe": "衣櫃",
+  "@tabWardrobe": {
+    "description": "底部分頁：兔咪造型與音樂盒"
+  }
+}

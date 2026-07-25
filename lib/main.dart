@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n/app_localizations.dart';
 import 'pages/family_page.dart';
 import 'pages/home_page.dart';
 import 'pages/login_streak_page.dart';
@@ -170,14 +171,20 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '兔咪好習慣',
+      // 用 onGenerateTitle 而非 title：MaterialApp.title 求值時 delegate 還沒
+      // 掛上，拿不到 AppLocalizations。這是 i18n 遷移的第一個範例。
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [Locale('zh', 'TW')],
+      // 目前 zh（繁中，主要語言）與 en。加語言只要在 lib/l10n/ 放新的 arb。
+      supportedLocales: AppLocalizations.supportedLocales,
+      // ⚠️ 暫時鎖定繁中。英文文案只有骨架，現在放開會變成半中半英。
+      // 英文文本完成後移除這行，改為跟隨系統語言。
       locale: const Locale('zh', 'TW'),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7043)),
