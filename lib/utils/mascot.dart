@@ -79,10 +79,14 @@ enum MascotEmotion {
 
   /// 由 asset 路徑反查對應的閉眼差分；沒有差分圖回 null（不眨眼）。
   /// 給只拿得到路徑字串的 widget（MascotStage）用。
+  ///
+  /// **比對檔名而非完整路徑**，所以穿造型（`assets/mascot/<skin>/…`）時會找
+  /// 同資料夾的差分，不會退回 core 的原始造型。前提是**每套造型都要跟 core
+  /// 一樣完整**——`test/wardrobe_skin_assets_test.dart` 會守住這件事。
   static String? blinkAssetForPath(String assetPath) {
     for (final e in _hasBlink) {
-      if (e.assetPath == assetPath) {
-        return 'assets/mascot/core/tumi_${e.assetKey}_blink.png';
+      if (assetPath.endsWith('/tumi_${e.assetKey}.png')) {
+        return assetPath.replaceFirst('.png', '_blink.png');
       }
     }
     return null;
@@ -91,13 +95,18 @@ enum MascotEmotion {
   // 摸頭「瞇眼享受」通用差分（tumi_pet_bliss.png，手垂＋幸福瞇眼）。
   // 圖檔進 repo 後把這個旗標改 true 即全表情生效；在那之前回退到
   // 該情緒的眨眼閉眼差分（目前只有中性站姿有）。
-  // 穿造型（skin 路徑）時同眨眼規則：查不到就不閉眼，不會破圖。
   static const bool _petBlissReady = false;
 
   /// 被摸夠久時的「瞇眼享受」差分；回 null 代表這張立繪摸了不閉眼。
+  ///
+  /// 穿造型時取**同資料夾**的 `tumi_pet_bliss.png`（每套造型一張，通用於
+  /// 所有情緒），不會退回 core 的原始造型。
   static String? petBlissAssetForPath(String assetPath) {
-    if (_petBlissReady && assetPath.startsWith('assets/mascot/core/')) {
-      return 'assets/mascot/core/tumi_pet_bliss.png';
+    if (_petBlissReady) {
+      final idx = assetPath.lastIndexOf('/');
+      if (idx != -1) {
+        return '${assetPath.substring(0, idx)}/tumi_pet_bliss.png';
+      }
     }
     return blinkAssetForPath(assetPath);
   }
