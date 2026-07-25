@@ -231,6 +231,95 @@ Output: three separate PNG files, transparent background.
 
 ---
 
+## 0. ⭐ 造型一致性驗證（最優先，先做這個）
+
+**這不是素材需求，是風險驗證。** 你的內容供給計畫（一套造型＝一次上新）
+建立在一個沒驗證過的假設上：**AI 能跨 13 張圖維持同一隻兔咪、同一套衣服。**
+`roadmap.md` §3b 自己也標了這是唯一技術風險。
+
+做不到的話，訂閱要賣什麼得重想——所以**在投入 i18n 那種幾週的工程之前，
+先花一小時把這件事試出來**。
+
+### 怎麼驗
+
+不要一次生 13 張。**先生 3 張最極端的**，能過再考慮整套：
+
+| 順序 | 底圖 | 為什麼挑它 |
+|---|---|---|
+| 1 | `tumi_neutral_front.png` | 站姿中性，當這套造型的**新基準** |
+| 2 | `tumi_pop_happy.png` | 雙手高舉——**衣服在動作下會不會走樣** |
+| 3 | `tumi_sleep.png` | 打瞌睡姿——**遮擋與角度變化下衣服還在不在** |
+
+三張擺在一起看：是不是同一隻兔子、同一套衣服、同一個布料質感。
+**只要有一張讓你覺得「這好像別隻」，這條路就要重新評估。**
+
+### Prompt（第一張，建立新基準）
+
+```text
+Use case: identity-preserve / precise-object-edit
+Input images: Image 1: edit target, approved Tumi base PNG (tumi_neutral_front.png).
+
+Primary request: Dress this rabbit in a simple outfit — <你想要的造型，例如
+"a soft mustard-yellow knitted sweater with a small wooden button at the collar">.
+
+Critical instruction: Do not redraw the whole image. Local edit only.
+不重繪，只局部修改。
+
+Local change: Add ONLY the clothing onto the existing body. The garment must
+follow the body's existing silhouette and volume, with soft fabric folds that
+match the CG painting style. Keep head, face, ears and paws fully visible and
+unchanged.
+
+Preserve: Tumi's identity, face shape, the nearly mouthless design (the small
+pink Y-shaped nose/mouth mark must stay EXACTLY as-is), eyes, ear shape and
+angle, body proportions, overall silhouette, pose, CG rendering style, lighting
+direction, camera framing, 1024x1024 canvas, transparent background.
+
+Avoid: full redraw, restyling, changing the pose, changing the face, hats or
+accessories unless requested, background, sparkles or effects, watermark, text.
+
+Output: PNG variant, 1024x1024, transparent background, consistent with Image 1.
+```
+
+### Prompt（第二、三張，跟第一張對齊）
+
+**關鍵：把第一張生好的圖也附上去當造型基準**，否則第二張會長出不一樣的衣服。
+
+```text
+Use case: identity-preserve / precise-object-edit
+Input images:
+  Image 1: edit target, approved Tumi base PNG (tumi_pop_happy.png).
+  Image 2: outfit reference — the SAME rabbit already wearing the target outfit.
+
+Primary request: Dress the rabbit in Image 1 with the EXACT SAME outfit shown in
+Image 2, adapted naturally to Image 1's different pose.
+
+Critical instruction: Do not redraw the whole image. Local edit only.
+不重繪，只局部修改。
+
+Local change: Add ONLY the clothing from Image 2 onto Image 1's existing body.
+Same garment type, same colour, same knit texture, same collar detail, same
+button. Let the fabric folds follow Image 1's raised-arms pose naturally.
+
+Preserve: everything about Image 1 except the added clothing — identity, face,
+the pink Y nose/mouth mark, eyes, ears, pose, proportions, silhouette, CG style,
+lighting, framing, 1024x1024 canvas, transparent background.
+
+Avoid: full redraw, changing the pose, changing the face, different garment
+colour or texture from Image 2, background, effects, watermark, text.
+
+Output: PNG variant, 1024x1024, transparent background.
+```
+
+### 驗完之後
+
+- **三張都像同一隻** → 這條路可行，再補剩下 10 張湊成完整一套
+  （放 `assets/mascot/<outfit>/tumi_<emotion>.png`，資料夾名對應 skinKey）。
+- **有一張走鐘** → 先別投內容。我們改討論替代方案（減少情緒張數、
+  只換配件不換整套、或者造型改成非角色的房間裝飾）。
+
+---
+
 ## 補素材的流程
 
 1. 從上面挑一項，把 prompt 連同「底圖」欄指定的圖一起貼給 ChatGPT。
