@@ -12,10 +12,12 @@ import 'package:habit_app/widgets/dice_duel_panel.dart';
 import 'package:habit_app/widgets/mascot_page_shell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 late SnakeArcadeEngine engine;
 
 Widget _harness({VoidCallback? onClose}) {
-  return MaterialApp(
+  return l10nTestApp(
     home: SnakeArcadePage(
       onClose: onClose ?? () {},
       engineBuilder: () {

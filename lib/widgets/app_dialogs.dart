@@ -7,29 +7,35 @@
 // 個別頁面不要再手寫 Colors.grey / Colors.red。
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
 
 /// 對話框「取消」類動作鈕（次要視覺）。
-/// [onPressed] 預設 pop(null)；需要 pop(false) 等自己傳。
+/// [label] 不傳時用通用「取消」；[onPressed] 預設 pop(null)；
+/// 需要 pop(false) 等自己傳。
 Widget dialogCancelAction(
   BuildContext context, {
-  String label = '取消',
+  String? label,
   VoidCallback? onPressed,
 }) {
   return TextButton(
     onPressed: onPressed ?? () => Navigator.pop(context),
-    child: Text(label, style: const TextStyle(color: AppInk.soft)),
+    child: Text(
+      label ?? AppLocalizations.of(context).commonCancel,
+      style: const TextStyle(color: AppInk.soft),
+    ),
   );
 }
 
 /// 標準確認框：標題 + 訊息 + 取消/確認。回傳 true = 使用者按下確認。
+/// [confirmLabel]／[cancelLabel] 不傳時用通用「確定」／「取消」。
 /// [danger] = true 時確認鈕用暖磚紅（刪除、清空類）。
 Future<bool> showAppConfirmDialog(
   BuildContext context, {
   required String title,
   required String message,
-  String confirmLabel = '確定',
-  String cancelLabel = '取消',
+  String? confirmLabel,
+  String? cancelLabel,
   bool danger = false,
 }) async {
   final result = await showDialog<bool>(
@@ -46,7 +52,7 @@ Future<bool> showAppConfirmDialog(
         TextButton(
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(
-            confirmLabel,
+            confirmLabel ?? AppLocalizations.of(ctx).commonOk,
             style: danger ? const TextStyle(color: AppInk.danger) : null,
           ),
         ),

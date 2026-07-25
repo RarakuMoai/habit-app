@@ -12,6 +12,8 @@ import 'package:habit_app/pages/review_page.dart';
 import 'package:habit_app/pages/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -32,7 +34,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
     }
-    await tester.pumpWidget(const MaterialApp(home: MascotProfilePage()));
+    await tester.pumpWidget(l10nTestApp(home: const MascotProfilePage()));
     // 等 prefs / 金幣 / 回憶本非同步載完（呼吸動畫不停，不能 settle）。
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 100));
@@ -47,7 +49,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: Padding(
             padding: const EdgeInsets.all(24),
@@ -176,7 +178,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: SettingsPage()));
+    await tester.pumpWidget(l10nTestApp(home: const SettingsPage()));
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }

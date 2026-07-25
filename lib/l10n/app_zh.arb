@@ -29,5 +29,325 @@
   "tabWardrobe": "衣櫃",
   "@tabWardrobe": {
     "description": "底部分頁：兔咪造型與音樂盒"
+  },
+
+  "commonCancel": "取消",
+  "@commonCancel": {
+    "description": "對話框通用「取消」鈕。全 app 的次要動作，語氣中性。"
+  },
+  "commonOk": "確定",
+  "@commonOk": {
+    "description": "對話框通用「確定」鈕（confirm 對話框的預設主動作）。"
+  },
+  "commonConfirm": "確認",
+  "@commonConfirm": {
+    "description": "輸入類對話框的送出鈕（例如輸入新密碼後按下確認）。與「確定」區分：這顆是提交輸入內容。"
+  },
+  "commonSave": "儲存",
+  "@commonSave": {
+    "description": "表單儲存鈕（基本資料頁底部大按鈕、救援問題對話框等）。"
+  },
+  "commonSkip": "略過",
+  "@commonSkip": {
+    "description": "可跳過流程的次要鈕（例如首次設定密碼後引導設救援問題時）。"
+  },
+  "commonDone": "完成",
+  "@commonDone": {
+    "description": "結束編輯狀態的鈕（例如功能開關頁的分頁排序完成）。"
+  },
+  "commonModify": "修改",
+  "@commonModify": {
+    "description": "已有設定值時的小型文字鈕（例如已設定救援問題後顯示「修改」）。"
+  },
+  "commonSetUp": "設定",
+  "@commonSetUp": {
+    "description": "尚未設定時的小型文字鈕（例如尚未設定救援問題時顯示「設定」）。是動詞按鈕，不是設定頁標題。"
+  },
+
+  "settingsTitle": "設定",
+  "@settingsTitle": {
+    "description": "設定頁的 AppBar 標題（名詞，指整個設定頁面）。"
+  },
+  "basicInfoTitle": "基本資料",
+  "@basicInfoTitle": {
+    "description": "設定頁「基本資料」區塊標題，同時是基本資料編輯頁的 AppBar 標題。"
+  },
+  "settingsEditProfileTitle": "編輯基本資料",
+  "@settingsEditProfileTitle": {
+    "description": "設定頁進入基本資料編輯頁的入口列標題。"
+  },
+  "settingsEditProfileSubtitle": "暱稱、吉祥物名字、身高體重…",
+  "@settingsEditProfileSubtitle": {
+    "description": "設定頁基本資料入口列副標，列舉可編輯的項目，結尾刪節號表示不只這些。"
+  },
+  "settingsSectionUnits": "單位",
+  "@settingsSectionUnits": {
+    "description": "設定頁「單位」（公制／英制）區塊標題。"
+  },
+  "settingsUnitsDescription": "身高、體重、容量的顯示方式",
+  "@settingsUnitsDescription": {
+    "description": "單位切換卡片內的說明文字，說明這個開關影響哪些數值的顯示。"
+  },
+  "unitMetric": "公制",
+  "@unitMetric": {
+    "description": "單位切換的選項：公制（cm／kg／ml）。"
+  },
+  "unitImperial": "英制",
+  "@unitImperial": {
+    "description": "單位切換的選項：英制（ft·in／lb／fl oz）。"
+  },
+  "settingsSectionDayStart": "換日時間",
+  "@settingsSectionDayStart": {
+    "description": "設定頁「換日時間」區塊標題：一天從幾點開始算。"
+  },
+  "settingsDayStartDescription": "幾點之後才算新的一天。睡前（這個時間以前）紀錄的喝水、體重、習慣都還算「昨天」，晚睡也不會被換日。",
+  "@settingsDayStartDescription": {
+    "description": "換日時間卡片的說明。對象是晚睡族，語氣安撫（晚睡紀錄不會被算到隔天）。"
+  },
+  "settingsDayStartCoinNote": "足跡幣每日獎勵不受影響，仍以午夜計算。",
+  "@settingsDayStartCoinNote": {
+    "description": "換日時間卡片底部的小字補充。「足跡幣」是 app 內貨幣名稱。"
+  },
+  "dayStartMidnightLabel": "午夜 0:00",
+  "@dayStartMidnightLabel": {
+    "description": "換日時間目前值的膠囊顯示，選擇 0 點時。"
+  },
+  "dayStartHourLabel": "凌晨 {hour}:00",
+  "@dayStartHourLabel": {
+    "description": "換日時間目前值的膠囊顯示，選擇 1–6 點時。hour 是小時數字。",
+    "placeholders": {
+      "hour": { "type": "int" }
+    }
+  },
+  "dayStartZoneYesterday": "還算昨天",
+  "@dayStartZoneYesterday": {
+    "description": "換日時間軸左上的區段標籤：軸左側（夜色）代表仍算昨天的時段。要短。"
+  },
+  "dayStartZoneNewDay": "新的一天",
+  "@dayStartZoneNewDay": {
+    "description": "換日時間軸右上的區段標籤：軸右側代表新一天開始。要短。"
+  },
+  "dayStartTickMidnight": "午夜",
+  "@dayStartTickMidnight": {
+    "description": "換日時間軸下方 0 點的刻度標籤。空間極小，越短越好。"
+  },
+  "dayStartRecommended": "建議",
+  "@dayStartRecommended": {
+    "description": "換日時間軸刻度下方標示建議值（4 點）的小徽章。空間極小，越短越好。"
+  },
+  "featureSettingsTitle": "功能開關",
+  "@featureSettingsTitle": {
+    "description": "功能開關頁的 AppBar 標題，也用在設定頁的區塊標題與功能開關頁內的清單標題。"
+  },
+  "settingsManageFeaturesTitle": "管理功能開關",
+  "@settingsManageFeaturesTitle": {
+    "description": "設定頁進入功能開關頁的入口列標題。"
+  },
+  "settingsManageFeaturesSubtitle": "計時、喝水、體重、家庭模式…",
+  "@settingsManageFeaturesSubtitle": {
+    "description": "功能開關入口列副標，列舉可開關的功能，結尾刪節號表示不只這些。"
+  },
+  "settingsSectionSecurity": "安全性",
+  "@settingsSectionSecurity": {
+    "description": "設定頁「安全性」（家長密碼）區塊標題。"
+  },
+  "pinSettingsTitle": "數字密碼設定",
+  "@pinSettingsTitle": {
+    "description": "家長數字密碼（PIN）設定的入口列標題與底部面板標題。這是給家長擋小孩的密碼，不是帳號密碼。"
+  },
+  "pinStatusSet": "已設定（{digits} 位）",
+  "@pinStatusSet": {
+    "description": "設定頁密碼入口列的狀態副標：已設定密碼時顯示位數。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinStatusUnset": "目前未設定",
+  "@pinStatusUnset": {
+    "description": "設定頁密碼入口列的狀態副標：尚未設定密碼。"
+  },
+  "settingsSectionAdvanced": "進階",
+  "@settingsSectionAdvanced": {
+    "description": "設定頁「進階」區塊標題，也是進階設定頁的 AppBar 標題。"
+  },
+  "settingsAdvancedTitle": "進階設定",
+  "@settingsAdvancedTitle": {
+    "description": "設定頁進入進階設定頁的入口列標題。"
+  },
+  "settingsAdvancedSubtitle": "資料刪除等較高風險操作",
+  "@settingsAdvancedSubtitle": {
+    "description": "進階設定入口列副標，提示裡面是高風險操作，語氣提醒但不嚇人。"
+  },
+  "devToolsTitle": "開發者測試",
+  "@devToolsTitle": {
+    "description": "設定頁「開發者測試」區塊標題與入口列標題。僅開發版顯示。"
+  },
+  "devToolsSubtitle": "模擬分頁、場景時段…（測試用，正式版會移除）",
+  "@devToolsSubtitle": {
+    "description": "開發者測試入口列副標。僅開發版顯示。"
+  },
+
+  "pinDigitsLabel": "密碼位數",
+  "@pinDigitsLabel": {
+    "description": "密碼設定面板裡「4 位／6 位」選擇區的標籤。"
+  },
+  "pinDigitsChip": "{digits} 位",
+  "@pinDigitsChip": {
+    "description": "密碼位數選擇的膠囊選項文字（4 位／6 位）。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinSetupButton": "設定密碼",
+  "@pinSetupButton": {
+    "description": "尚未設定密碼時，密碼設定面板的主按鈕。"
+  },
+  "pinChangeButton": "修改密碼",
+  "@pinChangeButton": {
+    "description": "已設定密碼時，密碼設定面板的主按鈕。"
+  },
+  "pinCurrentStatus": "目前已設定 {digits} 位數字密碼",
+  "@pinCurrentStatus": {
+    "description": "密碼設定面板主按鈕下方的目前狀態小字。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinEnterDigitsHint": "請輸入 {digits} 位數字",
+  "@pinEnterDigitsHint": {
+    "description": "輸入密碼對話框的輸入欄提示文字。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinPromptCurrent": "請輸入目前的密碼",
+  "@pinPromptCurrent": {
+    "description": "修改密碼前驗證舊密碼的對話框標題。"
+  },
+  "pinPromptCurrentWithDigits": "請輸入目前的密碼（{digits} 位）",
+  "@pinPromptCurrentWithDigits": {
+    "description": "切換密碼位數前驗證舊密碼的對話框標題，附目前位數提醒。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinPromptNew": "請設定新密碼（{digits} 位數字）",
+  "@pinPromptNew": {
+    "description": "設定新密碼的對話框標題（首次設定與修改密碼共用）。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinPromptNewShort": "請設定新密碼（{digits} 位）",
+  "@pinPromptNewShort": {
+    "description": "切換位數後要求重設密碼的對話框標題（括號內只提位數）。",
+    "placeholders": {
+      "digits": { "type": "int" }
+    }
+  },
+  "pinPromptConfirmFirst": "請再次輸入密碼確認",
+  "@pinPromptConfirmFirst": {
+    "description": "首次設定密碼時，第二次輸入確認的對話框標題。"
+  },
+  "pinPromptConfirmNew": "請再次輸入新密碼確認",
+  "@pinPromptConfirmNew": {
+    "description": "修改密碼時，第二次輸入新密碼確認的對話框標題。"
+  },
+  "pinMismatch": "兩次輸入的密碼不一致",
+  "@pinMismatch": {
+    "description": "SnackBar 錯誤：兩次輸入的新密碼不同。"
+  },
+  "pinSaved": "密碼已設定",
+  "@pinSaved": {
+    "description": "SnackBar 成功訊息：首次設定密碼完成。"
+  },
+  "pinUpdated": "密碼已更新",
+  "@pinUpdated": {
+    "description": "SnackBar 成功訊息：修改密碼完成。"
+  },
+  "pinOldWrong": "舊密碼錯誤，請再試一次",
+  "@pinOldWrong": {
+    "description": "SnackBar 錯誤：驗證舊密碼失敗。"
+  },
+  "pinDigitsUpdated": "位數已更新，密碼已重設",
+  "@pinDigitsUpdated": {
+    "description": "SnackBar 成功訊息：切換密碼位數並重設密碼完成。"
+  },
+  "forgotPasscode": "忘記密碼？",
+  "@forgotPasscode": {
+    "description": "進入忘記密碼救援流程的文字鈕。"
+  },
+
+  "qaRowTitle": "忘記密碼救援問題",
+  "@qaRowTitle": {
+    "description": "密碼設定面板裡救援問題那一列的標題。"
+  },
+  "qaStatusSet": "已設定，忘記密碼可用它重設",
+  "@qaStatusSet": {
+    "description": "救援問題列的狀態副標：已設定。"
+  },
+  "qaStatusUnset": "尚未設定（建議設定，免得忘記只能清空）",
+  "@qaStatusUnset": {
+    "description": "救援問題列的狀態副標：未設定，帶一點提醒語氣（不設定的話忘記密碼只能清空資料）。"
+  },
+  "qaSaved": "救援問題已設定",
+  "@qaSaved": {
+    "description": "SnackBar 成功訊息：救援問題儲存完成。"
+  },
+  "qaDialogTitle": "設定救援問題",
+  "@qaDialogTitle": {
+    "description": "救援問題設定對話框的標題。"
+  },
+  "qaDialogDescription": "忘記密碼時，答對這題就能重設密碼，資料不會被清除。挑一題只有你知道答案的問題。",
+  "@qaDialogDescription": {
+    "description": "救援問題對話框開頭的說明，講清楚用途與挑題原則。"
+  },
+  "qaQuestionLabel": "問題",
+  "@qaQuestionLabel": {
+    "description": "救援問題下拉選單的欄位標籤。"
+  },
+  "qaQuestionHint": "選擇一個問題",
+  "@qaQuestionHint": {
+    "description": "救援問題下拉選單未選擇時的提示文字。"
+  },
+  "qaCustomOption": "自訂問題…",
+  "@qaCustomOption": {
+    "description": "下拉選單最後一項：改為自行輸入問題。"
+  },
+  "qaCustomLabel": "自訂問題",
+  "@qaCustomLabel": {
+    "description": "自訂問題輸入欄的標籤。"
+  },
+  "qaCustomHint": "例如：我的機車車牌末三碼？",
+  "@qaCustomHint": {
+    "description": "自訂問題輸入欄的範例提示。翻譯時換成當地常見、答案短且唯一的例子即可，不必直譯機車車牌。"
+  },
+  "qaAnswerLabel": "答案",
+  "@qaAnswerLabel": {
+    "description": "救援問題答案輸入欄的標籤。"
+  },
+  "qaPresetFirstPet": "我的第一隻寵物叫什麼名字？",
+  "@qaPresetFirstPet": {
+    "description": "預設救援問題之一。問句設計原則：答案短、唯一、不隨時間改變。"
+  },
+  "qaPresetMotherName": "我母親（媽媽）的名字是？",
+  "@qaPresetMotherName": {
+    "description": "預設救援問題之一。"
+  },
+  "qaPresetBirthCity": "我出生的城市是哪裡？",
+  "@qaPresetBirthCity": {
+    "description": "預設救援問題之一。"
+  },
+  "qaPresetFirstSchool": "我就讀的第一所學校叫什麼？",
+  "@qaPresetFirstSchool": {
+    "description": "預設救援問題之一。"
+  },
+  "qaPresetChildhoodFriend": "我童年最好的朋友叫什麼名字？",
+  "@qaPresetChildhoodFriend": {
+    "description": "預設救援問題之一。"
+  },
+  "qaPresetFavoriteDish": "我最喜歡的一道菜是什麼？",
+  "@qaPresetFavoriteDish": {
+    "description": "預設救援問題之一。"
   }
 }

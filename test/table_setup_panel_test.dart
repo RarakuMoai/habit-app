@@ -10,6 +10,8 @@ import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/widgets/reorder_jiggle.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 Future<SharedPreferences> pumpPanel(
   WidgetTester tester, {
   void Function(TableTimerConfig)? onChanged,
@@ -27,7 +29,7 @@ Future<SharedPreferences> pumpPanel(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
-    MaterialApp(
+    l10nTestApp(
       home: Scaffold(
         body: TableSetupPanel(
           prefs: prefs,
@@ -349,7 +351,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
-        MaterialApp(
+        l10nTestApp(
           home: Scaffold(
             body: TableSetupPanel(prefs: prefs, onConfigChanged: (_) {}),
           ),
@@ -434,7 +436,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: TableSetupPanel(prefs: prefs, onConfigChanged: (_) {}),
         ),
@@ -459,7 +461,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final show = ValueNotifier(true);
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: ValueListenableBuilder<bool>(
             valueListenable: show,

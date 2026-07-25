@@ -6,6 +6,8 @@ import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 class _NoopNotificationsPlatform extends FlutterLocalNotificationsPlatform {}
 
 void main() {
@@ -16,7 +18,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -98,7 +100,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -161,7 +163,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -197,7 +199,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -246,7 +248,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.byIcon(Icons.tune_rounded));
@@ -276,7 +278,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.byIcon(Icons.tune_rounded));
@@ -340,7 +342,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -390,7 +392,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: TimerPage()));
+    await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

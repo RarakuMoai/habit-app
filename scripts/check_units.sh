@@ -12,6 +12,8 @@
 #
 # 例外（自動跳過）：
 #   - lib/utils/units.dart 本身（定義單位的家）
+#   - lib/l10n/ 的產生檔（從 ARB 產生、不進版控；英文文案的
+#     介系詞 " in " 會誤觸。文案的單位紀律在 ARB 審稿時把關）
 #   - 註解行（// 開頭）
 #   - 行尾標 `// units-ok` 的行（顯式豁免）
 #   - 不含任何引號的行（不可能是字串字面值）
@@ -30,6 +32,7 @@ violations=$(
   grep -RHnE " (kg|cm|ml|lb|oz|ft|in)([^a-zA-Z0-9_]|$)" "$TARGET" \
     --include='*.dart' 2>/dev/null \
   | grep -v '/lib/utils/units.dart:' \
+  | grep -v '/lib/l10n/app_localizations' \
   | grep -v '// *units-ok' \
   | awk -F: '
       {
