@@ -231,18 +231,18 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
 // ─────────────────────────────────────────────────────────────
 const Map<MascotContext, List<String>> _lines = {
   // ── 打開 app / 一般招呼 ──
-  MascotContext.openApp: ['嗯...你來了。', '我有醒著喔。', '今天也慢慢來？', '要先做一件小事嗎？'],
+  MascotContext.openApp: ['嗯...你來了。', '啊，是你。', '剛剛在打瞌睡。', '醒了醒了。'],
 
   // ── 專注計時開始／重新進入專注 ──
   MascotContext.focusStarted: ['好，先專心一下。', '時間開始了，慢慢來。', '先做這一小段就好。'],
 
   // ── 今天還沒開始做任何習慣 ──
   MascotContext.notStarted: [
-    '嗯...今天也慢慢來？',
     '還沒開始也沒關係。',
-    '先做一個小小的也可以。',
-    '今天不用很快。',
     '嗯...要開始了嗎？',
+    '今天還很長。',
+    '一件就好。',
+    '哪一件最簡單？',
   ],
 
   // ── 完成了第一個 / 任一個習慣 ──
@@ -254,7 +254,7 @@ const Map<MascotContext, List<String>> _lines = {
   ],
 
   // ── 完成過一半 ──
-  MascotContext.halfDone: ['已經一半了。', '你做到不少了。', '我有點醒了。', '照這樣慢慢來就好。'],
+  MascotContext.halfDone: ['已經一半了。', '你做到不少了。', '我有點醒了。', '剩下的等你。'],
 
   // ── 今天全部完成 ──
   // 「很棒」是評分，換成陳述：角色原則是「不是評分，是看見」。
@@ -284,7 +284,7 @@ const Map<MascotContext, List<String>> _lines = {
     '你在找我嗎？',
     '怎麼了嗎？',
     '耳朵被碰到了。',
-    '嗯...你戳我。',
+    '眼睛睜開了。',
     '你回來了，真好。',
     '剛剛在發呆。',
     '嗯，我有看到你。',
@@ -294,10 +294,10 @@ const Map<MascotContext, List<String>> _lines = {
   MascotContext.headPet: [
     '嗯...舒服。',
     '耳朵旁邊癢癢的。',
-    '再一下下也可以。',
+    '還想再摸。',
     '我有點開心。',
     // 舊版「好，我乖乖的。」有服從／寵物感；兔咪是陪伴者不是被馴養的
-    '嗯...我不動。',
+    '頭低下來了。',
   ],
 
   // ── 充電互動（長按蓄力放開）──
@@ -334,17 +334,17 @@ const Map<MascotContext, List<String>> _lines = {
 const Map<MascotContext, List<String>> _homeTapLines = {
   MascotContext.emptyHabits: [
     '我們可以先放一件很小的事。',
-    '不用急著變很多。\n先從一個開始。',
+    '一件就好。\n從最小的開始。',
     '你想養成什麼，我會陪著記。',
   ],
   MascotContext.notStarted: [
     '還沒開始也沒關係。',
     '先挑最小的那一件就好。',
-    '今天先做一點點就好。',
+    '今天還很長。',
     '要不要從最簡單那個開始？',
   ],
   MascotContext.completedOne: ['剛剛那一下，我有看到。', '已經開始了。\n就從這裡慢慢來。', '你有往前一點點了。'],
-  MascotContext.halfDone: ['你已經做到一半了。', '照這個速度慢慢來就好。', '我有點醒了。\n你做得不錯。'],
+  MascotContext.halfDone: ['你已經做到一半了。', '剩下的等你。', '我有點醒了。\n你做得不錯。'],
   MascotContext.allDone: ['今天的份已經完成了。', '可以安心休息一下。', '你有把今天照顧好。'],
   MascotContext.streak: ['你已經連續回來好多天了。', '這段時間，我都有記得。', '這些都是一天一天累積起來的。'],
   // 「不用硬撐」同樣預設了使用者在硬撐；撤銷多半只是誤點
