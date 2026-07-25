@@ -305,6 +305,25 @@ void main() {
     }
   });
 
+  test('帶件數的回應：第一件有專屬句，之後同數字同句、不講總數', () {
+    expect(MascotLines.doneCountLine(0), '今天第一件。');
+    expect(MascotLines.doneCountLine(1), '今天第一件。');
+    // 同一個數字每次都回一樣，避免 rebuild 時台詞跳動
+    expect(MascotLines.doneCountLine(3), MascotLines.doneCountLine(3));
+    // 換數字要換句，才不會每天都同一句
+    expect(
+      {for (var n = 2; n <= 7; n++) MascotLines.doneCountLine(n)}.length,
+      greaterThan(1),
+    );
+    // 第 1 件走中文「第一件」（中文習慣），第 2 件之後才用阿拉伯數字
+    for (var n = 2; n <= 30; n++) {
+      final line = MascotLines.doneCountLine(n);
+      expect(line.contains('$n'), isTrue, reason: '第 $n 件應該講出數字：$line');
+      expect(line.contains('/'), isFalse, reason: '不講總數（3/5 是系統通知口吻）');
+      expect(line.characters.length, lessThanOrEqualTo(20), reason: line);
+    }
+  });
+
   test('兔咪一句話不超過 20 字', () {
     for (final ctx in MascotContext.values) {
       for (final pools in [

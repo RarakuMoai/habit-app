@@ -583,9 +583,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
+  /// 讓兔咪講一句話，幾秒後回到安靜待機（與點擊回應共用同一條路）。
+  void _showTransientSpeech(String speech) {
+    setState(() {
+      _transientSpeech = speech;
+      _mascotReactionTick++;
+    });
+    if (!_syncMascotToPersona()) return;
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _transientSpeech = null);
+      _syncMascotToPersona();
+    });
+  }
+
   void _onMascotTap() {
     _celebCtrl.forward(from: 0);
-    final speech = MascotLines.randomHomeTapLineFor(_mascotContext);
+    final ctx = _mascotContext;
+    // 進度中的情境改用帶件數的具體回應：使用者主動點兔咪等於在問
+    // 「你怎麼看今天？」，這時給得出數字才有被看見的實感。
+    final done = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
+    final speech =
+        (ctx == MascotContext.completedOne || ctx == MascotContext.halfDone)
+        ? MascotLines.doneCountLine(done)
+        : MascotLines.randomHomeTapLineFor(ctx);
     setState(() {
       _transientSpeech = speech;
       _mascotReactionTick++;
@@ -718,6 +739,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         playFeedback(SfxCue.tap);
       }
       setState(() => _mascotReactionTick++);
+      // 今天的第一件會開口說一句，之後回到只有符號＋音效的安靜模式
+      // （打卡是高頻動作，每次都冒文字會很吵）。
+      final doneNow = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
+      if (doneNow == 1 && !wasHabitDone) {
+        _showTransientSpeech(MascotLines.doneCountLine(doneNow));
+      }
     } else if (isWeekly) {
       // 每週習慣累加但還沒達標：是正向操作，給 tap 不給 cancel
       playFeedback(SfxCue.tap);

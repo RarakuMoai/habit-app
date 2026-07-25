@@ -48,8 +48,8 @@
 | `openApp` | App 冷啟動（`main.dart` → `resetToOpening`） | 中性 | — | ✅ 4 句 | 輕聲確認 | 5 | ✅ |
 | `focusStarted` | 專注計時開始／休息後回專注（`timer_page`、`exercise_timer`） | 期待 | — | ✅ 3 句 | 輕聲確認 | 5 | ✅ |
 | `notStarted` | 首頁零進度／喝水零杯／計時重設（`home_page`、`water_page`、`timer_page`、`exercise_timer`） | 睡眠 | Zzz | ✅ 5 句 | 靜音 | 5 | ✅ |
-| `completedOne` | 完成一筆習慣／喝水一杯／體重紀錄／家庭任務／計時跨階段（`home_page`、`water_page`、`weight_page`、`family_page`、`timer_page`） | 微笑 | 音符 | ❌ 池備用 | 輕聲確認 | 10 | ⚠️ |
-| `halfDone` | 進度過半／運動計時進休息（`home_page`、`water_page`、`exercise_timer`） | 期待 | 音符 | ❌ 池備用 | 輕聲確認 | 12 | ✅ |
+| `completedOne` | 完成一筆習慣／喝水一杯／體重紀錄／家庭任務／計時跨階段（`home_page`、`water_page`、`weight_page`、`family_page`、`timer_page`） | 微笑 | 音符 | 平常靜音；**今天第一件**與**首頁點擊**時帶件數 | 輕聲確認 | 10 | ✅ |
+| `halfDone` | 進度過半／運動計時進休息（`home_page`、`water_page`、`exercise_timer`） | 期待 | 音符 | 平常靜音；**首頁點擊**時帶件數 | 輕聲確認 | 12 | ✅ |
 | `allDone` | 當日全完成／喝水達標／計時結束（`home_page`、`water_page`、`timer_page`、`exercise_timer`） | 開心 | 星星 | ✅ 4 句 | 歡呼 | 30 | ✅ |
 | `streak` | 首頁全完成且連續 ≥7 天（`home_page`） | 雀躍 | 星星 | ✅ 4 句 | 歡呼 | 30 | ✅ |
 | `undone` | 首頁撤銷習慣（`home_page`） | 心疼 | — | ✅ 4 句 | 難過 | 20 | ✅ |
@@ -119,6 +119,18 @@
 
 `completedOne`、`halfDone`、`tapReaction`、`headPet`、`energize` 上述文字預設不顯示；
 它們是保留台詞池，只有功能明確指定文字時才出現。
+
+### 帶件數的回應（`MascotLines.doneCountLine`）
+
+進度中的情境不再說「我有看到」——那只是宣告自己在看，講得出第幾件才是
+證明真的在數。用 `done % 3` 挑句，同一個數字永遠同一句（不會抖動）：
+
+- 第 1 件：「今天第一件。」
+- 之後：「數到第 3 件了。」／「已經 4 件了。」／「今天第 5 件。」
+
+**刻意不講總數**（「3/5」是系統通知口吻，兔咪只數你做到的）。
+出現時機只有兩個：**今天打卡的第一件**、**首頁點兔咪且進度在進行中**。
+打卡是高頻動作，其餘次數維持只有符號＋音效的安靜模式。
 
 ### 首頁點擊回應
 

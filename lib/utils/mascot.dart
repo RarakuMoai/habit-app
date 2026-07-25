@@ -371,6 +371,20 @@ class MascotLines {
     return list[Random().nextInt(list.length)];
   }
 
+  /// 帶件數的具體回應：「我有看到」只是宣告自己在看，講得出今天第幾件
+  /// 才是證明真的在數。用 done 取餘數挑句子，所以同一個數字永遠同一句
+  /// （不會 rebuild 時抖動），換數字才換句。
+  ///
+  /// 刻意不講總數（「3/5」是系統通知口吻，兔咪只數你做到的）。
+  static String doneCountLine(int doneToday) {
+    if (doneToday <= 1) return '今天第一件。';
+    return switch (doneToday % 3) {
+      0 => '數到第 $doneToday 件了。',
+      1 => '已經 $doneToday 件了。',
+      _ => '今天第 $doneToday 件。',
+    };
+  }
+
   /// 首頁點兔咪：依目前進度抽一句更貼身的回應。
   static String randomHomeTapLineFor(MascotContext c) {
     final list = homeTapLinesFor(c);
