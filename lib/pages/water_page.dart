@@ -1019,7 +1019,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '兔咪建議 ${_volStr(suggestion.ml)}',
+                        '建議 ${_volStr(suggestion.ml)}',
                         style: const TextStyle(
                           color: _kInk,
                           fontSize: 13,

@@ -369,7 +369,9 @@ class _WardrobePageState extends State<WardrobePage>
   void _reportPurchaseFail(PurchaseResult result) {
     playFeedback(SfxCue.cancel);
     _toast(switch (result) {
-      PurchaseResult.needCoins => '足跡幣不足，每天回來看看兔咪就能慢慢累積',
+      PurchaseResult.needCoins => MascotName.fill(
+        '足跡幣不足，每天回來看看{name}就能慢慢累積',
+      ),
       PurchaseResult.needSubscription => '這個項目需要訂閱才能解鎖',
       _ => '無法解鎖',
     });
@@ -467,7 +469,7 @@ class _WardrobePageState extends State<WardrobePage>
       children: [
         _WardrobeHeader(
           icon: Icons.checkroom_rounded,
-          title: '兔咪造型',
+          title: MascotName.fill('{name}造型'),
           subtitle: '目前穿著：${outfitById(selectedId).name}',
           trailing: '${owned.length}/${outfitCatalog.length}',
           color: kWardrobeAccent,
@@ -578,7 +580,7 @@ class _WardrobePageState extends State<WardrobePage>
         _WardrobeHeader(
           icon: Icons.auto_stories_rounded,
           title: '回憶本',
-          subtitle: '兔咪替你收好的每一個小小時刻',
+          subtitle: MascotName.fill('{name}替你收好的每一個小小時刻'),
           trailing: '${entries.length}/${storyCatalog.length}',
           color: kMemoryAccent,
         ),
@@ -726,7 +728,7 @@ class _MemoryCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            event.label,
+                            MascotName.fill(event.label),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -772,7 +774,7 @@ class _MemoryCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       unlock == null
-                          ? event.unlockHint
+                          ? MascotName.fill(event.unlockHint)
                           : _memoryDate(unlock!.date),
                       maxLines: unlock == null ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
@@ -843,8 +845,10 @@ class _MemoryEmpty extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            '不用特地完成什麼大事。\n你每次開始、完成或再次回來，兔咪都會記得。',
+          Text(
+            MascotName.fill(
+              '不用特地完成什麼大事。\n你每次開始、完成或再次回來，{name}都會記得。',
+            ),
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppInk.soft,

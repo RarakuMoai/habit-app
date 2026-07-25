@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/input_formatters.dart';
+import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
@@ -146,8 +147,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     await prefs.setString(PrefsKeys.userNickname, _nicknameCtrl.text.trim());
     await prefs.setString(
       PrefsKeys.mascotName,
-      _mascotCtrl.text.trim().isEmpty ? '兔咪' : _mascotCtrl.text.trim(),
+      _mascotCtrl.text.trim().isEmpty
+          ? MascotName.fallback
+          : _mascotCtrl.text.trim(),
     );
+    // 同步全域名字，帶 {name} 的系統文案立刻換掉
+    MascotName.set(_mascotCtrl.text);
     if (_gender.isNotEmpty) {
       await prefs.setString(PrefsKeys.userGender, _gender);
     }
@@ -828,8 +833,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         icon: Icons.pets_rounded,
                         label: '吉祥物名字',
                         controller: _mascotCtrl,
-                        maxLength: 12,
-                        hint: '兔咪',
+                        // 與 onboarding 一致：名字會進系統文案，上限比暱稱短
+                        maxLength: 6,
+                        hint: MascotName.fallback,
                         accent: _identityAccent,
                       ),
 

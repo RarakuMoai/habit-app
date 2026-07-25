@@ -61,6 +61,9 @@ Future<_StartupState> _loadStartupState() async {
   // 舊版明文 PIN 啟動時就地雜湊遷移（hasPin 內含遷移邏輯）
   await ParentPin.hasPin(prefs);
   final onboardingDone = prefs.getBool(PrefsKeys.onboardingDone) ?? false;
+  // 玩家取的兔咪名字載進全域 notifier：系統文案用 {name} 佔位，
+  // 靠 MascotName.fill 帶入，避免各處寫死「兔咪」（改名後會對不上）
+  await MascotName.load(prefs);
   // 冷啟動固定露出兔咪；只載入「展開教學是否看過」。
   await MascotPanelPrefs.load();
   // 金幣餘額載進全域 notifier（UI 反應式讀取）

@@ -13,6 +13,40 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'prefs_keys.dart';
 import 'sfx_service.dart';
 
+/// 兔咪的名字（玩家可自訂）與文案插值。
+///
+/// **三種聲音規則**（見 docs/tumi_character_guide.md）：
+/// - 兔咪自己說話（對話泡泡、繪本回憶）→ 省略主詞或用「我」，**永不自稱名字**
+/// - 系統提到牠（解鎖提示、區塊副標、說明文案）→ 用 `{name}` 佔位，經 [fill] 帶入
+/// - 系統講功能／數值（建議水量、按鈕）→ 完全不提牠
+///
+/// 佔位符刻意用 ARB 的 `{name}` 格式，未來搬 i18n 不用再改一次文案。
+///
+/// 新程式碼一律用這個當名字來源；散在各頁的 `prefs.getString(mascotName)`
+/// 是舊寫法（正是硬編碼「兔咪」的成因），改到那頁行為時順路換過來。
+abstract final class MascotName {
+  static const String fallback = '兔咪';
+
+  /// 目前名字。改名後呼叫 [load] 或 [set] 會通知所有監聽者。
+  static final ValueNotifier<String> current = ValueNotifier<String>(fallback);
+
+  static String get value => current.value;
+
+  static Future<void> load([SharedPreferences? prefs]) async {
+    final p = prefs ?? await SharedPreferences.getInstance();
+    set(p.getString(PrefsKeys.mascotName));
+  }
+
+  static void set(String? name) {
+    final trimmed = name?.trim();
+    current.value = (trimmed == null || trimmed.isEmpty) ? fallback : trimmed;
+  }
+
+  /// 把文案模板裡的 `{name}` 換成目前名字。
+  static String fill(String template) =>
+      template.replaceAll('{name}', current.value);
+}
+
 // 兔咪情緒。每個情緒 = assets/mascot/core/tumi_<assetKey>.png 一張 CG 立繪。
 //
 // 基礎圖按「身體姿勢／手的高度」分（兔咪嘴巴不動，情緒靠眼/耳/手表達；
@@ -114,7 +148,9 @@ enum EmotionBubble {
   star, // 星閃：今日全完成、連續達成
   sweat, // 汗滴：撤銷、失落
   zzz, // 打瞌睡：還沒開始、夜晚
-  exclaim, // 驚嘆：喝水過量提醒
+  // 驚嘆：目前沒有情境使用（喝水過量已改用溫柔的 question）。
+  // 保留 spec 給未來真正需要「警示」語氣的情境；兔咪的日常提醒不該用它。
+  exclaim,
   question; // 問號：點兔咪的疑問反應
 
   /// 情境 → 泡泡；回 null 代表這個情境不冒泡泡（留白）。
@@ -130,22 +166,29 @@ enum EmotionBubble {
       case MascotContext.energize:
       case MascotContext.diceMascotWin:
         return EmotionBubble.star;
-      case MascotContext.undone:
+      // 骰子輸了配汗滴合理（懊惱）；撤銷則不冒泡泡——汗滴在漫畫語彙是
+      // 「尷尬／無奈」，跟 sad 的心疼互相打架，而且撤銷是低調時刻，
+      // 冒符號反而吵。
       case MascotContext.diceMascotLoss:
         return EmotionBubble.sweat;
       case MascotContext.notStarted:
       case MascotContext.night:
         return EmotionBubble.zzz;
+      // 喝水過量用歪頭疑問「溫柔提醒」，泡泡就不能是警示用的驚嘆號，
+      // 否則表情與符號反著走
       case MascotContext.overhydration:
-        return EmotionBubble.exclaim;
       case MascotContext.tapReaction:
         return EmotionBubble.question;
+      // diceTie 維持音符：在對決畫面裡問號的語意是「點到兔咪」的反應，
+      // 會被誤讀成互動而不是賽果（見 mascot_test.dart 的 isNot(question) 斷言）
+      case MascotContext.diceTie:
+        return EmotionBubble.note;
+      // 專注剛開始是「安靜下來」，不是進度在動；留白比音符貼切
+      case MascotContext.undone:
+      case MascotContext.focusStarted:
       case MascotContext.openApp:
       case MascotContext.emptyHabits:
         return null;
-      case MascotContext.focusStarted:
-      case MascotContext.diceTie:
-        return EmotionBubble.note;
     }
   }
 }
@@ -214,29 +257,34 @@ const Map<MascotContext, List<String>> _lines = {
   MascotContext.halfDone: ['已經一半了。', '你做到不少了。', '我有點醒了。', '照這樣慢慢來就好。'],
 
   // ── 今天全部完成 ──
-  MascotContext.allDone: ['全部完成了。', '今天真的很棒。', '可以好好休息了。', '我替你開心。'],
+  // 「很棒」是評分，換成陳述：角色原則是「不是評分，是看見」。
+  MascotContext.allDone: ['全部完成了。', '今天都做完了。', '可以好好休息了。', '我替你開心。'],
 
   // ── 連續達標一段時間（streak >= 7） ──
   MascotContext.streak: ['連續好多天了。', '你一直有回來。', '我有點感動。', '這些天，你是一天一天走來的。'],
 
   // ── 取消已完成的習慣（撤銷感） ──
+  // 撤銷最常見的原因是誤點，不是「慢」或「累」。舊版「今天慢一點也可以」
+  // 「先休息一下也沒關係」在誤點時等於安慰一個不存在的情緒，改成單純確認。
   MascotContext.undone: [
     '取消這一筆也沒關係。',
-    '今天慢一點也可以。',
+    '嗯，改掉了。',
     '需要的話，等一下再來。',
-    '先休息一下也沒關係。',
+    '隨時可以再勾回來。',
   ],
 
   // ── 夜晚（22:00 ~ 06:00） ──
   MascotContext.night: ['很晚了，我小聲一點。', '今天辛苦了。', '如果累了，也可以休息。', '明天再一起慢慢來。'],
 
   // ── 使用者點兔咪本身的隨機反應 ──
+  // 點兔咪是「想跟牠互動」，不是來討任務的：這組只放「反應」，
+  // 不放建議或催促（舊版混了「今天也慢慢來」「先做一點點也可以」）。
   MascotContext.tapReaction: [
     '嗯？',
     '你在找我嗎？',
-    '今天也慢慢來。',
-    '先做一點點也可以。',
-    '我有醒著喔。',
+    '怎麼了嗎？',
+    '耳朵被碰到了。',
+    '嗯...你戳我。',
     '你回來了，真好。',
     '剛剛在發呆。',
     '嗯，我有看到你。',
@@ -248,13 +296,16 @@ const Map<MascotContext, List<String>> _lines = {
     '耳朵旁邊癢癢的。',
     '再一下下也可以。',
     '我有點開心。',
-    '好，我乖乖的。',
+    // 舊版「好，我乖乖的。」有服從／寵物感；兔咪是陪伴者不是被馴養的
+    '嗯...我不動。',
   ],
 
   // ── 充電互動（長按蓄力放開）──
   // speaksFor 為 false，平常只靠星星泡泡＋歡呼語音；
   // 台詞池備著給之後「明確帶 speech」的場合（登入禮、活動）取用。
-  MascotContext.energize: ['充飽電了！', '嗯！力氣滿滿。', '謝謝你幫我打氣。', '好像可以跳得更高了。'],
+  // 兔咪不是元氣型角色，充電也用牠自己的音量講（舊版「充飽電了！」
+  // 「嗯！力氣滿滿。」是一般吉祥物的元氣宣言）
+  MascotContext.energize: ['嗯...充飽了。', '有力氣了。', '謝謝你幫我打氣。', '好像可以跳得更高了。'],
 
   // ── 骰子彩蛋結果 ──
   // 顯示時由小遊戲明確帶 speech；放在角色資料層，讓台詞、表情符號與
@@ -267,12 +318,14 @@ const Map<MascotContext, List<String>> _lines = {
   MascotContext.emptyHabits: ['要不要先放一個小習慣？', '從一個小小的開始。', '不用很多，一個就好。'],
 
   // ── 喝水高量提醒（目前 >=4L/day）──
+  // 兔咪只負責「我看到了」，不下指令也不給健康建議——那是 UI 的職責
+  // （角色原則：醫療性建議由 UI 或正式說明承擔）。舊版五句裡有三句
+  // 是命令句、一句是「水量」這種數據詞的系統通知口吻。
   MascotContext.overhydration: [
+    '欸…今天喝好多。',
+    '嗯？今天的水…有點多欸。',
+    '我看著你喝了好多。',
     '欸…你今天喝有點多了。',
-    '今天的水量已經很高了。',
-    '已經喝很多了，先停一下吧。',
-    '先不要勉強自己繼續喝。',
-    '先停一下，讓身體休息。',
   ],
 };
 
@@ -294,7 +347,8 @@ const Map<MascotContext, List<String>> _homeTapLines = {
   MascotContext.halfDone: ['你已經做到一半了。', '照這個速度慢慢來就好。', '我有點醒了。\n你做得不錯。'],
   MascotContext.allDone: ['今天的份已經完成了。', '可以安心休息一下。', '你有把今天照顧好。'],
   MascotContext.streak: ['你已經連續回來好多天了。', '這段時間，我都有記得。', '這些都是一天一天累積起來的。'],
-  MascotContext.undone: ['取消這一筆也沒關係。', '今天可以重新調整。', '我們慢慢來，不用硬撐。'],
+  // 「不用硬撐」同樣預設了使用者在硬撐；撤銷多半只是誤點
+  MascotContext.undone: ['取消這一筆也沒關係。', '今天可以重新調整。', '嗯，我改掉了。'],
   MascotContext.night: ['很晚了，我小聲一點。', '今天慢慢收尾就好。', '如果累了，明天再繼續也可以。'],
 };
 

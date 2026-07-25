@@ -16,6 +16,7 @@ import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
 import '../utils/habit_history.dart';
 import '../utils/logical_date.dart';
+import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/review_stats.dart';
 import '../utils/units.dart';
@@ -524,7 +525,7 @@ class _ReviewPageState extends State<ReviewPage> {
         ],
         const SizedBox(height: 18),
         Text(
-          '這些只是兔咪替你記得的，不是分數。',
+          MascotName.fill('這些只是{name}替你記得的，不是分數。'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11.5, color: AppInk.faint),
         ),

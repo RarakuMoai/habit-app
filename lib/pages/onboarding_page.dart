@@ -661,9 +661,11 @@ class _OnboardingPageState extends State<OnboardingPage>
     await prefs.setString(
       PrefsKeys.mascotName,
       _mascotController.text.trim().isEmpty
-          ? '兔咪'
+          ? MascotName.fallback
           : _mascotController.text.trim(),
     );
+    // 同步全域名字，帶 {name} 的系統文案立刻換掉
+    MascotName.set(_mascotController.text);
     await prefs.setString(
       PrefsKeys.userNickname,
       _nicknameController.text.trim().isEmpty
@@ -1031,7 +1033,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                   controller: _mascotController,
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 18),
-                  maxLength: 12,
+                  // 名字會被帶進系統文案（「{name}替你收好的每一個小小時刻」），
+                  // 太長會毀掉句子節奏，所以比使用者暱稱更短
+                  maxLength: 6,
                   decoration: InputDecoration(
                     hintText: '幫我取個名字',
                     counterText: '',

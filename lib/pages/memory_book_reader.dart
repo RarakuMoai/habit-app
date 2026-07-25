@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/mascot.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 import '../utils/usage_stats.dart';
@@ -196,7 +197,7 @@ class _MemorySpread extends StatelessWidget {
               borderRadius: BorderRadius.circular(99),
             ),
             child: Text(
-              event.label,
+              MascotName.fill(event.label),
               style: TextStyle(
                 color: kMemoryAccent.withValues(alpha: 0.95),
                 fontSize: 10.5,

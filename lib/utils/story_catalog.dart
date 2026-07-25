@@ -118,8 +118,8 @@ class StoryEventSpec {
   const StoryEventSpec({
     required this.id,
     required this.title,
-    this.label = '兔咪回憶',
-    this.unlockHint = '和兔咪一起生活，就會遇見這一頁',
+    this.label = '{name}回憶',
+    this.unlockHint = '和{name}一起生活，就會遇見這一頁',
     required this.pages,
     required this.trigger,
     this.threshold = 0,
@@ -178,7 +178,7 @@ const List<StoryEventSpec> storyCatalog = [
       StoryPage('assets/scenes/timer/timer_day.webp', [
         '第一顆星亮起時，我還有點想睡。',
         '後來，你一天一天地回來。',
-        '數到第七顆時，兔咪完全醒了。',
+        '數到第七顆時，我就完全醒了。',
       ]),
     ],
   ),
@@ -186,7 +186,7 @@ const List<StoryEventSpec> storyCatalog = [
     id: 'comeback',
     title: '門再次打開的日子',
     label: '重新相遇',
-    unlockHint: '離開一陣子後，再次回到兔咪身邊',
+    unlockHint: '離開一陣子後，再次回到{name}身邊',
     trigger: StoryTrigger.comeback,
     threshold: 7,
     pages: [

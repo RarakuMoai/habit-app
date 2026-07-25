@@ -1,3 +1,4 @@
+import 'package:characters/characters.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/mascot.dart';
@@ -262,4 +263,49 @@ void main() {
       });
     },
   );
+
+  // 「三種聲音」規則（docs/tumi_character_guide.md）：兔咪自己說話時
+  // 永遠不自稱名字——不管是寫死的「兔咪」還是 {name} 佔位。名字只出現在
+  // 系統描述牠的文案裡（那些走 MascotName.fill）。
+  test('兔咪的台詞不自稱名字，也不寫死「兔咪」', () {
+    for (final ctx in MascotContext.values) {
+      for (final pools in [
+        MascotLines.linesFor(ctx),
+        MascotLines.homeTapLinesFor(ctx),
+      ]) {
+        for (final line in pools) {
+          expect(
+            line.contains('兔咪'),
+            isFalse,
+            reason: '$ctx 的「$line」寫死了「兔咪」，玩家改名後會對不上',
+          );
+          expect(
+            line.contains('{name}'),
+            isFalse,
+            reason: '$ctx 的「$line」讓兔咪自稱名字，違反三種聲音規則',
+          );
+        }
+      }
+    }
+  });
+
+  test('兔咪一句話不超過 20 字', () {
+    for (final ctx in MascotContext.values) {
+      for (final pools in [
+        MascotLines.linesFor(ctx),
+        MascotLines.homeTapLinesFor(ctx),
+      ]) {
+        for (final line in pools) {
+          // 換行的多句台詞逐行算，不把 \n 當一句
+          for (final part in line.split('\n')) {
+            expect(
+              part.characters.length,
+              lessThanOrEqualTo(20),
+              reason: '$ctx 的「$part」太長了，兔咪講話要短',
+            );
+          }
+        }
+      }
+    }
+  });
 }
