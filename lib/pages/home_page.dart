@@ -364,7 +364,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     if (streak == 14) return '連續兩週了。\n我們一天一天走到這裡了。';
     if (streak == 7) return '連續一週了。\n你一直有回來。';
-    if (yesterdayAllDone) return '昨天也完成了。\n我有看到。';
+    if (yesterdayAllDone) return '昨天也完成了。\n我記得。';
 
     if (onboardingDate != null) {
       final start = onboardingDate!;

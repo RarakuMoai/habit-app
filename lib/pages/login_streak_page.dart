@@ -262,7 +262,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
       return '第一天。以後也一起慢慢來。';
     }
     if (r.level >= CoinConfig.loginMaxLevel) return '你一直有回來，我都有記得。';
-    return '你今天也來了，我有看到。';
+    return '你今天也來了，我記得。';
   }
 
   @override

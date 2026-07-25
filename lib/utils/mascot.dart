@@ -247,7 +247,7 @@ const Map<MascotContext, List<String>> _lines = {
 
   // ── 完成了第一個 / 任一個習慣 ──
   MascotContext.completedOne: [
-    '做到了，我有看到。',
+    '這件做完了。',
     '剛剛那一小步，很好。',
     '又多完成一件了。',
     '嗯，這樣就很好。',
@@ -343,7 +343,7 @@ const Map<MascotContext, List<String>> _homeTapLines = {
     '今天還很長。',
     '要不要從最簡單那個開始？',
   ],
-  MascotContext.completedOne: ['剛剛那一下，我有看到。', '已經開始了。\n就從這裡慢慢來。', '你有往前一點點了。'],
+  MascotContext.completedOne: ['剛剛那一件，做完了。', '已經開始了。\n就從這裡慢慢來。', '你有往前一點點了。'],
   MascotContext.halfDone: ['你已經做到一半了。', '剩下的等你。', '我有點醒了。\n你做得不錯。'],
   MascotContext.allDone: ['今天的份已經完成了。', '可以安心休息一下。', '你有把今天照顧好。'],
   MascotContext.streak: ['你已經連續回來好多天了。', '這段時間，我都有記得。', '這些都是一天一天累積起來的。'],
