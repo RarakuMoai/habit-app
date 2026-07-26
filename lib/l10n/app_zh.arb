@@ -2375,5 +2375,566 @@
   "ddpEndGame": "結束遊戲",
   "@ddpEndGame": {
     "description": "結束骰子對決的按鈕。"
+  },
+
+  "waterOverhydrationToast": "已喝超過 {amount}，建議休息一下、補點電解質",
+  "@waterOverhydrationToast": {
+    "description": "喝水頁：越過過量警告線時跳的 snackbar。關心語氣，不責備。amount 已含單位。",
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "waterOverLimitHint": "今天已喝接近 {amount}，先休息一下吧",
+  "@waterOverLimitHint": {
+    "description": "喝水頁：加水會超過每日上限時的 snackbar。amount 已含單位。",
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "waterReasonAge": "{age} 歲建議",
+  "@waterReasonAge": {
+    "description": "喝水建議的依據說明：兒童依年齡分級。顯示在建議卡的第二行。",
+    "placeholders": {
+      "age": { "type": "int" }
+    }
+  },
+  "waterReasonLatestWeight": "依最新體重 {weight} 估算",
+  "@waterReasonLatestWeight": {
+    "description": "喝水建議的依據說明：用體重頁最新一筆紀錄估算。weight 已含單位。",
+    "placeholders": {
+      "weight": { "type": "String" }
+    }
+  },
+  "waterReasonWeight": "依體重 {weight} 估算",
+  "@waterReasonWeight": {
+    "description": "喝水建議的依據說明：用基本資料的體重估算。weight 已含單位。",
+    "placeholders": {
+      "weight": { "type": "String" }
+    }
+  },
+  "waterReasonHeight": "依身高估算健康體重",
+  "@waterReasonHeight": {
+    "description": "喝水建議的依據說明：沒有體重時用身高推估健康體重。"
+  },
+  "waterReasonMale": "依男性一般成人預設",
+  "@waterReasonMale": {
+    "description": "喝水建議的依據說明：只知道性別時的成人預設值。"
+  },
+  "waterReasonFemale": "依女性一般成人預設",
+  "@waterReasonFemale": {
+    "description": "喝水建議的依據說明：只知道性別時的成人預設值。"
+  },
+  "waterReasonGeneric": "一般成人預設",
+  "@waterReasonGeneric": {
+    "description": "喝水建議的依據說明：什麼資料都沒有時的預設值。"
+  },
+  "waterReasonSenior": "{reason} · 銀髮加量",
+  "@waterReasonSenior": {
+    "description": "喝水建議：65 歲以上在原本依據後面追加的說明。reason 是前一段依據文字。",
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "waterGoalReached": "目標 {goal} · 已達標",
+  "@waterGoalReached": {
+    "description": "喝水頁摘要卡副標：已達標。goal 已含單位。",
+    "placeholders": {
+      "goal": { "type": "String" }
+    }
+  },
+  "waterGoalRemaining": "目標 {goal} · 還差 {left}",
+  "@waterGoalRemaining": {
+    "description": "喝水頁摘要卡副標：還差多少。兩個值都已含單位。",
+    "placeholders": {
+      "goal": { "type": "String" },
+      "left": { "type": "String" }
+    }
+  },
+  "waterTodayTitle": "今日補水",
+  "@waterTodayTitle": {
+    "description": "喝水頁摘要卡的標題。"
+  },
+  "waterPillReached": "已照顧好",
+  "@waterPillReached": {
+    "description": "喝水頁摘要卡的狀態膠囊：已達標。溫和肯定，不用「完成」這種任務語氣。"
+  },
+  "waterMoodTooMuch": "今天已經喝很多了，先休息一下。",
+  "@waterMoodTooMuch": {
+    "description": "喝水頁摘要卡的一句話狀態：超過警告線。關心語氣。"
+  },
+  "waterMoodReached": "今天的補水已經照顧好了。",
+  "@waterMoodReached": {
+    "description": "喝水頁摘要卡的一句話狀態：已達標。"
+  },
+  "waterMoodNearly": "快到目標了，小口慢慢來。",
+  "@waterMoodNearly": {
+    "description": "喝水頁摘要卡的一句話狀態：進度 75% 以上。"
+  },
+  "waterMoodHalf": "已經過一半了，身體有被照顧到。",
+  "@waterMoodHalf": {
+    "description": "喝水頁摘要卡的一句話狀態：進度過半。"
+  },
+  "waterMoodStarted": "小口小口累積，也很好。",
+  "@waterMoodStarted": {
+    "description": "喝水頁摘要卡的一句話狀態：已經喝了一些。"
+  },
+  "waterMoodEmpty": "先喝一口，讓身體慢慢醒來。",
+  "@waterMoodEmpty": {
+    "description": "喝水頁摘要卡的一句話狀態：今天還沒喝。邀請語氣，不催促。"
+  },
+  "waterAdjustGoalSemantics": "調整補水目標",
+  "@waterAdjustGoalSemantics": {
+    "description": "喝水頁「調整目標」按鈕的無障礙標籤。"
+  },
+  "waterAdjustGoal": "調整目標",
+  "@waterAdjustGoal": {
+    "description": "喝水頁摘要卡上開啟設定的按鈕文字。要短。"
+  },
+  "waterSuggestAmount": "建議 {amount}",
+  "@waterSuggestAmount": {
+    "description": "喝水建議卡標題。amount 已含單位。",
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "waterSuggestDismiss": "不使用",
+  "@waterSuggestDismiss": {
+    "description": "喝水建議卡：不採用建議值的按鈕。"
+  },
+  "waterProgressSemantics": "已喝 {total}，目標 {goal}",
+  "@waterProgressSemantics": {
+    "description": "喝水進度水滴列的無障礙描述。兩個值都已含單位。",
+    "placeholders": {
+      "total": { "type": "String" },
+      "goal": { "type": "String" }
+    }
+  },
+  "waterProgressReached": "{total}  ·  已達標",
+  "@waterProgressReached": {
+    "description": "喝水進度列下方文字：已達標。中間的雙空格是視覺間隔，請保留。",
+    "placeholders": {
+      "total": { "type": "String" }
+    }
+  },
+  "waterMinusCup": "少一杯",
+  "@waterMinusCup": {
+    "description": "喝水頁減一杯按鈕的無障礙標籤。"
+  },
+  "waterCustomAmount": "自訂喝水量",
+  "@waterCustomAmount": {
+    "description": "喝水頁開啟自訂量面板的無障礙標籤。"
+  },
+  "waterCupSlowDown": "先休息一下",
+  "@waterCupSlowDown": {
+    "description": "喝水頁主按鈕標題：再加會超過上限。"
+  },
+  "waterCupMore": "再補一點水",
+  "@waterCupMore": {
+    "description": "喝水頁主按鈕標題：已達標但還能再喝。"
+  },
+  "waterCupDrank": "我喝了一杯",
+  "@waterCupDrank": {
+    "description": "喝水頁主按鈕標題：一般狀態。以使用者的口吻寫。"
+  },
+  "waterCupSemantics": "我喝了一杯，每杯 {amount}",
+  "@waterCupSemantics": {
+    "description": "喝水頁主按鈕的無障礙標籤。amount 已含單位。",
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "waterCupSlowDownSub": "今天先慢一點",
+  "@waterCupSlowDownSub": {
+    "description": "喝水頁主按鈕副標：已達上限時取代每杯容量。"
+  },
+  "waterEnterRange": "請輸入 {range}",
+  "@waterEnterRange": {
+    "description": "喝水設定的欄位錯誤訊息。range 是含單位的範圍字串，例如「200–2000 ml」。",
+    "placeholders": {
+      "range": { "type": "String" }
+    }
+  },
+  "waterSettingsTitle": "喝水設定",
+  "@waterSettingsTitle": {
+    "description": "喝水設定面板的標題。"
+  },
+  "waterCupSizeLabel": "每杯容量",
+  "@waterCupSizeLabel": {
+    "description": "喝水設定的欄位標籤：一杯多少。"
+  },
+  "waterDailyGoalLabel": "每日目標",
+  "@waterDailyGoalLabel": {
+    "description": "喝水設定的欄位標籤：一天喝多少。"
+  },
+  "waterSuggestNeedsActivity": "補上每週運動天數，水量建議會更貼近你。",
+  "@waterSuggestNeedsActivity": {
+    "description": "喝水設定：缺少活動量資料時，附在建議說明後的一行。會接在前面文字的換行之後。"
+  },
+  "waterSuggestDisclaimer": "這是日常提醒用估算值；天氣、運動、健康狀況都會影響需求。",
+  "@waterSuggestDisclaimer": {
+    "description": "喝水設定底部的免責說明。不要寫成醫療建議。"
+  },
+  "waterSaveSettings": "儲存設定",
+  "@waterSaveSettings": {
+    "description": "喝水設定面板的儲存按鈕。"
+  },
+  "waterEnterPositive": "請輸入大於 0 的數字",
+  "@waterEnterPositive": {
+    "description": "自訂喝水量：輸入 0 或負數時的錯誤訊息。"
+  },
+  "waterAmountTooLarge": "單次量太大了",
+  "@waterAmountTooLarge": {
+    "description": "自訂喝水量：單筆超過上限時的錯誤訊息。"
+  },
+  "waterEntryCup": "一杯",
+  "@waterEntryCup": {
+    "description": "今日紀錄列的類型標籤：用主按鈕加的一杯。"
+  },
+  "waterEntryCustom": "自訂",
+  "@waterEntryCustom": {
+    "description": "今日紀錄列的類型標籤：自訂輸入的量。"
+  },
+  "waterSheetTitle": "喝了多少？",
+  "@waterSheetTitle": {
+    "description": "自訂喝水量面板的標題。"
+  },
+  "waterSheetSub": "快速選擇 或自己輸入",
+  "@waterSheetSub": {
+    "description": "自訂喝水量面板的副標。中間的空格是視覺間隔。"
+  },
+  "waterCustomLabel": "自訂",
+  "@waterCustomLabel": {
+    "description": "自訂喝水量面板中，數字鍵盤區塊的小標題。"
+  },
+  "waterTodayRecords": "今日紀錄",
+  "@waterTodayRecords": {
+    "description": "自訂喝水量面板中，今日紀錄列表的標題。"
+  },
+  "waterRecordCount": "{n} 筆",
+  "@waterRecordCount": {
+    "description": "今日紀錄的筆數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "waterNoRecords": "今天還沒有補水紀錄",
+  "@waterNoRecords": {
+    "description": "今日紀錄的空狀態。中性描述，不催促。"
+  },
+  "waterKeypadHint": "輸入數字",
+  "@waterKeypadHint": {
+    "description": "自訂喝水量輸入框在還沒輸入時的提示字。"
+  },
+  "waterKeypadAdd": "加入",
+  "@waterKeypadAdd": {
+    "description": "自訂喝水量小鍵盤的送出按鈕。"
+  },
+  "commonDelete": "刪除",
+  "@commonDelete": {
+    "description": "刪除按鈕／選單項的通用文字。"
+  },
+
+  "commonApply": "套用",
+  "@commonApply": {
+    "description": "套用建議值／設定的通用按鈕文字。"
+  },
+
+  "bmiUnderweight": "過輕",
+  "@bmiUnderweight": {
+    "description": "BMI 分類標籤（衛福部標準）。顯示在 BMI 數字下方，中性描述不評價。"
+  },
+  "bmiNormal": "正常",
+  "@bmiNormal": {
+    "description": "BMI 分類標籤（衛福部標準）。"
+  },
+  "bmiOverweight": "過重",
+  "@bmiOverweight": {
+    "description": "BMI 分類標籤（衛福部標準）。"
+  },
+  "bmiObese": "肥胖",
+  "@bmiObese": {
+    "description": "BMI 分類標籤（衛福部標準）。這是臨床用詞，翻譯時不要改成委婉說法。"
+  },
+  "weekdayShortMon": "一",
+  "@weekdayShortMon": {
+    "description": "星期簡稱，用在體重趨勢圖的橫軸。中文只給一個字（前面會接「週」）。"
+  },
+  "weekdayShortTue": "二",
+  "@weekdayShortTue": {
+    "description": "星期簡稱，用在體重趨勢圖的橫軸。"
+  },
+  "weekdayShortWed": "三",
+  "@weekdayShortWed": {
+    "description": "星期簡稱，用在體重趨勢圖的橫軸。"
+  },
+  "weekdayShortThu": "四",
+  "@weekdayShortThu": {
+    "description": "星期簡稱，用在體重趨勢圖的橫軸。"
+  },
+  "weekdayShortFri": "五",
+  "@weekdayShortFri": {
+    "description": "星期簡稱，用在體重趨勢圖的橫軸。"
+  },
+  "weekdayShortSat": "六",
+  "@weekdayShortSat": {
+    "description": "星期簡稱，用在體重趨勢圖的橫軸。"
+  },
+  "weekdayShortSun": "日",
+  "@weekdayShortSun": {
+    "description": "星期簡稱，用在體重趨勢圖的橫軸。"
+  },
+  "weightWeekAxisLabel": "{month}/{day} 週{weekday}",
+  "@weightWeekAxisLabel": {
+    "description": "體重趨勢圖「本週」的資料點說明。weekday 是星期簡稱；中文的「週」字在這裡。",
+    "placeholders": {
+      "month": { "type": "int" },
+      "day": { "type": "int" },
+      "weekday": { "type": "String" }
+    }
+  },
+  "dateToday": "今天",
+  "@dateToday": {
+    "description": "日期標籤：當天。"
+  },
+  "dateYesterday": "昨天",
+  "@dateYesterday": {
+    "description": "日期標籤：前一天。"
+  },
+  "dateFullYmd": "{year} 年 {month} 月 {day} 日",
+  "@dateFullYmd": {
+    "description": "完整日期。month 與 day 是已補零的兩位數字串。",
+    "placeholders": {
+      "year": { "type": "int" },
+      "month": { "type": "String" },
+      "day": { "type": "String" }
+    }
+  },
+  "weightFatRangeError": "請輸入 0–75 之間的數值",
+  "@weightFatRangeError": {
+    "description": "體脂率欄位超出合理範圍時的錯誤訊息。"
+  },
+  "weightSheetSubUpdate": "更新 {date} 的體重資料",
+  "@weightSheetSubUpdate": {
+    "description": "體重紀錄面板副標：編輯既有紀錄。date 是「今天／昨天／完整日期」。",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "weightSheetSubFirst": "先留下一筆今天的身體讀數",
+  "@weightSheetSubFirst": {
+    "description": "體重紀錄面板副標：一筆紀錄都還沒有。邀請語氣。"
+  },
+  "weightSheetSubLast": "上次 {weight} {unit}，直接微調即可",
+  "@weightSheetSubLast": {
+    "description": "體重紀錄面板副標：已有紀錄，提示微調即可。unit 是 kg 或 lb。",
+    "placeholders": {
+      "weight": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightSheetTitleEdit": "編輯體重紀錄",
+  "@weightSheetTitleEdit": {
+    "description": "體重紀錄面板標題：編輯模式。"
+  },
+  "weightSheetTitleAdd": "新增體重紀錄",
+  "@weightSheetTitleAdd": {
+    "description": "體重紀錄面板標題：新增模式。"
+  },
+  "weightPickDateTitle": "選擇紀錄日期",
+  "@weightPickDateTitle": {
+    "description": "體重紀錄的日期選擇器標題。"
+  },
+  "weightSaveUpdate": "儲存更新",
+  "@weightSaveUpdate": {
+    "description": "體重紀錄面板的儲存按鈕：編輯模式。"
+  },
+  "weightSaveNew": "儲存紀錄",
+  "@weightSaveNew": {
+    "description": "體重紀錄面板的儲存按鈕：新增模式。"
+  },
+  "commonEdit": "編輯",
+  "@commonEdit": {
+    "description": "編輯按鈕／選單項的通用文字。"
+  },
+  "weightDeleteTitle": "確認刪除",
+  "@weightDeleteTitle": {
+    "description": "刪除體重紀錄的確認對話框標題。"
+  },
+  "weightDeleteMessage": "確定要刪除 {date} 的體重紀錄嗎？",
+  "@weightDeleteMessage": {
+    "description": "刪除體重紀錄的確認對話框內容。date 是 YYYY-MM-DD。",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "weightGoalReached": "目標 {weight} {unit} · 已達成",
+  "@weightGoalReached": {
+    "description": "體重目標摘要：已達成。unit 是 kg 或 lb。",
+    "placeholders": {
+      "weight": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightGoalLine": "目標 {weight} {unit}",
+  "@weightGoalLine": {
+    "description": "體重目標摘要：尚未達成時的目標值。",
+    "placeholders": {
+      "weight": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightGoalRemaining": "還差 {weight} {unit}",
+  "@weightGoalRemaining": {
+    "description": "體重目標摘要：距離目標還差多少。",
+    "placeholders": {
+      "weight": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightGoalStart": "起始 {weight} {unit}",
+  "@weightGoalStart": {
+    "description": "體重目標進度條左端的起始值標籤。",
+    "placeholders": {
+      "weight": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightTodaySection": "今日數據",
+  "@weightTodaySection": {
+    "description": "體重頁區塊標題：今天的各項數值。"
+  },
+  "weightTrendSection": "趨勢",
+  "@weightTrendSection": {
+    "description": "體重頁區塊標題：趨勢圖。"
+  },
+  "weightRecordCount": "{n} 筆紀錄",
+  "@weightRecordCount": {
+    "description": "趨勢圖右上角顯示這個區間有幾筆資料。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "weightChartEmpty": "此區間沒有紀錄",
+  "@weightChartEmpty": {
+    "description": "趨勢圖的空狀態。"
+  },
+  "weightHistorySection": "歷史紀錄",
+  "@weightHistorySection": {
+    "description": "體重頁區塊標題：歷史紀錄列表。"
+  },
+  "weightActionUpdate": "更新今日體重",
+  "@weightActionUpdate": {
+    "description": "體重頁底部主按鈕：今天已經記過了。"
+  },
+  "weightActionAdd": "紀錄今天體重",
+  "@weightActionAdd": {
+    "description": "體重頁底部主按鈕：今天還沒記。"
+  },
+  "weightChartGoalLine": "目標",
+  "@weightChartGoalLine": {
+    "description": "趨勢圖上目標體重虛線的標籤。要非常短。"
+  },
+  "weightRangeWeek": "本週",
+  "@weightRangeWeek": {
+    "description": "趨勢圖區間切換：本週。"
+  },
+  "weightRangeMonth": "本月",
+  "@weightRangeMonth": {
+    "description": "趨勢圖區間切換：本月。"
+  },
+  "weightRangeQuarter": "三個月",
+  "@weightRangeQuarter": {
+    "description": "趨勢圖區間切換：近三個月。"
+  },
+  "weightInsightFirst": "這個區間的第一筆紀錄",
+  "@weightInsightFirst": {
+    "description": "趨勢圖摘要句：這個區間只有一筆資料。"
+  },
+  "weightInsightFlat": "這段時間大致持平",
+  "@weightInsightFlat": {
+    "description": "趨勢圖摘要句：變化很小。中性描述，不評價好壞。"
+  },
+  "weightInsightChange": "這段時間變化 {delta} {unit}",
+  "@weightInsightChange": {
+    "description": "趨勢圖摘要句：有明顯變化。delta 已含正負號。",
+    "placeholders": {
+      "delta": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightInsightRange": "範圍 {low}–{high} {unit}",
+  "@weightInsightRange": {
+    "description": "趨勢圖摘要：這個區間的最低與最高值。中間是連接號 U+2013。",
+    "placeholders": {
+      "low": { "type": "String" },
+      "high": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightInsightSemantics": "{insight}，{range}",
+  "@weightInsightSemantics": {
+    "description": "趨勢圖摘要列的無障礙描述：把摘要句與範圍串起來。",
+    "placeholders": {
+      "insight": { "type": "String" },
+      "range": { "type": "String" }
+    }
+  },
+  "weightEmptyTitle": "今天還沒量體重喔",
+  "@weightEmptyTitle": {
+    "description": "體重頁今日卡的空狀態標題。輕鬆語氣，不催促。"
+  },
+  "weightEmptySub": "記錄一筆，趨勢圖就會更準",
+  "@weightEmptySub": {
+    "description": "體重頁今日卡的空狀態副標。"
+  },
+  "weightHintNeedProfile": "補齊身高、生日與性別，可顯示更多指標",
+  "@weightHintNeedProfile": {
+    "description": "體重頁提示：基本資料不齊，算不出 BMI／BMR。"
+  },
+  "weightHintNeedActivity": "設定活動量後，可顯示 TDEE",
+  "@weightHintNeedActivity": {
+    "description": "體重頁提示：缺活動量，算不出 TDEE。"
+  },
+  "weightStatBodyFat": "體脂率",
+  "@weightStatBodyFat": {
+    "description": "體重頁今日數據的欄位標籤：體脂率。"
+  },
+  "weightHistoryFat": "體脂 {value}%",
+  "@weightHistoryFat": {
+    "description": "歷史紀錄列上的體脂率摘要。",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+  "weightInputPlaceholder": "輸入體重",
+  "@weightInputPlaceholder": {
+    "description": "體重輸入框還沒輸入時的提示字。"
+  },
+  "weightFatLabel": "體脂率（選填）",
+  "@weightFatLabel": {
+    "description": "體脂率輸入框的標籤。括號標示這欄可以不填。"
+  },
+  "weightFatPlaceholder": "未輸入",
+  "@weightFatPlaceholder": {
+    "description": "體脂率輸入框還沒輸入時的提示字。"
+  },
+  "weightDeltaFlat": "較上次持平",
+  "@weightDeltaFlat": {
+    "description": "與上一筆紀錄的差值膠囊：幾乎沒變。"
+  },
+  "weightDeltaChange": "較上次 {delta} {unit}",
+  "@weightDeltaChange": {
+    "description": "與上一筆紀錄的差值膠囊。delta 已含正負號。",
+    "placeholders": {
+      "delta": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "weightDeltaSemantics": "體重{label}",
+  "@weightDeltaSemantics": {
+    "description": "差值膠囊的無障礙描述。label 是持平或變化的那句話。",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
   }
 }

@@ -9,6 +9,8 @@ import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -47,7 +49,7 @@ void main() {
     });
     MascotPanelPrefs.openValue.value = 1;
 
-    await tester.pumpWidget(const MaterialApp(home: WeightPage()));
+    await tester.pumpWidget(l10nTestApp(home: const WeightPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -114,7 +116,7 @@ void main() {
     });
     MascotPanelPrefs.openValue.value = 0;
 
-    await tester.pumpWidget(const MaterialApp(home: WeightPage()));
+    await tester.pumpWidget(l10nTestApp(home: const WeightPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 

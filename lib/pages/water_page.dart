@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/logical_date.dart';
 import '../utils/mascot.dart';
@@ -58,6 +59,8 @@ class _WaterSheetResult {
 typedef _WaterGoalSuggestion = ({int ml, String reason, bool needsActivity});
 
 class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   static const int _defaultCupMl = 250;
   static const int _defaultGoalMl = 2000;
   // 每日總攝取上限（公制 ml）— 不再用「杯數」做門檻。
@@ -270,7 +273,10 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshGoalSuggestion() async {
-    final suggestion = await _suggestGoal();
+    if (!mounted) return;
+    // 建議說明是要顯示的文字，l10n 在第一個 await 之前先取，
+    // 避免非同步回來時 context 已經失效。
+    final suggestion = await _suggestGoal(_l10n);
     if (!mounted) return;
     if (_goalSuggestionDismissed) {
       // 收起狀態下仍重算建議：若新建議與「收起當下的建議值」差距夠大
@@ -391,7 +397,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final warnStr = _volStr(_warnTotalMl);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('已喝超過 $warnStr，建議休息一下、補點電解質')));
+      ..showSnackBar(
+        SnackBar(content: Text(_l10n.waterOverhydrationToast(warnStr))),
+      );
   }
 
   // 超出每日上限的提示（4s 內 debounce 不重複跳）
@@ -407,7 +415,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text('今天已喝接近 $limitStr，先休息一下吧'),
+          content: Text(_l10n.waterOverLimitHint(limitStr)),
           duration: const Duration(seconds: 3),
         ),
       );
@@ -532,7 +540,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     'high': 750,
   };
 
-  Future<_WaterGoalSuggestion> _suggestGoal() async {
+  Future<_WaterGoalSuggestion> _suggestGoal(AppLocalizations l10n) async {
     final prefs = await SharedPreferences.getInstance();
 
     // Prefer the most recent tracked weight; only fall back to the
@@ -556,7 +564,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
       childBase += (_activityBonusMl[activity] ?? 0) ~/ 2;
       return (
         ml: _roundToNearest50(childBase, min: 600, max: 2200),
-        reason: '$age 歲建議',
+        reason: l10n.waterReasonAge(age),
         needsActivity: needsActivity,
       );
     }
@@ -566,22 +574,24 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     if (weight != null && weight >= 20 && weight <= 250) {
       base = weight * _mlPerKg;
       final wDisp = UnitFormat.weight(weight, _unit);
-      reason = usingTracked ? '依最新體重 $wDisp 估算' : '依體重 $wDisp 估算';
+      reason = usingTracked
+          ? l10n.waterReasonLatestWeight(wDisp)
+          : l10n.waterReasonWeight(wDisp);
     } else if (height != null && height >= 100 && height <= 230) {
       // 無體重時用 BMI 22 估健康體重，再套同一個 ml/kg。
       final h = height / 100;
       base = 22 * h * h * _mlPerKg;
-      reason = '依身高估算健康體重';
+      reason = l10n.waterReasonHeight;
     } else if (gender == 'male') {
       // EFSA 飲水基準：男 ~2.0L、女 ~1.6L（總水分 2.5/2.0L 的 ~80%）。
       base = 2000;
-      reason = '依男性一般成人預設';
+      reason = l10n.waterReasonMale;
     } else if (gender == 'female') {
       base = 1600;
-      reason = '依女性一般成人預設';
+      reason = l10n.waterReasonFemale;
     } else {
       base = _defaultGoalMl;
-      reason = '一般成人預設';
+      reason = l10n.waterReasonGeneric;
     }
 
     base += _activityBonusMl[activity] ?? 0;
@@ -590,7 +600,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     // little to compensate.
     if (age >= 65) {
       base += 300;
-      reason = '$reason · 銀髮加量';
+      reason = l10n.waterReasonSenior(reason);
     }
 
     return (
@@ -601,7 +611,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   }
 
   Future<void> _openWaterSettings() async {
-    final suggestion = await _suggestGoal();
+    final suggestion = await _suggestGoal(_l10n);
     if (!mounted) return;
 
     final result = await showModalBottomSheet<_WaterSettingsResult>(
@@ -739,8 +749,8 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final goalDisp = _volStr(_goalMl);
     final leftDisp = _volStr(left);
     final subtitle = _goalReached
-        ? '目標 $goalDisp · 已達標'
-        : '目標 $goalDisp · 還差 $leftDisp';
+        ? _l10n.waterGoalReached(goalDisp)
+        : _l10n.waterGoalRemaining(goalDisp, leftDisp);
     final totalDisp = _unit == UnitSystem.imperial
         ? UnitConvert.mlToFlOz(_totalMl.toDouble()).round().toString()
         : _totalMl.toString();
@@ -791,7 +801,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                 Row(
                   children: [
                     Text(
-                      '今日補水',
+                      _l10n.waterTodayTitle,
                       style: TextStyle(
                         color: _kInkSoft,
                         fontSize: 13,
@@ -862,7 +872,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final bg = reached
         ? _kGoalGold.withValues(alpha: 0.24)
         : _kChipBg.withValues(alpha: 0.86);
-    final label = reached ? '已照顧好' : '${(_progress * 100).round()}%';
+    final label = reached
+        ? _l10n.waterPillReached
+        : '${(_progress * 100).round()}%';
     final icon = reached ? Icons.check_rounded : Icons.water_drop_rounded;
     return Container(
       height: 30,
@@ -892,16 +904,16 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
 
   Widget _waterMoodLine() {
     final text = _totalMl >= _warnTotalMl
-        ? '今天已經喝很多了，先休息一下。'
+        ? _l10n.waterMoodTooMuch
         : _goalReached
-        ? '今天的補水已經照顧好了。'
+        ? _l10n.waterMoodReached
         : _progress >= 0.75
-        ? '快到目標了，小口慢慢來。'
+        ? _l10n.waterMoodNearly
         : _progress >= 0.5
-        ? '已經過一半了，身體有被照顧到。'
+        ? _l10n.waterMoodHalf
         : _totalMl > 0
-        ? '小口小口累積，也很好。'
-        : '先喝一口，讓身體慢慢醒來。';
+        ? _l10n.waterMoodStarted
+        : _l10n.waterMoodEmpty;
     final reached = _goalReached && _totalMl < _warnTotalMl;
     final icon = reached
         ? Icons.auto_awesome_rounded
@@ -946,7 +958,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   Widget _summarySettingsButton() {
     return Semantics(
       button: true,
-      label: '調整補水目標',
+      label: _l10n.waterAdjustGoalSemantics,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
@@ -979,9 +991,9 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                 children: [
                   Icon(Icons.flag_rounded, size: 15, color: _kWaterDeep),
                   const SizedBox(width: 5),
-                  const Text(
-                    '調整目標',
-                    style: TextStyle(
+                  Text(
+                    _l10n.waterAdjustGoal,
+                    style: const TextStyle(
                       color: _kInk,
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
@@ -1019,7 +1031,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '建議 ${_volStr(suggestion.ml)}',
+                        _l10n.waterSuggestAmount(_volStr(suggestion.ml)),
                         style: const TextStyle(
                           color: _kInk,
                           fontSize: 13,
@@ -1047,7 +1059,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
               children: [
                 Expanded(
                   child: _SuggestionActionButton(
-                    label: '不使用',
+                    label: _l10n.waterSuggestDismiss,
                     icon: Icons.close_rounded,
                     color: _kInkSoft,
                     filled: false,
@@ -1057,7 +1069,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _SuggestionActionButton(
-                    label: '套用',
+                    label: _l10n.commonApply,
                     icon: Icons.check_rounded,
                     color: _kInk,
                     filled: true,
@@ -1104,7 +1116,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     final ratio = _goalMl == 0 ? 0.0 : (_totalMl / _goalMl).clamp(0.0, 1.0);
     final filledNodes = (ratio * nodeCount).round();
     return Semantics(
-      label: '已喝 ${_volStr(_totalMl)}，目標 ${_volStr(_goalMl)}',
+      label: _l10n.waterProgressSemantics(_volStr(_totalMl), _volStr(_goalMl)),
       child: Column(
         children: [
           Row(
@@ -1123,7 +1135,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
           const SizedBox(height: 8),
           Text(
             _goalReached
-                ? '${_volStr(_totalMl)}  ·  已達標'
+                ? _l10n.waterProgressReached(_volStr(_totalMl))
                 : '${_volStr(_totalMl)} / ${_volStr(_goalMl)}',
             style: TextStyle(
               color: _kInkSoft,
@@ -1154,7 +1166,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
         _SmallGhostButton(
           icon: Icons.remove_rounded,
           onTap: canRemove ? _removeCup : null,
-          semanticsLabel: '少一杯',
+          semanticsLabel: _l10n.waterMinusCup,
         ),
         const SizedBox(width: 12),
         Expanded(child: _mainCupButton(atMax: atMax)),
@@ -1162,7 +1174,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
         _SmallGhostButton(
           icon: Icons.more_horiz_rounded,
           onTap: _openCustomCupSheet,
-          semanticsLabel: '自訂喝水量',
+          semanticsLabel: _l10n.waterCustomAmount,
         ),
       ],
     );
@@ -1176,14 +1188,14 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
         ? const [Color(0xFF27A58E), Color(0xFF56C9AC)]
         : const [_kInk, _kWaterDeep];
     final title = atMax
-        ? '先休息一下'
+        ? _l10n.waterCupSlowDown
         : reached
-        ? '再補一點水'
-        : '我喝了一杯';
+        ? _l10n.waterCupMore
+        : _l10n.waterCupDrank;
     final icon = reached ? Icons.check_rounded : Icons.local_drink_rounded;
     return Semantics(
       button: true,
-      label: '我喝了一杯，每杯 ${_volStr(_cupMl)}',
+      label: _l10n.waterCupSemantics(_volStr(_cupMl)),
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -1235,7 +1247,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          atMax ? '今天先慢一點' : _volStr(_cupMl),
+                          atMax ? _l10n.waterCupSlowDownSub : _volStr(_cupMl),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -2040,6 +2052,8 @@ class _WaterSettingsSheet extends StatefulWidget {
 }
 
 class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   // 顯示值依 unit；imperial 模式以 fl oz 進出，存的時候轉回 ml。
   late final TextEditingController _cupCtrl = TextEditingController(
     text: _initial(widget.initialCupMl),
@@ -2090,13 +2104,15 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
     final goalMl = _parseMl(_goalCtrl.text);
     final cupErr =
         (cupMl == null || cupMl < widget.minCupMl || cupMl > widget.maxCupMl)
-        ? '請輸入 ${_displayRange(widget.minCupMl, widget.maxCupMl)}'
+        ? _l10n.waterEnterRange(_displayRange(widget.minCupMl, widget.maxCupMl))
         : null;
     final goalErr =
         (goalMl == null ||
             goalMl < widget.minGoalMl ||
             goalMl > widget.maxGoalMl)
-        ? '請輸入 ${_displayRange(widget.minGoalMl, widget.maxGoalMl)}'
+        ? _l10n.waterEnterRange(
+            _displayRange(widget.minGoalMl, widget.maxGoalMl),
+          )
         : null;
     if (cupErr != null || goalErr != null) {
       setState(() {
@@ -2132,14 +2148,14 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '喝水設定',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            Text(
+              _l10n.waterSettingsTitle,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 16),
             _NumField(
               controller: _cupCtrl,
-              label: '每杯容量',
+              label: _l10n.waterCupSizeLabel,
               suffix: _label,
               errorText: _cupErr,
               onChanged: () {
@@ -2149,7 +2165,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
             const SizedBox(height: 12),
             _NumField(
               controller: _goalCtrl,
-              label: '每日目標',
+              label: _l10n.waterDailyGoalLabel,
               suffix: _label,
               errorText: _goalErr,
               onChanged: () {
@@ -2173,9 +2189,9 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '建議 ${UnitFormat.volume(widget.suggestion.ml, widget.unit)}\n'
+                      '${_l10n.waterSuggestAmount(UnitFormat.volume(widget.suggestion.ml, widget.unit))}\n'
                       '${widget.suggestion.reason}'
-                      '${widget.suggestion.needsActivity ? '\n補上每週運動天數，水量建議會更貼近你。' : ''}',
+                      '${widget.suggestion.needsActivity ? '\n${_l10n.waterSuggestNeedsActivity}' : ''}',
                       style: TextStyle(
                         color: Colors.cyan.shade900,
                         fontSize: 13,
@@ -2188,7 +2204,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
                   SizedBox(
                     width: 78,
                     child: _SuggestionActionButton(
-                      label: '套用',
+                      label: _l10n.commonApply,
                       icon: Icons.check_rounded,
                       color: Colors.cyan.shade700,
                       filled: true,
@@ -2200,7 +2216,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
             ),
             const SizedBox(height: 8),
             Text(
-              '這是日常提醒用估算值；天氣、運動、健康狀況都會影響需求。',
+              _l10n.waterSuggestDisclaimer,
               style: TextStyle(
                 color: _kInkSoft.withValues(alpha: 0.85),
                 fontSize: 12,
@@ -2215,7 +2231,7 @@ class _WaterSettingsSheetState extends State<_WaterSettingsSheet> {
                   foregroundColor: Colors.white,
                 ),
                 onPressed: _submit,
-                child: const Text('儲存設定'),
+                child: Text(_l10n.waterSaveSettings),
               ),
             ),
           ],
@@ -2367,6 +2383,8 @@ class _CustomCupSheet extends StatefulWidget {
 }
 
 class _CustomCupSheetState extends State<_CustomCupSheet> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   static const List<int> _presetMl = [100, 200, 300, 500];
   // 自訂量內建小鍵盤可輸入位數上限（4 位 = 最多 9999，公制 ml/英制 fl oz 都夠用）
   static const int _maxDigits = 4;
@@ -2416,12 +2434,12 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
 
   void _submitCustom() {
     if (_input.isEmpty) {
-      setState(() => _err = '請輸入數字');
+      setState(() => _err = _l10n.valEnterNumber);
       return;
     }
     final n = int.tryParse(_input);
     if (n == null || n <= 0) {
-      setState(() => _err = '請輸入大於 0 的數字');
+      setState(() => _err = _l10n.waterEnterPositive);
       return;
     }
     // 公制直接用，英制把 fl oz 轉成 ml
@@ -2429,7 +2447,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
         ? UnitConvert.flOzToMl(n.toDouble()).round()
         : n;
     if (ml > widget.maxMl) {
-      setState(() => _err = '單次量太大了'); // units-ok
+      setState(() => _err = _l10n.waterAmountTooLarge); // units-ok
       return;
     }
     Navigator.of(context).pop(_WaterSheetResult.add(ml));
@@ -2467,7 +2485,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
   }
 
   String _entryTypeLabel(WaterEntry entry) {
-    return entry.kind == 'cup' ? '一杯' : '自訂';
+    return entry.kind == 'cup' ? _l10n.waterEntryCup : _l10n.waterEntryCustom;
   }
 
   @override
@@ -2500,18 +2518,18 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '喝了多少？',
-                style: TextStyle(
+              Text(
+                _l10n.waterSheetTitle,
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: _kInk,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                '快速選擇 或自己輸入',
-                style: TextStyle(fontSize: 13, color: _kInkSoft),
+              Text(
+                _l10n.waterSheetSub,
+                style: const TextStyle(fontSize: 13, color: _kInkSoft),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -2527,7 +2545,10 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-              const Text('自訂', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(
+                _l10n.waterCustomLabel,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 6),
               _CustomCupInputDisplay(
                 input: _input,
@@ -2545,9 +2566,9 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const Text(
-                    '今日紀錄',
-                    style: TextStyle(
+                  Text(
+                    _l10n.waterTodayRecords,
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: _kInk,
@@ -2555,7 +2576,7 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
                   ),
                   const Spacer(),
                   Text(
-                    '${_localEntries.length} 筆',
+                    _l10n.waterRecordCount(_localEntries.length),
                     style: const TextStyle(
                       color: _kInkSoft,
                       fontSize: 12.5,
@@ -2574,10 +2595,10 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
                           color: _kChipBg.withValues(alpha: 0.62),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Text(
-                          '今天還沒有補水紀錄',
+                        child: Text(
+                          _l10n.waterNoRecords,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: _kInkSoft,
                             fontWeight: FontWeight.w600,
                           ),
@@ -2687,7 +2708,9 @@ class _CustomCupInputDisplay extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  hasInput ? input : '輸入數字',
+                  hasInput
+                      ? input
+                      : AppLocalizations.of(context).waterKeypadHint,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -2790,9 +2813,9 @@ class _CustomCupKeypad extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
-              '加入',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            child: Text(
+              AppLocalizations.of(context).waterKeypadAdd,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -2912,7 +2935,7 @@ class _WaterHistoryTile extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: '刪除',
+            tooltip: AppLocalizations.of(context).commonDelete,
             onPressed: onDelete,
             icon: const Icon(Icons.delete_outline_rounded),
             color: Colors.redAccent.shade200,

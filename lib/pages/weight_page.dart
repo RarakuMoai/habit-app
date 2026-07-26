@@ -51,6 +51,8 @@ abstract final class _WeightColors {
 }
 
 class _WeightPageState extends State<WeightPage> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   // 所有體重紀錄（按日期降序）
   List<Map<String, dynamic>> _records = [];
   double? _userHeight; // 身高（公分）
@@ -214,10 +216,10 @@ class _WeightPageState extends State<WeightPage> {
 
   // BMI 分類（衛福部標準）：過輕／正常／過重／肥胖
   (String, Color) _bmiCategory(double bmi) {
-    if (bmi < 18.5) return ('過輕', _WeightColors.blue);
-    if (bmi < 24) return ('正常', _WeightColors.sage);
-    if (bmi < 27) return ('過重', _WeightColors.accentStrong);
-    return ('肥胖', _WeightColors.danger);
+    if (bmi < 18.5) return (_l10n.bmiUnderweight, _WeightColors.blue);
+    if (bmi < 24) return (_l10n.bmiNormal, _WeightColors.sage);
+    if (bmi < 27) return (_l10n.bmiOverweight, _WeightColors.accentStrong);
+    return (_l10n.bmiObese, _WeightColors.danger);
   }
 
   // 本週週一到週日的 DateTime 列表（x=0~6 對應週一~週日）
@@ -409,7 +411,15 @@ class _WeightPageState extends State<WeightPage> {
       default:
         final spots = _weekSpots();
         final weekDays = _currentWeekDays();
-        const labels = ['一', '二', '三', '四', '五', '六', '日'];
+        final labels = [
+          _l10n.weekdayShortMon,
+          _l10n.weekdayShortTue,
+          _l10n.weekdayShortWed,
+          _l10n.weekdayShortThu,
+          _l10n.weekdayShortFri,
+          _l10n.weekdayShortSat,
+          _l10n.weekdayShortSun,
+        ];
         final now = DateTime.now();
         return _ChartData(
           spots: spots,
@@ -436,7 +446,7 @@ class _WeightPageState extends State<WeightPage> {
           xLabel: (x) {
             final idx = x.toInt().clamp(0, 6);
             final d = weekDays[idx];
-            return '${d.month}/${d.day} 週${labels[idx]}';
+            return _l10n.weightWeekAxisLabel(d.month, d.day, labels[idx]);
           },
         );
     }
@@ -450,11 +460,13 @@ class _WeightPageState extends State<WeightPage> {
       now.month,
       now.day,
     ).difference(DateTime(d.year, d.month, d.day)).inDays;
-    if (diff == 0) return '今天';
-    if (diff == 1) return '昨天';
-    return '${d.year} 年 '
-        '${d.month.toString().padLeft(2, '0')} 月 '
-        '${d.day.toString().padLeft(2, '0')} 日';
+    if (diff == 0) return _l10n.dateToday;
+    if (diff == 1) return _l10n.dateYesterday;
+    return _l10n.dateFullYmd(
+      d.year,
+      d.month.toString().padLeft(2, '0'),
+      d.day.toString().padLeft(2, '0'),
+    );
   }
 
   // 歷史 tile 的精簡日期：今天／昨天／M/D
@@ -467,8 +479,8 @@ class _WeightPageState extends State<WeightPage> {
       now.month,
       now.day,
     ).difference(DateTime(d.year, d.month, d.day)).inDays;
-    if (diff == 0) return '今天';
-    if (diff == 1) return '昨天';
+    if (diff == 0) return _l10n.dateToday;
+    if (diff == 1) return _l10n.dateYesterday;
     return '${d.month}/${d.day}';
   }
 
@@ -666,7 +678,7 @@ class _WeightPageState extends State<WeightPage> {
               if (fatText.isNotEmpty) {
                 fat = double.tryParse(fatText);
                 if (fat == null || fat <= 0 || fat >= 75) {
-                  fErr = '請輸入 0–75 之間的數值';
+                  fErr = _l10n.weightFatRangeError;
                   fat = null;
                 }
               }
@@ -703,10 +715,10 @@ class _WeightPageState extends State<WeightPage> {
                 ? (_records.first['weight'] as num).toDouble()
                 : null;
             final headerSubtitle = existing != null
-                ? '更新 ${_dateLabel(selectedDate)} 的體重資料'
+                ? _l10n.weightSheetSubUpdate(_dateLabel(selectedDate))
                 : latestForSheet == null
-                ? '先留下一筆今天的身體讀數'
-                : '上次 ${_fmtWeight(latestForSheet)} $_wLabel，直接微調即可';
+                ? _l10n.weightSheetSubFirst
+                : _l10n.weightSheetSubLast(_fmtWeight(latestForSheet), _wLabel);
 
             return SafeArea(
               top: false,
@@ -774,8 +786,8 @@ class _WeightPageState extends State<WeightPage> {
                                         children: [
                                           Text(
                                             existing != null
-                                                ? '編輯體重紀錄'
-                                                : '新增體重紀錄',
+                                                ? _l10n.weightSheetTitleEdit
+                                                : _l10n.weightSheetTitleAdd,
                                             style: const TextStyle(
                                               fontSize: 18,
                                               fontWeight: FontWeight.w900,
@@ -816,7 +828,7 @@ class _WeightPageState extends State<WeightPage> {
                                       firstDate: DateTime(2000),
                                       lastDate: DateTime.now(),
                                       accent: _WeightColors.accent,
-                                      title: '選擇紀錄日期',
+                                      title: _l10n.weightPickDateTitle,
                                     );
                                     if (picked != null) {
                                       setSheetState(
@@ -876,7 +888,9 @@ class _WeightPageState extends State<WeightPage> {
                         ),
                         const SizedBox(height: 10),
                         _SheetSaveButton(
-                          label: existing != null ? '儲存更新' : '儲存紀錄',
+                          label: existing != null
+                              ? _l10n.weightSaveUpdate
+                              : _l10n.weightSaveNew,
                           onPressed: submit,
                         ),
                       ],
@@ -970,7 +984,7 @@ class _WeightPageState extends State<WeightPage> {
                 Icons.edit_outlined,
                 color: _WeightColors.accentStrong,
               ),
-              title: const Text('編輯'),
+              title: Text(_l10n.commonEdit),
               onTap: () {
                 Navigator.pop(ctx);
                 _openAddSheet(existing: rec);
@@ -978,7 +992,10 @@ class _WeightPageState extends State<WeightPage> {
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: AppInk.danger),
-              title: const Text('刪除', style: TextStyle(color: AppInk.danger)),
+              title: Text(
+                _l10n.commonDelete,
+                style: const TextStyle(color: AppInk.danger),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 _confirmDelete(rec);
@@ -996,12 +1013,12 @@ class _WeightPageState extends State<WeightPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('確認刪除'),
-        content: Text('確定要刪除 ${rec['date']} 的體重紀錄嗎？'),
+        title: Text(_l10n.weightDeleteTitle),
+        content: Text(_l10n.weightDeleteMessage(rec['date'] as String)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+            child: Text(_l10n.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -1009,7 +1026,7 @@ class _WeightPageState extends State<WeightPage> {
               _deleteRecord(rec);
             },
             style: TextButton.styleFrom(foregroundColor: AppInk.danger),
-            child: const Text('刪除'),
+            child: Text(_l10n.commonDelete),
           ),
         ],
       ),
@@ -1060,8 +1077,8 @@ class _WeightPageState extends State<WeightPage> {
               Expanded(
                 child: Text(
                   isGoalReached
-                      ? '目標 ${_fmtWeight(target)} $_wLabel · 已達成'
-                      : '目標 ${_fmtWeight(target)} $_wLabel',
+                      ? _l10n.weightGoalReached(_fmtWeight(target), _wLabel)
+                      : _l10n.weightGoalLine(_fmtWeight(target), _wLabel),
                   style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
@@ -1071,7 +1088,7 @@ class _WeightPageState extends State<WeightPage> {
               ),
               if (!isGoalReached)
                 Text(
-                  '還差 ${_fmtWeight(diff)} $_wLabel',
+                  _l10n.weightGoalRemaining(_fmtWeight(diff), _wLabel),
                   style: AppType.digits(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
@@ -1089,11 +1106,11 @@ class _WeightPageState extends State<WeightPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '起始 ${_fmtWeight(initialWeight)} $_wLabel',
+                _l10n.weightGoalStart(_fmtWeight(initialWeight), _wLabel),
                 style: const TextStyle(fontSize: 10.5, color: AppInk.soft),
               ),
               Text(
-                '目標 ${_fmtWeight(target)} $_wLabel',
+                _l10n.weightGoalLine(_fmtWeight(target), _wLabel),
                 style: const TextStyle(fontSize: 10.5, color: AppInk.soft),
               ),
             ],
@@ -1156,8 +1173,8 @@ class _WeightPageState extends State<WeightPage> {
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       children: [
                         // ── 今日數據放最前：面板展開時第一眼就是今天的體重 ──
-                        const HabitSectionHeader(
-                          label: '今日數據',
+                        HabitSectionHeader(
+                          label: _l10n.weightTodaySection,
                           icon: Icons.today_rounded,
                           color: _WeightColors.accent,
                         ),
@@ -1212,8 +1229,8 @@ class _WeightPageState extends State<WeightPage> {
                         const SizedBox(height: 20),
 
                         // ── 趨勢圖卡片（範圍切換 + 折線圖） ──
-                        const HabitSectionHeader(
-                          label: '趨勢',
+                        HabitSectionHeader(
+                          label: _l10n.weightTrendSection,
                           icon: Icons.show_chart_rounded,
                           color: _WeightColors.accent,
                         ),
@@ -1236,7 +1253,9 @@ class _WeightPageState extends State<WeightPage> {
                                   const Spacer(),
                                   if (chartData.spots.isNotEmpty)
                                     Text(
-                                      '${chartData.spots.length} 筆紀錄',
+                                      _l10n.weightRecordCount(
+                                        chartData.spots.length,
+                                      ),
                                       style: const TextStyle(
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.w700,
@@ -1274,9 +1293,9 @@ class _WeightPageState extends State<WeightPage> {
                                                     .withValues(alpha: 0.38),
                                               ),
                                               const SizedBox(height: 8),
-                                              const Text(
-                                                '此區間沒有紀錄',
-                                                style: TextStyle(
+                                              Text(
+                                                _l10n.weightChartEmpty,
+                                                style: const TextStyle(
                                                   color: AppInk.faint,
                                                   fontSize: 14,
                                                 ),
@@ -1308,8 +1327,8 @@ class _WeightPageState extends State<WeightPage> {
                         // ── 歷史紀錄列表 ──
                         if (_records.isNotEmpty) ...[
                           const SizedBox(height: 20),
-                          const HabitSectionHeader(
-                            label: '歷史紀錄',
+                          HabitSectionHeader(
+                            label: _l10n.weightHistorySection,
                             icon: Icons.history_rounded,
                             color: _WeightColors.accent,
                           ),
@@ -1322,7 +1341,9 @@ class _WeightPageState extends State<WeightPage> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: _TodayActionButton(
-                      label: todayRec != null ? '更新今日體重' : '紀錄今天體重',
+                      label: todayRec != null
+                          ? _l10n.weightActionUpdate
+                          : _l10n.weightActionAdd,
                       icon: todayRec != null
                           ? Icons.edit_rounded
                           : Icons.add_rounded,
@@ -1452,7 +1473,7 @@ class _WeightPageState extends State<WeightPage> {
                     color: _WeightColors.sage,
                     fontWeight: FontWeight.w600,
                   ),
-                  labelResolver: (_) => '目標',
+                  labelResolver: (_) => _l10n.weightChartGoalLine,
                 ),
               ),
           ],
@@ -1495,7 +1516,11 @@ class _WeightPageState extends State<WeightPage> {
 
   // 範圍切換：segmented 膠囊（選中浮白卡，未選沉在底色裡）
   Widget _rangeSelector() {
-    const labels = ['本週', '本月', '三個月'];
+    final labels = [
+      _l10n.weightRangeWeek,
+      _l10n.weightRangeMonth,
+      _l10n.weightRangeQuarter,
+    ];
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
@@ -1600,15 +1625,18 @@ class _WeightPageState extends State<WeightPage> {
         ? Icons.south_rounded
         : Icons.north_rounded;
     final insight = spots.length == 1
-        ? '這個區間的第一筆紀錄'
+        ? _l10n.weightInsightFirst
         : !hasChange
-        ? '這段時間大致持平'
-        : '這段時間變化 ${diff > 0 ? '+' : '-'}${_deltaText(diff)} $_wLabel';
-    final range = '範圍 ${_fmt(low)}–${_fmt(high)} $_wLabel';
+        ? _l10n.weightInsightFlat
+        : _l10n.weightInsightChange(
+            '${diff > 0 ? '+' : '-'}${_deltaText(diff)}',
+            _wLabel,
+          );
+    final range = _l10n.weightInsightRange(_fmt(low), _fmt(high), _wLabel);
 
     return Semantics(
       key: const ValueKey('weight-chart-insight'),
-      label: '$insight，$range',
+      label: _l10n.weightInsightSemantics(insight, range),
       excludeSemantics: true,
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
@@ -1684,23 +1712,23 @@ class _WeightPageState extends State<WeightPage> {
                 ),
               ),
               const SizedBox(width: 13),
-              const Expanded(
+              Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '今天還沒量體重喔',
-                      style: TextStyle(
+                      _l10n.weightEmptyTitle,
+                      style: const TextStyle(
                         color: AppInk.strong,
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     Text(
-                      '記錄一筆，趨勢圖就會更準',
-                      style: TextStyle(
+                      _l10n.weightEmptySub,
+                      style: const TextStyle(
                         color: AppInk.soft,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
@@ -1744,15 +1772,20 @@ class _WeightPageState extends State<WeightPage> {
     final bmr = _calcBMR(weight);
     final tdee = _calcTDEE(weight);
     final hintMessage = bmi == null || bmr == null
-        ? '補齊身高、生日與性別，可顯示更多指標'
+        ? _l10n.weightHintNeedProfile
         : _activityLevel.isEmpty
-        ? '設定活動量後，可顯示 TDEE'
+        ? _l10n.weightHintNeedActivity
         : null;
     final bmiCat = bmi == null ? null : _bmiCategory(bmi);
     final delta = _deltaBefore(rec);
 
     final items = <_StatItem>[
-      if (fat != null) _StatItem(label: '體脂率', value: _fmt(fat), suffix: '%'),
+      if (fat != null)
+        _StatItem(
+          label: _l10n.weightStatBodyFat,
+          value: _fmt(fat),
+          suffix: '%',
+        ),
       if (bmi != null)
         _StatItem(
           label: 'BMI',
@@ -2002,7 +2035,7 @@ class _WeightPageState extends State<WeightPage> {
                         children: [
                           if (fat != null) ...[
                             Text(
-                              '體脂 ${_fmt(fat)}%',
+                              _l10n.weightHistoryFat(_fmt(fat)),
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: AppInk.soft,
@@ -2081,12 +2114,14 @@ class _WeightInputCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _NumericDisplayBox(
-                  label: '體重',
+                  label: AppLocalizations.of(context).weightInputLabel,
                   value: value,
                   suffix: unitLabel,
                   active: active,
                   color: _WeightColors.accent,
-                  placeholder: '輸入體重',
+                  placeholder: AppLocalizations.of(
+                    context,
+                  ).weightInputPlaceholder,
                   onTap: onTap,
                 ),
               ),
@@ -2183,12 +2218,14 @@ class _BodyFatInputCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _NumericDisplayBox(
-                  label: '體脂率（選填）',
+                  label: AppLocalizations.of(context).weightFatLabel,
                   value: value,
                   suffix: '%',
                   active: active,
                   color: accent,
-                  placeholder: '未輸入',
+                  placeholder: AppLocalizations.of(
+                    context,
+                  ).weightFatPlaceholder,
                   onTap: onTap,
                 ),
                 if (hasError) ...[
@@ -2713,11 +2750,14 @@ class _DeltaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final flat = delta.abs() < 0.05;
-    final label = flat ? '較上次持平' : '較上次 ${delta > 0 ? '+' : '-'}$text $unit';
+    final label = flat
+        ? l10n.weightDeltaFlat
+        : l10n.weightDeltaChange('${delta > 0 ? '+' : '-'}$text', unit);
     return Semantics(
       key: const ValueKey('weight-delta'),
-      label: '體重$label',
+      label: l10n.weightDeltaSemantics(label),
       excludeSemantics: true,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
