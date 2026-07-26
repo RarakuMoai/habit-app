@@ -4877,5 +4877,259 @@
   "snBoardEmpty": "這個榜還空著，等第一筆成績。",
   "@snBoardEmpty": {
     "description": "排行榜的空狀態。"
+  },
+
+  "dvTitle": "開發者測試",
+  "@dvTitle": {
+    "description": "開發者測試頁的標題。這頁只給開發用，語氣直白、不需要打磨。"
+  },
+  "dvPeriodMorning": "清晨 06:30",
+  "@dvPeriodMorning": {
+    "description": "場景時段測試按鈕：清晨。時間是固定的測試值。"
+  },
+  "dvPeriodDay": "白天 13:00",
+  "@dvPeriodDay": {
+    "description": "場景時段測試按鈕：白天。"
+  },
+  "dvPeriodDusk": "黃昏 17:30",
+  "@dvPeriodDusk": {
+    "description": "場景時段測試按鈕：黃昏。"
+  },
+  "dvPeriodNight": "夜晚 23:00",
+  "@dvPeriodNight": {
+    "description": "場景時段測試按鈕：夜晚。"
+  },
+  "dvEdgeNightMorning": "夜→晨 04:37:30",
+  "@dvEdgeNightMorning": {
+    "description": "時段交界測試按鈕。箭頭要保留。"
+  },
+  "dvEdgeMorningDay": "晨→晝 08:37:30",
+  "@dvEdgeMorningDay": {
+    "description": "時段交界測試按鈕。"
+  },
+  "dvEdgeDayDusk": "晝→暮 16:30:00",
+  "@dvEdgeDayDusk": {
+    "description": "時段交界測試按鈕。"
+  },
+  "dvEdgeDuskNight": "暮→夜 18:37:30",
+  "@dvEdgeDuskNight": {
+    "description": "時段交界測試按鈕。"
+  },
+  "dvUnlocked": "已解鎖：{title}（揭曉即將自動播放）",
+  "@dvUnlocked": {
+    "description": "開發者測試：直接解鎖回憶成功。",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "dvAlreadyUnlocked": "已經解鎖過了：{title}",
+  "@dvAlreadyUnlocked": {
+    "description": "開發者測試：這則回憶早就解鎖過。",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "dvTriggerHit": "{label} → 解鎖「{title}」，揭曉即將播放",
+  "@dvTriggerHit": {
+    "description": "開發者測試：模擬觸發命中了一個事件。",
+    "placeholders": {
+      "label": { "type": "String" },
+      "title": { "type": "String" }
+    }
+  },
+  "dvTriggerMiss": "{label} → 沒有新事件（未達門檻或已解鎖過）",
+  "@dvTriggerMiss": {
+    "description": "開發者測試：模擬觸發沒命中。",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "dvSeasonHit": "{label} → 解鎖 {titles}",
+  "@dvSeasonHit": {
+    "description": "開發者測試：節日檢查命中。titles 已用「、」串好。",
+    "placeholders": {
+      "label": { "type": "String" },
+      "titles": { "type": "String" }
+    }
+  },
+  "dvSeasonMiss": "{label} → 沒有命中的節日事件（或已解鎖過）",
+  "@dvSeasonMiss": {
+    "description": "開發者測試：節日檢查沒命中。",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "dvOverrideCleared": "已恢復正常（測試覆寫已清除）",
+  "@dvOverrideCleared": {
+    "description": "開發者測試：清除所有覆寫後的提示。"
+  },
+  "dvCoinsTitle": "足跡幣（測試）",
+  "@dvCoinsTitle": {
+    "description": "開發者測試的區塊標題：足跡幣。"
+  },
+  "dvCoinsDesc": "直接加足跡幣方便測試衣櫃購買解鎖；負向「歸零」清空餘額。",
+  "@dvCoinsDesc": {
+    "description": "開發者測試的區塊說明：足跡幣。"
+  },
+  "dvCurrentCoins": "目前足跡幣：{coins}",
+  "@dvCurrentCoins": {
+    "description": "開發者測試：目前餘額。",
+    "placeholders": {
+      "coins": { "type": "int" }
+    }
+  },
+  "dvResetZero": "歸零",
+  "@dvResetZero": {
+    "description": "開發者測試：把足跡幣清成 0。"
+  },
+  "dvLoginPreviewTitle": "每日登入慶祝（預覽）",
+  "@dvLoginPreviewTitle": {
+    "description": "開發者測試的區塊標題：登入慶祝頁預覽。"
+  },
+  "dvLoginPreviewDesc": "免跨日直接看慶祝頁的排版與演出；不動任何登入/金幣狀態。",
+  "@dvLoginPreviewDesc": {
+    "description": "開發者測試的區塊說明：登入慶祝頁預覽。"
+  },
+  "dvLoginDay1": "第一天",
+  "@dvLoginDay1": {
+    "description": "開發者測試：登入慶祝的第 1 天情境。"
+  },
+  "dvLoginDay3": "一般日（第 3 天）",
+  "@dvLoginDay3": {
+    "description": "開發者測試：登入慶祝的一般情境。"
+  },
+  "dvLoginDay5": "寬限日（第 5 天）",
+  "@dvLoginDay5": {
+    "description": "開發者測試：登入慶祝用掉寬限的情境。"
+  },
+  "dvLoginDay7": "里程碑日（第 7 天）",
+  "@dvLoginDay7": {
+    "description": "開發者測試：登入慶祝的里程碑情境。"
+  },
+  "dvLoginDay45": "滿級（第 45 天）",
+  "@dvLoginDay45": {
+    "description": "開發者測試：登入慶祝的滿級情境。"
+  },
+  "dvMemoryTitle": "回憶本 / 特殊事件（測試）",
+  "@dvMemoryTitle": {
+    "description": "開發者測試的區塊標題：回憶本。"
+  },
+  "dvMemoryDesc": "預覽＝免解鎖直接看揭曉動畫與排版；模擬觸發＝走真實判定，驗證門檻/冪等/揭曉整條路。解鎖後到衣櫃 → 回憶 翻閱。",
+  "@dvMemoryDesc": {
+    "description": "開發者測試的區塊說明：回憶本。"
+  },
+  "dvMemoryCounts": "已解鎖：{unlocked} 則　未讀：{unread} 則　待揭曉：{pending} 則",
+  "@dvMemoryCounts": {
+    "description": "開發者測試：回憶本的三個計數。全形空格是視覺間隔，請保留。",
+    "placeholders": {
+      "unlocked": { "type": "int" },
+      "unread": { "type": "int" },
+      "pending": { "type": "int" }
+    }
+  },
+  "dvMemoryPreviewSection": "預覽揭曉（不動資料，看圖與動畫排版）",
+  "@dvMemoryPreviewSection": {
+    "description": "開發者測試的小標題：預覽揭曉。"
+  },
+  "dvMemorySimulateSection": "模擬觸發（走真實判定與揭曉佇列）",
+  "@dvMemorySimulateSection": {
+    "description": "開發者測試的小標題：模擬觸發。"
+  },
+  "dvMemoryUnlockSection": "直接解鎖（跳過判定；也會排進揭曉佇列）",
+  "@dvMemoryUnlockSection": {
+    "description": "開發者測試的小標題：直接解鎖。"
+  },
+  "dvSimFirstHabit": "第一次建立習慣",
+  "@dvSimFirstHabit": {
+    "description": "開發者測試：模擬「第一次建立習慣」事件。"
+  },
+  "dvSimFirstAllDone": "第一次全完成",
+  "@dvSimFirstAllDone": {
+    "description": "開發者測試：模擬「第一次全部完成」事件。"
+  },
+  "dvSimStreak7": "連勝 7 天",
+  "@dvSimStreak7": {
+    "description": "開發者測試：模擬連勝 7 天事件。"
+  },
+  "dvSimReturn7": "久違 7 天回來",
+  "@dvSimReturn7": {
+    "description": "開發者測試：模擬久違回來事件。"
+  },
+  "dvSimSeasonToday": "節日檢查（今天）",
+  "@dvSimSeasonToday": {
+    "description": "開發者測試：用今天的日期跑節日判定。"
+  },
+  "dvSimEventDay": "模擬 {title} 當天",
+  "@dvSimEventDay": {
+    "description": "開發者測試：模擬某個節日事件當天。",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "dvUnlockEvent": "解鎖 {title}",
+  "@dvUnlockEvent": {
+    "description": "開發者測試：直接解鎖某個回憶。",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "dvClearMemories": "清空回憶",
+  "@dvClearMemories": {
+    "description": "開發者測試：清空所有已解鎖回憶。"
+  },
+  "dvMemoriesCleared": "已清空回憶（含待揭曉佇列）",
+  "@dvMemoriesCleared": {
+    "description": "開發者測試：清空回憶後的提示。"
+  },
+  "dvSceneTitle": "場景時段",
+  "@dvSceneTitle": {
+    "description": "開發者測試的區塊標題：場景時段覆寫。"
+  },
+  "dvSceneDesc": "完整時段：清晨 05:00、白天 09:00、黃昏 17:00、夜晚 19:00；16:00 開始轉黃昏，其餘交界為 45 分鐘。覆寫會同步套用首頁場景與底部裝飾條。",
+  "@dvSceneDesc": {
+    "description": "開發者測試的區塊說明：場景時段的實際切換時間。"
+  },
+  "dvSceneCoreSection": "核心時段",
+  "@dvSceneCoreSection": {
+    "description": "開發者測試的小標題：四個主要時段。"
+  },
+  "dvSceneRealTime": "真實時間",
+  "@dvSceneRealTime": {
+    "description": "開發者測試：取消覆寫、回到真實時間。"
+  },
+  "dvSceneEdgeSection": "交界中點（前後時段各 50%）",
+  "@dvSceneEdgeSection": {
+    "description": "開發者測試的小標題：時段交界。"
+  },
+  "dvDayShiftTitle": "換日（快轉）",
+  "@dvDayShiftTitle": {
+    "description": "開發者測試的區塊標題：快轉換日。"
+  },
+  "dvDayShiftDesc": "把每日狀態日期推前 N 天，按下後會自動刷新並跑真正的換日：習慣勾選清空、streak 重算、登入獎勵重開。快轉 2／3 天＝中間 1／2 天沒開 app，可測登入寬限與中斷歸零。喝水／專注計時累計按真實日期存、不歸零。目前已快轉 {days} 天。",
+  "@dvDayShiftDesc": {
+    "description": "開發者測試的區塊說明：快轉換日的實際效果。",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "dvShiftOneDay": "快轉一天",
+  "@dvShiftOneDay": {
+    "description": "開發者測試：快轉一天。"
+  },
+  "dvUndoShift": "還原換日",
+  "@dvUndoShift": {
+    "description": "開發者測試：把快轉還原。"
+  },
+  "dvShift2Grace": "快轉 2 天→寬限",
+  "@dvShift2Grace": {
+    "description": "開發者測試：快轉兩天以測登入寬限。"
+  },
+  "dvShift3Break": "快轉 3 天→中斷",
+  "@dvShift3Break": {
+    "description": "開發者測試：快轉三天以測連勝中斷。"
+  },
+  "dvRestoreOverrides": "恢復場景/選單覆寫",
+  "@dvRestoreOverrides": {
+    "description": "開發者測試：清除所有測試覆寫。"
   }
 }

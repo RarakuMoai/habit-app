@@ -7,6 +7,8 @@ import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/scene_time.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -24,7 +26,7 @@ void main() {
   });
 
   testWidgets('場景預覽使用正式四時段與 50/50 交界，原始統計不再佔據頁首', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: DevTestPage()));
+    await tester.pumpWidget(l10nTestApp(home: const DevTestPage()));
     await tester.pumpAndSettle();
 
     expect(find.text('使用統計（本機匿名）'), findsNothing);
@@ -68,7 +70,7 @@ void main() {
       PrefsKeys.coinClaim(CoinSource.weeklyStreak.name, today): true,
     });
 
-    await tester.pumpWidget(const MaterialApp(home: DevTestPage()));
+    await tester.pumpWidget(l10nTestApp(home: const DevTestPage()));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('快轉一天'),

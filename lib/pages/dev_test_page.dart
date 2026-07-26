@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_restart.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
@@ -29,24 +30,26 @@ class DevTestPage extends StatefulWidget {
 }
 
 class _DevTestPageState extends State<DevTestPage> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   SharedPreferences? _prefs;
   double? _sceneHour; // null = 真實時間
   int _dayShift = 0; // 已快轉天數
 
   // 核心時段使用 SceneTimeController 的正式錨點，避免兩邊時間再次脫節。
-  static const _periodPresets = <({String label, ScenePeriod period})>[
-    (label: '清晨 06:30', period: ScenePeriod.morning),
-    (label: '白天 13:00', period: ScenePeriod.day),
-    (label: '黃昏 17:30', period: ScenePeriod.dusk),
-    (label: '夜晚 23:00', period: ScenePeriod.night),
+  List<({String label, ScenePeriod period})> get _periodPresets => [
+    (label: _l10n.dvPeriodMorning, period: ScenePeriod.morning),
+    (label: _l10n.dvPeriodDay, period: ScenePeriod.day),
+    (label: _l10n.dvPeriodDusk, period: ScenePeriod.dusk),
+    (label: _l10n.dvPeriodNight, period: ScenePeriod.night),
   ];
 
   // 各交界的正中點；smoothstep 此時恰好兩張圖各 50%。
-  static const _transitionPresets = <({String label, double hour})>[
-    (label: '夜→晨 04:37:30', hour: 4.625),
-    (label: '晨→晝 08:37:30', hour: 8.625),
-    (label: '晝→暮 16:30:00', hour: 16.5),
-    (label: '暮→夜 18:37:30', hour: 18.625),
+  List<({String label, double hour})> get _transitionPresets => [
+    (label: _l10n.dvEdgeNightMorning, hour: 4.625),
+    (label: _l10n.dvEdgeMorningDay, hour: 8.625),
+    (label: _l10n.dvEdgeDayDusk, hour: 16.5),
+    (label: _l10n.dvEdgeDuskNight, hour: 18.625),
   ];
 
   // 換日：往前推一天就能觸發真換日的「每日狀態日期標記」
@@ -193,7 +196,7 @@ class _DevTestPageState extends State<DevTestPage> {
     final ok = await StoryStore.unlock(id);
     if (!mounted) return;
     final title = storyEventById(id).title;
-    _toast(ok ? '已解鎖：$title（揭曉即將自動播放）' : '已經解鎖過了：$title');
+    _toast(ok ? _l10n.dvUnlocked(title) : _l10n.dvAlreadyUnlocked(title));
   }
 
   /// 免解鎖直接看揭曉動畫與繪本排版（不動任何狀態，怎麼看都不會誤解鎖）。
@@ -211,8 +214,8 @@ class _DevTestPageState extends State<DevTestPage> {
     if (!mounted) return;
     _toast(
       id != null
-          ? '$label → 解鎖「${storyEventById(id).title}」，揭曉即將播放'
-          : '$label → 沒有新事件（未達門檻或已解鎖過）',
+          ? _l10n.dvTriggerHit(label, storyEventById(id).title)
+          : _l10n.dvTriggerMiss(label),
     );
   }
 
@@ -221,8 +224,11 @@ class _DevTestPageState extends State<DevTestPage> {
     if (!mounted) return;
     _toast(
       ids.isNotEmpty
-          ? '$label → 解鎖 ${ids.map((i) => '「${storyEventById(i).title}」').join('、')}'
-          : '$label → 沒有命中的節日事件（或已解鎖過）',
+          ? _l10n.dvSeasonHit(
+              label,
+              ids.map((i) => '「${storyEventById(i).title}」').join('、'),
+            )
+          : _l10n.dvSeasonMiss(label),
     );
   }
 
@@ -243,29 +249,29 @@ class _DevTestPageState extends State<DevTestPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已恢復正常（測試覆寫已清除）')));
+    ).showSnackBar(SnackBar(content: Text(_l10n.dvOverrideCleared)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('開發者測試'), centerTitle: true),
+      appBar: AppBar(title: Text(_l10n.dvTitle), centerTitle: true),
       body: _prefs == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
                 _card(
-                  title: '足跡幣（測試）',
+                  title: _l10n.dvCoinsTitle,
                   icon: Icons.monetization_on_outlined,
-                  description: '直接加足跡幣方便測試衣櫃購買解鎖；負向「歸零」清空餘額。',
+                  description: _l10n.dvCoinsDesc,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ValueListenableBuilder<int>(
                         valueListenable: CoinService.notifier,
                         builder: (_, coins, _) => Text(
-                          '目前足跡幣：$coins',
+                          _l10n.dvCurrentCoins(coins),
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
@@ -286,7 +292,7 @@ class _DevTestPageState extends State<DevTestPage> {
                             onPressed: () => CoinService.debugAdd(
                               -CoinService.notifier.value,
                             ),
-                            child: const Text('歸零'),
+                            child: Text(_l10n.dvResetZero),
                           ),
                         ],
                       ),
@@ -294,16 +300,16 @@ class _DevTestPageState extends State<DevTestPage> {
                   ),
                 ),
                 _card(
-                  title: '每日登入慶祝（預覽）',
+                  title: _l10n.dvLoginPreviewTitle,
                   icon: Icons.celebration_outlined,
-                  description: '免跨日直接看慶祝頁的排版與演出；不動任何登入/金幣狀態。',
+                  description: _l10n.dvLoginPreviewDesc,
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
                       for (final (label, streak, reward) in [
                         (
-                          '第一天',
+                          _l10n.dvLoginDay1,
                           1,
                           const LoginReward(
                             level: 1,
@@ -312,7 +318,7 @@ class _DevTestPageState extends State<DevTestPage> {
                           ),
                         ),
                         (
-                          '一般日（第 3 天）',
+                          _l10n.dvLoginDay3,
                           3,
                           const LoginReward(
                             level: 3,
@@ -321,7 +327,7 @@ class _DevTestPageState extends State<DevTestPage> {
                           ),
                         ),
                         (
-                          '寬限日（第 5 天）',
+                          _l10n.dvLoginDay5,
                           5,
                           const LoginReward(
                             level: 4,
@@ -330,7 +336,7 @@ class _DevTestPageState extends State<DevTestPage> {
                           ),
                         ),
                         (
-                          '里程碑日（第 7 天）',
+                          _l10n.dvLoginDay7,
                           7,
                           const LoginReward(
                             level: 6,
@@ -340,7 +346,7 @@ class _DevTestPageState extends State<DevTestPage> {
                           ),
                         ),
                         (
-                          '滿級（第 45 天）',
+                          _l10n.dvLoginDay45,
                           45,
                           const LoginReward(
                             level: 6,
@@ -363,11 +369,9 @@ class _DevTestPageState extends State<DevTestPage> {
                   ),
                 ),
                 _card(
-                  title: '回憶本 / 特殊事件（測試）',
+                  title: _l10n.dvMemoryTitle,
                   icon: Icons.auto_stories_outlined,
-                  description:
-                      '預覽＝免解鎖直接看揭曉動畫與排版；模擬觸發＝走真實判定，'
-                      '驗證門檻/冪等/揭曉整條路。解鎖後到衣櫃 → 回憶 翻閱。',
+                  description: _l10n.dvMemoryDesc,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -378,16 +382,18 @@ class _DevTestPageState extends State<DevTestPage> {
                           StoryStore.pendingReveal,
                         ]),
                         builder: (_, _) => Text(
-                          '已解鎖：${StoryStore.unlocked.value.length} 則'
-                          '　未讀：${StoryStore.unread.value.length} 則'
-                          '　待揭曉：${StoryStore.pendingReveal.value.length} 則',
+                          _l10n.dvMemoryCounts(
+                            StoryStore.unlocked.value.length,
+                            StoryStore.unread.value.length,
+                            StoryStore.pendingReveal.value.length,
+                          ),
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
-                      _memorySection('預覽揭曉（不動資料，看圖與動畫排版）'),
+                      _memorySection(_l10n.dvMemoryPreviewSection),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -403,43 +409,45 @@ class _DevTestPageState extends State<DevTestPage> {
                             ),
                         ],
                       ),
-                      _memorySection('模擬觸發（走真實判定與揭曉佇列）'),
+                      _memorySection(_l10n.dvMemorySimulateSection),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
                           FilledButton.tonal(
                             onPressed: () => _simulateTrigger(
-                              '第一次建立習慣',
+                              _l10n.dvSimFirstHabit,
                               StoryEvents.onFirstHabitCreated,
                             ),
-                            child: const Text('第一次建立習慣'),
+                            child: Text(_l10n.dvSimFirstHabit),
                           ),
                           FilledButton.tonal(
                             onPressed: () => _simulateTrigger(
-                              '第一次全完成',
+                              _l10n.dvSimFirstAllDone,
                               StoryEvents.onFirstAllDone,
                             ),
-                            child: const Text('第一次全完成'),
+                            child: Text(_l10n.dvSimFirstAllDone),
                           ),
                           FilledButton.tonal(
                             onPressed: () => _simulateTrigger(
-                              '連勝 7 天',
+                              _l10n.dvSimStreak7,
                               () => StoryEvents.onHabitStreak(7),
                             ),
-                            child: const Text('連勝 7 天'),
+                            child: Text(_l10n.dvSimStreak7),
                           ),
                           FilledButton.tonal(
                             onPressed: () => _simulateTrigger(
-                              '久違 7 天回來',
+                              _l10n.dvSimReturn7,
                               () => StoryEvents.onComeback(7),
                             ),
-                            child: const Text('久違 7 天回來'),
+                            child: Text(_l10n.dvSimReturn7),
                           ),
                           FilledButton.tonal(
-                            onPressed: () =>
-                                _simulateSeason('節日檢查（今天）', DateTime.now()),
-                            child: const Text('節日檢查（今天）'),
+                            onPressed: () => _simulateSeason(
+                              _l10n.dvSimSeasonToday,
+                              DateTime.now(),
+                            ),
+                            child: Text(_l10n.dvSimSeasonToday),
                           ),
                           // 目錄裡每個節日事件都給一顆「假裝今天是那天」的按鈕
                           for (final event in storyCatalog)
@@ -447,18 +455,18 @@ class _DevTestPageState extends State<DevTestPage> {
                                 event.season != null)
                               FilledButton.tonal(
                                 onPressed: () => _simulateSeason(
-                                  '模擬 ${event.title} 當天',
+                                  _l10n.dvSimEventDay(event.title),
                                   DateTime(
                                     DateTime.now().year,
                                     event.season!.month,
                                     event.season!.day,
                                   ),
                                 ),
-                                child: Text('模擬 ${event.title} 當天'),
+                                child: Text(_l10n.dvSimEventDay(event.title)),
                               ),
                         ],
                       ),
-                      _memorySection('直接解鎖（跳過判定；也會排進揭曉佇列）'),
+                      _memorySection(_l10n.dvMemoryUnlockSection),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -466,15 +474,15 @@ class _DevTestPageState extends State<DevTestPage> {
                           for (final event in storyCatalog)
                             FilledButton.tonal(
                               onPressed: () => _unlockMemory(event.id),
-                              child: Text('解鎖 ${event.title}'),
+                              child: Text(_l10n.dvUnlockEvent(event.title)),
                             ),
                           OutlinedButton(
                             onPressed: () async {
                               await StoryStore.clear();
                               if (!mounted) return;
-                              _toast('已清空回憶（含待揭曉佇列）');
+                              _toast(_l10n.dvMemoriesCleared);
                             },
-                            child: const Text('清空回憶'),
+                            child: Text(_l10n.dvClearMemories),
                           ),
                         ],
                       ),
@@ -482,22 +490,19 @@ class _DevTestPageState extends State<DevTestPage> {
                   ),
                 ),
                 _card(
-                  title: '場景時段',
+                  title: _l10n.dvSceneTitle,
                   icon: Icons.wb_twilight_outlined,
-                  description:
-                      '完整時段：清晨 05:00、白天 09:00、黃昏 17:00、'
-                      '夜晚 19:00；16:00 開始轉黃昏，其餘交界為 45 分鐘。'
-                      '覆寫會同步套用首頁場景與底部裝飾條。',
+                  description: _l10n.dvSceneDesc,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _testSubheading('核心時段'),
+                      _testSubheading(_l10n.dvSceneCoreSection),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
                           _choice(
-                            '真實時間',
+                            _l10n.dvSceneRealTime,
                             _sceneHour == null,
                             () => _setSceneHour(null),
                           ),
@@ -516,7 +521,7 @@ class _DevTestPageState extends State<DevTestPage> {
                             ),
                         ],
                       ),
-                      _testSubheading('交界中點（前後時段各 50%）'),
+                      _testSubheading(_l10n.dvSceneEdgeSection),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -535,13 +540,9 @@ class _DevTestPageState extends State<DevTestPage> {
                   ),
                 ),
                 _card(
-                  title: '換日（快轉）',
+                  title: _l10n.dvDayShiftTitle,
                   icon: Icons.fast_forward_outlined,
-                  description:
-                      '把每日狀態日期推前 N 天，按下後會自動刷新並跑真正的換日：'
-                      '習慣勾選清空、streak 重算、登入獎勵重開。'
-                      '快轉 2／3 天＝中間 1／2 天沒開 app，可測登入寬限與中斷歸零。'
-                      '喝水／專注計時累計按真實日期存、不歸零。目前已快轉 $_dayShift 天。',
+                  description: _l10n.dvDayShiftDesc(_dayShift),
                   child: Column(
                     children: [
                       Row(
@@ -550,7 +551,7 @@ class _DevTestPageState extends State<DevTestPage> {
                             child: FilledButton.tonalIcon(
                               onPressed: () => _fastForwardDays(1),
                               icon: const Icon(Icons.fast_forward, size: 18),
-                              label: const Text('快轉一天'),
+                              label: Text(_l10n.dvShiftOneDay),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -558,7 +559,7 @@ class _DevTestPageState extends State<DevTestPage> {
                             child: OutlinedButton.icon(
                               onPressed: _dayShift > 0 ? _restoreDays : null,
                               icon: const Icon(Icons.undo, size: 18),
-                              label: const Text('還原換日'),
+                              label: Text(_l10n.dvUndoShift),
                             ),
                           ),
                         ],
@@ -569,14 +570,14 @@ class _DevTestPageState extends State<DevTestPage> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => _fastForwardDays(2),
-                              child: const Text('快轉 2 天→寬限'),
+                              child: Text(_l10n.dvShift2Grace),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => _fastForwardDays(3),
-                              child: const Text('快轉 3 天→中斷'),
+                              child: Text(_l10n.dvShift3Break),
                             ),
                           ),
                         ],
@@ -590,7 +591,7 @@ class _DevTestPageState extends State<DevTestPage> {
                   child: OutlinedButton.icon(
                     onPressed: _reset,
                     icon: const Icon(Icons.restore, size: 18),
-                    label: const Text('恢復場景/選單覆寫'),
+                    label: Text(_l10n.dvRestoreOverrides),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
                       side: BorderSide(
