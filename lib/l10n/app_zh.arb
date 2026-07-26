@@ -1657,5 +1657,723 @@
   "miniSubdivisionNote": "細分拍（依目前 BPM 拍值）",
   "@miniSubdivisionNote": {
     "description": "節拍器設定裡細分拍的小標。"
+  },
+
+  "commonClose": "關閉",
+  "@commonClose": {
+    "description": "關閉面板／對話框的通用 tooltip 或按鈕。"
+  },
+  "actionRename": "改名",
+  "@actionRename": {
+    "description": "動作選單：改名。"
+  },
+  "actionMove": "移動",
+  "@actionMove": {
+    "description": "動作選單：進入排序模式移動這一列。"
+  },
+  "actionRemove": "移除",
+  "@actionRemove": {
+    "description": "動作選單與滑動刪除鈕：移除這一項。"
+  },
+  "actionAdd": "新增",
+  "@actionAdd": {
+    "description": "輸入對話框的新增確認鈕。"
+  },
+
+  "tableModePartyFull": "多人桌遊",
+  "@tableModePartyFull": {
+    "description": "桌遊計時器玩法全名：多人輪流（2–6 人）。"
+  },
+  "tableModeChessFull": "二人棋鐘",
+  "@tableModeChessFull": {
+    "description": "桌遊計時器玩法全名：二人棋鐘。"
+  },
+  "tableModeFreeFull": "自由輪流",
+  "@tableModeFreeFull": {
+    "description": "桌遊計時器玩法全名：自由輪流（不倒數）。"
+  },
+  "tableModePartyShort": "多人",
+  "@tableModePartyShort": {
+    "description": "玩法短名（切換膠囊、常用組合預設名）。要短。"
+  },
+  "tableModeChessShort": "二人",
+  "@tableModeChessShort": {
+    "description": "玩法短名。要短。"
+  },
+  "tableModeFreeShort": "自由",
+  "@tableModeFreeShort": {
+    "description": "玩法短名。要短。"
+  },
+  "durSeconds": "{s} 秒",
+  "@durSeconds": {
+    "description": "時間長度顯示：不足一分鐘。",
+    "placeholders": {
+      "s": { "type": "int" }
+    }
+  },
+  "durMinutes": "{m} 分",
+  "@durMinutes": {
+    "description": "時間長度顯示：整分鐘。",
+    "placeholders": {
+      "m": { "type": "int" }
+    }
+  },
+  "durMinSec": "{m} 分 {s} 秒",
+  "@durMinSec": {
+    "description": "時間長度顯示：幾分幾秒。",
+    "placeholders": {
+      "m": { "type": "int" },
+      "s": { "type": "int" }
+    }
+  },
+  "tableTimeFree": "自由計時",
+  "@tableTimeFree": {
+    "description": "桌遊時間摘要與自由模式狀態字：不倒數。"
+  },
+  "tableTimeBankInc": "每人 {bank} ＋{inc} 秒",
+  "@tableTimeBankInc": {
+    "description": "桌遊時間摘要：棋鐘總時間制含 Fischer 加秒。bank 已是格式化時間。",
+    "placeholders": {
+      "bank": { "type": "String" },
+      "inc": { "type": "int" }
+    }
+  },
+  "tableTimeBank": "每人 {bank}",
+  "@tableTimeBank": {
+    "description": "桌遊時間摘要：棋鐘總時間制。",
+    "placeholders": {
+      "bank": { "type": "String" }
+    }
+  },
+  "tableTimePerTurn": "每回合 {time}",
+  "@tableTimePerTurn": {
+    "description": "桌遊時間摘要：每回合制。",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "defaultPlayerName": "玩家 {n}",
+  "@defaultPlayerName": {
+    "description": "新增玩家時的預設名。是儲存值的種子，只在建立當下使用。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "tableSummaryLine": "{mode} · {n} 人 · {time}",
+  "@tableSummaryLine": {
+    "description": "桌遊一行摘要：玩法・人數・時間設定。",
+    "placeholders": {
+      "mode": { "type": "String" },
+      "n": { "type": "int" },
+      "time": { "type": "String" }
+    }
+  },
+  "playersDotTime": "{n} 人 · {time}",
+  "@playersDotTime": {
+    "description": "常用組合副標：人數・時間。",
+    "placeholders": {
+      "n": { "type": "int" },
+      "time": { "type": "String" }
+    }
+  },
+
+  "gtPlayersCountTitle": "今天幾位上桌？",
+  "@gtPlayersCountTitle": {
+    "description": "快速調整玩家人數面板的標題，語氣輕鬆。"
+  },
+  "gtPlayersCountSub": "名字與顏色可到右上「設定」細調",
+  "@gtPlayersCountSub": {
+    "description": "人數面板副標。「設定」對應 timerSettingsEntry。"
+  },
+  "gtReadyPill": "準備開局",
+  "@gtReadyPill": {
+    "description": "遊戲桌入口卡的狀態膠囊。"
+  },
+  "gtPlayersLabel": "玩家",
+  "@gtPlayersLabel": {
+    "description": "遊戲桌入口卡的次要鈕：調整人數。要短。"
+  },
+  "gtDiceLabel": "骰子",
+  "@gtDiceLabel": {
+    "description": "進入兔咪骰子屋的按鈕。要短。"
+  },
+  "gtTableTitle": "遊戲桌",
+  "@gtTableTitle": {
+    "description": "遊戲桌入口卡圓桌上的標題與設定頁首標題。"
+  },
+  "gtPlayersCount": "{n} 位玩家",
+  "@gtPlayersCount": {
+    "description": "圓桌上顯示目前玩家數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+
+  "tspCurrentPosition": "目前第 {n} 位",
+  "@tspCurrentPosition": {
+    "description": "玩家動作選單的副標：目前的出場順位。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "tspPlayerNameTitle": "玩家名字",
+  "@tspPlayerNameTitle": {
+    "description": "玩家改名對話框的標題。"
+  },
+  "tspEnterName": "輸入名字",
+  "@tspEnterName": {
+    "description": "名字輸入欄的提示。"
+  },
+  "tspGroupNameHint": "組合名稱",
+  "@tspGroupNameHint": {
+    "description": "常用組合名稱輸入欄的提示。"
+  },
+  "tspSavePresetTitle": "儲存常用組合",
+  "@tspSavePresetTitle": {
+    "description": "儲存常用組合對話框的標題。"
+  },
+  "tspRenamePresetTitle": "常用組合改名",
+  "@tspRenamePresetTitle": {
+    "description": "常用組合改名對話框的標題。"
+  },
+  "tspAddRosterTitle": "新增常用玩家",
+  "@tspAddRosterTitle": {
+    "description": "新增常用玩家對話框的標題與清單底部的新增列。"
+  },
+  "actionDeleteGroup": "刪除這組",
+  "@actionDeleteGroup": {
+    "description": "常用組合動作選單：刪除（紅色警示）。"
+  },
+  "tspRosterTitle": "常用玩家",
+  "@tspRosterTitle": {
+    "description": "常用玩家清單面板的標題與入口鈕標題。"
+  },
+  "tspRosterSub": "先選好這局要用的玩家，再按確認加入",
+  "@tspRosterSub": {
+    "description": "常用玩家面板的副標，說明先選再套用。"
+  },
+  "tspRosterConfirm": "確認加入（{n} 位）",
+  "@tspRosterConfirm": {
+    "description": "常用玩家面板的確認鈕，帶已選人數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "tspRemoveName": "移除 {name}",
+  "@tspRemoveName": {
+    "description": "從常用玩家移除某人的 tooltip。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "tspPresetsTitle": "常用組合",
+  "@tspPresetsTitle": {
+    "description": "常用組合面板的標題與入口鈕標題。"
+  },
+  "tspPresetsSub": "先選一組，確認後才會替換本局玩家與時間",
+  "@tspPresetsSub": {
+    "description": "常用組合面板的副標。"
+  },
+  "tspPresetsConfirm": "確認套用",
+  "@tspPresetsConfirm": {
+    "description": "常用組合面板的確認鈕。"
+  },
+  "tspRenameTooltip": "改名 {name}",
+  "@tspRenameTooltip": {
+    "description": "常用組合列改名鈕的 tooltip。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "tspDeleteTooltip": "刪除 {name}",
+  "@tspDeleteTooltip": {
+    "description": "常用組合列刪除鈕的 tooltip。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "tspSaveCurrent": "儲存目前設定",
+  "@tspSaveCurrent": {
+    "description": "把目前設定存成常用組合的按鈕。"
+  },
+  "tspSectionMode": "玩法",
+  "@tspSectionMode": {
+    "description": "桌遊設定的區段標題：三種玩法。"
+  },
+  "tspModeHintParty": "放桌子中央，輪到誰就點一下換下一位",
+  "@tspModeHintParty": {
+    "description": "多人桌遊玩法的一句話說明。"
+  },
+  "tspModeHintChess": "兩人對坐，點自己那側交棒給對方",
+  "@tspModeHintChess": {
+    "description": "二人棋鐘玩法的一句話說明。"
+  },
+  "tspModeHintFree": "不倒數沒壓力，只記錄輪到誰、想了多久",
+  "@tspModeHintFree": {
+    "description": "自由輪流玩法的一句話說明。"
+  },
+  "tspSectionOrder": "出場順位",
+  "@tspSectionOrder": {
+    "description": "桌遊設定的區段標題：玩家順序。"
+  },
+  "tspOrderSortCaption": "拖曳玩家調整出場順位",
+  "@tspOrderSortCaption": {
+    "description": "排序模式中的說明字與語意提示。"
+  },
+  "tspOrderChessCaption": "前兩位上場，其餘本局輪空",
+  "@tspOrderChessCaption": {
+    "description": "棋鐘模式下出場順位的說明：只有前兩位上場。"
+  },
+  "tspOrderCaption": "按住蓄色後拖曳調整",
+  "@tspOrderCaption": {
+    "description": "一般模式下出場順位的說明：長按拖曳。"
+  },
+  "tspFinishSorting": "完成排序",
+  "@tspFinishSorting": {
+    "description": "退出排序模式的小按鈕。"
+  },
+  "tspAddPlayer": "新增玩家",
+  "@tspAddPlayer": {
+    "description": "新增一位玩家的文字鈕。"
+  },
+  "tspSectionTiming": "計時制",
+  "@tspSectionTiming": {
+    "description": "棋鐘的計時制區段標題。"
+  },
+  "tspPerTurnMode": "每回合制",
+  "@tspPerTurnMode": {
+    "description": "棋鐘計時制選項：每回合固定秒數。"
+  },
+  "tspBankMode": "總時間制",
+  "@tspBankMode": {
+    "description": "棋鐘計時制選項：每人一個時間庫。"
+  },
+  "tspSectionTurnTime": "每回合時間",
+  "@tspSectionTurnTime": {
+    "description": "每回合時間的區段標題。"
+  },
+  "tspTurnTimeCaption": "選擇回合長度與倒數提醒",
+  "@tspTurnTimeCaption": {
+    "description": "每回合時間區段的說明。"
+  },
+  "tspSectionBankTime": "每人總時間",
+  "@tspSectionBankTime": {
+    "description": "總時間制的區段標題。"
+  },
+  "tspBankTimeCaption": "選擇時間庫與倒數提醒",
+  "@tspBankTimeCaption": {
+    "description": "總時間制區段的說明。"
+  },
+  "tspCustomTurnTitle": "自訂每回合時間",
+  "@tspCustomTurnTitle": {
+    "description": "自訂每回合時間面板的標題。"
+  },
+  "tspCustomBankTitle": "自訂每人總時間",
+  "@tspCustomBankTitle": {
+    "description": "自訂每人總時間面板的標題。"
+  },
+  "tspCustomWarnTitle": "自訂倒數提醒",
+  "@tspCustomWarnTitle": {
+    "description": "自訂倒數提醒秒數面板的標題。"
+  },
+  "tspSectionFischer": "每手加秒（Fischer）",
+  "@tspSectionFischer": {
+    "description": "棋鐘 Fischer 加秒的區段標題。Fischer 是專有名詞保留。"
+  },
+  "tspNoIncrement": "不加秒",
+  "@tspNoIncrement": {
+    "description": "Fischer 加秒選項：0 秒。"
+  },
+  "tspIncrementSeconds": "＋{s} 秒",
+  "@tspIncrementSeconds": {
+    "description": "Fischer 加秒選項：每手加 s 秒。全形加號保留。",
+    "placeholders": {
+      "s": { "type": "int" }
+    }
+  },
+  "tspAutoAdvance": "超時自動換下一位",
+  "@tspAutoAdvance": {
+    "description": "超時自動換人的開關標籤。"
+  },
+  "tspAutoAdvanceSub": "關閉時會等待手動換人",
+  "@tspAutoAdvanceSub": {
+    "description": "超時自動換人開關的副標。"
+  },
+  "tspSectionLibrary": "常用設定",
+  "@tspSectionLibrary": {
+    "description": "常用玩家／常用組合的區段標題。"
+  },
+  "tspLibraryCaption": "需要時再打開，不佔用開局畫面",
+  "@tspLibraryCaption": {
+    "description": "常用設定區段的說明。"
+  },
+  "tspRosterEmpty": "尚未新增",
+  "@tspRosterEmpty": {
+    "description": "常用玩家入口鈕的狀態字：清單為空。"
+  },
+  "tspRosterCount": "{n} 位",
+  "@tspRosterCount": {
+    "description": "常用玩家入口鈕的狀態字：人數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "tspPresetsEmpty": "尚未儲存",
+  "@tspPresetsEmpty": {
+    "description": "常用組合入口鈕的狀態字：清單為空。"
+  },
+  "tspPresetsCount": "{n} 組",
+  "@tspPresetsCount": {
+    "description": "常用組合入口鈕的狀態字：組數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "tspWarnLabel": "倒數提醒（秒）",
+  "@tspWarnLabel": {
+    "description": "倒數提醒秒數的小標。"
+  },
+  "tspWarnRemain": "剩 {s} 秒",
+  "@tspWarnRemain": {
+    "description": "倒數提醒選項：剩 s 秒時提醒。",
+    "placeholders": {
+      "s": { "type": "int" }
+    }
+  },
+  "tspCustomChip": "自訂",
+  "@tspCustomChip": {
+    "description": "自訂時間 chip：還沒設過值時只顯示「自訂」。"
+  },
+  "tspCustomChipValue": "自訂 {value}",
+  "@tspCustomChipValue": {
+    "description": "自訂時間 chip：帶上次設定的值。value 已是格式化時間。",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+  "tspHeaderSemantics": "遊戲桌設定，{summary}",
+  "@tspHeaderSemantics": {
+    "description": "設定頁首的無障礙語意描述。",
+    "placeholders": {
+      "summary": { "type": "String" }
+    }
+  },
+  "tspRowSemantics": "第 {n} 位 {name}",
+  "@tspRowSemantics": {
+    "description": "玩家列的無障礙語意：順位＋名字。",
+    "placeholders": {
+      "n": { "type": "int" },
+      "name": { "type": "String" }
+    }
+  },
+  "tspRowSemanticsChess": "第 {n} 位 {name}，{status}",
+  "@tspRowSemanticsChess": {
+    "description": "棋鐘模式玩家列的無障礙語意，status 是 tspBenched 或 tspOnFieldFull。",
+    "placeholders": {
+      "n": { "type": "int" },
+      "name": { "type": "String" },
+      "status": { "type": "String" }
+    }
+  },
+  "tspBenched": "本局輪空",
+  "@tspBenched": {
+    "description": "棋鐘模式第三位以後的狀態字：這局不上場。"
+  },
+  "tspOnFieldFull": "本局上場",
+  "@tspOnFieldFull": {
+    "description": "棋鐘模式前兩位的無障礙狀態字。"
+  },
+  "tspOnField": "上場",
+  "@tspOnField": {
+    "description": "棋鐘模式前兩位在列表上的短標記。要短。"
+  },
+  "tspRowHintSorting": "拖曳調整出場順位",
+  "@tspRowHintSorting": {
+    "description": "排序模式中玩家列的無障礙操作提示與 tooltip。"
+  },
+  "tspRowHint": "點名字或鉛筆改名，按住蓄色後拖曳排序",
+  "@tspRowHint": {
+    "description": "一般模式中玩家列的無障礙操作提示。"
+  },
+  "tspEditTooltip": "編輯 {name}",
+  "@tspEditTooltip": {
+    "description": "玩家列鉛筆鈕的 tooltip。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "tspRowMenuTooltip": "改名、移動或移除",
+  "@tspRowMenuTooltip": {
+    "description": "玩家列 ⋯ 鈕的 tooltip。"
+  },
+  "tspUsingNow": "使用中",
+  "@tspUsingNow": {
+    "description": "常用組合卡上標示目前套用中的小字。要短。"
+  },
+  "tspStepHint": "每格 {step}，按住可以快轉",
+  "@tspStepHint": {
+    "description": "自訂時間面板的步進說明。step 已是格式化時間。",
+    "placeholders": {
+      "step": { "type": "String" }
+    }
+  },
+  "tspWarnFieldLabel": "提前幾秒提醒",
+  "@tspWarnFieldLabel": {
+    "description": "自訂倒數提醒輸入欄的標籤。"
+  },
+  "tspFromRoster": "從常用玩家帶入",
+  "@tspFromRoster": {
+    "description": "改名對話框的候選名小標。"
+  },
+  "tspAlsoSaveRoster": "同時存入常用玩家",
+  "@tspAlsoSaveRoster": {
+    "description": "改名對話框的勾選：順便存進常用玩家。"
+  },
+
+  "stgEndGameTitle": "結束對局？",
+  "@stgEndGameTitle": {
+    "description": "結束對局確認框的標題。"
+  },
+  "stgEndGameMessage": "結束後會顯示本局小結。",
+  "@stgEndGameMessage": {
+    "description": "結束對局確認框的內文。"
+  },
+  "stgEndGame": "結束對局",
+  "@stgEndGame": {
+    "description": "結束對局的按鈕（確認框主鈕與暫停面板按鈕共用）。"
+  },
+  "stgLeave": "離開",
+  "@stgLeave": {
+    "description": "離開對局頁的按鈕。要短。"
+  },
+  "stgPause": "暫停",
+  "@stgPause": {
+    "description": "暫停對局的按鈕。要短。"
+  },
+  "stgMascotRestSemantics": "兔咪陪你休息一下",
+  "@stgMascotRestSemantics": {
+    "description": "暫停畫面兔咪插圖的無障礙描述。「兔咪」是吉祥物預設名。"
+  },
+  "stgRestTitle": "先休息一下",
+  "@stgRestTitle": {
+    "description": "暫停畫面的大標。"
+  },
+  "stgTurnOf": "輪到 {name}",
+  "@stgTurnOf": {
+    "description": "暫停畫面顯示目前輪到誰。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "stgRestSub": "喝口水休息一下，回來再繼續",
+  "@stgRestSub": {
+    "description": "暫停畫面的副標，語氣輕鬆。"
+  },
+  "stgResume": "繼續",
+  "@stgResume": {
+    "description": "從暫停回到對局的主按鈕。"
+  },
+  "stgPrevPlayer": "回上一位",
+  "@stgPrevPlayer": {
+    "description": "暫停面板：把回合退回上一位玩家。"
+  },
+  "stgRestartTurn": "重開回合",
+  "@stgRestartTurn": {
+    "description": "暫停面板：目前這一手重新計時。"
+  },
+
+  "sumHappyMascotSemantics": "開心的兔咪",
+  "@sumHappyMascotSemantics": {
+    "description": "結算畫面兔咪插圖的無障礙描述。"
+  },
+  "sumGameOver": "對局結束",
+  "@sumGameOver": {
+    "description": "結算畫面的大標。"
+  },
+  "sumPlayedHands": "一起玩了 {n} 手",
+  "@sumPlayedHands": {
+    "description": "結算畫面的副標：本局總手數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "sumPlayAgain": "再來一局",
+  "@sumPlayAgain": {
+    "description": "結算畫面的主按鈕：再開一局。"
+  },
+  "sumFastest": "⚡ 最快",
+  "@sumFastest": {
+    "description": "結算畫面：平均思考最快玩家的徽章。emoji 保留。"
+  },
+  "sumTimeUp": "時間到",
+  "@sumTimeUp": {
+    "description": "棋鐘時間用盡的標記（結算徽章與盤面狀態共用）。"
+  },
+  "sumHandsAndTime": "{n} 手 · {time}",
+  "@sumHandsAndTime": {
+    "description": "結算列：玩家的手數與總思考時間（m:ss）。",
+    "placeholders": {
+      "n": { "type": "int" },
+      "time": { "type": "String" }
+    }
+  },
+  "sumNotPlayed": "沒輪到",
+  "@sumNotPlayed": {
+    "description": "結算列：整局沒輪到的玩家。"
+  },
+  "sumAverage": "平均 {time}",
+  "@sumAverage": {
+    "description": "結算列：平均思考時間。",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+
+  "pfOvertime": "超時",
+  "@pfOvertime": {
+    "description": "對局盤面：超過回合時間的狀態字。要短。"
+  },
+  "pfFirstPlayer": "第一位",
+  "@pfFirstPlayer": {
+    "description": "對局開始前顯示在玩家名上方的字。"
+  },
+  "pfNowTurn": "現在輪到",
+  "@pfNowTurn": {
+    "description": "對局中顯示在玩家名上方的字。"
+  },
+  "pfNextPlayer": "下一位",
+  "@pfNextPlayer": {
+    "description": "多人桌遊面板的大按鈕語意：換下一位。"
+  },
+  "pfTapToStart": "準備好了就點桌面開始",
+  "@pfTapToStart": {
+    "description": "多人桌遊開局前的操作提示。"
+  },
+  "pfTapToNext": "走完了就點桌面，換下一位",
+  "@pfTapToNext": {
+    "description": "多人桌遊進行中的操作提示。"
+  },
+  "pfHandCount": "第 {n} 手",
+  "@pfHandCount": {
+    "description": "對局盤面：目前第幾手。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "cfYourTurnTapHere": "輪到你 · 走完點這裡",
+  "@cfYourTurnTapHere": {
+    "description": "棋鐘：輪到的一側顯示的操作提示。"
+  },
+  "cfTapYourSide": "點自己那側開始",
+  "@cfTapYourSide": {
+    "description": "棋鐘開局前的操作提示。"
+  },
+  "cfPlayerTimeUp": "{name} 時間到",
+  "@cfPlayerTimeUp": {
+    "description": "棋鐘：某位玩家旗倒（時間用盡）。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+
+  "dtTotal": "合計 {n}",
+  "@dtTotal": {
+    "description": "骰子屋：本次擲出的點數合計。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "dtHint": "按住把骰子吸過來，甩出去！",
+  "@dtHint": {
+    "description": "骰子屋的操作提示，語氣活潑。"
+  },
+  "dtCollapse": "收起",
+  "@dtCollapse": {
+    "description": "收起骰子屋面板的按鈕。要短。"
+  },
+  "dtDiceCount": "{n} 顆骰子",
+  "@dtDiceCount": {
+    "description": "骰子數量選擇的顯示。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "dtRoll": "擲骰子",
+  "@dtRoll": {
+    "description": "擲骰子按鈕。"
+  },
+
+  "ddpScoreLine": "你 {p} 勝・{name} {m} 勝・平手 {t}",
+  "@ddpScoreLine": {
+    "description": "骰子對決的比分列。name 是兔咪名。全形間隔號保留。",
+    "placeholders": {
+      "p": { "type": "int" },
+      "name": { "type": "String" },
+      "m": { "type": "int" },
+      "t": { "type": "int" }
+    }
+  },
+  "ddpScoreSemantics": "本次 {rounds} 局，你 {p} 勝，{name} {m} 勝，平手 {t}",
+  "@ddpScoreSemantics": {
+    "description": "比分列的無障礙語意描述。",
+    "placeholders": {
+      "rounds": { "type": "int" },
+      "p": { "type": "int" },
+      "name": { "type": "String" },
+      "m": { "type": "int" },
+      "t": { "type": "int" }
+    }
+  },
+  "ddpRoundsThisTime": "本次 {rounds} 局",
+  "@ddpRoundsThisTime": {
+    "description": "骰子對決：目前累計局數。",
+    "placeholders": {
+      "rounds": { "type": "int" }
+    }
+  },
+  "ddpYouWin": "你贏了！",
+  "@ddpYouWin": {
+    "description": "骰子對決結果：玩家勝。"
+  },
+  "ddpMascotWin": "{name}贏了！",
+  "@ddpMascotWin": {
+    "description": "骰子對決結果：兔咪勝。中文名字後不空格。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "ddpTie": "平手！",
+  "@ddpTie": {
+    "description": "骰子對決結果：平手。"
+  },
+  "ddpResultSemantics": "{result}，你 {p} 點，{name} {m} 點",
+  "@ddpResultSemantics": {
+    "description": "骰子對決結果的無障礙語意。",
+    "placeholders": {
+      "result": { "type": "String" },
+      "p": { "type": "int" },
+      "name": { "type": "String" },
+      "m": { "type": "int" }
+    }
+  },
+  "ddpVsLine": "你 {p}・{name} {m}",
+  "@ddpVsLine": {
+    "description": "骰子對決：雙方點數。全形間隔號保留。",
+    "placeholders": {
+      "p": { "type": "int" },
+      "name": { "type": "String" },
+      "m": { "type": "int" }
+    }
+  },
+  "ddpYouPrefix": "你：{n}",
+  "@ddpYouPrefix": {
+    "description": "骰子對決：玩家自己的點數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "ddpEndGame": "結束遊戲",
+  "@ddpEndGame": {
+    "description": "結束骰子對決的按鈕。"
   }
 }

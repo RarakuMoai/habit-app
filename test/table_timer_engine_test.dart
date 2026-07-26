@@ -1,5 +1,7 @@
 // 桌遊計時器引擎單測：假時鐘 + 手動 tick，不等真時間。
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/pages/timer/game/table_timer_engine.dart';
 import 'package:habit_app/pages/timer/game/table_timer_models.dart';
 
@@ -326,11 +328,12 @@ void main() {
     });
   });
 
-  test('timeSummary 摘要字串', () {
-    expect(cfg(turnSeconds: 90).timeSummary, '每回合 1 分 30 秒');
-    expect(cfg(mode: TableGameMode.free).timeSummary, '自由計時');
+  test('timeSummaryOf 摘要字串', () {
+    final l10n = lookupAppLocalizations(const Locale('zh'));
+    expect(cfg(turnSeconds: 90).timeSummaryOf(l10n), '每回合 1 分 30 秒');
+    expect(cfg(mode: TableGameMode.free).timeSummaryOf(l10n), '自由計時');
     expect(
-      cfg(mode: TableGameMode.chess, chessUseBank: true).timeSummary,
+      cfg(mode: TableGameMode.chess, chessUseBank: true).timeSummaryOf(l10n),
       '每人 5 分',
     );
     expect(
@@ -338,11 +341,11 @@ void main() {
         mode: TableGameMode.chess,
         chessUseBank: true,
         incrementSeconds: 2,
-      ).timeSummary,
+      ).timeSummaryOf(l10n),
       '每人 5 分 ＋2 秒',
     );
     // 非棋鐘模式即使帶 bank 欄位也走每回合制摘要
-    expect(cfg(chessUseBank: true).timeSummary, '每回合 1 分');
+    expect(cfg(chessUseBank: true).timeSummaryOf(l10n), '每回合 1 分');
   });
 
   test('config 編解碼 round-trip，壞資料回 fallback', () {

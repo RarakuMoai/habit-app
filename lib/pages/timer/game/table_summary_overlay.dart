@@ -7,6 +7,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import 'table_timer_engine.dart';
@@ -45,6 +46,7 @@ class TableSummaryOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final fastest = _fastestIndex;
     return Positioned.fill(
       child: BackdropFilter(
@@ -86,7 +88,7 @@ class TableSummaryOverlay extends StatelessWidget {
                               width: 104,
                               height: 104,
                               fit: BoxFit.contain,
-                              semanticLabel: '開心的兔咪',
+                              semanticLabel: l10n.sumHappyMascotSemantics,
                             ),
                             const Positioned(
                               right: 74,
@@ -101,9 +103,9 @@ class TableSummaryOverlay extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '對局結束',
-                        style: TextStyle(
+                      Text(
+                        l10n.sumGameOver,
+                        style: const TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
                           color: AppInk.strong,
@@ -111,7 +113,7 @@ class TableSummaryOverlay extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '一起玩了 ${engine.settledTurns} 手',
+                        l10n.sumPlayedHands(engine.settledTurns),
                         style: AppType.digits(
                           fontSize: 13.5,
                           color: AppInk.soft,
@@ -127,20 +129,20 @@ class TableSummaryOverlay extends StatelessWidget {
                         child: Column(
                           children: [
                             for (var i = 0; i < engine.players.length; i++)
-                              _playerRow(i, isFastest: i == fastest),
+                              _playerRow(l10n, i, isFastest: i == fastest),
                           ],
                         ),
                       ),
                       const SizedBox(height: 18),
                       _button(
-                        label: '再來一局',
+                        label: l10n.sumPlayAgain,
                         icon: Icons.replay_rounded,
                         filled: true,
                         onTap: onRematch,
                       ),
                       const SizedBox(height: 8),
                       _button(
-                        label: '離開',
+                        label: l10n.stgLeave,
                         icon: Icons.logout_rounded,
                         onTap: onLeave,
                       ),
@@ -155,7 +157,7 @@ class TableSummaryOverlay extends StatelessWidget {
     );
   }
 
-  Widget _playerRow(int i, {required bool isFastest}) {
+  Widget _playerRow(AppLocalizations l10n, int i, {required bool isFastest}) {
     final player = engine.players[i];
     final stats = engine.stats[i];
     final seat = TableTheme.seatColor(player.colorIndex);
@@ -186,12 +188,16 @@ class TableSummaryOverlay extends StatelessWidget {
                 ),
                 if (isFastest) ...[
                   const SizedBox(width: 6),
-                  _miniBadge('⚡ 最快', _amberInk, _amber.withValues(alpha: 0.16)),
+                  _miniBadge(
+                    l10n.sumFastest,
+                    _amberInk,
+                    _amber.withValues(alpha: 0.16),
+                  ),
                 ],
                 if (engine.flagFallIndex == i) ...[
                   const SizedBox(width: 6),
                   _miniBadge(
-                    '時間到',
+                    l10n.sumTimeUp,
                     AppInk.danger,
                     AppInk.danger.withValues(alpha: 0.10),
                   ),
@@ -206,14 +212,17 @@ class TableSummaryOverlay extends StatelessWidget {
               Text(
                 stats.turns == 0
                     ? '－'
-                    : '${stats.turns} 手 · ${formatTableElapsed(stats.totalThink)}',
+                    : l10n.sumHandsAndTime(
+                        stats.turns,
+                        formatTableElapsed(stats.totalThink),
+                      ),
                 style: AppType.digits(fontSize: 14, color: AppInk.strong),
               ),
               const SizedBox(height: 1),
               Text(
                 stats.turns == 0
-                    ? '沒輪到'
-                    : '平均 ${formatTableElapsed(stats.averageThink)}',
+                    ? l10n.sumNotPlayed
+                    : l10n.sumAverage(formatTableElapsed(stats.averageThink)),
                 style: AppType.digits(fontSize: 11.5, color: AppInk.faint),
               ),
             ],

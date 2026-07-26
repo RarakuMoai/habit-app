@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/sfx_service.dart';
@@ -33,6 +34,9 @@ class GameTimer extends StatefulWidget {
 
 class _GameTimerState extends State<GameTimer> {
   SharedPreferences? _prefs;
+
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   TableTimerConfig _config = TableTimerConfig.fallback();
 
   @override
@@ -101,7 +105,10 @@ class _GameTimerState extends State<GameTimer> {
         }
       }
       players.add(
-        TablePlayer(name: '玩家 ${players.length + 1}', colorIndex: color),
+        TablePlayer(
+          name: _l10n.defaultPlayerName(players.length + 1),
+          colorIndex: color,
+        ),
       );
     }
     playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
@@ -142,18 +149,18 @@ class _GameTimerState extends State<GameTimer> {
                 ),
               ),
               const SizedBox(height: 14),
-              const Text(
-                '今天幾位上桌？',
-                style: TextStyle(
+              Text(
+                _l10n.gtPlayersCountTitle,
+                style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                   color: AppInk.strong,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                '名字與顏色可到右上「設定」細調',
-                style: TextStyle(
+              Text(
+                _l10n.gtPlayersCountSub,
+                style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
                   color: AppInk.soft,
@@ -267,7 +274,7 @@ class _GameTimerState extends State<GameTimer> {
                         top: 0,
                         right: 6,
                         child: IconButton(
-                          tooltip: '關閉',
+                          tooltip: _l10n.commonClose,
                           icon: const Icon(
                             Icons.close_rounded,
                             color: AppInk.iconFaint,
@@ -308,9 +315,9 @@ class _GameTimerState extends State<GameTimer> {
                         Navigator.pop(sheetContext);
                       },
                       icon: const Icon(Icons.check_rounded, size: 19),
-                      label: const Text(
-                        '完成',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                      label: Text(
+                        _l10n.commonDone,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
                   ),
@@ -323,9 +330,11 @@ class _GameTimerState extends State<GameTimer> {
     );
   }
 
-  String get _oneLineSummary =>
-      '${_config.mode.label} · ${_config.activePlayers.length} 人 · '
-      '${_config.timeSummary}';
+  String get _oneLineSummary => _l10n.tableSummaryLine(
+    _config.mode.labelOf(_l10n),
+    _config.activePlayers.length,
+    _config.timeSummaryOf(_l10n),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -337,11 +346,11 @@ class _GameTimerState extends State<GameTimer> {
   Widget _buildReady() {
     return TimerModeFrame(
       heroBuilder: (context, size) => _tableHero(size),
-      status: const TimerStatusPill(
+      status: TimerStatusPill(
         stateKey: 'ready',
         color: kGameAccent,
         icon: Icons.groups_rounded,
-        label: '準備開局',
+        label: _l10n.gtReadyPill,
       ),
       // 玩家色點已內建在圓桌座位上，這裡不再重複一排（槽位留白保持
       // 四模式垂直節奏一致）。
@@ -354,14 +363,14 @@ class _GameTimerState extends State<GameTimer> {
         // 右「骰子」是不開局也常用的工具。棋鐘固定 2 位上場，人數鈕停用。
         leading: TimerSecondaryAction(
           icon: Icons.groups_rounded,
-          label: '玩家',
+          label: _l10n.gtPlayersLabel,
           onTap: _prefs == null || _config.mode == TableGameMode.chess
               ? null
               : _openPlayerCountSheet,
         ),
         trailing: TimerSecondaryAction(
           icon: Icons.casino_rounded,
-          label: '骰子',
+          label: _l10n.gtDiceLabel,
           onTap: _openDice,
         ),
       ),
@@ -420,9 +429,9 @@ class _GameTimerState extends State<GameTimer> {
                     color: kGameAccent.withValues(alpha: 0.75),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    '遊戲桌',
-                    style: TextStyle(
+                  Text(
+                    _l10n.gtTableTitle,
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                       color: AppInk.strong,
@@ -430,7 +439,7 @@ class _GameTimerState extends State<GameTimer> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${_config.activePlayers.length} 位玩家',
+                    _l10n.gtPlayersCount(_config.activePlayers.length),
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -505,7 +514,7 @@ class _GameTimerState extends State<GameTimer> {
             ),
             const SizedBox(height: 1),
             Text(
-              mode.label,
+              mode.labelOf(_l10n),
               maxLines: 1,
               style: TextStyle(
                 fontSize: 12.5,

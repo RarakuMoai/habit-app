@@ -6,6 +6,8 @@
 // 是一次性的，不落地——牌局中途殺 app 就重開一局，符合實體桌遊直覺。
 import 'dart:convert';
 
+import '../../../l10n/app_localizations.dart';
+
 /// 遊戲模式。
 /// - [party]：多人桌遊輪流（2–6 人，整面點擊換下一位）。
 /// - [chess]：二人棋鐘（上下分割，點自己那半換對方）。
@@ -13,7 +15,22 @@ import 'dart:convert';
 enum TableGameMode { party, chess, free }
 
 extension TableGameModeLabel on TableGameMode {
-  String get label => switch (this) {
+  /// 玩法全名（i18n）。
+  String labelOf(AppLocalizations l10n) => switch (this) {
+    TableGameMode.party => l10n.tableModePartyFull,
+    TableGameMode.chess => l10n.tableModeChessFull,
+    TableGameMode.free => l10n.tableModeFreeFull,
+  };
+
+  /// 玩法短名（切換膠囊、常用組合預設名共用）。
+  String shortLabelOf(AppLocalizations l10n) => switch (this) {
+    TableGameMode.party => l10n.tableModePartyShort,
+    TableGameMode.chess => l10n.tableModeChessShort,
+    TableGameMode.free => l10n.tableModeFreeShort,
+  };
+
+  // 舊版自動命名比對用的繁中全名（_legacyDefaultName），不做顯示。
+  String get _legacyZhLabel => switch (this) {
     TableGameMode.party => '多人桌遊',
     TableGameMode.chess => '二人棋鐘',
     TableGameMode.free => '自由輪流',
@@ -129,19 +146,39 @@ class TableTimerConfig {
   /// 是否走棋鐘總時間制（時間庫）。
   bool get usesBank => mode == TableGameMode.chess && chessUseBank;
 
-  /// 時間設定的一句話摘要（入口卡、preset 預設名共用）。
-  String get timeSummary {
+  /// 時間設定的一句話摘要（入口卡、常用組合副標共用，i18n）。
+  String timeSummaryOf(AppLocalizations l10n) {
+    if (mode == TableGameMode.free) return l10n.tableTimeFree;
+    if (usesBank) {
+      final bank = formatDuration(l10n, bankSeconds);
+      return incrementSeconds > 0
+          ? l10n.tableTimeBankInc(bank, incrementSeconds)
+          : l10n.tableTimeBank(bank);
+    }
+    return l10n.tableTimePerTurn(formatDuration(l10n, turnSeconds));
+  }
+
+  /// 秒數 → 「N 秒／N 分／N 分 M 秒」（i18n；設定面板也用）。
+  static String formatDuration(AppLocalizations l10n, int s) {
+    if (s < 60) return l10n.durSeconds(s);
+    final m = s ~/ 60;
+    final r = s % 60;
+    return r == 0 ? l10n.durMinutes(m) : l10n.durMinSec(m, r);
+  }
+
+  // 舊版自動命名比對用（_legacyDefaultName），維持當年的繁中輸出。
+  String get _legacyZhTimeSummary {
     if (mode == TableGameMode.free) return '自由計時';
     if (usesBank) {
-      final bank = _fmtSeconds(bankSeconds);
+      final bank = _legacyZhFmtSeconds(bankSeconds);
       return incrementSeconds > 0
           ? '每人 $bank ＋$incrementSeconds 秒'
           : '每人 $bank';
     }
-    return '每回合 ${_fmtSeconds(turnSeconds)}';
+    return '每回合 ${_legacyZhFmtSeconds(turnSeconds)}';
   }
 
-  static String _fmtSeconds(int s) {
+  static String _legacyZhFmtSeconds(int s) {
     if (s < 60) return '$s 秒';
     final m = s ~/ 60;
     final r = s % 60;
@@ -243,14 +280,14 @@ class TablePreset {
   const TablePreset({required this.name, required this.config});
 
   /// 名稱只負責辨識玩法；人數與時間由 UI 的系統摘要顯示，避免重複。
-  static String defaultName(TableTimerConfig c) => switch (c.mode) {
-    TableGameMode.party => '多人',
-    TableGameMode.chess => '二人',
-    TableGameMode.free => '自由',
-  };
+  /// 是「儲存值的種子」：只在建立常用組合時取一次，存過的名字照原樣顯示。
+  static String defaultName(AppLocalizations l10n, TableTimerConfig c) =>
+      c.mode.shortLabelOf(l10n);
 
+  // 舊版存檔用當年的繁中自動命名，比對時維持原字串（勿改）。
   static String _legacyDefaultName(TableTimerConfig c) =>
-      '${c.mode.label} ${c.activePlayers.length} 人 · ${c.timeSummary}';
+      '${c.mode._legacyZhLabel} ${c.activePlayers.length} 人 · '
+      '${c._legacyZhTimeSummary}';
 
   static String encodeList(List<TablePreset> presets) => jsonEncode({
     'v': 1,
@@ -283,9 +320,16 @@ class TablePreset {
   static TablePreset _decodePreset(Map<Object?, Object?> e) {
     final config = TableTimerConfig.decode(e['config'] as String);
     final savedName = e['name'] as String;
+    // 偵測到舊版自動名就轉成當年繁中短名（decode 無 context 可用 l10n；
+    // 這是一次性資料遷移，維持繁中與舊資料一致）。
+    const legacyShortNames = {
+      TableGameMode.party: '多人',
+      TableGameMode.chess: '二人',
+      TableGameMode.free: '自由',
+    };
     return TablePreset(
       name: savedName == _legacyDefaultName(config)
-          ? defaultName(config)
+          ? legacyShortNames[config.mode]!
           : savedName,
       config: config,
     );

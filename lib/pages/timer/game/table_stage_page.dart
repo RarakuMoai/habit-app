@@ -6,6 +6,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/sfx_service.dart';
@@ -86,11 +87,12 @@ class _TableStagePageState extends State<TableStagePage>
       return;
     }
     _engine.pause();
+    final l10n = AppLocalizations.of(context);
     final leave = await showAppConfirmDialog(
       context,
-      title: '結束對局？',
-      message: '結束後會顯示本局小結。',
-      confirmLabel: '結束對局',
+      title: l10n.stgEndGameTitle,
+      message: l10n.stgEndGameMessage,
+      confirmLabel: l10n.stgEndGame,
       danger: true,
     );
     if (!mounted) return;
@@ -115,6 +117,7 @@ class _TableStagePageState extends State<TableStagePage>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -181,13 +184,13 @@ class _TableStagePageState extends State<TableStagePage>
                                 children: [
                                   _StageActionButton(
                                     icon: Icons.close_rounded,
-                                    label: '離開',
+                                    label: l10n.stgLeave,
                                     onTap: _confirmExit,
                                   ),
                                   const Spacer(),
                                   _StageActionButton(
                                     icon: Icons.pause_rounded,
-                                    label: '暫停',
+                                    label: l10n.stgPause,
                                     onTap: _engine.phase == TablePhase.running
                                         ? _engine.pause
                                         : null,
@@ -195,7 +198,7 @@ class _TableStagePageState extends State<TableStagePage>
                                   const SizedBox(width: 8),
                                   _StageActionButton(
                                     icon: Icons.casino_rounded,
-                                    label: '骰子',
+                                    label: l10n.gtDiceLabel,
                                     onTap: () =>
                                         setState(() => _showDiceTray = true),
                                   ),
@@ -234,7 +237,11 @@ class _StageActionButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
 
-  const _StageActionButton({required this.icon, required this.label, this.onTap});
+  const _StageActionButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -307,6 +314,7 @@ class _PauseOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final seat = TableTheme.seatColor(engine.currentPlayer.colorIndex);
     return Positioned.fill(
       child: BackdropFilter(
@@ -348,7 +356,7 @@ class _PauseOverlay extends StatelessWidget {
                               width: 92,
                               height: 92,
                               fit: BoxFit.contain,
-                              semanticLabel: '兔咪陪你休息一下',
+                              semanticLabel: l10n.stgMascotRestSemantics,
                             ),
                             Positioned(
                               right: 2,
@@ -371,9 +379,9 @@ class _PauseOverlay extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '先休息一下',
-                        style: TextStyle(
+                      Text(
+                        l10n.stgRestTitle,
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
                           color: AppInk.strong,
@@ -394,7 +402,7 @@ class _PauseOverlay extends StatelessWidget {
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              '輪到 ${engine.currentPlayer.name}',
+                              l10n.stgTurnOf(engine.currentPlayer.name),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -407,13 +415,16 @@ class _PauseOverlay extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      const Text(
-                        '喝口水休息一下，回來再繼續',
-                        style: TextStyle(fontSize: 12.5, color: AppInk.soft),
+                      Text(
+                        l10n.stgRestSub,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: AppInk.soft,
+                        ),
                       ),
                       const SizedBox(height: 18),
                       _cardButton(
-                        label: '繼續',
+                        label: l10n.stgResume,
                         icon: Icons.play_arrow_rounded,
                         background: seat,
                         foreground: Colors.white,
@@ -426,7 +437,7 @@ class _PauseOverlay extends StatelessWidget {
                         children: [
                           Expanded(
                             child: _cardButton(
-                              label: '回上一位',
+                              label: l10n.stgPrevPlayer,
                               icon: Icons.undo_rounded,
                               onTap: engine.canUndo ? engine.undo : null,
                             ),
@@ -434,7 +445,7 @@ class _PauseOverlay extends StatelessWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: _cardButton(
-                              label: '重開回合',
+                              label: l10n.stgRestartTurn,
                               icon: Icons.replay_rounded,
                               onTap: engine.restartTurn,
                             ),
@@ -443,7 +454,7 @@ class _PauseOverlay extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       _cardButton(
-                        label: '結束對局',
+                        label: l10n.stgEndGame,
                         icon: Icons.stop_rounded,
                         foreground: AppInk.danger,
                         flat: true,

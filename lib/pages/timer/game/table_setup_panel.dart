@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/prefs_keys.dart';
@@ -42,6 +43,8 @@ class TableSetupPanel extends StatefulWidget {
 
 class _TableSetupPanelState extends State<TableSetupPanel>
     with SingleTickerProviderStateMixin {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   late TableTimerConfig _config;
   late List<String> _roster;
   late List<TablePreset> _presets;
@@ -155,7 +158,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       _config.copyWith(
         players: [
           ..._config.players,
-          TablePlayer(name: '玩家 $n', colorIndex: _nextFreeColor()),
+          TablePlayer(
+            name: _l10n.defaultPlayerName(n),
+            colorIndex: _nextFreeColor(),
+          ),
         ],
       ),
     );
@@ -203,20 +209,25 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     final canRemove = _config.players.length > TableTimerConfig.minPlayers;
     final action = await _showActionSheet(
       title: p.name,
-      subtitle: '目前第 ${i + 1} 位',
+      subtitle: _l10n.tspCurrentPosition(i + 1),
       actions: [
-        (key: 'rename', icon: Icons.edit_rounded, label: '改名', danger: false),
+        (
+          key: 'rename',
+          icon: Icons.edit_rounded,
+          label: _l10n.actionRename,
+          danger: false,
+        ),
         (
           key: 'move',
           icon: Icons.swap_vert_rounded,
-          label: '移動',
+          label: _l10n.actionMove,
           danger: false,
         ),
         if (canRemove)
           (
             key: 'remove',
             icon: Icons.person_remove_rounded,
-            label: '移除',
+            label: _l10n.actionRemove,
             danger: true,
           ),
       ],
@@ -239,10 +250,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     final result = await showDialog<_NameInputResult>(
       context: context,
       builder: (_) => _NameInputDialog(
-        title: '玩家名字',
-        hint: '輸入名字',
+        title: _l10n.tspPlayerNameTitle,
+        hint: _l10n.tspEnterName,
         maxLength: 12,
-        confirmLabel: '確定',
+        confirmLabel: _l10n.commonOk,
         initial: player.name,
         suggestions: _roster,
         askAddToRoster: true,
@@ -284,7 +295,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       context: context,
       builder: (_) => _NameInputDialog(
         title: title,
-        hint: '組合名稱',
+        hint: _l10n.tspGroupNameHint,
         maxLength: 20,
         confirmLabel: confirmLabel,
         initial: initial,
@@ -296,9 +307,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
   Future<void> _saveCurrentAsPreset() async {
     if (_presets.length >= TablePreset.maxCount) return;
     final name = await _askPresetName(
-      title: '儲存常用組合',
-      initial: TablePreset.defaultName(_config),
-      confirmLabel: '儲存',
+      title: _l10n.tspSavePresetTitle,
+      initial: TablePreset.defaultName(_l10n, _config),
+      confirmLabel: _l10n.commonSave,
     );
     if (name == null) return;
     playFeedback(SfxCue.success);
@@ -316,9 +327,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
 
   Future<void> _renamePreset(TablePreset preset) async {
     final name = await _askPresetName(
-      title: '常用組合改名',
+      title: _l10n.tspRenamePresetTitle,
       initial: preset.name,
-      confirmLabel: '確定',
+      confirmLabel: _l10n.commonOk,
     );
     if (name == null) return;
     final i = _presets.indexOf(preset);
@@ -333,13 +344,18 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     playHaptic(HapticLevel.selection);
     final action = await _showActionSheet(
       title: preset.name,
-      subtitle: TablePreset.defaultName(preset.config),
+      subtitle: TablePreset.defaultName(_l10n, preset.config),
       actions: [
-        (key: 'rename', icon: Icons.edit_rounded, label: '改名', danger: false),
+        (
+          key: 'rename',
+          icon: Icons.edit_rounded,
+          label: _l10n.actionRename,
+          danger: false,
+        ),
         (
           key: 'delete',
           icon: Icons.delete_outline_rounded,
-          label: '刪除這組',
+          label: _l10n.actionDeleteGroup,
           danger: true,
         ),
       ],
@@ -430,11 +446,11 @@ class _TableSetupPanelState extends State<TableSetupPanel>
   Future<void> _addRosterName() async {
     final result = await showDialog<_NameInputResult>(
       context: context,
-      builder: (_) => const _NameInputDialog(
-        title: '新增常用玩家',
-        hint: '輸入名字',
+      builder: (_) => _NameInputDialog(
+        title: _l10n.tspAddRosterTitle,
+        hint: _l10n.tspEnterName,
         maxLength: 12,
-        confirmLabel: '新增',
+        confirmLabel: _l10n.actionAdd,
       ),
     );
     final name = result?.name;
@@ -465,9 +481,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               .length;
           final nextCount = keptCount + selected.length;
           return _librarySheet(
-            title: '常用玩家',
-            subtitle: '先選好這局要用的玩家，再按確認加入',
-            confirmLabel: '確認加入（${selected.length} 位）',
+            title: _l10n.tspRosterTitle,
+            subtitle: _l10n.tspRosterSub,
+            confirmLabel: _l10n.tspRosterConfirm(selected.length),
             onConfirm:
                 nextCount >= TableTimerConfig.minPlayers &&
                     nextCount <= TableTimerConfig.maxPlayers
@@ -508,7 +524,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                     setSheet(() {});
                   },
                   trailing: IconButton(
-                    tooltip: '移除 $name',
+                    tooltip: _l10n.tspRemoveName(name),
                     onPressed: () {
                       playFeedback(SfxCue.cancel);
                       selected.remove(name);
@@ -522,7 +538,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                 ),
               _librarySheetRow(
                 icon: Icons.add_rounded,
-                title: '新增常用玩家',
+                title: _l10n.tspAddRosterTitle,
                 accent: true,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -553,9 +569,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       clipBehavior: Clip.antiAlias,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => _librarySheet(
-          title: '常用組合',
-          subtitle: '先選一組，確認後才會替換本局玩家與時間',
-          confirmLabel: '確認套用',
+          title: _l10n.tspPresetsTitle,
+          subtitle: _l10n.tspPresetsSub,
+          confirmLabel: _l10n.tspPresetsConfirm,
           onConfirm: selectedPreset == null
               ? null
               : () {
@@ -569,8 +585,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                     ? Icons.check_circle_rounded
                     : _modeIcon(preset.config.mode),
                 title: preset.name,
-                subtitle:
-                    '${preset.config.activePlayers.length} 人 · ${preset.config.timeSummary}',
+                subtitle: _l10n.playersDotTime(
+                  preset.config.activePlayers.length,
+                  preset.config.timeSummaryOf(_l10n),
+                ),
                 selected: identical(selectedPreset, preset),
                 onTap: () {
                   selectedPreset = preset;
@@ -580,7 +598,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      tooltip: '改名 ${preset.name}',
+                      tooltip: _l10n.tspRenameTooltip(preset.name),
                       onPressed: () {
                         Navigator.pop(ctx);
                         _renamePreset(preset);
@@ -588,7 +606,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       icon: const Icon(Icons.edit_rounded, size: 18),
                     ),
                     IconButton(
-                      tooltip: '刪除 ${preset.name}',
+                      tooltip: _l10n.tspDeleteTooltip(preset.name),
                       onPressed: () {
                         playFeedback(SfxCue.cancel);
                         if (identical(selectedPreset, preset)) {
@@ -611,7 +629,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             if (_presets.length < TablePreset.maxCount)
               _librarySheetRow(
                 icon: Icons.add_rounded,
-                title: '儲存目前設定',
+                title: _l10n.tspSaveCurrent,
                 accent: true,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -624,11 +642,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     );
   }
 
-  String _shortMode(TableGameMode mode) => switch (mode) {
-    TableGameMode.party => '多人',
-    TableGameMode.chess => '二人',
-    TableGameMode.free => '自由',
-  };
+  String _shortMode(TableGameMode mode) => mode.shortLabelOf(_l10n);
 
   Widget _librarySheet({
     required String title,
@@ -810,23 +824,27 @@ class _TableSetupPanelState extends State<TableSetupPanel>
         _padded([
           _header(),
           const SizedBox(height: 20),
-          _sectionTitle('玩法'),
+          _sectionTitle(_l10n.tspSectionMode),
           const SizedBox(height: 8),
           _modeSwitch(),
           const SizedBox(height: 6),
           Text(switch (_config.mode) {
-            TableGameMode.party => '放桌子中央，輪到誰就點一下換下一位',
-            TableGameMode.chess => '兩人對坐，點自己那側交棒給對方',
-            TableGameMode.free => '不倒數沒壓力，只記錄輪到誰、想了多久',
+            TableGameMode.party => _l10n.tspModeHintParty,
+            TableGameMode.chess => _l10n.tspModeHintChess,
+            TableGameMode.free => _l10n.tspModeHintFree,
           }, style: const TextStyle(fontSize: 12, color: AppInk.soft)),
           const SizedBox(height: 20),
           _sectionTitle(
-            '出場順位',
+            _l10n.tspSectionOrder,
             caption: _sortingPlayers
-                ? '拖曳玩家調整出場順位'
-                : (chess ? '前兩位上場，其餘本局輪空' : '按住蓄色後拖曳調整'),
+                ? _l10n.tspOrderSortCaption
+                : (chess ? _l10n.tspOrderChessCaption : _l10n.tspOrderCaption),
             trailing: _sortingPlayers
-                ? _tonalChip('完成排序', onTap: _finishSortingPlayers, accent: true)
+                ? _tonalChip(
+                    _l10n.tspFinishSorting,
+                    onTap: _finishSortingPlayers,
+                    accent: true,
+                  )
                 : null,
           ),
           const SizedBox(height: 8),
@@ -839,21 +857,24 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               child: TextButton.icon(
                 onPressed: _addPlayer,
                 icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text(
-                  '新增玩家',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                label: Text(
+                  _l10n.tspAddPlayer,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
             ),
           if (chess) ...[
             const SizedBox(height: 12),
-            _sectionTitle('計時制'),
+            _sectionTitle(_l10n.tspSectionTiming),
             const SizedBox(height: 8),
             _timingSwitch(),
           ],
           if (!free && !_config.usesBank) ...[
             const SizedBox(height: 20),
-            _sectionTitle('每回合時間', caption: '選擇回合長度與倒數提醒'),
+            _sectionTitle(
+              _l10n.tspSectionTurnTime,
+              caption: _l10n.tspTurnTimeCaption,
+            ),
             const SizedBox(height: 8),
             _timeAndReminderCard(
               presets: _turnPresets,
@@ -861,7 +882,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               onTime: (s) => _apply(_config.copyWith(turnSeconds: s)),
               custom: _customTimeChip(
                 presets: _turnPresets,
-                title: '自訂每回合時間',
+                title: _l10n.tspCustomTurnTitle,
                 step: 5,
                 min: TableTimerConfig.minTurnSeconds,
                 max: TableTimerConfig.maxTurnSeconds,
@@ -873,7 +894,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
           ],
           if (_config.usesBank) ...[
             const SizedBox(height: 20),
-            _sectionTitle('每人總時間', caption: '選擇時間庫與倒數提醒'),
+            _sectionTitle(
+              _l10n.tspSectionBankTime,
+              caption: _l10n.tspBankTimeCaption,
+            ),
             const SizedBox(height: 8),
             _timeAndReminderCard(
               presets: _bankPresets,
@@ -881,7 +905,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               onTime: (s) => _apply(_config.copyWith(bankSeconds: s)),
               custom: _customTimeChip(
                 presets: _bankPresets,
-                title: '自訂每人總時間',
+                title: _l10n.tspCustomBankTitle,
                 step: 30,
                 min: TableTimerConfig.minBankSeconds,
                 max: TableTimerConfig.maxBankSeconds,
@@ -893,7 +917,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
           ],
           if (_config.usesBank) ...[
             const SizedBox(height: 14),
-            _sectionTitle('每手加秒（Fischer）'),
+            _sectionTitle(_l10n.tspSectionFischer),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -901,7 +925,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               children: [
                 for (final s in _incrementPresets)
                   _valueChip(
-                    s == 0 ? '不加秒' : '＋$s 秒',
+                    s == 0
+                        ? _l10n.tspNoIncrement
+                        : _l10n.tspIncrementSeconds(s),
                     selected: _config.incrementSeconds == s,
                     onTap: () => _apply(_config.copyWith(incrementSeconds: s)),
                   ),
@@ -913,15 +939,20 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             _autoAdvanceRow(),
           ],
           const SizedBox(height: 24),
-          _sectionTitle('常用設定', caption: '需要時再打開，不佔用開局畫面'),
+          _sectionTitle(
+            _l10n.tspSectionLibrary,
+            caption: _l10n.tspLibraryCaption,
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: _libraryButton(
                   icon: Icons.people_alt_rounded,
-                  title: '常用玩家',
-                  detail: _roster.isEmpty ? '尚未新增' : '${_roster.length} 位',
+                  title: _l10n.tspRosterTitle,
+                  detail: _roster.isEmpty
+                      ? _l10n.tspRosterEmpty
+                      : _l10n.tspRosterCount(_roster.length),
                   onTap: _openRosterSheet,
                 ),
               ),
@@ -929,8 +960,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               Expanded(
                 child: _libraryButton(
                   icon: Icons.bookmarks_rounded,
-                  title: '常用組合',
-                  detail: _presets.isEmpty ? '尚未儲存' : '${_presets.length} 組',
+                  title: _l10n.tspPresetsTitle,
+                  detail: _presets.isEmpty
+                      ? _l10n.tspPresetsEmpty
+                      : _l10n.tspPresetsCount(_presets.length),
                   onTap: _openPresetsSheet,
                 ),
               ),
@@ -974,9 +1007,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 10),
-          const Text(
-            '倒數提醒（秒）',
-            style: TextStyle(
+          Text(
+            _l10n.tspWarnLabel,
+            style: const TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w800,
               color: AppInk.soft,
@@ -990,7 +1023,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
               for (final s in _warnPresets)
                 if (s <= _config.warnCap)
                   _valueChip(
-                    '剩 $s 秒',
+                    _l10n.tspWarnRemain(s),
                     selected: _config.warnSeconds == s,
                     onTap: () => _apply(_config.copyWith(warnSeconds: s)),
                   ),
@@ -1001,7 +1034,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             alignment: Alignment.centerLeft,
             child: _customTimeChip(
               presets: _warnPresets,
-              title: '自訂倒數提醒',
+              title: _l10n.tspCustomWarnTitle,
               step: 1,
               min: TableTimerConfig.minWarnSeconds,
               max: _config.warnCap,
@@ -1023,21 +1056,21 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '超時自動換下一位',
-                  style: TextStyle(
+                  _l10n.tspAutoAdvance,
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: AppInk.strong,
                   ),
                 ),
                 Text(
-                  '關閉時會等待手動換人',
-                  style: TextStyle(fontSize: 12, color: AppInk.soft),
+                  _l10n.tspAutoAdvanceSub,
+                  style: const TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
               ],
             ),
@@ -1117,12 +1150,14 @@ class _TableSetupPanelState extends State<TableSetupPanel>
   /// 頁首只保留兔咪與本局摘要；骰子入口留在外層準備畫面。
   /// 卡片刻意收短，讓真正要調整的玩法與玩家更早進入首屏。
   Widget _header() {
-    final summary =
-        '${_config.mode.label} · ${_config.activePlayers.length} 人 · '
-        '${_config.timeSummary}';
+    final summary = _l10n.tableSummaryLine(
+      _config.mode.labelOf(_l10n),
+      _config.activePlayers.length,
+      _config.timeSummaryOf(_l10n),
+    );
     return Semantics(
       container: true,
-      label: '遊戲桌設定，$summary',
+      label: _l10n.tspHeaderSemantics(summary),
       child: Container(
         key: const ValueKey('game-settings-header'),
         padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
@@ -1141,10 +1176,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                 children: [
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          '遊戲桌',
-                          style: TextStyle(
+                          _l10n.gtTableTitle,
+                          style: const TextStyle(
                             fontSize: 19,
                             fontWeight: FontWeight.w900,
                             color: AppInk.strong,
@@ -1154,7 +1189,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       if (widget.onDone != null)
                         IconButton(
                           onPressed: widget.onDone,
-                          tooltip: '關閉',
+                          tooltip: _l10n.commonClose,
                           visualDensity: VisualDensity.compact,
                           icon: const Icon(
                             Icons.close_rounded,
@@ -1226,7 +1261,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
         const SizedBox(width: 4),
         Flexible(
           child: Text(
-            '${c.activePlayers.length} 人 · ${c.timeSummary}',
+            _l10n.playersDotTime(
+              c.activePlayers.length,
+              c.timeSummaryOf(_l10n),
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -1295,9 +1333,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       ),
                       if (active) ...[
                         const SizedBox(width: 5),
-                        const Text(
-                          '使用中',
-                          style: TextStyle(
+                        Text(
+                          _l10n.tspUsingNow,
+                          style: const TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w800,
                             color: kGameAccent,
@@ -1343,18 +1381,18 @@ class _TableSetupPanelState extends State<TableSetupPanel>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: kGameAccent.withValues(alpha: 0.35)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               Icons.add_circle_outline_rounded,
               size: 17,
               color: kGameAccent,
             ),
-            SizedBox(width: 6),
+            const SizedBox(width: 6),
             Text(
-              '儲存目前設定',
-              style: TextStyle(
+              _l10n.tspSaveCurrent,
+              style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 color: kGameAccent,
@@ -1419,7 +1457,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                         backgroundColor: Colors.red.shade400,
                         foregroundColor: Colors.white,
                         icon: Icons.delete_outline_rounded,
-                        label: '移除',
+                        label: _l10n.actionRemove,
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ],
@@ -1443,9 +1481,13 @@ class _TableSetupPanelState extends State<TableSetupPanel>
         child: Semantics(
           container: true,
           label: chess
-              ? '第 ${i + 1} 位 ${p.name}，${benched ? '本局輪空' : '本局上場'}'
-              : '第 ${i + 1} 位 ${p.name}',
-          hint: _sortingPlayers ? '拖曳調整出場順位' : '點名字或鉛筆改名，按住蓄色後拖曳排序',
+              ? _l10n.tspRowSemanticsChess(
+                  i + 1,
+                  p.name,
+                  benched ? _l10n.tspBenched : _l10n.tspOnFieldFull,
+                )
+              : _l10n.tspRowSemantics(i + 1, p.name),
+          hint: _sortingPlayers ? _l10n.tspRowHintSorting : _l10n.tspRowHint,
           child: Container(
             decoration: BoxDecoration(
               color: AppSurfaces.fill,
@@ -1480,7 +1522,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       minWidth: 36,
                       minHeight: 40,
                     ),
-                    tooltip: '編輯 ${p.name}',
+                    tooltip: _l10n.tspEditTooltip(p.name),
                     onPressed: () => _renamePlayer(i),
                     icon: const Icon(
                       Icons.edit_rounded,
@@ -1519,7 +1561,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       if (chess) ...[
                         const SizedBox(width: 6),
                         Text(
-                          benched ? '本局輪空' : '上場',
+                          benched ? _l10n.tspBenched : _l10n.tspOnField,
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
@@ -1532,7 +1574,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                 ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  tooltip: _sortingPlayers ? '拖曳調整順位' : '改名、移動或移除',
+                  tooltip: _sortingPlayers
+                      ? _l10n.tspRowHintSorting
+                      : _l10n.tspRowMenuTooltip,
                   onPressed: _sortingPlayers ? null : () => _playerMenu(i),
                   icon: const Icon(
                     Icons.more_vert_rounded,
@@ -1660,8 +1704,16 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       ),
       child: Row(
         children: [
-          seg(bank: false, icon: Icons.timelapse_rounded, label: '每回合制'),
-          seg(bank: true, icon: Icons.hourglass_bottom_rounded, label: '總時間制'),
+          seg(
+            bank: false,
+            icon: Icons.timelapse_rounded,
+            label: _l10n.tspPerTurnMode,
+          ),
+          seg(
+            bank: true,
+            icon: Icons.hourglass_bottom_rounded,
+            label: _l10n.tspBankMode,
+          ),
         ],
       ),
     );
@@ -1669,12 +1721,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
 
   // ── 小元件 ───────────────────────────────────────────────
 
-  String _secondsText(int s) {
-    if (s < 60) return '$s 秒';
-    final m = s ~/ 60;
-    final r = s % 60;
-    return r == 0 ? '$m 分' : '$m 分 $r 秒';
-  }
+  String _secondsText(int s) => TableTimerConfig.formatDuration(_l10n, s);
 
   /// 「自訂」chip 會獨立記住上次設定；切回預設檔位後仍可一鍵取回。
   Widget _customTimeChip({
@@ -1693,8 +1740,10 @@ class _TableSetupPanelState extends State<TableSetupPanel>
     final shown = custom ? value : remembered;
     return _valueChip(
       shown == null
-          ? '自訂'
-          : '自訂 ${secondsOnly ? '$shown 秒' : _secondsText(shown)}',
+          ? _l10n.tspCustomChip
+          : _l10n.tspCustomChipValue(
+              secondsOnly ? _l10n.durSeconds(shown) : _secondsText(shown),
+            ),
       selected: custom,
       onTap: () {
         if (!custom && remembered != null) write(remembered);
@@ -1815,7 +1864,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                             width: 150,
                             child: Center(
                               child: Text(
-                                secondsOnly ? '$v 秒' : _secondsText(v),
+                                secondsOnly
+                                    ? _l10n.durSeconds(v)
+                                    : _secondsText(v),
                                 style: AppType.digits(
                                   fontSize: 30,
                                   color: AppInk.strong,
@@ -1833,7 +1884,11 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '每格 ${secondsOnly ? '$step 秒' : _secondsText(step)}，按住可以快轉',
+                        _l10n.tspStepHint(
+                          secondsOnly
+                              ? _l10n.durSeconds(step)
+                              : _secondsText(step),
+                        ),
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppInk.soft,
@@ -1851,9 +1906,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                             _MaxIntInputFormatter(max),
                           ],
                           textAlign: TextAlign.center,
-                          decoration: const InputDecoration(
-                            labelText: '提前幾秒提醒',
-                            suffixText: '秒',
+                          decoration: InputDecoration(
+                            labelText: _l10n.tspWarnFieldLabel,
+                            suffixText: _l10n.unitSecondsWord,
                             isDense: true,
                           ),
                           onChanged: (value) => typedSeconds = value,
@@ -1872,8 +1927,8 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                                   LengthLimitingTextInputFormatter(2),
                                 ],
                                 textAlign: TextAlign.center,
-                                decoration: const InputDecoration(
-                                  labelText: '分',
+                                decoration: InputDecoration(
+                                  labelText: _l10n.unitMinuteShort,
                                   isDense: true,
                                 ),
                                 onChanged: (value) => typedMinutes = value,
@@ -1902,8 +1957,8 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                                   const _MaxIntInputFormatter(59),
                                 ],
                                 textAlign: TextAlign.center,
-                                decoration: const InputDecoration(
-                                  labelText: '秒',
+                                decoration: InputDecoration(
+                                  labelText: _l10n.unitSecondsWord,
                                   isDense: true,
                                 ),
                                 onChanged: (value) => typedSeconds = value,
@@ -1930,7 +1985,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          child: const Text('完成'),
+                          child: Text(_l10n.commonDone),
                         ),
                       ),
                     ],
@@ -2216,9 +2271,9 @@ class _NameInputDialogState extends State<_NameInputDialog> {
           ),
           if (widget.suggestions.isNotEmpty) ...[
             const SizedBox(height: 4),
-            const Text(
-              '從常用玩家帶入',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).tspFromRoster,
+              style: const TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
                 color: AppInk.soft,
@@ -2252,9 +2307,9 @@ class _NameInputDialogState extends State<_NameInputDialog> {
                     color: _addToRoster ? kGameAccent : AppInk.iconFaint,
                   ),
                   const SizedBox(width: 6),
-                  const Text(
-                    '同時存入常用玩家',
-                    style: TextStyle(fontSize: 13.5, color: AppInk.soft),
+                  Text(
+                    AppLocalizations.of(context).tspAlsoSaveRoster,
+                    style: const TextStyle(fontSize: 13.5, color: AppInk.soft),
                   ),
                 ],
               ),
