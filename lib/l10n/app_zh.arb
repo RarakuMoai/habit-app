@@ -2936,5 +2936,347 @@
     "placeholders": {
       "label": { "type": "String" }
     }
+  },
+
+  "commonBack": "返回",
+  "@commonBack": {
+    "description": "返回上一頁的通用無障礙／tooltip 文字。"
+  },
+  "famTitle": "家庭任務",
+  "@famTitle": {
+    "description": "家庭頁主卡標題。"
+  },
+  "famSubtitle": "今天也一起慢慢累積",
+  "@famSubtitle": {
+    "description": "家庭頁主卡副標。輕鬆陪伴語氣，不催促。"
+  },
+  "famChildSubtitle": "今天也慢慢累積",
+  "@famChildSubtitle": {
+    "description": "小孩卡片的副標。比 famSubtitle 短，因為卡片窄。"
+  },
+  "famParentManage": "家長管理",
+  "@famParentManage": {
+    "description": "進入家長管理頁的按鈕與頁面標題。"
+  },
+  "famAddChild": "新增小孩",
+  "@famAddChild": {
+    "description": "新增小孩的按鈕文字。"
+  },
+  "famEmptyTitle": "先新增一位小孩",
+  "@famEmptyTitle": {
+    "description": "家庭頁還沒有小孩時的空狀態標題。"
+  },
+  "famEmptySub": "兔咪會幫你們記小任務和積分。",
+  "@famEmptySub": {
+    "description": "家庭頁空狀態副標。這是 app 的說明，不是兔咪自己說話。"
+  },
+  "pinEnterParent": "請輸入家長密碼",
+  "@pinEnterParent": {
+    "description": "家長密碼輸入對話框的預設標題。"
+  },
+  "pinForgot": "忘記密碼？",
+  "@pinForgot": {
+    "description": "家長密碼對話框下方的救援入口。"
+  },
+  "pinWrong": "密碼錯誤",
+  "@pinWrong": {
+    "description": "家長密碼輸入錯誤的提示。"
+  },
+  "pinResetDone": "密碼已重設",
+  "@pinResetDone": {
+    "description": "家長密碼重設成功的提示。"
+  },
+  "pinAnswerWrong": "答案不對，再試一次",
+  "@pinAnswerWrong": {
+    "description": "安全問題答錯的提示。語氣不責備。"
+  },
+  "pinWipeTitle": "清除所有資料？",
+  "@pinWipeTitle": {
+    "description": "忘記密碼時清空全部資料的確認對話框標題。"
+  },
+  "pinWipeMessage": "將清空全部資料（習慣、體重、喝水、家庭、足跡幣、衣櫃與密碼）並回到初始狀態，此動作無法復原。",
+  "@pinWipeMessage": {
+    "description": "清空全部資料的確認內容。要把後果講清楚。"
+  },
+  "pinWipeConfirm": "清除並重啟",
+  "@pinWipeConfirm": {
+    "description": "清空全部資料的確認按鈕。"
+  },
+  "pinRecoveryTitle": "忘記家長密碼",
+  "@pinRecoveryTitle": {
+    "description": "密碼救援對話框的標題。"
+  },
+  "pinRecoveryIntro": "回答你設定的安全問題即可重設密碼，資料不會被清除：",
+  "@pinRecoveryIntro": {
+    "description": "密碼救援：有設安全問題時的說明。"
+  },
+  "pinAnswerLabel": "你的答案",
+  "@pinAnswerLabel": {
+    "description": "安全問題答案欄位的標籤。"
+  },
+  "pinNoQuestion": "你沒有設定安全問題，因此無法直接重設密碼，只能清除所有資料重新開始。",
+  "@pinNoQuestion": {
+    "description": "密碼救援：沒設安全問題時的說明。"
+  },
+  "pinWipeAndRestart": "清除所有資料並重新開始",
+  "@pinWipeAndRestart": {
+    "description": "沒有安全問題時唯一的救援按鈕。"
+  },
+  "pinVerifyAndReset": "驗證並重設",
+  "@pinVerifyAndReset": {
+    "description": "密碼救援對話框的送出按鈕。"
+  },
+  "acsPickAvatar": "選擇頭像",
+  "@acsPickAvatar": {
+    "description": "新增小孩時選擇頭像的對話框標題。"
+  },
+  "acsTitle": "新增小孩",
+  "@acsTitle": {
+    "description": "新增小孩面板的標題（可一次加多位）。"
+  },
+  "acsNameNumbered": "小孩名字 {n}",
+  "@acsNameNumbered": {
+    "description": "一次新增多位時，第 n 個名字欄位的提示字。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "acsName": "小孩名字",
+  "@acsName": {
+    "description": "只新增一位時的名字欄位提示字。"
+  },
+  "acsAddAnother": "再加一位",
+  "@acsAddAnother": {
+    "description": "在新增小孩面板中多加一列名字欄位。"
+  },
+  "acsSubmit": "新增",
+  "@acsSubmit": {
+    "description": "新增小孩面板的送出按鈕。"
+  },
+  "chSettings": "設定",
+  "@chSettings": {
+    "description": "小孩首頁右上角進入設定的 tooltip。"
+  },
+  "chPoints": "積分：{points}",
+  "@chPoints": {
+    "description": "小孩的目前積分。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "chTabHabits": "習慣",
+  "@chTabHabits": {
+    "description": "小孩首頁的分頁：習慣。"
+  },
+  "chTabRecords": "積分紀錄",
+  "@chTabRecords": {
+    "description": "小孩首頁的分頁：積分紀錄。"
+  },
+  "chTabRewards": "獎勵",
+  "@chTabRewards": {
+    "description": "小孩首頁的分頁：獎勵。"
+  },
+  "chBackToList": "返回小孩列表",
+  "@chBackToList": {
+    "description": "從小孩首頁回到列表的 tooltip。"
+  },
+  "fwDurationTitle": "持續時間",
+  "@fwDurationTitle": {
+    "description": "設定習慣／獎勵持續幾分鐘的對話框標題。"
+  },
+  "fwMinutes": "分鐘",
+  "@fwMinutes": {
+    "description": "分鐘單位。接在數字後面。"
+  },
+  "pmDeleteChildTitle": "刪除小孩",
+  "@pmDeleteChildTitle": {
+    "description": "刪除小孩的確認對話框標題。"
+  },
+  "pmDeleteChildMessage": "確定要刪除「{name}」嗎？所有習慣、扣分項目與積分紀錄將一起刪除。",
+  "@pmDeleteChildMessage": {
+    "description": "刪除小孩的確認內容。要把連帶刪除的東西講清楚。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "pmDeleteConfirm": "確定刪除",
+  "@pmDeleteConfirm": {
+    "description": "刪除小孩的確認按鈕（紅色）。"
+  },
+  "pmClearDataTitle": "清空「{name}」的資料",
+  "@pmClearDataTitle": {
+    "description": "清空單一小孩資料的確認對話框標題。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "pmClearDataMessage": "這將清除以下資料，且無法復原：\n\n• 目前積分歸零\n• 所有積分紀錄\n• 所有票券紀錄\n• 習慣的完成記錄（習慣本身保留）",
+  "@pmClearDataMessage": {
+    "description": "清空小孩資料的確認內容。項目符號與換行要保留。"
+  },
+  "pmClearDataConfirm": "確認清空",
+  "@pmClearDataConfirm": {
+    "description": "清空小孩資料的確認按鈕（紅色）。"
+  },
+  "pmEditChildTitle": "編輯小孩",
+  "@pmEditChildTitle": {
+    "description": "編輯小孩名稱與頭像的對話框標題。"
+  },
+  "pmTapToChangeAvatar": "點擊更換頭像",
+  "@pmTapToChangeAvatar": {
+    "description": "編輯小孩對話框中頭像下方的提示。"
+  },
+  "pmChildNameLabel": "小孩名稱",
+  "@pmChildNameLabel": {
+    "description": "編輯小孩對話框的名稱欄位標籤。"
+  },
+  "pmNeedChildFirst": "請先新增小孩",
+  "@pmNeedChildFirst": {
+    "description": "還沒有小孩就想新增習慣／扣分／獎勵時的提示。"
+  },
+  "pmDeleteNamedMessage": "確定要刪除「{name}」嗎？",
+  "@pmDeleteNamedMessage": {
+    "description": "刪除習慣／扣分項目／獎勵的確認內容。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "pmNoPinWarning": "尚未設定家長密碼，建議設定以保護家長管理",
+  "@pmNoPinWarning": {
+    "description": "家長管理頁上方的提醒橫幅。建議語氣，不強迫。"
+  },
+  "pmGoToSettings": "去設定",
+  "@pmGoToSettings": {
+    "description": "提醒橫幅上前往設定密碼的按鈕。"
+  },
+  "pmTabChildren": "小孩",
+  "@pmTabChildren": {
+    "description": "家長管理頁的分頁：小孩。"
+  },
+  "pmTabHabits": "習慣",
+  "@pmTabHabits": {
+    "description": "家長管理頁的分頁：習慣。"
+  },
+  "pmTabDeductions": "扣分",
+  "@pmTabDeductions": {
+    "description": "家長管理頁的分頁：扣分項目。"
+  },
+  "pmTabRewards": "獎勵",
+  "@pmTabRewards": {
+    "description": "家長管理頁的分頁：獎勵。"
+  },
+  "pmChildrenSection": "小孩管理",
+  "@pmChildrenSection": {
+    "description": "家長管理頁的區塊標題：小孩。"
+  },
+  "pmCountChildren": "{n} 位",
+  "@pmCountChildren": {
+    "description": "小孩數量。中文有量詞「位」，英文只給數字。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "pmHabitsSection": "習慣管理",
+  "@pmHabitsSection": {
+    "description": "家長管理頁的區塊標題：習慣。"
+  },
+  "pmCountItems": "{n} 項",
+  "@pmCountItems": {
+    "description": "項目數量。中文有量詞「項」，英文只給數字。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "pmAddHabit": "新增習慣",
+  "@pmAddHabit": {
+    "description": "家長管理頁新增習慣的按鈕。"
+  },
+  "pmDeductionsSection": "扣分預設理由",
+  "@pmDeductionsSection": {
+    "description": "家長管理頁的區塊標題：扣分項目。"
+  },
+  "pmAddDeduction": "新增扣分項目",
+  "@pmAddDeduction": {
+    "description": "家長管理頁新增扣分項目的按鈕。"
+  },
+  "pmRewardsSection": "獎勵管理",
+  "@pmRewardsSection": {
+    "description": "家長管理頁的區塊標題：獎勵。"
+  },
+  "pmAddReward": "新增獎勵",
+  "@pmAddReward": {
+    "description": "家長管理頁新增獎勵的按鈕。"
+  },
+  "pmRenameTooltip": "修改名稱",
+  "@pmRenameTooltip": {
+    "description": "小孩列上修改名稱的 tooltip。"
+  },
+  "pmClearData": "清空資料",
+  "@pmClearData": {
+    "description": "小孩列上清空資料的按鈕。"
+  },
+  "pmNoHabits": "尚無習慣",
+  "@pmNoHabits": {
+    "description": "家長管理頁習慣列表的空狀態。"
+  },
+  "pmHabitDaily": "每日",
+  "@pmHabitDaily": {
+    "description": "習慣頻率：每天。"
+  },
+  "pmHabitWeeklyTimes": "每週 {n} 次",
+  "@pmHabitWeeklyTimes": {
+    "description": "習慣頻率：每週幾次。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "pmHabitPoints": "+{points} 分",
+  "@pmHabitPoints": {
+    "description": "習慣完成可得的積分。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "pmHabitMinutesSuffix": " · {minutes}分鐘",
+  "@pmHabitMinutesSuffix": {
+    "description": "習慣摘要後面接的持續時間。開頭的分隔號與空格要保留。",
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+
+  "pmDeleteHabitTitle": "刪除習慣",
+  "@pmDeleteHabitTitle": {
+    "description": "刪除習慣的確認對話框標題。"
+  },
+  "pmDeleteDeductionTitle": "刪除扣分項目",
+  "@pmDeleteDeductionTitle": {
+    "description": "刪除扣分項目的確認對話框標題。"
+  },
+  "pmDeleteRewardTitle": "刪除獎勵",
+  "@pmDeleteRewardTitle": {
+    "description": "刪除獎勵的確認對話框標題。"
+  },
+  "pmNoDeductions": "尚無扣分項目",
+  "@pmNoDeductions": {
+    "description": "家長管理頁扣分項目列表的空狀態。"
+  },
+  "pmNoRewards": "尚無獎勵",
+  "@pmNoRewards": {
+    "description": "家長管理頁獎勵列表的空狀態。"
+  },
+  "pmDeductionPoints": "-{points} 分",
+  "@pmDeductionPoints": {
+    "description": "扣分項目會扣掉的分數。負號要保留。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "pmRewardCost": "{points} 分",
+  "@pmRewardCost": {
+    "description": "兌換獎勵所需的積分。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
   }
 }

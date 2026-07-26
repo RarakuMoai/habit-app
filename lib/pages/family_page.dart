@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/mascot.dart';
@@ -96,7 +97,7 @@ class _FamilyPageState extends State<FamilyPage> {
       final entered = await showPinDialog(
         context,
         digits: digits,
-        title: '請輸入家長密碼',
+        title: AppLocalizations.of(context).pinEnterParent,
         // 忘記密碼：答對救援問題重設、或清空重來。成功重設會設好 parentSession，
         // 使用者再點一次家長管理即可直接進入；清空則整個 app 重啟。
         onForgotPassword: () async {
@@ -116,9 +117,9 @@ class _FamilyPageState extends State<FamilyPage> {
       } else if (entered != null) {
         // 輸入了內容但不正確
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('密碼錯誤，請再試一次')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).pinWrongRetry)),
+        );
       }
     }
   }
@@ -207,7 +208,7 @@ class _FamilyPageState extends State<FamilyPage> {
                   icon: Icon(
                     unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
                   ),
-                  label: const Text('家長管理'),
+                  label: Text(AppLocalizations.of(context).famParentManage),
                   backgroundColor: unlocked
                       ? Colors.green.shade600
                       : Theme.of(context).colorScheme.primary,
@@ -311,7 +312,7 @@ class _FamilyPageState extends State<FamilyPage> {
             child: TextButton.icon(
               onPressed: _addChildAction,
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-              label: const Text('新增小孩'),
+              label: Text(AppLocalizations.of(context).famAddChild),
               style: TextButton.styleFrom(foregroundColor: AppInk.soft),
             ),
           );
@@ -350,22 +351,22 @@ class _FamilyRosterHeader extends StatelessWidget {
             child: Icon(Icons.family_restroom_rounded, color: accent, size: 21),
           ),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '家庭任務',
-                  style: TextStyle(
+                  AppLocalizations.of(context).famTitle,
+                  style: const TextStyle(
                     color: AppInk.strong,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  '今天也一起慢慢累積',
-                  style: TextStyle(
+                  AppLocalizations.of(context).famSubtitle,
+                  style: const TextStyle(
                     color: AppInk.soft,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -508,7 +509,7 @@ class _ChildCard extends StatelessWidget {
                               const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
-                                  '今天也慢慢累積',
+                                  AppLocalizations.of(context).famChildSubtitle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(

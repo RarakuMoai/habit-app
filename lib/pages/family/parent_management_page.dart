@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
@@ -28,6 +29,8 @@ class ParentManagementPage extends StatefulWidget {
 }
 
 class _ParentManagementPageState extends State<ParentManagementPage> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   List<ChildData> _children = [];
   List<ChildHabit> _habits = [];
   List<DeductionItem> _deductions = [];
@@ -108,16 +111,22 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('刪除小孩'),
-        content: Text('確定要刪除「$childName」嗎？所有習慣、扣分項目與積分紀錄將一起刪除。'),
+        title: Text(_l10n.pmDeleteChildTitle),
+        content: Text(_l10n.pmDeleteChildMessage(childName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: AppInk.soft)),
+            child: Text(
+              _l10n.commonCancel,
+              style: TextStyle(color: AppInk.soft),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('確定刪除', style: TextStyle(color: Colors.red)),
+            child: Text(
+              _l10n.pmDeleteConfirm,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -166,22 +175,22 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('清空「${child.name}」的資料'),
-        content: const Text(
-          '這將清除以下資料，且無法復原：\n\n'
-          '• 目前積分歸零\n'
-          '• 所有積分紀錄\n'
-          '• 所有票券紀錄\n'
-          '• 習慣的完成記錄（習慣本身保留）',
-        ),
+        title: Text(_l10n.pmClearDataTitle(child.name)),
+        content: Text(_l10n.pmClearDataMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: AppInk.soft)),
+            child: Text(
+              _l10n.commonCancel,
+              style: TextStyle(color: AppInk.soft),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('確認清空', style: TextStyle(color: Colors.red)),
+            child: Text(
+              _l10n.pmClearDataConfirm,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -228,7 +237,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('編輯小孩'),
+          title: Text(_l10n.pmEditChildTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -251,25 +260,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                '點擊更換頭像',
+                _l10n.pmTapToChangeAvatar,
                 style: TextStyle(fontSize: 11, color: AppInk.soft),
               ),
               const SizedBox(height: 14),
               TextField(
                 controller: nameCtrl,
                 autofocus: true,
-                decoration: const InputDecoration(labelText: '小孩名稱'),
+                decoration: InputDecoration(labelText: _l10n.pmChildNameLabel),
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: AppInk.soft)),
+              child: Text(
+                _l10n.commonCancel,
+                style: TextStyle(color: AppInk.soft),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('儲存'),
+              child: Text(_l10n.commonSave),
             ),
           ],
         ),
@@ -292,7 +304,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (_children.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('請先新增小孩')));
+      ).showSnackBar(SnackBar(content: Text(_l10n.pmNeedChildFirst)));
       return;
     }
     await showAddHabitSheet(
@@ -335,7 +347,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (_children.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('請先新增小孩')));
+      ).showSnackBar(SnackBar(content: Text(_l10n.pmNeedChildFirst)));
       return;
     }
     await showAddDeductionSheet(
@@ -378,7 +390,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     if (_children.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('請先新增小孩')));
+      ).showSnackBar(SnackBar(content: Text(_l10n.pmNeedChildFirst)));
       return;
     }
     await showAddRewardSheet(
@@ -428,15 +440,21 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(title),
-        content: Text('確定要刪除「$name」嗎？'),
+        content: Text(_l10n.pmDeleteNamedMessage(name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: AppInk.soft)),
+            child: Text(
+              _l10n.commonCancel,
+              style: TextStyle(color: AppInk.soft),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('刪除', style: TextStyle(color: Colors.red)),
+            child: Text(
+              _l10n.commonDelete,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -455,9 +473,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       child: Scaffold(
         backgroundColor: const Color(0xFFFFFBF7),
         appBar: AppBar(
-          title: const Text(
-            '家長管理',
-            style: TextStyle(color: AppInk.strong, fontWeight: FontWeight.w800),
+          title: Text(
+            _l10n.famParentManage,
+            style: const TextStyle(
+              color: AppInk.strong,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           centerTitle: true,
           backgroundColor: const Color(0xFFFFFBF7),
@@ -470,14 +491,14 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             // 導致返回鍵淡到看不見，明確指定深色。
             color: AppInk.strong,
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            tooltip: '返回',
+            tooltip: _l10n.commonBack,
             onPressed: () => Navigator.of(context).pop(_changed),
           ),
           actions: [
             IconButton(
               color: AppInk.strong,
               icon: const Icon(Icons.person_add_alt_1_rounded),
-              tooltip: '新增小孩',
+              tooltip: _l10n.famAddChild,
               onPressed: _addChild,
             ),
           ],
@@ -516,10 +537,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             size: 20,
           ),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Text(
-              '尚未設定家長密碼，建議設定以保護家長管理',
-              style: TextStyle(
+              _l10n.pmNoPinWarning,
+              style: const TextStyle(
                 fontSize: 13,
                 height: 1.35,
                 fontWeight: FontWeight.w600,
@@ -544,13 +565,13 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               final hasPin = await ParentPin.hasPin(_prefs!);
               if (mounted && hasPin) setState(() => _pinWarnDismissed = true);
             },
-            child: const Text(
-              '去設定',
-              style: TextStyle(fontWeight: FontWeight.w800),
+            child: Text(
+              _l10n.pmGoToSettings,
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
           IconButton(
-            tooltip: '關閉',
+            tooltip: _l10n.commonClose,
             visualDensity: VisualDensity.compact,
             onPressed: () => setState(() => _pinWarnDismissed = true),
             icon: Icon(
@@ -604,28 +625,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         children: [
           _overviewStat(
             icon: Icons.child_care_rounded,
-            label: '小孩',
+            label: _l10n.pmTabChildren,
             value: '${_children.length}',
             color: Colors.orange.shade700,
           ),
           _overviewDivider(),
           _overviewStat(
             icon: Icons.check_circle_outline,
-            label: '習慣',
+            label: _l10n.pmTabHabits,
             value: '${_habits.length}',
             color: Colors.green.shade700,
           ),
           _overviewDivider(),
           _overviewStat(
             icon: Icons.remove_circle_outline,
-            label: '扣分',
+            label: _l10n.pmTabDeductions,
             value: '${_deductions.length}',
             color: Colors.red.shade600,
           ),
           _overviewDivider(),
           _overviewStat(
             icon: Icons.card_giftcard_outlined,
-            label: '獎勵',
+            label: _l10n.pmTabRewards,
             value: '$assignedRewards',
             color: Colors.amber.shade800,
           ),
@@ -684,10 +705,10 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
         // ── 小孩管理區塊 ──
         _sectionTitle(
-          '小孩管理',
+          _l10n.pmChildrenSection,
           Icons.child_care_rounded,
           Colors.orange,
-          trailing: '${_children.length} 位',
+          trailing: _l10n.pmCountChildren(_children.length),
         ),
         ..._children.asMap().entries.map((entry) {
           final i = entry.key;
@@ -695,7 +716,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           return _buildChildCard(child, i);
         }),
         _addButton(
-          '新增小孩',
+          _l10n.famAddChild,
           Icons.person_add_alt_1_rounded,
           Colors.orange,
           _addChild,
@@ -705,40 +726,45 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
 
         // ── 習慣管理區塊 ──
         _sectionTitle(
-          '習慣管理',
+          _l10n.pmHabitsSection,
           Icons.check_circle_outline,
           Colors.green,
-          trailing: '${_habits.length} 項',
+          trailing: _l10n.pmCountItems(_habits.length),
         ),
         const SizedBox(height: 8),
         ..._buildHabitSection(),
-        _addButton('新增習慣', Icons.add, Colors.green, _addHabit),
+        _addButton(_l10n.pmAddHabit, Icons.add, Colors.green, _addHabit),
 
         const SizedBox(height: 24),
 
         // ── 扣分項目區塊 ──
         _sectionTitle(
-          '扣分預設理由',
+          _l10n.pmDeductionsSection,
           Icons.remove_circle_outline,
           Colors.red,
-          trailing: '${_deductions.length} 項',
+          trailing: _l10n.pmCountItems(_deductions.length),
         ),
         const SizedBox(height: 8),
         ..._buildDeductionSection(),
-        _addButton('新增扣分項目', Icons.add, Colors.red, _addDeduction),
+        _addButton(_l10n.pmAddDeduction, Icons.add, Colors.red, _addDeduction),
 
         const SizedBox(height: 24),
 
         // ── 獎勵管理區塊 ──
         _sectionTitle(
-          '獎勵管理',
+          _l10n.pmRewardsSection,
           Icons.card_giftcard_outlined,
           Colors.amber.shade700,
-          trailing: '${_rewards.length} 項',
+          trailing: _l10n.pmCountItems(_rewards.length),
         ),
         const SizedBox(height: 8),
         ..._buildRewardSection(),
-        _addButton('新增獎勵', Icons.add, Colors.amber.shade700, _addReward),
+        _addButton(
+          _l10n.pmAddReward,
+          Icons.add,
+          Colors.amber.shade700,
+          _addReward,
+        ),
       ],
     );
   }
@@ -856,7 +882,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                         ),
                       ),
                       Text(
-                        '積分：${child.points}',
+                        _l10n.chPoints(child.points),
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppInk.soft,
@@ -868,12 +894,12 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 ),
                 IconButton(
                   icon: Icon(Icons.edit_outlined, color: AppInk.soft),
-                  tooltip: '修改名稱',
+                  tooltip: _l10n.pmRenameTooltip,
                   onPressed: () => _editChildName(index),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  tooltip: '刪除',
+                  tooltip: _l10n.commonDelete,
                   onPressed: () => _deleteChild(index),
                 ),
               ],
@@ -897,7 +923,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 label: Text(
-                  '清空資料',
+                  _l10n.pmClearData,
                   style: TextStyle(fontSize: 12, color: Colors.red.shade400),
                 ),
               ),
@@ -915,7 +941,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            '尚無習慣',
+            _l10n.pmNoHabits,
             style: TextStyle(color: AppInk.faint, fontSize: 13),
           ),
         ),
@@ -962,16 +988,21 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               dense: true,
               title: Text(habit.name, style: const TextStyle(fontSize: 14)),
               subtitle: Text(
-                '+${habit.points} 分 · ${habit.frequency == 'weekly' ? '每週 ${habit.weeklyTarget} 次' : '每日'}${habit.minutes > 0 ? ' · ${habit.minutes}分鐘' : ''}',
+                '${_l10n.pmHabitPoints(habit.points)} · '
+                '${habit.frequency == 'weekly' ? _l10n.pmHabitWeeklyTimes(habit.weeklyTarget) : _l10n.pmHabitDaily}'
+                '${habit.minutes > 0 ? _l10n.pmHabitMinutesSuffix(habit.minutes) : ''}',
                 style: TextStyle(fontSize: 12, color: Colors.green.shade700),
               ),
               trailing: PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, size: 20, color: AppInk.faint),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('編輯')),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', child: Text(_l10n.commonEdit)),
                   PopupMenuItem(
                     value: 'delete',
-                    child: Text('刪除', style: TextStyle(color: Colors.red)),
+                    child: Text(
+                      _l10n.commonDelete,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                   ),
                 ],
                 onSelected: (action) {
@@ -979,7 +1010,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     _editHabit(habit);
                   } else {
                     _confirmDelete(
-                      title: '刪除習慣',
+                      title: _l10n.pmDeleteHabitTitle,
                       name: habit.name,
                       onConfirm: () => _deleteHabit(habit),
                     );
@@ -1001,7 +1032,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            '尚無扣分項目',
+            _l10n.pmNoDeductions,
             style: TextStyle(color: AppInk.faint, fontSize: 13),
           ),
         ),
@@ -1047,16 +1078,19 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               dense: true,
               title: Text(item.name, style: const TextStyle(fontSize: 14)),
               subtitle: Text(
-                '-${item.points} 分',
+                _l10n.pmDeductionPoints(item.points),
                 style: const TextStyle(fontSize: 12, color: Colors.red),
               ),
               trailing: PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, size: 20, color: AppInk.faint),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('編輯')),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', child: Text(_l10n.commonEdit)),
                   PopupMenuItem(
                     value: 'delete',
-                    child: Text('刪除', style: TextStyle(color: Colors.red)),
+                    child: Text(
+                      _l10n.commonDelete,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                   ),
                 ],
                 onSelected: (action) {
@@ -1064,7 +1098,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                     _editDeduction(item);
                   } else {
                     _confirmDelete(
-                      title: '刪除扣分項目',
+                      title: _l10n.pmDeleteDeductionTitle,
                       name: item.name,
                       onConfirm: () => _deleteDeduction(item),
                     );
@@ -1086,7 +1120,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            '尚無獎勵',
+            _l10n.pmNoRewards,
             style: TextStyle(color: AppInk.faint, fontSize: 13),
           ),
         ),
@@ -1115,18 +1149,21 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           title: Text(reward.name, style: const TextStyle(fontSize: 14)),
           subtitle: Text(
             [
-              '${reward.pointsCost} 分',
+              _l10n.pmRewardCost(reward.pointsCost),
               if (childNames.isNotEmpty) childNames,
             ].join(' · '),
             style: TextStyle(fontSize: 11, color: AppInk.soft),
           ),
           trailing: PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, size: 20, color: AppInk.faint),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('編輯')),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'edit', child: Text(_l10n.commonEdit)),
               PopupMenuItem(
                 value: 'delete',
-                child: Text('刪除', style: TextStyle(color: Colors.red)),
+                child: Text(
+                  _l10n.commonDelete,
+                  style: const TextStyle(color: Colors.red),
+                ),
               ),
             ],
             onSelected: (action) {
@@ -1134,7 +1171,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                 _editReward(reward);
               } else {
                 _confirmDelete(
-                  title: '刪除獎勵',
+                  title: _l10n.pmDeleteRewardTitle,
                   name: reward.name,
                   onConfirm: () => _deleteReward(reward),
                 );

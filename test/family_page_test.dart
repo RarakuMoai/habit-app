@@ -7,13 +7,15 @@ import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/widgets/mascot_panel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('沒有小孩時顯示暖色邀請入口', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(const MaterialApp(home: FamilyPage()));
+    await tester.pumpWidget(l10nTestApp(home: const FamilyPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -40,7 +42,7 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: FamilyPage()));
+    await tester.pumpWidget(l10nTestApp(home: const FamilyPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 

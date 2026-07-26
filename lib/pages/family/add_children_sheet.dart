@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 
 // ── 小孩頭像選項 ──
@@ -43,7 +44,7 @@ Future<String?> showAvatarPickerDialog(BuildContext context, String current) {
   return showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('選擇頭像'),
+      title: Text(AppLocalizations.of(context).acsPickAvatar),
       contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       content: SizedBox(
         width: 280,
@@ -79,7 +80,10 @@ Future<String?> showAvatarPickerDialog(BuildContext context, String current) {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx),
-          child: Text('取消', style: TextStyle(color: AppInk.soft)),
+          child: Text(
+            AppLocalizations.of(context).commonCancel,
+            style: TextStyle(color: AppInk.soft),
+          ),
         ),
       ],
     ),
@@ -106,9 +110,9 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '新增小孩',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              AppLocalizations.of(context).acsTitle,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...inputs.asMap().entries.map((e) {
@@ -149,8 +153,10 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
                         onChanged: (v) => input.name = v,
                         decoration: InputDecoration(
                           hintText: inputs.length > 1
-                              ? '小孩名字 ${i + 1}'
-                              : '小孩名字',
+                              ? AppLocalizations.of(
+                                  context,
+                                ).acsNameNumbered(i + 1)
+                              : AppLocalizations.of(context).acsName,
                           border: const OutlineInputBorder(),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -178,7 +184,7 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
             TextButton.icon(
               onPressed: () => setS(() => inputs.add(ChildInput())),
               icon: const Icon(Icons.add, size: 16),
-              label: const Text('再加一位'),
+              label: Text(AppLocalizations.of(context).acsAddAnother),
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
                 minimumSize: Size.zero,
@@ -191,7 +197,10 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text('取消', style: TextStyle(color: AppInk.soft)),
+                  child: Text(
+                    AppLocalizations.of(context).commonCancel,
+                    style: TextStyle(color: AppInk.soft),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
@@ -201,7 +210,7 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
                         .toList();
                     Navigator.pop(ctx, valid.isEmpty ? null : valid);
                   },
-                  child: const Text('新增'),
+                  child: Text(AppLocalizations.of(context).acsSubmit),
                 ),
               ],
             ),

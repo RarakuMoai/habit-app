@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_restart.dart';
 import '../../utils/app_style.dart';
@@ -45,15 +46,16 @@ Future<bool> _resetPinFlow(
   BuildContext context,
   SharedPreferences prefs,
 ) async {
+  final l10n = AppLocalizations.of(context);
   final digits = prefs.getInt(PrefsKeys.pinDigits) ?? 4;
-  final first = await _promptNewPin(context, '設定新密碼（$digits 位數字）', digits);
+  final first = await _promptNewPin(context, l10n.pinPromptNew(digits), digits);
   if (first == null || !context.mounted) return false;
-  final second = await _promptNewPin(context, '再次輸入新密碼確認', digits);
+  final second = await _promptNewPin(context, l10n.pinPromptConfirmNew, digits);
   if (!context.mounted || second == null) return false;
   if (first != second) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('兩次輸入的密碼不一致')));
+      ..showSnackBar(SnackBar(content: Text(l10n.pinMismatch)));
     return false;
   }
   await ParentPin.save(prefs, first);
@@ -61,7 +63,7 @@ Future<bool> _resetPinFlow(
   if (context.mounted) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('密碼已重設')));
+      ..showSnackBar(SnackBar(content: Text(l10n.pinResetDone)));
   }
   return true;
 }
@@ -110,25 +112,29 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
       Navigator.pop(context, _ForgotAction.answered);
     } else {
       playHaptic(HapticLevel.medium);
-      setState(() => _error = '答案不對，再試一次');
+      setState(() => _error = AppLocalizations.of(context).pinAnswerWrong);
     }
   }
 
   Future<void> _confirmWipe() async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('清除所有資料？'),
-        content: const Text('將清空全部資料（習慣、體重、喝水、家庭、足跡幣、衣櫃與密碼）並回到初始狀態，此動作無法復原。'),
+        title: Text(l10n.pinWipeTitle),
+        content: Text(l10n.pinWipeMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: AppInk.soft)),
+            child: Text(
+              l10n.commonCancel,
+              style: TextStyle(color: AppInk.soft),
+            ),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('清除並重啟'),
+            child: Text(l10n.pinWipeConfirm),
           ),
         ],
       ),
@@ -139,14 +145,15 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
   @override
   Widget build(BuildContext context) {
     final hasQA = _hasQA;
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('忘記家長密碼'),
+      title: Text(l10n.pinRecoveryTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hasQA) ...[
-            const Text('回答你設定的安全問題即可重設密碼，資料不會被清除：'),
+            Text(l10n.pinRecoveryIntro),
             const SizedBox(height: 10),
             Text(
               ParentPin.securityQuestion(widget.prefs) ?? '',
@@ -157,7 +164,7 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
               controller: _answerCtrl,
               autofocus: true,
               decoration: InputDecoration(
-                labelText: '你的答案',
+                labelText: l10n.pinAnswerLabel,
                 border: const OutlineInputBorder(),
                 errorText: _error,
               ),
@@ -167,7 +174,7 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
               onSubmitted: (_) => _checkAnswer(),
             ),
           ] else
-            const Text('你沒有設定安全問題，因此無法直接重設密碼，只能清除所有資料重新開始。'),
+            Text(l10n.pinNoQuestion),
           const SizedBox(height: 14),
           const Divider(height: 1),
           const SizedBox(height: 6),
@@ -177,7 +184,7 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
               onPressed: _confirmWipe,
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               icon: const Icon(Icons.delete_forever_rounded, size: 20),
-              label: const Text('清除所有資料並重新開始'),
+              label: Text(l10n.pinWipeAndRestart),
             ),
           ),
         ],
@@ -185,10 +192,13 @@ class _ForgotPinDialogState extends State<_ForgotPinDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('取消', style: TextStyle(color: AppInk.soft)),
+          child: Text(l10n.commonCancel, style: TextStyle(color: AppInk.soft)),
         ),
         if (hasQA)
-          FilledButton(onPressed: _checkAnswer, child: const Text('驗證並重設')),
+          FilledButton(
+            onPressed: _checkAnswer,
+            child: Text(l10n.pinVerifyAndReset),
+          ),
       ],
     );
   }
@@ -217,6 +227,7 @@ class _SetPinDialogState extends State<_SetPinDialog> {
   @override
   Widget build(BuildContext context) {
     final ready = _ctrl.text.length == widget.digits;
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
       title: Text(widget.title),
       content: TextField(
@@ -230,7 +241,7 @@ class _SetPinDialogState extends State<_SetPinDialog> {
           LengthLimitingTextInputFormatter(widget.digits),
         ],
         decoration: InputDecoration(
-          hintText: '請輸入 ${widget.digits} 位數字',
+          hintText: l10n.pinEnterDigitsHint(widget.digits),
           counterText: '',
           suffixIcon: IconButton(
             icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
@@ -245,11 +256,11 @@ class _SetPinDialogState extends State<_SetPinDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('取消', style: TextStyle(color: AppInk.soft)),
+          child: Text(l10n.commonCancel, style: TextStyle(color: AppInk.soft)),
         ),
         TextButton(
           onPressed: ready ? () => Navigator.pop(context, _ctrl.text) : null,
-          child: const Text('確認'),
+          child: Text(l10n.commonConfirm),
         ),
       ],
     );

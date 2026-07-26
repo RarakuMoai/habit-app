@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
@@ -16,6 +17,7 @@ Future<String?> showPinDialog(
   Future<void> Function()? onForgotPassword,
 }) async {
   final controller = TextEditingController();
+  final l10n = AppLocalizations.of(context);
   var obscure = true;
   return showDialog<String>(
     context: context,
@@ -33,7 +35,7 @@ Future<String?> showPinDialog(
             LengthLimitingTextInputFormatter(digits),
           ],
           decoration: InputDecoration(
-            hintText: '請輸入 $digits 位數字密碼',
+            hintText: l10n.pinVerifyHint(digits),
             counterText: '',
             suffixIcon: IconButton(
               icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
@@ -52,11 +54,14 @@ Future<String?> showPinDialog(
                 Navigator.pop(dialogCtx);
                 onForgotPassword();
               },
-              child: Text('忘記密碼？', style: TextStyle(color: AppInk.soft)),
+              child: Text(l10n.pinForgot, style: TextStyle(color: AppInk.soft)),
             ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: Text('取消', style: TextStyle(color: AppInk.soft)),
+            child: Text(
+              l10n.commonCancel,
+              style: TextStyle(color: AppInk.soft),
+            ),
           ),
         ],
       ),
@@ -67,14 +72,20 @@ Future<String?> showPinDialog(
 // 驗證家長密碼（Session 有效或未設密碼時直接通過）
 Future<bool> verifyParentPinIfNeeded(
   BuildContext context, {
-  String title = '請輸入家長密碼',
+  // 預設值不能是 l10n（const 參數要編譯期常數），改成 null 進來後才解析。
+  String? title,
 }) async {
   if (parentSession.value) return true;
   final prefs = await SharedPreferences.getInstance();
   if (!await ParentPin.hasPin(prefs)) return true;
   if (!context.mounted) return false;
+  final l10n = AppLocalizations.of(context);
   final digits = prefs.getInt(PrefsKeys.pinDigits) ?? 4;
-  final entered = await showPinDialog(context, digits: digits, title: title);
+  final entered = await showPinDialog(
+    context,
+    digits: digits,
+    title: title ?? l10n.pinEnterParent,
+  );
   if (entered == null) return false;
   if (await ParentPin.verify(prefs, entered)) {
     parentSession.value = true;
@@ -83,6 +94,6 @@ Future<bool> verifyParentPinIfNeeded(
   if (!context.mounted) return false;
   ScaffoldMessenger.of(
     context,
-  ).showSnackBar(const SnackBar(content: Text('密碼錯誤')));
+  ).showSnackBar(SnackBar(content: Text(l10n.pinWrong)));
   return false;
 }

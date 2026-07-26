@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../widgets/audio_control_button.dart';
 import '../../widgets/mascot_page_shell.dart';
@@ -41,7 +42,7 @@ class ChildHomePage extends StatelessWidget {
           padding: const EdgeInsets.only(left: 8),
           child: _GlassIconButton(
             icon: Icons.arrow_back_ios_new_rounded,
-            tooltip: '返回',
+            tooltip: AppLocalizations.of(context).commonBack,
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
@@ -51,7 +52,7 @@ class ChildHomePage extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: _GlassIconButton(
               icon: Icons.settings_outlined,
-              tooltip: '設定',
+              tooltip: AppLocalizations.of(context).chSettings,
               onPressed: () => Navigator.of(context).push(
                 PageRouteBuilder<void>(
                   pageBuilder: (context, animation, secondaryAnimation) =>
@@ -175,7 +176,7 @@ class _ChildHomePanelState extends State<ChildHomePanel> {
               ),
             ),
             title: Text(c.name),
-            subtitle: Text('積分：${c.points}'),
+            subtitle: Text(AppLocalizations.of(context).chPoints(c.points)),
             selected: i == _selectedIndex,
             selectedColor: primary,
             onTap: () {
@@ -306,7 +307,7 @@ class _ChildHomePanelState extends State<ChildHomePanel> {
                               const SizedBox(width: 5),
                               Flexible(
                                 child: Text(
-                                  '今天也慢慢累積',
+                                  AppLocalizations.of(context).famChildSubtitle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -434,20 +435,26 @@ class _ChildSegmentedTabs extends StatelessWidget {
             borderRadius: BorderRadius.circular(13),
             boxShadow: AppShadows.flat,
           ),
-          tabs: const [
+          tabs: [
             Tab(
               height: 38,
-              child: _SegmentTab(icon: Icons.task_alt_rounded, label: '習慣'),
+              child: _SegmentTab(
+                icon: Icons.task_alt_rounded,
+                label: AppLocalizations.of(context).chTabHabits,
+              ),
             ),
             Tab(
               height: 38,
-              child: _SegmentTab(icon: Icons.history_rounded, label: '積分紀錄'),
+              child: _SegmentTab(
+                icon: Icons.history_rounded,
+                label: AppLocalizations.of(context).chTabRecords,
+              ),
             ),
             Tab(
               height: 38,
               child: _SegmentTab(
                 icon: Icons.card_giftcard_rounded,
-                label: '獎勵',
+                label: AppLocalizations.of(context).chTabRewards,
               ),
             ),
           ],
@@ -498,7 +505,7 @@ class _PanelBackButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 17),
           color: AppInk.soft,
-          tooltip: '返回小孩列表',
+          tooltip: AppLocalizations.of(context).chBackToList,
           onPressed: onPressed,
         ),
       ),

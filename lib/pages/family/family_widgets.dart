@@ -4,27 +4,30 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 
 class FamilyEmptyInvite extends StatelessWidget {
   final Color accent;
   final VoidCallback onAdd;
-  final String title;
-  final String subtitle;
-  final String buttonLabel;
+  final String? title;
+  final String? subtitle;
+  final String? buttonLabel;
 
   const FamilyEmptyInvite({
     super.key,
     required this.accent,
     required this.onAdd,
-    this.title = '先新增一位小孩',
-    this.subtitle = '兔咪會幫你們記小任務和積分。',
-    this.buttonLabel = '新增小孩',
+    // 預設文案不能寫在參數預設值（要編譯期常數），null 進來後才取 l10n。
+    this.title,
+    this.subtitle,
+    this.buttonLabel,
   });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 390),
       child: DecoratedBox(
@@ -57,7 +60,7 @@ class FamilyEmptyInvite extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          title,
+                          title ?? l10n.famEmptyTitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -68,7 +71,7 @@ class FamilyEmptyInvite extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          subtitle,
+                          subtitle ?? l10n.famEmptySub,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -87,7 +90,7 @@ class FamilyEmptyInvite extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                label: Text(buttonLabel),
+                label: Text(buttonLabel ?? l10n.famAddChild),
                 style: FilledButton.styleFrom(
                   backgroundColor: accent,
                   foregroundColor: Colors.white,
@@ -161,7 +164,7 @@ Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {
   return showDialog<int>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('持續時間'),
+      title: Text(AppLocalizations.of(ctx).fwDurationTitle),
       contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       content: TextField(
         controller: ctrl,
@@ -172,7 +175,7 @@ Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {
         ],
         autofocus: true,
         decoration: InputDecoration(
-          suffixText: '分鐘',
+          suffixText: AppLocalizations.of(ctx).fwMinutes,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,
@@ -187,14 +190,17 @@ Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx),
-          child: Text('取消', style: TextStyle(color: AppInk.soft)),
+          child: Text(
+            AppLocalizations.of(ctx).commonCancel,
+            style: TextStyle(color: AppInk.soft),
+          ),
         ),
         TextButton(
           onPressed: () {
             final n = int.tryParse(ctrl.text.trim());
             if (n != null && n > 0) Navigator.pop(ctx, n.clamp(1, 999));
           },
-          child: const Text('確定'),
+          child: Text(AppLocalizations.of(ctx).commonOk),
         ),
       ],
     ),
