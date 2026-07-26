@@ -8,6 +8,8 @@ import 'package:habit_app/utils/wardrobe_store.dart';
 import 'package:habit_app/widgets/reorder_jiggle.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 const _firstTrack = 'bgm_main';
 const _secondTrack = 'bgm_aquamarine';
 const _thirdTrack = 'bgm_bed_merry';
@@ -37,7 +39,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: WardrobePage()));
+    await tester.pumpWidget(l10nTestApp(home: const WardrobePage()));
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }

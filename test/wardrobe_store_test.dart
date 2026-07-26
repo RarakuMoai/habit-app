@@ -46,7 +46,7 @@ void main() {
     final track = trackById(_b);
 
     await WardrobeStore.load();
-    final result = await WardrobeStore.purchaseTrack(track.id);
+    final result = await WardrobeStore.purchaseTrack(track.id, 'test');
 
     expect(result, PurchaseResult.success);
     expect(WardrobeStore.ownedTracks.value, contains(track.id));
@@ -66,7 +66,10 @@ void main() {
 
   test('addTrack 把已解鎖曲目加到清單尾端、不動目前曲', () async {
     await WardrobeStore.load();
-    expect(await WardrobeStore.purchaseTrack(_b), PurchaseResult.success);
+    expect(
+      await WardrobeStore.purchaseTrack(_b, 'test'),
+      PurchaseResult.success,
+    );
     await WardrobeStore.addTrack(_b);
 
     expect(WardrobeStore.playlist.value, [_a, _b]);

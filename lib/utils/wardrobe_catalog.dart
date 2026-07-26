@@ -7,6 +7,8 @@
 
 import 'package:flutter/painting.dart';
 
+import '../l10n/app_localizations.dart';
+
 const Color kWardrobeAccent = Color(0xFFB56CC7);
 const Color kMusicAccent = Color(0xFF5A88D8);
 
@@ -23,9 +25,9 @@ enum UnlockType { free, coin, subscriberCoin }
 /// 音樂情緒主分類。
 enum MusicMood { relax, focus }
 
-String moodLabel(MusicMood mood) => switch (mood) {
-  MusicMood.relax => '悠閒感',
-  MusicMood.focus => '專注感',
+String moodLabel(AppLocalizations l10n, MusicMood mood) => switch (mood) {
+  MusicMood.relax => l10n.moodRelax,
+  MusicMood.focus => l10n.moodFocus,
 };
 
 /// 播放清單的循環模式。
@@ -34,10 +36,10 @@ String moodLabel(MusicMood mood) => switch (mood) {
 /// - [shuffle]：隨機，播完跳清單裡另一首。
 enum PlayMode { loopOne, loopAll, shuffle }
 
-String playModeLabel(PlayMode mode) => switch (mode) {
-  PlayMode.loopOne => '單曲循環',
-  PlayMode.loopAll => '列表循環',
-  PlayMode.shuffle => '隨機播放',
+String playModeLabel(AppLocalizations l10n, PlayMode mode) => switch (mode) {
+  PlayMode.loopOne => l10n.playModeLoopOne,
+  PlayMode.loopAll => l10n.playModeLoopAll,
+  PlayMode.shuffle => l10n.playModeShuffle,
 };
 
 /// 持久化用字串（沿用舊 `bgm_mode` key；舊值 single/playlist 在 store 端遷移）。
@@ -58,8 +60,6 @@ PlayMode playModeFromKey(String? raw, {PlayMode fallback = PlayMode.loopAll}) =>
 
 class OutfitSpec {
   final String id;
-  final String name;
-  final String subtitle;
 
   /// 預覽縮圖用的代表圖（通常是正面圖）。
   final String assetPath;
@@ -73,8 +73,6 @@ class OutfitSpec {
 
   const OutfitSpec({
     required this.id,
-    required this.name,
-    required this.subtitle,
     required this.assetPath,
     required this.skinKey,
     required this.unlockType,
@@ -121,11 +119,21 @@ class MusicTrackSpec {
   });
 }
 
+/// 造型的顯示名／說明：id 才是穩定識別（存進 prefs 的是 id），
+/// 文案一律走 l10n，不放在 catalog 裡。
+String outfitName(AppLocalizations l10n, OutfitSpec o) => switch (o.id) {
+  'tumi_original' => l10n.outfitOriginalName,
+  _ => o.id,
+};
+
+String outfitSubtitle(AppLocalizations l10n, OutfitSpec o) => switch (o.id) {
+  'tumi_original' => l10n.outfitOriginalSub,
+  _ => '',
+};
+
 const List<OutfitSpec> outfitCatalog = [
   OutfitSpec(
     id: 'tumi_original',
-    name: '原始兔咪',
-    subtitle: '最早陪你開始的樣子',
     assetPath: 'assets/mascot/core/tumi_neutral_front.png',
     skinKey: 'core',
     unlockType: UnlockType.free,
@@ -134,9 +142,16 @@ const List<OutfitSpec> outfitCatalog = [
 ];
 
 // 免費 BGM 的授權與感謝說明（各曲共用，來源連結逐曲不同）。
-const String _kFreeLicense =
-    '「フリーBGM / FREE DOWNLOAD」，原作者開放免費使用。建議保留來源連結與下載備份作為授權證明。';
-const String _kFreeAttribution = '曲目來源與創作者見上方連結，感謝創作者無償分享。';
+// 授權與感謝說明改由 l10n 提供；catalog 只留哨兵值，顯示時解析
+// （見 licenseText / attributionText）。
+const String _kFreeLicense = 'freeLicense';
+const String _kFreeAttribution = 'freeAttribution';
+
+String licenseText(AppLocalizations l10n, String note) =>
+    note == 'freeLicense' ? l10n.bgmFreeLicense : note;
+
+String attributionText(AppLocalizations l10n, String note) =>
+    note == 'freeAttribution' ? l10n.bgmFreeAttribution : note;
 
 const int _kTrackPrice = 50; // 新曲統一單價
 
@@ -150,7 +165,7 @@ const List<MusicTrackSpec> trackCatalog = [
     sourceUrl: 'https://www.youtube.com/watch?v=DUMfWYq7bmg',
     assetPath: 'sounds/bgm_main.m4a',
     coverAsset: 'assets/music/covers/bgm_main.png',
-    durationLabel: '循環曲',
+    durationLabel: 'loop',
     mood: MusicMood.relax,
     color: _kRelaxColor,
     tags: ['預設', '慢'],
@@ -454,13 +469,29 @@ MusicTrackSpec trackById(String id) => trackCatalog.firstWhere(
   orElse: () => trackCatalog.first,
 );
 
+/// 曲目長度的顯示字：'loop' 是無縫循環的哨兵值，其餘直接是 m:ss。
+String durationText(AppLocalizations l10n, String durationLabel) =>
+    durationLabel == 'loop' ? l10n.bgmDurationLoop : durationLabel;
+
 List<MusicTrackSpec> tracksOfMood(MusicMood mood) =>
     trackCatalog.where((t) => t.mood == mood).toList();
 
-String unlockLabel(UnlockType type, int coinPrice) => switch (type) {
-  UnlockType.free => '已擁有',
-  UnlockType.coin => '$coinPrice 足跡幣',
-  UnlockType.subscriberCoin => '訂閱後 $coinPrice 足跡幣',
+String unlockLabel(AppLocalizations l10n, UnlockType type, int coinPrice) =>
+    switch (type) {
+      UnlockType.free => l10n.unlockOwned,
+      UnlockType.coin => l10n.unlockCoinPrice(coinPrice),
+      UnlockType.subscriberCoin => l10n.unlockSubscriberCoin(coinPrice),
+    };
+
+/// 曲目標籤的顯示字。標籤本身是穩定識別字串（存在 catalog 裡、不做比對
+/// 以外的用途），只在顯示時翻譯。
+String bgmTagLabel(AppLocalizations l10n, String tag) => switch (tag) {
+  '預設' => l10n.bgmTagDefault,
+  '前導' => l10n.bgmTagIntro,
+  '慢' => l10n.bgmTagSlow,
+  '中' => l10n.bgmTagMedium,
+  '快' => l10n.bgmTagFast,
+  _ => tag,
 };
 
 /// 把一個「core 兔咪資產路徑」換成目前造型的皮膚版本。

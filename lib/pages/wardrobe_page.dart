@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/audio_settings_service.dart';
@@ -67,6 +68,8 @@ class WardrobePage extends StatefulWidget {
 
 class _WardrobePageState extends State<WardrobePage>
     with SingleTickerProviderStateMixin {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   _WardrobeSection _section = _WardrobeSection.outfits;
   bool _loaded = false;
   final ScrollController _scrollController = ScrollController();
@@ -149,13 +152,16 @@ class _WardrobePageState extends State<WardrobePage>
 
   Future<void> _buyOutfit(OutfitSpec outfit) async {
     if (!await _confirmPurchase(
-      outfit.name,
+      outfitName(_l10n, outfit),
       outfit.unlockType,
       outfit.coinPrice,
     )) {
       return;
     }
-    final result = await WardrobeStore.purchaseOutfit(outfit.id);
+    final result = await WardrobeStore.purchaseOutfit(
+      outfit.id,
+      _l10n.coinSpendOutfit(outfitName(_l10n, outfit)),
+    );
     if (!mounted) return;
     if (result == PurchaseResult.success) {
       playFeedback(SfxCue.unlock);
@@ -166,7 +172,7 @@ class _WardrobePageState extends State<WardrobePage>
         speech: '謝謝你...我很喜歡。',
         force: true,
       );
-      _toast('已解鎖並換上 ${outfit.name}');
+      _toast(_l10n.wdUnlockedAndWorn(outfitName(_l10n, outfit)));
     } else {
       _reportPurchaseFail(result);
     }
@@ -281,11 +287,14 @@ class _WardrobePageState extends State<WardrobePage>
     )) {
       return;
     }
-    final result = await WardrobeStore.purchaseTrack(track.id);
+    final result = await WardrobeStore.purchaseTrack(
+      track.id,
+      _l10n.coinSpendTrack(track.title),
+    );
     if (!mounted) return;
     if (result == PurchaseResult.success) {
       playFeedback(SfxCue.unlock);
-      _toast('已解鎖 ${track.title}');
+      _toast(_l10n.wdUnlockedTrack(track.title));
     } else {
       _reportPurchaseFail(result);
     }
@@ -321,7 +330,7 @@ class _WardrobePageState extends State<WardrobePage>
   // ── 購買共用 ───────────────────────────────────────────
   Future<bool> _confirmPurchase(String name, UnlockType type, int price) async {
     if (type == UnlockType.subscriberCoin && !WardrobeStore.isSubscriber) {
-      _toast('這個項目需要訂閱才能解鎖');
+      _toast(_l10n.wdNeedSubscription);
       return false;
     }
     final balance = CoinService.notifier.value;
@@ -329,15 +338,17 @@ class _WardrobePageState extends State<WardrobePage>
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('解鎖項目'),
+        title: Text(_l10n.wdUnlockTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('要使用 $price 足跡幣解鎖「$name」嗎？'),
+            Text(_l10n.wdUnlockMessage(price, name)),
             const SizedBox(height: 8),
             Text(
-              affordable ? '目前足跡幣：$balance' : '目前足跡幣：$balance（不足）',
+              affordable
+                  ? _l10n.wdBalance(balance)
+                  : _l10n.wdBalanceShort(balance),
               style: TextStyle(
                 color: affordable ? AppInk.soft : Colors.red.shade600,
                 fontSize: 13,
@@ -358,7 +369,7 @@ class _WardrobePageState extends State<WardrobePage>
             ),
             onPressed: affordable ? () => Navigator.pop(dialogCtx, true) : null,
             icon: const Icon(Icons.lock_open_rounded, size: 18),
-            label: const Text('解鎖'),
+            label: Text(_l10n.wdUnlock),
           ),
         ],
       ),
@@ -369,11 +380,9 @@ class _WardrobePageState extends State<WardrobePage>
   void _reportPurchaseFail(PurchaseResult result) {
     playFeedback(SfxCue.cancel);
     _toast(switch (result) {
-      PurchaseResult.needCoins => MascotName.fill(
-        '足跡幣不足，每天回來看看{name}就能慢慢累積',
-      ),
-      PurchaseResult.needSubscription => '這個項目需要訂閱才能解鎖',
-      _ => '無法解鎖',
+      PurchaseResult.needCoins => _l10n.wdNeedCoins(MascotName.value),
+      PurchaseResult.needSubscription => _l10n.wdNeedSubscription,
+      _ => _l10n.wdUnlockFailed,
     });
   }
 
@@ -469,8 +478,10 @@ class _WardrobePageState extends State<WardrobePage>
       children: [
         _WardrobeHeader(
           icon: Icons.checkroom_rounded,
-          title: MascotName.fill('{name}造型'),
-          subtitle: '目前穿著：${outfitById(selectedId).name}',
+          title: _l10n.wdOutfitSection(MascotName.value),
+          subtitle: _l10n.wdWearingNow(
+            outfitName(_l10n, outfitById(selectedId)),
+          ),
           trailing: '${owned.length}/${outfitCatalog.length}',
           color: kWardrobeAccent,
         ),
@@ -535,9 +546,12 @@ class _WardrobePageState extends State<WardrobePage>
         const SizedBox(height: 16),
         _WardrobeHeader(
           icon: Icons.library_music_rounded,
-          title: '曲庫',
-          subtitle: '依心情挑選',
-          trailing: '已解鎖 ${ownedTracks.length} / ${trackCatalog.length} 首',
+          title: _l10n.wdMusicSection,
+          subtitle: _l10n.wdMusicSub,
+          trailing: _l10n.wdMusicUnlockedCount(
+            ownedTracks.length,
+            trackCatalog.length,
+          ),
           color: kMusicAccent,
         ),
         _buildMoodGroup(MusicMood.relax),
@@ -579,8 +593,8 @@ class _WardrobePageState extends State<WardrobePage>
       children: [
         _WardrobeHeader(
           icon: Icons.auto_stories_rounded,
-          title: '回憶本',
-          subtitle: MascotName.fill('{name}替你收好的每一個小小時刻'),
+          title: _l10n.wdMemoryBook,
+          subtitle: _l10n.wdMemoryBookSub(MascotName.value),
           trailing: '${entries.length}/${storyCatalog.length}',
           color: kMemoryAccent,
         ),
@@ -620,7 +634,7 @@ class _MemoryShelfLabel extends StatelessWidget {
     return Row(
       children: [
         Text(
-          '回憶收藏',
+          AppLocalizations.of(context).wdMemoryCollection,
           style: TextStyle(
             color: AppInk.strong.withValues(alpha: 0.9),
             fontSize: 13.5,
@@ -749,9 +763,9 @@ class _MemoryCard extends StatelessWidget {
                               color: const Color(0xFFFFE8C7),
                               borderRadius: BorderRadius.circular(99),
                             ),
-                            child: const Text(
-                              '新回憶',
-                              style: TextStyle(
+                            child: Text(
+                              AppLocalizations.of(context).wdNewMemory,
+                              style: const TextStyle(
                                 color: Color(0xFF9B653A),
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w900,
@@ -762,7 +776,9 @@ class _MemoryCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      unlock == null ? '尚未寫下的一頁' : event.title,
+                      unlock == null
+                          ? AppLocalizations.of(context).wdUnwrittenPage
+                          : event.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -836,9 +852,9 @@ class _MemoryEmpty extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
-            '第一頁，正在等你',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).wdFirstPageWaiting,
+            style: const TextStyle(
               color: AppInk.strong,
               fontSize: 15,
               fontWeight: FontWeight.w900,
@@ -846,9 +862,7 @@ class _MemoryEmpty extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            MascotName.fill(
-              '不用特地完成什麼大事。\n你每次開始、完成或再次回來，{name}都會記得。',
-            ),
+            AppLocalizations.of(context).wdFirstPageSub(MascotName.value),
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppInk.soft,
@@ -891,17 +905,17 @@ class _SectionSwitch extends StatelessWidget {
           _sectionButton(
             section: _WardrobeSection.outfits,
             icon: Icons.checkroom_rounded,
-            label: '造型',
+            label: AppLocalizations.of(context).wdTabOutfits,
           ),
           _sectionButton(
             section: _WardrobeSection.music,
             icon: Icons.music_note_rounded,
-            label: '音樂盒',
+            label: AppLocalizations.of(context).wdTabMusic,
           ),
           _sectionButton(
             section: _WardrobeSection.memories,
             icon: Icons.auto_stories_rounded,
-            label: '回憶',
+            label: AppLocalizations.of(context).wdTabMemories,
             showDot: hasUnreadMemories,
           ),
         ],
@@ -1092,7 +1106,7 @@ class _OutfitCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        outfit.name,
+                        outfitName(AppLocalizations.of(context), outfit),
                         style: const TextStyle(
                           color: AppInk.strong,
                           fontSize: 16,
@@ -1101,12 +1115,15 @@ class _OutfitCard extends StatelessWidget {
                       ),
                     ),
                     if (selected)
-                      const _SoftPill(text: '穿著中', color: kWardrobeAccent),
+                      _SoftPill(
+                        text: AppLocalizations.of(context).wdWearing,
+                        color: kWardrobeAccent,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  outfit.subtitle,
+                  outfitSubtitle(AppLocalizations.of(context), outfit),
                   style: const TextStyle(
                     color: AppInk.soft,
                     fontSize: 12.5,
@@ -1116,10 +1133,14 @@ class _OutfitCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 _PrimaryMiniButton(
                   label: selected
-                      ? '已套用'
+                      ? AppLocalizations.of(context).wdApplied
                       : owned
-                      ? '套用'
-                      : unlockLabel(outfit.unlockType, outfit.coinPrice),
+                      ? AppLocalizations.of(context).wdApply
+                      : unlockLabel(
+                          AppLocalizations.of(context),
+                          outfit.unlockType,
+                          outfit.coinPrice,
+                        ),
                   icon: selected
                       ? Icons.check_rounded
                       : owned
@@ -1216,7 +1237,9 @@ class _MusicSummaryCard extends StatelessWidget {
                               ),
                             const SizedBox(width: 5),
                             Text(
-                              previewing ? '試聽中（暫時）' : '現在播放',
+                              previewing
+                                  ? AppLocalizations.of(context).wdPreviewing
+                                  : AppLocalizations.of(context).wdNowPlaying,
                               style: TextStyle(
                                 color: previewing
                                     ? const Color(0xFFB9763B)
@@ -1246,7 +1269,7 @@ class _MusicSummaryCard extends StatelessWidget {
                     _RoundIconButton(
                       icon: Icons.stop_rounded,
                       color: const Color(0xFFE0894F),
-                      tooltip: '停止試聽',
+                      tooltip: AppLocalizations.of(context).wdStopPreview,
                       onTap: () => unawaited(onStopPreview()),
                     )
                   else
@@ -1255,11 +1278,18 @@ class _MusicSummaryCard extends StatelessWidget {
                           ? Icons.play_arrow_rounded
                           : Icons.pause_rounded,
                       color: kMusicAccent,
-                      tooltip: muted ? '繼續播放' : '暫停',
+                      tooltip: muted
+                          ? AppLocalizations.of(context).wdResume
+                          : AppLocalizations.of(context).wdPause,
                       onTap: () => unawaited(onTogglePause()),
                     ),
                   const SizedBox(width: 6),
-                  _SoftPill(text: '$playlistCount 首', color: kMusicAccent),
+                  _SoftPill(
+                    text: AppLocalizations.of(
+                      context,
+                    ).wdTrackCount(playlistCount),
+                    color: kMusicAccent,
+                  ),
                 ],
               ),
             ),
@@ -1578,9 +1608,9 @@ class _PlaylistCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      '播放清單',
-                      style: TextStyle(
+                    Text(
+                      AppLocalizations.of(context).wdPlaylist,
+                      style: const TextStyle(
                         color: AppInk.strong,
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
@@ -1589,7 +1619,11 @@ class _PlaylistCard extends StatelessWidget {
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 150),
                       child: Text(
-                        editMode ? '拖曳歌曲調整順序' : '${tracks.length} 首歌曲',
+                        editMode
+                            ? AppLocalizations.of(context).wdDragToReorder
+                            : AppLocalizations.of(
+                                context,
+                              ).wdSongCount(tracks.length),
                         key: ValueKey(editMode),
                         style: TextStyle(
                           color: editMode
@@ -1708,7 +1742,9 @@ class _PlaylistCard extends StatelessWidget {
                                         backgroundColor: Colors.red.shade400,
                                         foregroundColor: Colors.white,
                                         icon: Icons.delete_outline_rounded,
-                                        label: '移除',
+                                        label: AppLocalizations.of(
+                                          context,
+                                        ).wdRemove,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                     ],
@@ -2032,7 +2068,7 @@ class _PlaylistMoreButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<_PlaylistRowAction>(
-      tooltip: '更多',
+      tooltip: AppLocalizations.of(context).wdMore,
       padding: EdgeInsets.zero,
       icon: const Icon(
         Icons.more_horiz_rounded,
@@ -2046,7 +2082,7 @@ class _PlaylistMoreButton extends StatelessWidget {
           enabled: removable,
           child: _PlaylistMenuItem(
             icon: Icons.open_with_rounded,
-            label: '移動',
+            label: AppLocalizations.of(context).wdMove,
             enabled: removable,
           ),
         ),
@@ -2055,16 +2091,16 @@ class _PlaylistMoreButton extends StatelessWidget {
           enabled: removable,
           child: _PlaylistMenuItem(
             icon: Icons.delete_outline_rounded,
-            label: '移除',
+            label: AppLocalizations.of(context).wdRemove,
             enabled: removable,
             danger: true,
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _PlaylistRowAction.detail,
           child: _PlaylistMenuItem(
             icon: Icons.info_outline_rounded,
-            label: '詳細資訊',
+            label: AppLocalizations.of(context).wdDetails,
           ),
         ),
       ],
@@ -2121,7 +2157,10 @@ class _PlaylistPlayButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = playing ? Icons.pause_rounded : Icons.play_arrow_rounded;
-    final tooltip = playing ? '暫停' : (muted ? '播放並解除靜音' : '播放');
+    final l10n = AppLocalizations.of(context);
+    final tooltip = playing
+        ? l10n.wdPause
+        : (muted ? l10n.wdPlayUnmute : l10n.wdPlay);
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -2152,7 +2191,7 @@ class _PlaylistSortDoneAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '完成播放清單排序',
+      label: AppLocalizations.of(context).wdDoneReorder,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -2177,16 +2216,20 @@ class _PlaylistSortDoneAction extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_rounded, size: 17, color: Colors.white),
-                  SizedBox(width: 5),
+                  const Icon(
+                    Icons.check_rounded,
+                    size: 17,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 5),
                   Text(
-                    '完成排序',
-                    style: TextStyle(
+                    AppLocalizations.of(context).wdDoneSort,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 12.5,
@@ -2230,7 +2273,7 @@ class _PlayModeButton extends StatelessWidget {
               Icon(icon, size: 16, color: kMusicAccent),
               const SizedBox(width: 5),
               Text(
-                playModeLabel(mode),
+                playModeLabel(AppLocalizations.of(context), mode),
                 style: const TextStyle(
                   color: kMusicAccent,
                   fontSize: 12,
@@ -2345,7 +2388,7 @@ class _MoodSectionState extends State<_MoodSection> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          moodLabel(widget.mood),
+                          moodLabel(AppLocalizations.of(context), widget.mood),
                           style: const TextStyle(
                             color: AppInk.strong,
                             fontSize: 15,
@@ -2354,7 +2397,10 @@ class _MoodSectionState extends State<_MoodSection> {
                         ),
                         const SizedBox(height: 1),
                         Text(
-                          _moodCaption(widget.mood),
+                          _moodCaption(
+                            AppLocalizations.of(context),
+                            widget.mood,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -2367,7 +2413,12 @@ class _MoodSectionState extends State<_MoodSection> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _SoftPill(text: '${widget.tiles.length} 首', color: color),
+                  _SoftPill(
+                    text: AppLocalizations.of(
+                      context,
+                    ).wdTrackCount(widget.tiles.length),
+                    color: color,
+                  ),
                   const SizedBox(width: 7),
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
@@ -2409,9 +2460,9 @@ class _MoodSectionState extends State<_MoodSection> {
   }
 }
 
-String _moodCaption(MusicMood mood) => switch (mood) {
-  MusicMood.relax => '慢一點、軟一點',
-  MusicMood.focus => '穩定節奏、進入狀態',
+String _moodCaption(AppLocalizations l10n, MusicMood mood) => switch (mood) {
+  MusicMood.relax => l10n.moodRelaxSub,
+  MusicMood.focus => l10n.moodFocusSub,
 };
 
 class _CollapsedTrackPreview extends StatelessWidget {
@@ -2515,10 +2566,14 @@ class _TrackGridCard extends StatelessWidget {
   });
 
   // 試聽鈕：試聽中→停止；（沒在試聽且）這首正是目前曲→「播放中」停用；其餘→試聽。
-  Widget _previewButton(bool previewing, String? previewingId) {
+  Widget _previewButton(
+    BuildContext context,
+    bool previewing,
+    String? previewingId,
+  ) {
     if (previewing) {
       return _PrimaryMiniButton(
-        label: '停止',
+        label: AppLocalizations.of(context).wdStop,
         icon: Icons.stop_rounded,
         color: kMusicAccent,
         onTap: onPreview,
@@ -2526,7 +2581,7 @@ class _TrackGridCard extends StatelessWidget {
     }
     if (previewingId == null && isCurrent) {
       return _PrimaryMiniButton(
-        label: '播放中',
+        label: AppLocalizations.of(context).wdPlaying,
         icon: Icons.graphic_eq_rounded,
         color: kMusicAccent,
         enabled: false,
@@ -2534,17 +2589,21 @@ class _TrackGridCard extends StatelessWidget {
       );
     }
     return _PrimaryMiniButton(
-      label: '試聽',
+      label: AppLocalizations.of(context).wdPreview,
       icon: Icons.play_arrow_rounded,
       color: kMusicAccent,
       onTap: onPreview,
     );
   }
 
-  Widget _actionButton() {
+  Widget _actionButton(BuildContext context) {
     if (!owned) {
       return _PrimaryMiniButton(
-        label: unlockLabel(track.unlockType, track.coinPrice),
+        label: unlockLabel(
+          AppLocalizations.of(context),
+          track.unlockType,
+          track.coinPrice,
+        ),
         icon: Icons.lock_open_rounded,
         color: kMusicAccent,
         onTap: onBuy,
@@ -2553,7 +2612,9 @@ class _TrackGridCard extends StatelessWidget {
     if (inPlaylist) {
       // 已在清單 → 可移除（清單只剩一首時停用，防沒歌）。
       return _PrimaryMiniButton(
-        label: removable ? '移除' : '已加入',
+        label: removable
+            ? AppLocalizations.of(context).wdRemove
+            : AppLocalizations.of(context).wdAdded,
         icon: removable ? Icons.playlist_remove_rounded : Icons.check_rounded,
         color: kMusicAccent,
         enabled: removable,
@@ -2561,7 +2622,7 @@ class _TrackGridCard extends StatelessWidget {
       );
     }
     return _PrimaryMiniButton(
-      label: '加入',
+      label: AppLocalizations.of(context).wdAdd,
       icon: Icons.playlist_add_rounded,
       color: kMusicAccent,
       onTap: onAddToPlaylist,
@@ -2624,9 +2685,11 @@ class _TrackGridCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: _previewButton(previewing, previewingId)),
+                  Expanded(
+                    child: _previewButton(context, previewing, previewingId),
+                  ),
                   const SizedBox(width: 6),
-                  Expanded(child: _actionButton()),
+                  Expanded(child: _actionButton(context)),
                 ],
               ),
             ],
@@ -2719,14 +2782,14 @@ class _NowPlayingBadge extends StatelessWidget {
           ),
         ],
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.graphic_eq_rounded, size: 12, color: Colors.white),
-          SizedBox(width: 3),
+          const Icon(Icons.graphic_eq_rounded, size: 12, color: Colors.white),
+          const SizedBox(width: 3),
           Text(
-            '播放中',
-            style: TextStyle(
+            AppLocalizations.of(context).wdPlaying,
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 10,
               fontWeight: FontWeight.w900,
@@ -2760,22 +2823,26 @@ class _TrackDetailSheet extends StatelessWidget {
   });
 
   // 這首正載入在播放器時顯示真實時長；否則退回 catalog 的 durationLabel。
-  String _durationText() {
+  String _durationText(AppLocalizations l10n) {
     final d = BgmService.instance.duration;
     if (BgmService.instance.loadedAsset == track.assetPath && d != null) {
       final m = d.inMinutes;
       final s = d.inSeconds % 60;
       return '$m:${s.toString().padLeft(2, '0')}';
     }
-    return track.durationLabel;
+    return durationText(l10n, track.durationLabel);
   }
 
   // 第二顆按鈕：未擁有→購買；已擁有未加入→加入；已加入非目前→設為目前；
   // 已是目前→停用顯示「目前播放中」。
-  _PrimaryMiniButton _actionButton() {
+  _PrimaryMiniButton _actionButton(BuildContext context) {
     if (!owned) {
       return _PrimaryMiniButton(
-        label: unlockLabel(track.unlockType, track.coinPrice),
+        label: unlockLabel(
+          AppLocalizations.of(context),
+          track.unlockType,
+          track.coinPrice,
+        ),
         icon: Icons.lock_open_rounded,
         color: kMusicAccent,
         onTap: onBuy,
@@ -2783,7 +2850,7 @@ class _TrackDetailSheet extends StatelessWidget {
     }
     if (!inPlaylist) {
       return _PrimaryMiniButton(
-        label: '加入清單',
+        label: AppLocalizations.of(context).wdAddToPlaylist,
         icon: Icons.playlist_add_rounded,
         color: kMusicAccent,
         onTap: onAddToPlaylist,
@@ -2791,14 +2858,14 @@ class _TrackDetailSheet extends StatelessWidget {
     }
     if (!isCurrent) {
       return _PrimaryMiniButton(
-        label: '設為目前播放',
+        label: AppLocalizations.of(context).wdSetCurrent,
         icon: Icons.play_arrow_rounded,
         color: kMusicAccent,
         onTap: onSetCurrent,
       );
     }
     return _PrimaryMiniButton(
-      label: '目前播放中',
+      label: AppLocalizations.of(context).wdCurrentlyPlaying,
       icon: Icons.graphic_eq_rounded,
       color: kMusicAccent,
       enabled: false,
@@ -2884,20 +2951,26 @@ class _TrackDetailSheet extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  _DetailChip(label: moodLabel(track.mood), color: track.color),
+                  _DetailChip(
+                    label: moodLabel(AppLocalizations.of(context), track.mood),
+                    color: track.color,
+                  ),
                   for (final tag in track.tags)
-                    _DetailChip(label: tag, color: kMusicAccent),
+                    _DetailChip(
+                      label: bgmTagLabel(AppLocalizations.of(context), tag),
+                      color: kMusicAccent,
+                    ),
                 ],
               ),
               const SizedBox(height: 14),
               _InfoLine(
                 icon: Icons.account_circle_rounded,
-                label: '頻道',
+                label: AppLocalizations.of(context).wdChannel,
                 value: track.channelName,
               ),
               _InfoLine(
                 icon: Icons.link_rounded,
-                label: '來源',
+                label: AppLocalizations.of(context).wdSource,
                 value: track.sourceUrl,
                 onTap: track.sourceUrl.startsWith('http')
                     ? () => _openExternal(context, track.sourceUrl)
@@ -2905,8 +2978,8 @@ class _TrackDetailSheet extends StatelessWidget {
               ),
               _InfoLine(
                 icon: Icons.schedule_rounded,
-                label: '長度',
-                value: _durationText(),
+                label: AppLocalizations.of(context).wdLength,
+                value: _durationText(AppLocalizations.of(context)),
               ),
               const SizedBox(height: 10),
               _AttributionNote(track: track),
@@ -2930,10 +3003,10 @@ class _TrackDetailSheet extends StatelessWidget {
                           Expanded(
                             child: _PrimaryMiniButton(
                               label: previewing
-                                  ? '停止試聽'
+                                  ? AppLocalizations.of(context).wdStopPreview
                                   : activeNow
-                                  ? '播放中'
-                                  : '試聽全曲',
+                                  ? AppLocalizations.of(context).wdPlaying
+                                  : AppLocalizations.of(context).wdPreviewFull,
                               icon: previewing
                                   ? Icons.stop_rounded
                                   : activeNow
@@ -2946,7 +3019,7 @@ class _TrackDetailSheet extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Expanded(child: _actionButton()),
+                          Expanded(child: _actionButton(context)),
                         ],
                       ),
                     ],
@@ -3143,8 +3216,8 @@ Future<void> _openExternal(BuildContext context, String url) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (dialogCtx) => AlertDialog(
-      title: const Text('開啟外部連結'),
-      content: Text('將離開 App，用瀏覽器開啟：\n$url'),
+      title: Text(AppLocalizations.of(context).wdOpenExternalTitle),
+      content: Text(AppLocalizations.of(context).wdOpenExternalMessage(url)),
       actions: [
         dialogCancelAction(
           dialogCtx,
@@ -3154,7 +3227,7 @@ Future<void> _openExternal(BuildContext context, String url) async {
           style: FilledButton.styleFrom(backgroundColor: kMusicAccent),
           onPressed: () => Navigator.pop(dialogCtx, true),
           icon: const Icon(Icons.open_in_new_rounded, size: 18),
-          label: const Text('開啟'),
+          label: Text(AppLocalizations.of(context).wdOpen),
         ),
       ],
     ),
@@ -3305,7 +3378,8 @@ class _AttributionNote extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        '${track.licenseNote}\n${track.attributionText}',
+        '${licenseText(AppLocalizations.of(context), track.licenseNote)}\n'
+        '${attributionText(AppLocalizations.of(context), track.attributionText)}',
         style: const TextStyle(
           color: AppInk.faint,
           fontSize: 11,

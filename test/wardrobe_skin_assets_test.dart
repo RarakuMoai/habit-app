@@ -36,15 +36,11 @@ void main() {
   test('每套造型都是 core 的完整鏡像（缺一張就會破圖或差分失效）', () {
     final coreNames = pngNamesIn(Directory('${mascotDir.path}/core'));
 
-    final skinDirs = mascotDir
-        .listSync()
-        .whereType<Directory>()
-        .where((d) {
-          final name = d.uri.pathSegments[d.uri.pathSegments.length - 2];
-          // ref/ 是描圖參考圖，不是造型
-          return name != 'core' && name != 'ref';
-        })
-        .toList();
+    final skinDirs = mascotDir.listSync().whereType<Directory>().where((d) {
+      final name = d.uri.pathSegments[d.uri.pathSegments.length - 2];
+      // ref/ 是描圖參考圖，不是造型
+      return name != 'core' && name != 'ref';
+    }).toList();
 
     for (final dir in skinDirs) {
       final skin = dir.uri.pathSegments[dir.uri.pathSegments.length - 2];
@@ -65,7 +61,7 @@ void main() {
       expect(
         Directory('${mascotDir.path}/${outfit.skinKey}').existsSync(),
         isTrue,
-        reason: '造型「${outfit.name}」宣告了 skinKey=${outfit.skinKey}，但沒有對應資料夾',
+        reason: '造型「${outfit.id}」宣告了 skinKey=${outfit.skinKey}，但沒有對應資料夾',
       );
     }
   });

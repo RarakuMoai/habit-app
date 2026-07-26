@@ -3811,5 +3811,391 @@
   "htPresetSelfStudy": "主動學習",
   "@htPresetSelfStudy": {
     "description": "特殊加分的快速理由。"
+  },
+
+  "moodRelax": "悠閒感",
+  "@moodRelax": {
+    "description": "音樂盒的情緒分類：放鬆、慢步調的曲子。"
+  },
+  "moodFocus": "專注感",
+  "@moodFocus": {
+    "description": "音樂盒的情緒分類：適合專注的曲子。"
+  },
+  "moodRelaxSub": "慢一點、軟一點",
+  "@moodRelaxSub": {
+    "description": "悠閒感分類的一句話說明。"
+  },
+  "moodFocusSub": "穩定節奏、進入狀態",
+  "@moodFocusSub": {
+    "description": "專注感分類的一句話說明。"
+  },
+  "playModeLoopOne": "單曲循環",
+  "@playModeLoopOne": {
+    "description": "播放模式：同一首無縫循環。"
+  },
+  "playModeLoopAll": "列表循環",
+  "@playModeLoopAll": {
+    "description": "播放模式：依清單順序播完再回第一首。"
+  },
+  "playModeShuffle": "隨機播放",
+  "@playModeShuffle": {
+    "description": "播放模式：隨機挑清單裡的下一首。"
+  },
+  "unlockOwned": "已擁有",
+  "@unlockOwned": {
+    "description": "造型／曲目已經解鎖的標記。"
+  },
+  "unlockCoinPrice": "{coins} 足跡幣",
+  "@unlockCoinPrice": {
+    "description": "解鎖需要的足跡幣。足跡幣是 app 內的貨幣名稱。",
+    "placeholders": {
+      "coins": { "type": "int" }
+    }
+  },
+  "unlockSubscriberCoin": "訂閱後 {coins} 足跡幣",
+  "@unlockSubscriberCoin": {
+    "description": "需要訂閱身分才能再用足跡幣解鎖。",
+    "placeholders": {
+      "coins": { "type": "int" }
+    }
+  },
+  "outfitOriginalName": "原始兔咪",
+  "@outfitOriginalName": {
+    "description": "預設造型的名稱。這是造型名，不隨使用者改的兔咪名而變。"
+  },
+  "outfitOriginalSub": "最早陪你開始的樣子",
+  "@outfitOriginalSub": {
+    "description": "預設造型的說明。"
+  },
+  "bgmDurationLoop": "循環曲",
+  "@bgmDurationLoop": {
+    "description": "曲目長度欄位：這首是無縫循環，沒有固定長度。"
+  },
+  "bgmFreeLicense": "「フリーBGM / FREE DOWNLOAD」，原作者開放免費使用。建議保留來源連結與下載備份作為授權證明。",
+  "@bgmFreeLicense": {
+    "description": "免費 BGM 的授權說明。日文的原始標示要原樣保留，那是授權原文。"
+  },
+  "bgmFreeAttribution": "曲目來源與創作者見上方連結，感謝創作者無償分享。",
+  "@bgmFreeAttribution": {
+    "description": "免費 BGM 的感謝說明。"
+  },
+  "bgmTagDefault": "預設",
+  "@bgmTagDefault": {
+    "description": "曲目標籤：app 內建的預設曲。"
+  },
+  "bgmTagIntro": "前導",
+  "@bgmTagIntro": {
+    "description": "曲目標籤：前導頁用的曲子。"
+  },
+  "bgmTagSlow": "慢",
+  "@bgmTagSlow": {
+    "description": "曲目標籤：慢速。要非常短。"
+  },
+  "bgmTagMedium": "中",
+  "@bgmTagMedium": {
+    "description": "曲目標籤：中速。要非常短。"
+  },
+  "bgmTagFast": "快",
+  "@bgmTagFast": {
+    "description": "曲目標籤：快速。要非常短。"
+  },
+  "wdUnlockedAndWorn": "已解鎖並換上 {name}",
+  "@wdUnlockedAndWorn": {
+    "description": "解鎖造型後的 toast。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "wdUnlockedTrack": "已解鎖 {title}",
+  "@wdUnlockedTrack": {
+    "description": "解鎖曲目後的 toast。",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "wdNeedSubscription": "這個項目需要訂閱才能解鎖",
+  "@wdNeedSubscription": {
+    "description": "嘗試解鎖訂閱限定項目時的提示。"
+  },
+  "wdUnlockTitle": "解鎖項目",
+  "@wdUnlockTitle": {
+    "description": "用足跡幣解鎖的確認對話框標題。"
+  },
+  "wdUnlockMessage": "要使用 {coins} 足跡幣解鎖「{name}」嗎？",
+  "@wdUnlockMessage": {
+    "description": "用足跡幣解鎖的確認內容。",
+    "placeholders": {
+      "coins": { "type": "int" },
+      "name": { "type": "String" }
+    }
+  },
+  "wdBalance": "目前足跡幣：{balance}",
+  "@wdBalance": {
+    "description": "解鎖對話框裡顯示目前餘額。",
+    "placeholders": {
+      "balance": { "type": "int" }
+    }
+  },
+  "wdBalanceShort": "目前足跡幣：{balance}（不足）",
+  "@wdBalanceShort": {
+    "description": "餘額不足時的顯示。",
+    "placeholders": {
+      "balance": { "type": "int" }
+    }
+  },
+  "wdUnlock": "解鎖",
+  "@wdUnlock": {
+    "description": "解鎖對話框的確認按鈕。"
+  },
+  "wdNeedCoins": "足跡幣不足，每天回來看看{name}就能慢慢累積",
+  "@wdNeedCoins": {
+    "description": "足跡幣不足的 toast。{name} 是使用者替兔咪取的名字。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "wdUnlockFailed": "無法解鎖",
+  "@wdUnlockFailed": {
+    "description": "解鎖失敗的一般性提示。"
+  },
+  "wdOutfitSection": "{name}造型",
+  "@wdOutfitSection": {
+    "description": "衣櫃的造型區塊標題。{name} 是兔咪名。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "wdWearingNow": "目前穿著：{name}",
+  "@wdWearingNow": {
+    "description": "造型區塊副標，顯示目前穿哪一套。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "wdMusicSection": "曲庫",
+  "@wdMusicSection": {
+    "description": "衣櫃的音樂盒區塊標題。"
+  },
+  "wdMusicSub": "依心情挑選",
+  "@wdMusicSub": {
+    "description": "音樂盒區塊副標。"
+  },
+  "wdMusicUnlockedCount": "已解鎖 {owned} / {total} 首",
+  "@wdMusicUnlockedCount": {
+    "description": "已解鎖幾首曲子。",
+    "placeholders": {
+      "owned": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "wdMemoryBook": "回憶本",
+  "@wdMemoryBook": {
+    "description": "衣櫃的回憶本區塊標題。"
+  },
+  "wdMemoryBookSub": "{name}替你收好的每一個小小時刻",
+  "@wdMemoryBookSub": {
+    "description": "回憶本區塊副標。{name} 是兔咪名。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "wdMemoryCollection": "回憶收藏",
+  "@wdMemoryCollection": {
+    "description": "回憶本頁的標題。"
+  },
+  "wdNewMemory": "新回憶",
+  "@wdNewMemory": {
+    "description": "還沒看過的回憶頁上的標記。"
+  },
+  "wdUnwrittenPage": "尚未寫下的一頁",
+  "@wdUnwrittenPage": {
+    "description": "還沒解鎖的回憶頁標題。"
+  },
+  "wdFirstPageWaiting": "第一頁，正在等你",
+  "@wdFirstPageWaiting": {
+    "description": "回憶本完全是空的時候的標題。"
+  },
+  "wdFirstPageSub": "不用特地完成什麼大事。\n你每次開始、完成或再次回來，{name}都會記得。",
+  "@wdFirstPageSub": {
+    "description": "回憶本空狀態的說明。換行要保留。{name} 是兔咪名。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "wdTabOutfits": "造型",
+  "@wdTabOutfits": {
+    "description": "衣櫃分頁：造型。"
+  },
+  "wdTabMusic": "音樂盒",
+  "@wdTabMusic": {
+    "description": "衣櫃分頁：音樂盒。"
+  },
+  "wdTabMemories": "回憶",
+  "@wdTabMemories": {
+    "description": "衣櫃分頁：回憶本。"
+  },
+  "wdWearing": "穿著中",
+  "@wdWearing": {
+    "description": "造型卡上的標記：正在穿這套。"
+  },
+  "wdApplied": "已套用",
+  "@wdApplied": {
+    "description": "造型卡按鈕：已經是目前造型。"
+  },
+  "wdApply": "套用",
+  "@wdApply": {
+    "description": "造型卡按鈕：換上這套。"
+  },
+  "wdPreviewing": "試聽中（暫時）",
+  "@wdPreviewing": {
+    "description": "音樂列狀態：正在試聽，離開就恢復。"
+  },
+  "wdNowPlaying": "現在播放",
+  "@wdNowPlaying": {
+    "description": "音樂列狀態：目前播放的曲子。"
+  },
+  "wdStopPreview": "停止試聽",
+  "@wdStopPreview": {
+    "description": "停止試聽的 tooltip。"
+  },
+  "wdResume": "繼續播放",
+  "@wdResume": {
+    "description": "繼續播放的 tooltip。"
+  },
+  "wdPause": "暫停",
+  "@wdPause": {
+    "description": "暫停的 tooltip。"
+  },
+  "wdTrackCount": "{n} 首",
+  "@wdTrackCount": {
+    "description": "曲目數量。中文有量詞「首」，英文只給數字。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "wdPlaylist": "播放清單",
+  "@wdPlaylist": {
+    "description": "播放清單區塊的標題。"
+  },
+  "wdDragToReorder": "拖曳歌曲調整順序",
+  "@wdDragToReorder": {
+    "description": "播放清單排序模式的提示。"
+  },
+  "wdSongCount": "{n} 首歌曲",
+  "@wdSongCount": {
+    "description": "播放清單裡有幾首歌。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "wdRemove": "移除",
+  "@wdRemove": {
+    "description": "把曲子從播放清單移除。"
+  },
+  "wdMore": "更多",
+  "@wdMore": {
+    "description": "更多選項的 tooltip。"
+  },
+  "wdMove": "移動",
+  "@wdMove": {
+    "description": "進入拖曳排序模式。"
+  },
+  "wdDetails": "詳細資訊",
+  "@wdDetails": {
+    "description": "開啟曲目詳細資訊。"
+  },
+  "wdPlayUnmute": "播放並解除靜音",
+  "@wdPlayUnmute": {
+    "description": "目前靜音時，播放鈕的 tooltip。"
+  },
+  "wdPlay": "播放",
+  "@wdPlay": {
+    "description": "播放的 tooltip。"
+  },
+  "wdDoneReorder": "完成播放清單排序",
+  "@wdDoneReorder": {
+    "description": "結束拖曳排序的無障礙標籤。"
+  },
+  "wdDoneSort": "完成排序",
+  "@wdDoneSort": {
+    "description": "結束拖曳排序的按鈕文字。"
+  },
+  "wdStop": "停止",
+  "@wdStop": {
+    "description": "停止播放。"
+  },
+  "wdPlaying": "播放中",
+  "@wdPlaying": {
+    "description": "曲目正在播放的狀態標記。"
+  },
+  "wdPreview": "試聽",
+  "@wdPreview": {
+    "description": "試聽曲目的按鈕。"
+  },
+  "wdAdded": "已加入",
+  "@wdAdded": {
+    "description": "曲目已在播放清單裡的標記。"
+  },
+  "wdAdd": "加入",
+  "@wdAdd": {
+    "description": "把曲子加進播放清單。"
+  },
+  "wdAddToPlaylist": "加入清單",
+  "@wdAddToPlaylist": {
+    "description": "把曲子加進播放清單的按鈕。"
+  },
+  "wdSetCurrent": "設為目前播放",
+  "@wdSetCurrent": {
+    "description": "把這首設成目前播放的曲子。"
+  },
+  "wdCurrentlyPlaying": "目前播放中",
+  "@wdCurrentlyPlaying": {
+    "description": "這首已經是目前播放的曲子。"
+  },
+  "wdChannel": "頻道",
+  "@wdChannel": {
+    "description": "曲目詳細資訊的欄位：來源頻道。"
+  },
+  "wdSource": "來源",
+  "@wdSource": {
+    "description": "曲目詳細資訊的欄位：來源連結。"
+  },
+  "wdLength": "長度",
+  "@wdLength": {
+    "description": "曲目詳細資訊的欄位：長度。"
+  },
+  "wdPreviewFull": "試聽全曲",
+  "@wdPreviewFull": {
+    "description": "詳細資訊頁的試聽按鈕。"
+  },
+  "wdOpenExternalTitle": "開啟外部連結",
+  "@wdOpenExternalTitle": {
+    "description": "要跳出 app 開瀏覽器前的確認對話框標題。"
+  },
+  "wdOpenExternalMessage": "將離開 App，用瀏覽器開啟：\n{url}",
+  "@wdOpenExternalMessage": {
+    "description": "開啟外部連結的確認內容。換行要保留。",
+    "placeholders": {
+      "url": { "type": "String" }
+    }
+  },
+  "wdOpen": "開啟",
+  "@wdOpen": {
+    "description": "開啟外部連結的確認按鈕。"
+  },
+
+  "coinSpendOutfit": "購買造型：{name}",
+  "@coinSpendOutfit": {
+    "description": "足跡幣帳目的用途說明：買造型。會寫進紀錄。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "coinSpendTrack": "購買音樂：{title}",
+  "@coinSpendTrack": {
+    "description": "足跡幣帳目的用途說明：買曲子。會寫進紀錄。",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
   }
 }

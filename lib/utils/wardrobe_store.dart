@@ -247,14 +247,15 @@ class WardrobeStore {
   }
 
   // ── 購買 ───────────────────────────────────────────────
-  static Future<PurchaseResult> purchaseOutfit(String id) async {
+  /// [spendReason] 是要寫進足跡幣帳目的用途說明；文案由呼叫端（有 context
+  /// 的 UI 層）用 l10n 組好再傳進來，store 本身不碰 l10n。
+  static Future<PurchaseResult> purchaseOutfit(
+    String id,
+    String spendReason,
+  ) async {
     if (ownedOutfits.value.contains(id)) return PurchaseResult.alreadyOwned;
     final spec = outfitById(id);
-    final paid = await _charge(
-      spec.unlockType,
-      spec.coinPrice,
-      '購買造型：${spec.name}',
-    );
+    final paid = await _charge(spec.unlockType, spec.coinPrice, spendReason);
     if (paid != PurchaseResult.success) return paid;
     final prefs = await SharedPreferences.getInstance();
     final next = {...ownedOutfits.value, id};
@@ -264,14 +265,13 @@ class WardrobeStore {
     return PurchaseResult.success;
   }
 
-  static Future<PurchaseResult> purchaseTrack(String id) async {
+  static Future<PurchaseResult> purchaseTrack(
+    String id,
+    String spendReason,
+  ) async {
     if (ownedTracks.value.contains(id)) return PurchaseResult.alreadyOwned;
     final spec = trackById(id);
-    final paid = await _charge(
-      spec.unlockType,
-      spec.coinPrice,
-      '購買音樂：${spec.title}',
-    );
+    final paid = await _charge(spec.unlockType, spec.coinPrice, spendReason);
     if (paid != PurchaseResult.success) return paid;
     final prefs = await SharedPreferences.getInstance();
     final next = {...ownedTracks.value, id};
