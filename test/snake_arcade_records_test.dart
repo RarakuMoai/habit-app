@@ -20,6 +20,7 @@ void main() {
       carrots: score ~/ 12,
       maxLength: 10,
       now: time ?? now,
+      fallbackName: '玩家',
     );
   }
 

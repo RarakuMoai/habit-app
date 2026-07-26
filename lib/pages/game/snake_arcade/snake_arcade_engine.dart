@@ -101,20 +101,16 @@ class ArcadeBullet {
 }
 
 enum ArcadeAbility {
-  extraLife('多一命', '倒下時在安全處醒來（可存 3 次）'),
-  speedUp('踩油門', '快一級，得分倍率 +25%'),
-  speedDown('踩剎車', '慢一級，得分倍率 −25%'),
-  fiveFold('五倍蘿蔔', '下一份收穫價值 ×5'),
-  selfPass('穿身術', '補滿 3 點，穿過自己每格用 1 點'),
-  hunt('狩獵時刻', '20 秒內用蛇頭吃鼴鼠，目標 3 隻'),
-  carrotRain('蘿蔔雨', '田裡馬上多 4 根胡蘿蔔'),
-  rapidSeed('速射種子', '種子冷卻縮短（可疊 2 次）'),
-  carrotMagnet('蘿蔔磁鐵', '吸取範圍增加 1 格（最多 3 格）'),
-  laser('三排雷射', '10 秒內改射三排雷射，射程 12 格');
-
-  final String label;
-  final String description;
-  const ArcadeAbility(this.label, this.description);
+  extraLife,
+  speedUp,
+  speedDown,
+  fiveFold,
+  selfPass,
+  hunt,
+  carrotRain,
+  rapidSeed,
+  carrotMagnet,
+  laser,
 }
 
 /// advance() 期間發生的事，UI 取走後配音效／震動／特效。

@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/mini_game_session.dart';
@@ -265,6 +266,8 @@ class SnakeArcadePage extends StatefulWidget {
 
 class _SnakeArcadePageState extends State<SnakeArcadePage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   late SnakeArcadeEngine _engine;
   late final Ticker _ticker;
   Duration _lastTick = Duration.zero;
@@ -283,7 +286,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 
   SharedPreferences? _prefs;
   SnakeArcadeRecords _records = SnakeArcadeRecords.empty();
-  String _defaultName = '玩家';
+  String _defaultName = '';
   bool _resultRegistered = false;
   bool _resultQualifies = false;
   bool _showBoards = false;
@@ -341,7 +344,9 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
       final nickname = prefs.getString(PrefsKeys.userNickname)?.trim();
       _defaultName = _records.lastPlayerName.isNotEmpty
           ? _records.lastPlayerName
-          : (nickname == null || nickname.isEmpty ? '玩家' : nickname);
+          : (nickname == null || nickname.isEmpty
+                ? _l10n.snDefaultPlayer
+                : nickname);
     });
   }
 
@@ -445,39 +450,39 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         case ArcadeEvent.carrotPulled:
           needsSetState = true;
         case ArcadeEvent.magnetFruitSpawned:
-          _showNotice('磁力果實出現！吃下去吸光全場');
+          _showNotice(_l10n.snNoticeMagnet);
           needsSetState = true;
         case ArcadeEvent.magnetFruitCollected:
-          _showNotice('全場收割！蘿蔔全算，成長最多 4 格');
+          _showNotice(_l10n.snNoticeHarvest);
           needsSetState = true;
         case ArcadeEvent.abilityOffered:
           if (!eventSet.contains(ArcadeEvent.molesUnlocked) &&
               !eventSet.contains(ArcadeEvent.magnetFruitCollected)) {
-            _showNotice('能力到了！選一個再滑動繼續');
+            _showNotice(_l10n.snNoticeAbilityReady);
           }
           needsSetState = true;
         case ArcadeEvent.molesUnlocked:
-          _showNotice('鼴鼠來了！點畫面任意位置發射');
+          _showNotice(_l10n.snNoticeMoles);
           needsSetState = true;
         case ArcadeEvent.shot:
           needsSetState = true;
         case ArcadeEvent.laserStarted:
-          _showNotice('三排雷射啟動｜10 秒');
+          _showNotice(_l10n.snNoticeLaserOn);
           needsSetState = true;
         case ArcadeEvent.laserShot:
           needsSetState = true;
         case ArcadeEvent.laserEnded:
-          _showNotice('雷射結束，恢復種子射擊');
+          _showNotice(_l10n.snNoticeLaserOff);
           needsSetState = true;
         case ArcadeEvent.moleKilled:
           needsSetState = true;
         case ArcadeEvent.huntStarted:
-          _showNotice('狩獵時刻｜20 秒內追到 3 隻');
+          _showNotice(_l10n.snNoticeHuntOn);
           needsSetState = true;
         case ArcadeEvent.huntWarnTick:
           needsSetState = true;
         case ArcadeEvent.huntFull:
-          _showNotice('三隻達成！獲得狩獵加碼');
+          _showNotice(_l10n.snNoticeHuntDone);
           needsSetState = true;
         case ArcadeEvent.huntEnded:
           if (feedback == null) playHaptic(HapticLevel.light);
@@ -486,7 +491,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
           needsSetState = true;
         case ArcadeEvent.revived:
           _snapCamera();
-          _showNotice('已回到安全位置');
+          _showNotice(_l10n.snNoticeRevived);
           needsSetState = true;
         case ArcadeEvent.gameOver:
           _onGameOver();
@@ -591,9 +596,9 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     if (pausedHere && mounted) setState(() {});
     final leave = await showAppConfirmDialog(
       context,
-      title: '離開菜園小蛇？',
-      message: '這一局的進度不會保留。',
-      confirmLabel: '離開遊戲',
+      title: _l10n.snLeaveTitle,
+      message: _l10n.snLeaveMessage,
+      confirmLabel: _l10n.snLeaveConfirm,
       danger: true,
     );
     if (!mounted) return;
@@ -614,9 +619,9 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     }
     final restart = await showAppConfirmDialog(
       context,
-      title: '重新開始？',
-      message: '目前這一局的分數與能力會清除。',
-      confirmLabel: '重新開始',
+      title: _l10n.snRestartTitle,
+      message: _l10n.snRestartMessage,
+      confirmLabel: _l10n.snRestart,
       danger: true,
     );
     if (!mounted || !restart) return;
@@ -645,6 +650,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
       carrots: _engine.physicalCount,
       maxLength: _engine.maxLength,
       now: _now,
+      fallbackName: _l10n.snDefaultPlayer,
     );
     _justRegistered = entry;
     _defaultName = _records.lastPlayerName;
@@ -777,13 +783,13 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         child: Row(
           children: [
             _HudChip(
-              label: '分數',
+              label: _l10n.snScore,
               value: '${_engine.score}',
               key: const ValueKey('arcade-score-chip'),
             ),
             const SizedBox(width: 8),
             _HudChip(
-              label: '速度${_engine.speedLevel}',
+              label: _l10n.snSpeedLevel(_engine.speedLevel),
               value: multiplierLabel,
               key: const ValueKey('arcade-speed-chip'),
             ),
@@ -799,7 +805,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
               ),
             if (_engine.passPoints > 0)
               _TinyBadge(
-                label: '穿${_engine.passPoints}',
+                label: _l10n.snPassPoints(_engine.passPoints),
                 color: kGameAccentDark,
               ),
             if (_engine.lives > 0)
@@ -897,7 +903,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
                     _RoundButton(
                       key: const ValueKey('arcade-pause-button'),
                       icon: Icons.pause_rounded,
-                      tooltip: '暫停',
+                      tooltip: _l10n.snPause,
                       onPressed: _engine.phase == ArcadePhase.running
                           ? _pauseGame
                           : null,
@@ -906,7 +912,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
                     _RoundButton(
                       key: const ValueKey('arcade-exit-button'),
                       icon: Icons.close_rounded,
-                      tooltip: '離開遊戲',
+                      tooltip: _l10n.snLeaveConfirm,
                       onPressed: () => unawaited(_requestExit()),
                     ),
                   ],
@@ -935,7 +941,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             return Column(
               children: [
                 Text(
-                  '菜園全圖',
+                  _l10n.snFullMap,
                   style: TextStyle(
                     color: kGameAccentDark.withValues(alpha: 0.75),
                     fontSize: 11,
@@ -955,7 +961,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
                     _RoundButton(
                       key: const ValueKey('arcade-pause-button'),
                       icon: Icons.pause_rounded,
-                      tooltip: '暫停',
+                      tooltip: _l10n.snPause,
                       onPressed: _engine.phase == ArcadePhase.running
                           ? _pauseGame
                           : null,
@@ -964,7 +970,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
                     _RoundButton(
                       key: const ValueKey('arcade-exit-button'),
                       icon: Icons.close_rounded,
-                      tooltip: '離開遊戲',
+                      tooltip: _l10n.snLeaveConfirm,
                       onPressed: () => unawaited(_requestExit()),
                     ),
                   ],
@@ -1012,21 +1018,27 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     final abilityBadges = <Widget>[
       if (_engine.carrotMagnetLevel > 0)
         _TinyBadge(
-          label: '吸取 ${_engine.carrotMagnetLevel} 格',
+          label: _l10n.snBadgeMagnet(_engine.carrotMagnetLevel),
           color: ArcadePalette.magnet,
         ),
       if (_engine.rapidSeedStacks > 0)
-        _TinyBadge(label: '速射 ×${_engine.rapidSeedStacks}', color: kGameAccent),
+        _TinyBadge(
+          label: _l10n.snBadgeRapid(_engine.rapidSeedStacks),
+          color: kGameAccent,
+        ),
       if (_engine.laserActive)
         _TinyBadge(
-          label: '雷射 ${(_engine.laserMsLeft / 1000).ceil()}s',
+          label: _l10n.snBadgeLaser((_engine.laserMsLeft / 1000).ceil()),
           color: ArcadePalette.huntHead,
         ),
     ];
     if (_engine.huntActive) {
       children.add(
         _ConsoleBar(
-          label: '狩獵 ${_engine.huntEaten}/${SnakeArcadeEngine.huntTargetKills}',
+          label: _l10n.snBadgeHunt(
+            _engine.huntEaten,
+            SnakeArcadeEngine.huntTargetKills,
+          ),
           trailing: '${(_engine.huntMsLeft / 1000).ceil()}s',
           progress: _engine.huntMsLeft / SnakeArcadeEngine.huntDurationMs,
           color: ArcadePalette.huntBody,
@@ -1035,7 +1047,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     } else if (compact && _engine.laserActive) {
       children.add(
         _ConsoleBar(
-          label: '三排雷射',
+          label: _l10n.snBadgeLaserName,
           trailing: '${(_engine.laserMsLeft / 1000).ceil()}s',
           progress: _engine.laserMsLeft / SnakeArcadeEngine.laserDurationMs,
           color: ArcadePalette.huntBody,
@@ -1043,14 +1055,16 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
       );
     } else {
       final compactPowers = <String>[
-        if (_engine.carrotMagnetLevel > 0) '吸${_engine.carrotMagnetLevel}',
-        if (_engine.rapidSeedStacks > 0) '速${_engine.rapidSeedStacks}',
+        if (_engine.carrotMagnetLevel > 0)
+          _l10n.snCompactMagnet(_engine.carrotMagnetLevel),
+        if (_engine.rapidSeedStacks > 0)
+          _l10n.snCompactRapid(_engine.rapidSeedStacks),
       ];
       children.add(
         _ConsoleBar(
           label: compact && compactPowers.isNotEmpty
-              ? '能力 ${compactPowers.join(' · ')}'
-              : '下次能力',
+              ? _l10n.snPowersLine(compactPowers.join(' · '))
+              : _l10n.snNextPower,
           trailing: '${_engine.physicalCount}/${_engine.nextAbilityAt}',
           progress: _engine.nextAbilityAt == 0
               ? 0
@@ -1064,7 +1078,7 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
     children.add(
       abilityBadges.isEmpty
           ? Text(
-              _engine.molesUnlocked ? '點畫面趕走鼴鼠' : '收蘿蔔，長大一點',
+              _engine.molesUnlocked ? _l10n.snHintMoles : _l10n.snHintCarrots,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -1088,10 +1102,10 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
         final shootEnabled = !_engine.huntActive;
         final ready = _engine.canShoot;
         final text = _engine.huntActive
-            ? '滑動追獵 · 射擊暫停'
+            ? _l10n.snHintHunting
             : shootEnabled
-            ? '滑動轉向 · 點擊發射'
-            : '滑動轉向';
+            ? _l10n.snHintShoot
+            : _l10n.snHintTurn;
         return Row(
           key: const ValueKey('arcade-input-guide'),
           mainAxisSize: centered ? MainAxisSize.min : MainAxisSize.max,
@@ -1167,24 +1181,24 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
       children: [
         _ResultHeader(engine: _engine, qualified: true),
         const SizedBox(height: 12),
-        const Text(
-          '進榜了！要用誰的名字記下來？',
+        Text(
+          _l10n.snRankedTitle,
           style: TextStyle(
             color: AppInk.strong,
             fontSize: 14,
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         TextField(
           key: const ValueKey('arcade-name-field'),
           controller: _nameController,
           maxLength: 12,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             counterText: '',
             isDense: true,
-            border: OutlineInputBorder(),
-            hintText: '署名',
+            border: const OutlineInputBorder(),
+            hintText: _l10n.snNameHint,
           ),
         ),
         if (_records.recentNames.length > 1) ...[
@@ -1214,12 +1228,15 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             minimumSize: const Size.fromHeight(42),
           ),
           onPressed: () => unawaited(_registerScore()),
-          child: const Text('登錄成績'),
+          child: Text(_l10n.snSubmitScore),
         ),
         TextButton(
           key: const ValueKey('arcade-skip-register-button'),
           onPressed: _skipRegister,
-          child: const Text('先不登錄', style: TextStyle(color: AppInk.soft)),
+          child: Text(
+            _l10n.snSkipScore,
+            style: const TextStyle(color: AppInk.soft),
+          ),
         ),
       ],
     );
@@ -1246,12 +1263,15 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
             minimumSize: const Size.fromHeight(42),
           ),
           onPressed: _restart,
-          child: const Text('再來一局'),
+          child: Text(_l10n.snPlayAgain),
         ),
         TextButton(
           key: const ValueKey('arcade-leave-button'),
           onPressed: widget.onClose,
-          child: const Text('離開', style: TextStyle(color: AppInk.soft)),
+          child: Text(
+            _l10n.snLeave,
+            style: const TextStyle(color: AppInk.soft),
+          ),
         ),
       ],
     );
@@ -1259,6 +1279,35 @@ class _SnakeArcadePageState extends State<SnakeArcadePage>
 }
 
 // ── 小元件們 ─────────────────────────────────────────────
+
+/// 能力的顯示名與說明：引擎只留純 enum（不碰 Flutter），文案掛在這裡。
+extension ArcadeAbilityLabel on ArcadeAbility {
+  String labelOf(AppLocalizations l10n) => switch (this) {
+    ArcadeAbility.extraLife => l10n.snAbilityExtraLifeLabel,
+    ArcadeAbility.speedUp => l10n.snAbilitySpeedUpLabel,
+    ArcadeAbility.speedDown => l10n.snAbilitySpeedDownLabel,
+    ArcadeAbility.fiveFold => l10n.snAbilityFiveFoldLabel,
+    ArcadeAbility.selfPass => l10n.snAbilitySelfPassLabel,
+    ArcadeAbility.hunt => l10n.snAbilityHuntLabel,
+    ArcadeAbility.carrotRain => l10n.snAbilityCarrotRainLabel,
+    ArcadeAbility.rapidSeed => l10n.snAbilityRapidSeedLabel,
+    ArcadeAbility.carrotMagnet => l10n.snAbilityCarrotMagnetLabel,
+    ArcadeAbility.laser => l10n.snAbilityLaserLabel,
+  };
+
+  String descriptionOf(AppLocalizations l10n) => switch (this) {
+    ArcadeAbility.extraLife => l10n.snAbilityExtraLifeDesc,
+    ArcadeAbility.speedUp => l10n.snAbilitySpeedUpDesc,
+    ArcadeAbility.speedDown => l10n.snAbilitySpeedDownDesc,
+    ArcadeAbility.fiveFold => l10n.snAbilityFiveFoldDesc,
+    ArcadeAbility.selfPass => l10n.snAbilitySelfPassDesc,
+    ArcadeAbility.hunt => l10n.snAbilityHuntDesc,
+    ArcadeAbility.carrotRain => l10n.snAbilityCarrotRainDesc,
+    ArcadeAbility.rapidSeed => l10n.snAbilityRapidSeedDesc,
+    ArcadeAbility.carrotMagnet => l10n.snAbilityCarrotMagnetDesc,
+    ArcadeAbility.laser => l10n.snAbilityLaserDesc,
+  };
+}
 
 class _HudChip extends StatelessWidget {
   const _HudChip({super.key, required this.label, required this.value});
@@ -1425,10 +1474,14 @@ class _StartHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = switch (reason) {
-      ArcadeWaitReason.newGame => '全螢幕滑動開始',
-      ArcadeWaitReason.abilityPicked => '滑動繼續',
-      ArcadeWaitReason.revived => '復活了，滑動繼續',
-      ArcadeWaitReason.resumed => '滑動繼續',
+      ArcadeWaitReason.newGame => AppLocalizations.of(context).snWaitNewGame,
+      ArcadeWaitReason.abilityPicked => AppLocalizations.of(
+        context,
+      ).snWaitAbilityPicked,
+      ArcadeWaitReason.revived => AppLocalizations.of(context).snWaitRevived,
+      ArcadeWaitReason.resumed => AppLocalizations.of(
+        context,
+      ).snWaitAbilityPicked,
     };
     return IgnorePointer(
       child: Center(
@@ -1513,10 +1566,10 @@ class _HuntBanner extends StatelessWidget {
               color: ArcadePalette.huntHead.withValues(alpha: 0.90),
               borderRadius: BorderRadius.circular(99),
             ),
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               child: Text(
-                '狩獵時刻！用頭吃鼴鼠',
+                AppLocalizations.of(context).snHuntBanner,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -1568,8 +1621,8 @@ class _AbilityOverlay extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                '選一個能力',
+              Text(
+                AppLocalizations.of(context).snPickAbility,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppInk.strong,
@@ -1605,7 +1658,9 @@ class _AbilityOverlay extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  abilities[i].label,
+                                  abilities[i].labelOf(
+                                    AppLocalizations.of(context),
+                                  ),
                                   style: const TextStyle(
                                     color: AppInk.strong,
                                     fontSize: 15,
@@ -1614,7 +1669,9 @@ class _AbilityOverlay extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  abilities[i].description,
+                                  abilities[i].descriptionOf(
+                                    AppLocalizations.of(context),
+                                  ),
                                   style: const TextStyle(
                                     color: AppInk.soft,
                                     fontSize: 12,
@@ -1631,8 +1688,8 @@ class _AbilityOverlay extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 10),
-              const Text(
-                '選完再滑動一下才會繼續',
+              Text(
+                AppLocalizations.of(context).snPickAbilityHint,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppInk.faint,
@@ -1676,8 +1733,8 @@ class _PauseOverlay extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                '已暫停',
+              Text(
+                AppLocalizations.of(context).snPaused,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppInk.strong,
@@ -1686,8 +1743,8 @@ class _PauseOverlay extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                '先喘口氣也可以。',
+              Text(
+                AppLocalizations.of(context).snPausedSub,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppInk.soft,
@@ -1704,20 +1761,23 @@ class _PauseOverlay extends StatelessWidget {
                   minimumSize: const Size.fromHeight(40),
                 ),
                 onPressed: onResume,
-                child: const Text('繼續'),
+                child: Text(AppLocalizations.of(context).snResume),
               ),
               TextButton(
                 key: const ValueKey('arcade-restart-button'),
                 onPressed: onRestart,
-                child: const Text(
-                  '重新開始',
-                  style: TextStyle(color: kGameAccentDark),
+                child: Text(
+                  AppLocalizations.of(context).snRestart,
+                  style: const TextStyle(color: kGameAccentDark),
                 ),
               ),
               TextButton(
                 key: const ValueKey('arcade-pause-exit-button'),
                 onPressed: onExit,
-                child: const Text('離開遊戲', style: TextStyle(color: AppInk.soft)),
+                child: Text(
+                  AppLocalizations.of(context).snLeaveConfirm,
+                  style: const TextStyle(color: AppInk.soft),
+                ),
               ),
             ],
           ),
@@ -1735,7 +1795,8 @@ class _ResultHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final line = qualified ? '新紀錄！這局跑得很漂亮。' : '先休息一下，隨時可以再來。';
+    final l10n = AppLocalizations.of(context);
+    final line = qualified ? l10n.snResultNewRecord : l10n.snResultRest;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1762,9 +1823,9 @@ class _ResultHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '結算',
-                    style: TextStyle(
+                  Text(
+                    l10n.snResultTitle,
+                    style: const TextStyle(
                       color: AppInk.soft,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
@@ -1796,10 +1857,16 @@ class _ResultHeader extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _ResultStat(label: '蘿蔔', value: '${engine.physicalCount}'),
-            _ResultStat(label: '最長', value: '${engine.maxLength}'),
             _ResultStat(
-              label: '獵怪',
+              label: l10n.snStatCarrots,
+              value: '${engine.physicalCount}',
+            ),
+            _ResultStat(
+              label: l10n.snStatLongest,
+              value: '${engine.maxLength}',
+            ),
+            _ResultStat(
+              label: l10n.snStatHunted,
               value: '${engine.huntKills + engine.shotKills}',
             ),
           ],
@@ -1858,10 +1925,10 @@ class _LeaderboardView extends StatefulWidget {
 class _LeaderboardViewState extends State<_LeaderboardView> {
   SnakeArcadeBoard _board = SnakeArcadeBoard.today;
 
-  static const _labels = {
-    SnakeArcadeBoard.today: '今日',
-    SnakeArcadeBoard.week: '本週',
-    SnakeArcadeBoard.allTime: '歷史',
+  Map<SnakeArcadeBoard, String> _labels(AppLocalizations l10n) => {
+    SnakeArcadeBoard.today: l10n.snBoardToday,
+    SnakeArcadeBoard.week: l10n.snBoardWeek,
+    SnakeArcadeBoard.allTime: l10n.snBoardAllTime,
   };
 
   @override
@@ -1879,7 +1946,7 @@ class _LeaderboardViewState extends State<_LeaderboardView> {
                 padding: const EdgeInsets.symmetric(horizontal: 3),
                 child: ChoiceChip(
                   key: ValueKey('arcade-board-tab-${kind.name}'),
-                  label: Text(_labels[kind]!),
+                  label: Text(_labels(AppLocalizations.of(context))[kind]!),
                   selected: _board == kind,
                   selectedColor: kGameAccent.withValues(alpha: 0.16),
                   onSelected: (_) {
@@ -1892,12 +1959,12 @@ class _LeaderboardViewState extends State<_LeaderboardView> {
         ),
         const SizedBox(height: 8),
         if (entries.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
             child: Text(
-              '這個榜還空著，等第一筆成績。',
+              AppLocalizations.of(context).snBoardEmpty,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppInk.faint,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,

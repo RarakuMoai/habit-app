@@ -175,14 +175,16 @@ class SnakeArcadeRecords {
   }
 
   /// 登錄一筆成績並更新署名記憶；呼叫端負責 save()。
+  /// [fallbackName]：署名留空時的後備顯示（由呼叫端用 l10n 給）。
   SnakeArcadeScore addEntry({
     required String name,
     required int score,
     required int carrots,
     required int maxLength,
     required DateTime now,
+    required String fallbackName,
   }) {
-    final trimmed = name.trim().isEmpty ? '玩家' : name.trim();
+    final trimmed = name.trim().isEmpty ? fallbackName : name.trim();
     final entry = SnakeArcadeScore(
       name: trimmed,
       score: score,

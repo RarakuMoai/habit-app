@@ -4528,5 +4528,354 @@
   "mbrTitle": "兔咪回憶本",
   "@mbrTitle": {
     "description": "回憶本閱讀器的標題。這裡的「兔咪」是產品固定用法，不隨使用者改的名字變。"
+  },
+
+  "snAbilityExtraLifeLabel": "多一命",
+  "@snAbilityExtraLifeLabel": {
+    "description": "菜園小蛇的能力名稱。要短，會放在能力卡上。"
+  },
+  "snAbilityExtraLifeDesc": "倒下時在安全處醒來（可存 3 次）",
+  "@snAbilityExtraLifeDesc": {
+    "description": "菜園小蛇能力說明：多一命。"
+  },
+  "snAbilitySpeedUpLabel": "踩油門",
+  "@snAbilitySpeedUpLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilitySpeedUpDesc": "快一級，得分倍率 +25%",
+  "@snAbilitySpeedUpDesc": {
+    "description": "菜園小蛇能力說明：加速。"
+  },
+  "snAbilitySpeedDownLabel": "踩剎車",
+  "@snAbilitySpeedDownLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilitySpeedDownDesc": "慢一級，得分倍率 −25%",
+  "@snAbilitySpeedDownDesc": {
+    "description": "菜園小蛇能力說明：減速。負號是 U+2212，請保留。"
+  },
+  "snAbilityFiveFoldLabel": "五倍蘿蔔",
+  "@snAbilityFiveFoldLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilityFiveFoldDesc": "下一份收穫價值 ×5",
+  "@snAbilityFiveFoldDesc": {
+    "description": "菜園小蛇能力說明：五倍蘿蔔。"
+  },
+  "snAbilitySelfPassLabel": "穿身術",
+  "@snAbilitySelfPassLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilitySelfPassDesc": "補滿 3 點，穿過自己每格用 1 點",
+  "@snAbilitySelfPassDesc": {
+    "description": "菜園小蛇能力說明：穿過自己的身體。"
+  },
+  "snAbilityHuntLabel": "狩獵時刻",
+  "@snAbilityHuntLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilityHuntDesc": "20 秒內用蛇頭吃鼴鼠，目標 3 隻",
+  "@snAbilityHuntDesc": {
+    "description": "菜園小蛇能力說明：狩獵時刻。"
+  },
+  "snAbilityCarrotRainLabel": "蘿蔔雨",
+  "@snAbilityCarrotRainLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilityCarrotRainDesc": "田裡馬上多 4 根胡蘿蔔",
+  "@snAbilityCarrotRainDesc": {
+    "description": "菜園小蛇能力說明：蘿蔔雨。"
+  },
+  "snAbilityRapidSeedLabel": "速射種子",
+  "@snAbilityRapidSeedLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilityRapidSeedDesc": "種子冷卻縮短（可疊 2 次）",
+  "@snAbilityRapidSeedDesc": {
+    "description": "菜園小蛇能力說明：速射種子。"
+  },
+  "snAbilityCarrotMagnetLabel": "蘿蔔磁鐵",
+  "@snAbilityCarrotMagnetLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilityCarrotMagnetDesc": "吸取範圍增加 1 格（最多 3 格）",
+  "@snAbilityCarrotMagnetDesc": {
+    "description": "菜園小蛇能力說明：蘿蔔磁鐵。"
+  },
+  "snAbilityLaserLabel": "三排雷射",
+  "@snAbilityLaserLabel": {
+    "description": "菜園小蛇的能力名稱。"
+  },
+  "snAbilityLaserDesc": "10 秒內改射三排雷射，射程 12 格",
+  "@snAbilityLaserDesc": {
+    "description": "菜園小蛇能力說明：三排雷射。"
+  },
+  "snDefaultPlayer": "玩家",
+  "@snDefaultPlayer": {
+    "description": "排行榜署名的預設值：沒有暱稱時用這個。"
+  },
+  "snNoticeMagnet": "磁力果實出現！吃下去吸光全場",
+  "@snNoticeMagnet": {
+    "description": "菜園小蛇的即時提示。遊戲語氣可以熱鬧。"
+  },
+  "snNoticeHarvest": "全場收割！蘿蔔全算，成長最多 4 格",
+  "@snNoticeHarvest": {
+    "description": "菜園小蛇的即時提示。"
+  },
+  "snNoticeAbilityReady": "能力到了！選一個再滑動繼續",
+  "@snNoticeAbilityReady": {
+    "description": "菜園小蛇的即時提示：可以選能力了。"
+  },
+  "snNoticeMoles": "鼴鼠來了！點畫面任意位置發射",
+  "@snNoticeMoles": {
+    "description": "菜園小蛇的即時提示。"
+  },
+  "snNoticeLaserOn": "三排雷射啟動｜10 秒",
+  "@snNoticeLaserOn": {
+    "description": "菜園小蛇的即時提示。中間是全形直線，請保留。"
+  },
+  "snNoticeLaserOff": "雷射結束，恢復種子射擊",
+  "@snNoticeLaserOff": {
+    "description": "菜園小蛇的即時提示。"
+  },
+  "snNoticeHuntOn": "狩獵時刻｜20 秒內追到 3 隻",
+  "@snNoticeHuntOn": {
+    "description": "菜園小蛇的即時提示。"
+  },
+  "snNoticeHuntDone": "三隻達成！獲得狩獵加碼",
+  "@snNoticeHuntDone": {
+    "description": "菜園小蛇的即時提示。"
+  },
+  "snNoticeRevived": "已回到安全位置",
+  "@snNoticeRevived": {
+    "description": "菜園小蛇的即時提示：用掉一命後復活。"
+  },
+  "snLeaveTitle": "離開菜園小蛇？",
+  "@snLeaveTitle": {
+    "description": "離開遊戲的確認對話框標題。"
+  },
+  "snLeaveMessage": "這一局的進度不會保留。",
+  "@snLeaveMessage": {
+    "description": "離開遊戲的確認內容。"
+  },
+  "snLeaveConfirm": "離開遊戲",
+  "@snLeaveConfirm": {
+    "description": "離開遊戲的確認按鈕，也用在暫停層與 tooltip。"
+  },
+  "snRestartTitle": "重新開始？",
+  "@snRestartTitle": {
+    "description": "重新開始的確認對話框標題。"
+  },
+  "snRestartMessage": "目前這一局的分數與能力會清除。",
+  "@snRestartMessage": {
+    "description": "重新開始的確認內容。"
+  },
+  "snRestart": "重新開始",
+  "@snRestart": {
+    "description": "重新開始的按鈕。"
+  },
+  "snScore": "分數",
+  "@snScore": {
+    "description": "遊戲中的分數欄位標籤。"
+  },
+  "snSpeedLevel": "速度{level}",
+  "@snSpeedLevel": {
+    "description": "目前速度等級。中文不加空格。",
+    "placeholders": {
+      "level": { "type": "int" }
+    }
+  },
+  "snPassPoints": "穿{points}",
+  "@snPassPoints": {
+    "description": "穿身術剩餘點數。中文極短、不加空格。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "snPause": "暫停",
+  "@snPause": {
+    "description": "暫停按鈕的 tooltip。"
+  },
+  "snFullMap": "菜園全圖",
+  "@snFullMap": {
+    "description": "切換到全圖檢視的標籤。"
+  },
+  "snBadgeMagnet": "吸取 {n} 格",
+  "@snBadgeMagnet": {
+    "description": "能力徽章：蘿蔔磁鐵的範圍。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "snBadgeRapid": "速射 ×{n}",
+  "@snBadgeRapid": {
+    "description": "能力徽章：速射種子的疊加層數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "snBadgeLaser": "雷射 {s}s",
+  "@snBadgeLaser": {
+    "description": "能力徽章：雷射剩餘秒數。",
+    "placeholders": {
+      "s": { "type": "int" }
+    }
+  },
+  "snBadgeHunt": "狩獵 {eaten}/{target}",
+  "@snBadgeHunt": {
+    "description": "能力徽章：狩獵進度。",
+    "placeholders": {
+      "eaten": { "type": "int" },
+      "target": { "type": "int" }
+    }
+  },
+  "snBadgeLaserName": "三排雷射",
+  "@snBadgeLaserName": {
+    "description": "能力徽章：雷射能力名。"
+  },
+  "snCompactMagnet": "吸{n}",
+  "@snCompactMagnet": {
+    "description": "窄版能力摘要：磁鐵。要極短。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "snCompactRapid": "速{n}",
+  "@snCompactRapid": {
+    "description": "窄版能力摘要：速射。要極短。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "snPowersLine": "能力 {list}",
+  "@snPowersLine": {
+    "description": "窄版能力摘要列。list 已用「 · 」串好。",
+    "placeholders": {
+      "list": { "type": "String" }
+    }
+  },
+  "snNextPower": "下次能力",
+  "@snNextPower": {
+    "description": "還沒拿到任何能力時的提示。"
+  },
+  "snHintMoles": "點畫面趕走鼴鼠",
+  "@snHintMoles": {
+    "description": "操作提示：鼴鼠已解鎖。"
+  },
+  "snHintCarrots": "收蘿蔔，長大一點",
+  "@snHintCarrots": {
+    "description": "操作提示：還沒解鎖鼴鼠。"
+  },
+  "snHintHunting": "滑動追獵 · 射擊暫停",
+  "@snHintHunting": {
+    "description": "操作提示：狩獵時刻中。"
+  },
+  "snHintShoot": "滑動轉向 · 點擊發射",
+  "@snHintShoot": {
+    "description": "操作提示：可以射擊。"
+  },
+  "snHintTurn": "滑動轉向",
+  "@snHintTurn": {
+    "description": "操作提示：只能轉向。"
+  },
+  "snRankedTitle": "進榜了！要用誰的名字記下來？",
+  "@snRankedTitle": {
+    "description": "成績進榜後詢問署名的對話框標題。"
+  },
+  "snNameHint": "署名",
+  "@snNameHint": {
+    "description": "署名輸入框的提示字。"
+  },
+  "snSubmitScore": "登錄成績",
+  "@snSubmitScore": {
+    "description": "登錄成績的按鈕。"
+  },
+  "snSkipScore": "先不登錄",
+  "@snSkipScore": {
+    "description": "不登錄成績的按鈕。"
+  },
+  "snPlayAgain": "再來一局",
+  "@snPlayAgain": {
+    "description": "結算畫面再玩一局的按鈕。"
+  },
+  "snLeave": "離開",
+  "@snLeave": {
+    "description": "結算畫面離開的按鈕。"
+  },
+  "snWaitNewGame": "全螢幕滑動開始",
+  "@snWaitNewGame": {
+    "description": "待機提示：新的一局。"
+  },
+  "snWaitAbilityPicked": "滑動繼續",
+  "@snWaitAbilityPicked": {
+    "description": "待機提示：選完能力。"
+  },
+  "snWaitRevived": "復活了，滑動繼續",
+  "@snWaitRevived": {
+    "description": "待機提示：剛復活。"
+  },
+  "snHuntBanner": "狩獵時刻！用頭吃鼴鼠",
+  "@snHuntBanner": {
+    "description": "狩獵時刻的全畫面橫幅。"
+  },
+  "snPickAbility": "選一個能力",
+  "@snPickAbility": {
+    "description": "能力選擇層的標題。"
+  },
+  "snPickAbilityHint": "選完再滑動一下才會繼續",
+  "@snPickAbilityHint": {
+    "description": "能力選擇層的說明。"
+  },
+  "snPaused": "已暫停",
+  "@snPaused": {
+    "description": "暫停層的標題。"
+  },
+  "snPausedSub": "先喘口氣也可以。",
+  "@snPausedSub": {
+    "description": "暫停層的副標。輕鬆語氣。"
+  },
+  "snResume": "繼續",
+  "@snResume": {
+    "description": "暫停層的繼續按鈕。"
+  },
+  "snResultNewRecord": "新紀錄！這局跑得很漂亮。",
+  "@snResultNewRecord": {
+    "description": "結算畫面：有進榜。"
+  },
+  "snResultRest": "先休息一下，隨時可以再來。",
+  "@snResultRest": {
+    "description": "結算畫面：沒進榜。不責備、不比較。"
+  },
+  "snResultTitle": "結算",
+  "@snResultTitle": {
+    "description": "結算畫面的標題。"
+  },
+  "snStatCarrots": "蘿蔔",
+  "@snStatCarrots": {
+    "description": "結算統計：吃到的蘿蔔數。"
+  },
+  "snStatLongest": "最長",
+  "@snStatLongest": {
+    "description": "結算統計：蛇的最大長度。"
+  },
+  "snStatHunted": "獵怪",
+  "@snStatHunted": {
+    "description": "結算統計：吃掉的鼴鼠數。"
+  },
+  "snBoardToday": "今日",
+  "@snBoardToday": {
+    "description": "排行榜分頁：今天。"
+  },
+  "snBoardWeek": "本週",
+  "@snBoardWeek": {
+    "description": "排行榜分頁：本週。"
+  },
+  "snBoardAllTime": "歷史",
+  "@snBoardAllTime": {
+    "description": "排行榜分頁：歷史總榜。"
+  },
+  "snBoardEmpty": "這個榜還空著，等第一筆成績。",
+  "@snBoardEmpty": {
+    "description": "排行榜的空狀態。"
   }
 }
