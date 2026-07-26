@@ -72,10 +72,7 @@ void main() {
 
     test('壞 JSON / 非 list 回空 list 不丟例外', () {
       expect(parseWaterEntries('{{{', maxEntryMl: kMaxEntryMl), isEmpty);
-      expect(
-        parseWaterEntries('{"ml":250}', maxEntryMl: kMaxEntryMl),
-        isEmpty,
-      );
+      expect(parseWaterEntries('{"ml":250}', maxEntryMl: kMaxEntryMl), isEmpty);
       expect(parseWaterEntries('42', maxEntryMl: kMaxEntryMl), isEmpty);
     });
 
@@ -102,8 +99,10 @@ void main() {
     });
 
     test('裸數字 list（最舊格式）整串可解析', () {
-      final entries =
-          parseWaterEntries('[250, 300.4]', maxEntryMl: kMaxEntryMl);
+      final entries = parseWaterEntries(
+        '[250, 300.4]',
+        maxEntryMl: kMaxEntryMl,
+      );
       expect(entries.map((e) => e.ml), [250, 300]);
       expect(entries.every((e) => e.kind == 'custom'), isTrue);
     });
@@ -130,8 +129,10 @@ void main() {
     test('杯數展開成 cup entries、extra 變一筆 custom', () {
       final entries = legacyWaterEntries(cups: 3, extraMl: 400, cupMl: 250);
       expect(entries.length, 4);
-      expect(entries.take(3).every((e) => e.kind == 'cup' && e.ml == 250),
-          isTrue);
+      expect(
+        entries.take(3).every((e) => e.kind == 'cup' && e.ml == 250),
+        isTrue,
+      );
       expect(entries.last.kind, 'custom');
       expect(entries.last.ml, 400);
     });

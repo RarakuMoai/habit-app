@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/coin_service.dart';
 import 'package:habit_app/widgets/mascot_app_bar.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -15,8 +17,8 @@ void main() {
     CoinService.notifier.value = 999;
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: Center(child: CoinPill())),
+      l10nTestApp(
+        home: const Scaffold(body: Center(child: CoinPill())),
       ),
     );
 
@@ -41,7 +43,9 @@ void main() {
     CoinService.presentationBalance.value = 100;
 
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: Center(child: CoinPill()))),
+      l10nTestApp(
+        home: const Scaffold(body: Center(child: CoinPill())),
+      ),
     );
 
     expect(find.text('100'), findsOneWidget);
@@ -55,7 +59,9 @@ void main() {
   testWidgets('單雙位數比三位數稍高，符合掌墊視覺重心', (tester) async {
     CoinService.notifier.value = 1;
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: Center(child: CoinPill()))),
+      l10nTestApp(
+        home: const Scaffold(body: Center(child: CoinPill())),
+      ),
     );
     final oneY = tester.getCenter(find.text('1')).dy;
 

@@ -36,11 +36,7 @@ void main() {
       await tester.tapAt(blankSpot);
       await tester.pump();
     }
-    expect(
-      find.text('繼續'),
-      findsOneWidget,
-      reason: '點畫面應該能跳過打字動畫，不必乾等 6 秒',
-    );
+    expect(find.text('繼續'), findsOneWidget, reason: '點畫面應該能跳過打字動畫，不必乾等 6 秒');
 
     await tester.pump(const Duration(seconds: 10));
   });

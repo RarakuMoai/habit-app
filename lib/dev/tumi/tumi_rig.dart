@@ -80,7 +80,9 @@ class TumiRigPainter extends CustomPainter {
 
     for (final sh in g.shapes) {
       canvas.drawPath(
-          warped(sh.pts, close: true), Paint()..color = Color(sh.color));
+        warped(sh.pts, close: true),
+        Paint()..color = Color(sh.color),
+      );
     }
     final stroke = Paint()
       ..style = PaintingStyle.stroke
@@ -95,7 +97,10 @@ class TumiRigPainter extends CustomPainter {
 
   void _drawGroup(Canvas canvas, _Group g) {
     for (final sh in g.shapes) {
-      canvas.drawPath(_poly(sh.pts, close: true), Paint()..color = Color(sh.color));
+      canvas.drawPath(
+        _poly(sh.pts, close: true),
+        Paint()..color = Color(sh.color),
+      );
     }
     final stroke = Paint()
       ..style = PaintingStyle.stroke

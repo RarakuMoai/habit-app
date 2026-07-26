@@ -91,8 +91,10 @@ double sceneRegionHeightAnchored(double screenWidth, double statusBarTop) {
 /// 封頂，擋 widget test 800×600 這種寬>高的退化面（場景區被
 /// [kSceneRegionMaxFraction] 護欄壓扁時兔咪跟著縮，不會爆出區外）。
 /// 真機 iPhone 上兩者相等（都是寬度錨點），取 min 不影響。
-double mascotStageScale({required double maxWidth, required double maxHeight}) =>
-    math.min(maxWidth / kBaseWidth, maxHeight / _kBaseSceneRegion);
+double mascotStageScale({
+  required double maxWidth,
+  required double maxHeight,
+}) => math.min(maxWidth / kBaseWidth, maxHeight / _kBaseSceneRegion);
 
 /// 特效層（RoomSceneEffectsPainter）內部用的場景高，與 [roomSceneHeight] 同義，
 /// 但 painter 拿到的是「全螢幕 size」，所以獨立提供以螢幕寬換算的版本。

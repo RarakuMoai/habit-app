@@ -111,9 +111,12 @@ class BubbleMotion {
     final shake = shakeAmp == 0
         ? 0.0
         : shakeAmp * math.sin(2 * math.pi * shakeCycles * hold) * (1 - hold);
-    final spin = spinIn == 0 ? 0.0 : spinIn * (1 - Curves.easeOutCubic.transform(appear));
+    final spin = spinIn == 0
+        ? 0.0
+        : spinIn * (1 - Curves.easeOutCubic.transform(appear));
 
-    final dy = -rise * Curves.easeOut.transform(t) +
+    final dy =
+        -rise * Curves.easeOut.transform(t) +
         slideY * Curves.easeIn.transform(hold);
     final stretchY = 1 + stretch * Curves.easeIn.transform(hold);
 
@@ -495,11 +498,7 @@ final Map<EmotionBubble, BubbleSpec> _specs = {
   EmotionBubble.question: BubbleSpec(
     duration: const Duration(milliseconds: 2100),
     tint: (accent) => Color.lerp(accent, const Color(0xFF3B3B4E), 0.1)!,
-    motion: const BubbleMotion(
-      rise: 14,
-      swayAngle: 0.13,
-      swayCycles: 1.5,
-    ),
+    motion: const BubbleMotion(rise: 14, swayAngle: 0.13, swayCycles: 1.5),
     glyph: const TextGlyph('?'),
   ),
 };
@@ -571,14 +570,13 @@ class MascotEmotionBubblePainter extends CustomPainter {
       final opacity = fadeIn * fadeOut * pose.opacity;
       if (opacity <= 0) continue;
       final pop = Curves.easeOutBack.transform((lt / 0.3).clamp(0.0, 1.0));
-      final pos = anchor +
+      final pos =
+          anchor +
           (sat.from + sat.drift * Curves.easeOut.transform(lt)) * spec.size;
       canvas.save();
       canvas.translate(pos.dx, pos.dy);
       if (sat.sway != 0) {
-        canvas.rotate(
-          sat.sway * math.sin(2 * math.pi * sat.swayCycles * lt),
-        );
+        canvas.rotate(sat.sway * math.sin(2 * math.pi * sat.swayCycles * lt));
       }
       sat.glyph.paint(canvas, spec.size * sat.scale * pop, tint, opacity);
       canvas.restore();

@@ -56,13 +56,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     _ => l10n.genderUndisclosed,
   };
 
-  String _activityLabel(AppLocalizations l10n, String value) =>
-      switch (value) {
-        '久坐' => l10n.activityAlmostNone,
-        '輕度' => l10n.activityDays1to2,
-        '中度' => l10n.activityDays3to4,
-        _ => l10n.activityDays5plus,
-      };
+  String _activityLabel(AppLocalizations l10n, String value) => switch (value) {
+    '久坐' => l10n.activityAlmostNone,
+    '輕度' => l10n.activityDays1to2,
+    '中度' => l10n.activityDays3to4,
+    _ => l10n.activityDays5plus,
+  };
 
   @override
   void initState() {

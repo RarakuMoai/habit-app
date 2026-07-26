@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
 import '../utils/habit_history.dart';
 import '../utils/logical_date.dart';
@@ -42,9 +43,9 @@ class HabitBackfillPage extends StatelessWidget {
           foregroundColor: AppInk.strong,
           iconTheme: const IconThemeData(color: AppInk.strong),
           actionsIconTheme: const IconThemeData(color: AppInk.strong),
-          title: const Text(
-            '補上之前的足跡',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context).bfTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 17,
               color: AppInk.strong,
@@ -66,6 +67,8 @@ class BackfillDayView extends StatefulWidget {
 }
 
 class _BackfillDayViewState extends State<BackfillDayView> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   SharedPreferences? _prefs;
   List<Map<String, dynamic>> _habits = const [];
   List<Map<String, dynamic>> _tombstones = const [];
@@ -231,7 +234,15 @@ class _BackfillDayViewState extends State<BackfillDayView> {
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  List<String> get _weekdays => [
+    _l10n.weekdayShortMon,
+    _l10n.weekdayShortTue,
+    _l10n.weekdayShortWed,
+    _l10n.weekdayShortThu,
+    _l10n.weekdayShortFri,
+    _l10n.weekdayShortSat,
+    _l10n.weekdayShortSun,
+  ];
 
   ({int month, int day, String weekday}) _parts(String date) {
     final d = DateTime.parse(date);
@@ -287,7 +298,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '週${p.weekday}',
+                    _l10n.bpWeekdayPrefix(p.weekday),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -326,7 +337,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
   Widget _buildDayBody() {
     final date = _selected;
     if (date == null) {
-      return _buildEmpty('還沒有可以補的日子');
+      return _buildEmpty(_l10n.bfNoDays);
     }
     final all = HabitHistory.dailyHabitsAsOf(
       activeHabits: _habits,
@@ -344,7 +355,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
           child: Text(
-            '${p.month}月${p.day}日 週${p.weekday}',
+            _l10n.bfDateWeekday(p.month, p.day, p.weekday),
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w800,
@@ -353,7 +364,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
           ),
         ),
         if (editable.isEmpty)
-          _buildEmpty('這天還沒有每日習慣')
+          _buildEmpty(_l10n.bfNoHabits)
         else
           ...editable.map(_buildHabitRow),
       ],
@@ -362,7 +373,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
 
   Widget _buildHabitRow(Map<String, dynamic> habit) {
     final id = habit['id'] as String;
-    final name = (habit['name'] as String?) ?? '習慣';
+    final name = (habit['name'] as String?) ?? _l10n.rsHabitFallback;
     final deleted = habit['deleted'] == true;
     final done = _doneIds.contains(id);
 
@@ -424,9 +435,9 @@ class _BackfillDayViewState extends State<BackfillDayView> {
                       color: const Color(0xFFF0E6D8),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
-                      '已刪除',
-                      style: TextStyle(fontSize: 11, color: AppInk.soft),
+                    child: Text(
+                      _l10n.rvDeleted,
+                      style: const TextStyle(fontSize: 11, color: AppInk.soft),
                     ),
                   ),
               ],
@@ -470,7 +481,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
         child: Text(
-          '可補昨天起往前 7 天；補登不影響足跡幣與連勝。',
+          _l10n.bfFooter,
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11.5, color: AppInk.faint),
         ),

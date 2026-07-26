@@ -222,7 +222,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Divider(height: 32, thickness: 1),
 
                 // ── 區塊：單位（公制／英制）──
-                _sectionTitle(l10n.settingsSectionUnits, Icons.straighten_outlined),
+                _sectionTitle(
+                  l10n.settingsSectionUnits,
+                  Icons.straighten_outlined,
+                ),
                 SettingsGroupCard(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                   child: Column(
@@ -230,7 +233,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Text(
                         l10n.settingsUnitsDescription,
-                        style: const TextStyle(fontSize: 12, color: AppInk.soft),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppInk.soft,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       SegmentedButton<UnitSystem>(
@@ -266,7 +272,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Divider(height: 32, thickness: 1),
 
                 // ── 區塊：換日時間（夜貓族把午夜往後挪）──
-                _sectionTitle(l10n.settingsSectionDayStart, Icons.bedtime_outlined),
+                _sectionTitle(
+                  l10n.settingsSectionDayStart,
+                  Icons.bedtime_outlined,
+                ),
                 SettingsGroupCard(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
                   child: Column(
@@ -324,7 +333,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       const SizedBox(height: 10),
                       Text(
                         l10n.settingsDayStartCoinNote,
-                        style: const TextStyle(fontSize: 11, color: AppInk.faint),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppInk.faint,
+                        ),
                       ),
                     ],
                   ),
@@ -352,7 +364,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Divider(height: 32, thickness: 1),
 
                 // ── 安全性區塊：PIN 設定 ──
-                _sectionTitle(l10n.settingsSectionSecurity, Icons.security_outlined),
+                _sectionTitle(
+                  l10n.settingsSectionSecurity,
+                  Icons.security_outlined,
+                ),
 
                 SettingsTileCard(
                   icon: Icons.lock_outline,
@@ -477,7 +492,9 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             autofocus: true,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
-              hintText: AppLocalizations.of(context).pinEnterDigitsHint(_digits),
+              hintText: AppLocalizations.of(
+                context,
+              ).pinEnterDigitsHint(_digits),
               counterText: '',
               suffixIcon: IconButton(
                 icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
@@ -512,7 +529,9 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
             autofocus: true,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
-              hintText: AppLocalizations.of(context).pinEnterDigitsHint(_digits),
+              hintText: AppLocalizations.of(
+                context,
+              ).pinEnterDigitsHint(_digits),
               counterText: '',
               suffixIcon: IconButton(
                 icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
@@ -945,7 +964,10 @@ class _SecurityQuestionDialogState extends State<_SecurityQuestionDialog> {
         ),
       ),
       actions: [
-        dialogCancelAction(context, label: widget.initial ? l10n.commonSkip : null),
+        dialogCancelAction(
+          context,
+          label: widget.initial ? l10n.commonSkip : null,
+        ),
         TextButton(
           onPressed: ready
               ? () => Navigator.pop(context, (
@@ -1177,7 +1199,9 @@ class _DayStartTimelineState extends State<_DayStartTimeline> {
                       children: [
                         Text(
                           h == 0
-                              ? AppLocalizations.of(context).dayStartTickMidnight
+                              ? AppLocalizations.of(
+                                  context,
+                                ).dayStartTickMidnight
                               : '$h',
                           textAlign: TextAlign.center,
                           style: AppType.digits(
@@ -1194,8 +1218,9 @@ class _DayStartTimelineState extends State<_DayStartTimeline> {
                           height: 14,
                           child: recommended
                               ? Text(
-                                  AppLocalizations.of(context)
-                                      .dayStartRecommended,
+                                  AppLocalizations.of(
+                                    context,
+                                  ).dayStartRecommended,
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,

@@ -3,6 +3,8 @@
 // 解析走 parseLenientDate，2000-1-1 / 20000101 / 2000年1月1日 都吃。
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+
 import '../utils/lenient_date.dart';
 
 /// 回傳解析成功的日期；取消回傳 null。
@@ -12,8 +14,10 @@ Future<DateTime?> showManualDateDialog(
   DateTime? initial,
   required DateTime firstDate,
   required DateTime lastDate,
-  String title = '輸入日期',
+  // 預設文案不能寫在參數預設值（要編譯期常數），null 進來後才取 l10n。
+  String? title,
 }) {
+  final l10n = AppLocalizations.of(context);
   final ctrl = TextEditingController(
     text: initial == null
         ? ''
@@ -27,24 +31,24 @@ Future<DateTime?> showManualDateDialog(
         void submit() {
           final parsed = parseLenientDate(ctrl.text);
           if (parsed == null) {
-            setS(() => error = '看不懂這個日期，試試 2000-1-1 或 20000101');
+            setS(() => error = l10n.obBirthdayUnparsed);
             return;
           }
           if (parsed.isBefore(firstDate) || parsed.isAfter(lastDate)) {
-            setS(() => error = '日期超出可選範圍');
+            setS(() => error = l10n.obBirthdayOutOfRange);
             return;
           }
           Navigator.pop(ctx, parsed);
         }
 
         return AlertDialog(
-          title: Text(title),
+          title: Text(title ?? l10n.mdEnterDate),
           content: TextField(
             controller: ctrl,
             autofocus: true,
             keyboardType: TextInputType.datetime,
             decoration: InputDecoration(
-              hintText: '例：2000-1-1 或 20000101',
+              hintText: l10n.mdHint,
               errorText: error,
               errorMaxLines: 2,
             ),
@@ -56,9 +60,9 @@ Future<DateTime?> showManualDateDialog(
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消'),
+              child: Text(l10n.commonCancel),
             ),
-            FilledButton(onPressed: submit, child: const Text('確認')),
+            FilledButton(onPressed: submit, child: Text(l10n.commonConfirm)),
           ],
         );
       },

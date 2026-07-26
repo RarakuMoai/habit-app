@@ -44,26 +44,34 @@ class _BunnyState extends State<_Bunny> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _breath = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2400))
-      ..repeat(reverse: true);
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
     _sway = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 3800))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(milliseconds: 3800),
+    )..repeat();
     _blink = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 130));
+      vsync: this,
+      duration: const Duration(milliseconds: 130),
+    );
     _cheer = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1400));
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
     _scheduleBlink();
   }
 
   void _scheduleBlink() {
-    _blinkTimer =
-        Timer(Duration(milliseconds: 1800 + _rand.nextInt(2600)), () async {
-      if (!mounted) return;
-      await _blink.forward();
-      await _blink.reverse();
-      _scheduleBlink();
-    });
+    _blinkTimer = Timer(
+      Duration(milliseconds: 1800 + _rand.nextInt(2600)),
+      () async {
+        if (!mounted) return;
+        await _blink.forward();
+        await _blink.reverse();
+        _scheduleBlink();
+      },
+    );
   }
 
   @override
@@ -91,8 +99,8 @@ class _BunnyState extends State<_Bunny> with TickerProviderStateMixin {
           final cheer = c.clamp(0.0, 1.0);
           final hop = _cheer.isAnimating
               ? math.sin(_cheer.value * math.pi * 3).abs() *
-                  (1 - _cheer.value) *
-                  26
+                    (1 - _cheer.value) *
+                    26
               : 0.0;
           return Transform.translate(
             offset: Offset(0, -hop),

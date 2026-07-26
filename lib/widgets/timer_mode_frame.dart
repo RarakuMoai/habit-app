@@ -142,8 +142,7 @@ class TimerModeFrame extends StatelessWidget {
     required double height,
     required bool ultra,
   }) {
-    final bodyTop =
-        (ultra ? 0.0 : 8.0) + TimerModeMetrics.statusHeight + 4.0;
+    final bodyTop = (ultra ? 0.0 : 8.0) + TimerModeMetrics.statusHeight + 4.0;
     final reservedBottom = !ultra && quickPicker != null
         ? TimerModeMetrics.quickPickerHeight + 12.0
         : 0.0;
@@ -354,7 +353,11 @@ class TimerModeFrame extends StatelessWidget {
         _header(showContent: showHeader),
         const SizedBox(height: 4),
         Expanded(
-          child: _sideBySideBody(context, geometry: geometry, showHero: showHero),
+          child: _sideBySideBody(
+            context,
+            geometry: geometry,
+            showHero: showHero,
+          ),
         ),
         if (quickPicker != null) ...[
           _slot(
@@ -368,7 +371,11 @@ class TimerModeFrame extends StatelessWidget {
     );
   }
 
-  Widget _ultraCompactLayout(BuildContext context, double width, double height) {
+  Widget _ultraCompactLayout(
+    BuildContext context,
+    double width,
+    double height,
+  ) {
     final geometry = _sideBySideGeometry(
       width: width,
       height: height,
@@ -399,7 +406,10 @@ class TimerModeFrame extends StatelessWidget {
     // 完整版主視覺的幾何（fullHeight 座標系）：跟 _fullLayout 的
     // Column 結構逐項對齊，t=1 時浮動主視覺與真實版面零位移接軌。
     const fullHeroTop =
-        8.0 + TimerModeMetrics.statusHeight + 6.0 + TimerModeMetrics.progressHeight;
+        8.0 +
+        TimerModeMetrics.statusHeight +
+        6.0 +
+        TimerModeMetrics.progressHeight;
     var fullHeroBottom = TimerModeMetrics.controlsHeight + 10.0;
     if (statusLine != null) {
       fullHeroBottom += 8.0 + TimerModeMetrics.statusLineHeight;
@@ -408,7 +418,10 @@ class TimerModeFrame extends StatelessWidget {
       fullHeroBottom += 8.0 + TimerModeMetrics.quickPickerHeight;
     }
     if (footer != null) fullHeroBottom += 12.0 + TimerModeMetrics.footerHeight;
-    final fullExpanded = math.max(0.0, fullHeight - fullHeroTop - fullHeroBottom);
+    final fullExpanded = math.max(
+      0.0,
+      fullHeight - fullHeroTop - fullHeroBottom,
+    );
     final fullSize = math.min(math.min(width, fullExpanded), fullHeroSize);
 
     final compactCenter = Offset(
@@ -416,8 +429,8 @@ class TimerModeFrame extends StatelessWidget {
       compactGeometry.bodyTop + compactGeometry.bodyHeight / 2,
     );
     final fullCenter = Offset(width / 2, fullHeroTop + fullExpanded / 2);
-    final heroSize = compactGeometry.heroSize +
-        (fullSize - compactGeometry.heroSize) * t;
+    final heroSize =
+        compactGeometry.heroSize + (fullSize - compactGeometry.heroSize) * t;
     final heroCenter = Offset.lerp(compactCenter, fullCenter, t)!;
     // 錯開淡入淡出避免雙影，但保留少量重疊，拖曳中段內容不會整片真空。
     final compactOpacity = Curves.easeIn.transform(

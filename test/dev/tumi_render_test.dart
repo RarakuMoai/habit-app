@@ -13,11 +13,12 @@ void main() {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.drawRect(
-        const Rect.fromLTWH(0, 0, size, size), Paint()..color = Colors.white);
+      const Rect.fromLTWH(0, 0, size, size),
+      Paint()..color = Colors.white,
+    );
     const TumiPainter().paint(canvas, const Size(size, size));
     final image = await recorder.endRecording().toImage(1024, 1024);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    File('/tmp/tumi_painted.png')
-        .writeAsBytesSync(bytes!.buffer.asUint8List());
+    File('/tmp/tumi_painted.png').writeAsBytesSync(bytes!.buffer.asUint8List());
   });
 }

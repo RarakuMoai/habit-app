@@ -13,10 +13,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
+import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/story_store.dart';
 import '../utils/wardrobe_catalog.dart';
@@ -72,10 +74,11 @@ class MascotCallingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       container: true,
       button: true,
-      label: '$name 的名片，相識第 $companionDays 天，足跡幣 $coinBalance，查看檔案',
+      label: l10n.mpCardSemantics(name, companionDays, coinBalance),
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -160,7 +163,7 @@ class MascotCallingCard extends StatelessWidget {
                                         const SizedBox(width: 4),
                                         Flexible(
                                           child: Text(
-                                            '$name夥伴證',
+                                            l10n.mpPartnerBadge(name),
                                             key: const ValueKey(
                                               'mascot-calling-card-title',
                                             ),
@@ -191,7 +194,7 @@ class MascotCallingCard extends StatelessWidget {
                                   Text.rich(
                                     TextSpan(
                                       children: [
-                                        const TextSpan(text: '我們一起走到第 '),
+                                        TextSpan(text: l10n.mpTogetherPrefix),
                                         TextSpan(
                                           text: '$companionDays',
                                           style: AppType.digits(
@@ -200,7 +203,7 @@ class MascotCallingCard extends StatelessWidget {
                                             color: _kNumberInk,
                                           ),
                                         ),
-                                        const TextSpan(text: ' 天'),
+                                        TextSpan(text: l10n.mpDaySuffix),
                                       ],
                                     ),
                                     maxLines: 1,
@@ -219,10 +222,10 @@ class MascotCallingCard extends StatelessWidget {
                         const SizedBox(height: 13),
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: _CallingCardAction(
                                 icon: Icons.badge_rounded,
-                                label: '查看檔案',
+                                label: l10n.mpViewProfile,
                                 foreground: Color(0xFF9C5D3D),
                                 background: Color(0xB3FFFFFF),
                               ),
@@ -231,7 +234,7 @@ class MascotCallingCard extends StatelessWidget {
                             Expanded(
                               child: Semantics(
                                 button: onCoinTap != null,
-                                label: '查看足跡與足跡幣，目前 $coinBalance 枚',
+                                label: l10n.mpViewCoins(coinBalance),
                                 child: Material(
                                   key: const ValueKey(
                                     'mascot-calling-card-coins',
@@ -467,8 +470,10 @@ class MascotProfilePage extends StatefulWidget {
 
 class _MascotProfilePageState extends State<MascotProfilePage>
     with SingleTickerProviderStateMixin {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   bool _loaded = false;
-  String _name = '兔咪';
+  String _name = MascotName.fallback;
   int _days = 1;
   int _streak = 0;
   int _coins = 0;
@@ -503,7 +508,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
     if (!mounted) return;
     setState(() {
       final name = prefs.getString(PrefsKeys.mascotName)?.trim();
-      _name = (name == null || name.isEmpty) ? '兔咪' : name;
+      _name = (name == null || name.isEmpty) ? MascotName.fallback : name;
       _days = companionDays(prefs, DateTime.now());
       _streak = prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0;
       _coins = coins;
@@ -540,7 +545,9 @@ class _MascotProfilePageState extends State<MascotProfilePage>
 
   @override
   Widget build(BuildContext context) {
-    final pageTitle = _loaded ? '$_name的夥伴檔案' : '夥伴檔案';
+    final pageTitle = _loaded
+        ? _l10n.mpProfileTitle(_name)
+        : _l10n.mpProfileTitleFallback;
     return Scaffold(
       backgroundColor: _kStageBase,
       appBar: AppBar(
@@ -580,9 +587,9 @@ class _MascotProfilePageState extends State<MascotProfilePage>
                 const SizedBox(height: 14),
                 _buildStatsRow(),
                 const SizedBox(height: 20),
-                const Center(
+                Center(
                   child: Text(
-                    '走過的每一天，都有留下足跡。',
+                    _l10n.mpEveryDayLeaves,
                     style: TextStyle(
                       fontSize: 12.5,
                       color: AppInk.soft,
@@ -717,7 +724,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
         ),
         IconButton(
           onPressed: _editName,
-          tooltip: '改名字',
+          tooltip: _l10n.mpRename,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints.tightFor(width: 36, height: 36),
           icon: const Icon(
@@ -746,7 +753,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
         child: Text.rich(
           TextSpan(
             children: [
-              const TextSpan(text: '相識第 '),
+              TextSpan(text: _l10n.mpKnownForPrefix),
               TextSpan(
                 text: '$_days',
                 style: AppType.digits(
@@ -755,7 +762,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
                   color: _kNumberInk,
                 ),
               ),
-              const TextSpan(text: ' 天'),
+              TextSpan(text: _l10n.mpDaySuffix),
             ],
           ),
           style: const TextStyle(
@@ -785,8 +792,8 @@ class _MascotProfilePageState extends State<MascotProfilePage>
         children: [
           Row(
             children: [
-              const Text(
-                '報到卡',
+              Text(
+                _l10n.mpCheckinCard,
                 style: TextStyle(
                   color: _kDeepGold,
                   fontSize: 13.5,
@@ -806,7 +813,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
                     border: Border.all(color: _kRayGold.withValues(alpha: 0.8)),
                   ),
                   child: Text(
-                    '第 $_round 輪',
+                    _l10n.mpRound(_round),
                     style: AppType.digits(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w800,
@@ -817,7 +824,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
               ],
               const Spacer(),
               Text(
-                '連續 $_streak 天',
+                _l10n.mpStreakDays(_streak),
                 style: AppType.digits(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -828,7 +835,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
           ),
           const SizedBox(height: 9),
           Semantics(
-            label: '本輪已報到 $_cycleDay 天，滿 $milestone 天有加碼',
+            label: _l10n.mpCheckinSemantics(_cycleDay, milestone),
             child: ExcludeSemantics(
               child: Row(
                 children: [
@@ -842,9 +849,9 @@ class _MascotProfilePageState extends State<MascotProfilePage>
           ),
           if (_streak <= 0) ...[
             const SizedBox(height: 8),
-            const Text(
-              '第一個腳印，今天打開就能蓋。',
-              style: TextStyle(fontSize: 11.5, color: AppInk.soft),
+            Text(
+              _l10n.mpFirstFootprint,
+              style: const TextStyle(fontSize: 11.5, color: AppInk.soft),
             ),
           ],
         ],
@@ -898,7 +905,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
         Expanded(
           child: _StatTile(
             leading: Image.asset(_kCoinAsset, width: 30),
-            label: '足跡幣',
+            label: _l10n.mpCoins,
             value: '$_coins',
             onTap: _openReview,
           ),
@@ -919,8 +926,8 @@ class _MascotProfilePageState extends State<MascotProfilePage>
                 color: _kDeepGold,
               ),
             ),
-            label: '回憶本',
-            value: '$_stories 冊',
+            label: _l10n.mpMemoryBook,
+            value: _l10n.mpVolumes(_stories),
           ),
         ),
       ],
@@ -994,7 +1001,7 @@ class _StatTile extends StatelessWidget {
     if (onTap == null) return content;
     return Semantics(
       button: true,
-      label: '$label $value，查看足跡',
+      label: AppLocalizations.of(context).mpStatSemantics(label, value),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),

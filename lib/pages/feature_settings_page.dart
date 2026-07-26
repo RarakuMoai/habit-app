@@ -164,10 +164,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.featureSettingsTitle),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(l10n.featureSettingsTitle), centerTitle: true),
       body: _loaded
           ? ListView(
               padding: const EdgeInsets.all(24),

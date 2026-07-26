@@ -32,7 +32,9 @@ Future<void> _pumpFace(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
-    l10nTestApp(home: Scaffold(body: PartyFace(engine: engine))),
+    l10nTestApp(
+      home: Scaffold(body: PartyFace(engine: engine)),
+    ),
   );
   await tester.pump();
 }

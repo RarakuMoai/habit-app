@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../pages/review_page.dart';
 import '../pages/settings_page.dart';
 import '../utils/app_style.dart';
@@ -51,8 +52,21 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    final dateStr = '${now.month}月${now.day}日 週${weekdays[now.weekday - 1]}';
+    final l10n = AppLocalizations.of(context);
+    final weekdays = [
+      l10n.weekdayShortMon,
+      l10n.weekdayShortTue,
+      l10n.weekdayShortWed,
+      l10n.weekdayShortThu,
+      l10n.weekdayShortFri,
+      l10n.weekdayShortSat,
+      l10n.weekdayShortSun,
+    ];
+    final dateStr = l10n.abDateWeekday(
+      now.month,
+      now.day,
+      weekdays[now.weekday - 1],
+    );
 
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -94,7 +108,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
           child: _circleAction(
             icon: Icons.settings_outlined,
             iconColor: AppInk.strong,
-            tooltip: '設定',
+            tooltip: l10n.abSettings,
             onPressed: () async {
               _beforeAction();
               await Navigator.of(
@@ -248,7 +262,10 @@ class _CoinBalanceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canOpenReview = onReviewTap != null;
-    final label = canOpenReview ? '足跡與足跡幣，$coins 枚足跡幣' : '足跡幣 $coins 枚';
+    final l10n = AppLocalizations.of(context);
+    final label = canOpenReview
+        ? l10n.abCoinsWithReview(coins)
+        : l10n.abCoinsOnly(coins);
     final button = SizedBox.square(
       dimension: 48,
       child: Material(
@@ -293,7 +310,7 @@ class _CoinBalanceButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: Tooltip(message: '足跡與足跡幣', child: button),
+      child: Tooltip(message: l10n.abFootprintsAndCoins, child: button),
     );
   }
 }

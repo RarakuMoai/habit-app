@@ -5372,5 +5372,309 @@
   "obBack": "回上一步",
   "@obBack": {
     "description": "前導頁返回上一步的 tooltip。"
+  },
+
+  "mpCardSemantics": "{name} 的名片，相識第 {days} 天，足跡幣 {coins}，查看檔案",
+  "@mpCardSemantics": {
+    "description": "兔咪名片的無障礙描述。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "days": { "type": "int" },
+      "coins": { "type": "int" }
+    }
+  },
+  "mpPartnerBadge": "{name}夥伴證",
+  "@mpPartnerBadge": {
+    "description": "名片上的標題。中文名字後不空格。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "mpTogetherPrefix": "我們一起走到第 ",
+  "@mpTogetherPrefix": {
+    "description": "名片上「我們一起走到第 N 天」的前半段。天數是另一段粗體字，所以要拆開。結尾的空格要保留。"
+  },
+  "mpDaySuffix": " 天",
+  "@mpDaySuffix": {
+    "description": "名片上天數後面的後綴。開頭的空格要保留。"
+  },
+  "mpViewProfile": "查看檔案",
+  "@mpViewProfile": {
+    "description": "進入夥伴檔案頁的無障礙標籤。"
+  },
+  "mpViewCoins": "查看足跡與足跡幣，目前 {coins} 枚",
+  "@mpViewCoins": {
+    "description": "進入足跡頁的無障礙標籤。",
+    "placeholders": {
+      "coins": { "type": "int" }
+    }
+  },
+  "mpProfileTitle": "{name}的夥伴檔案",
+  "@mpProfileTitle": {
+    "description": "夥伴檔案頁的標題。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "mpProfileTitleFallback": "夥伴檔案",
+  "@mpProfileTitleFallback": {
+    "description": "夥伴檔案頁還在載入、還不知道名字時的標題。"
+  },
+  "mpEveryDayLeaves": "走過的每一天，都有留下足跡。",
+  "@mpEveryDayLeaves": {
+    "description": "夥伴檔案頁的敘述句。這是 app 的說明，不是兔咪說話。"
+  },
+  "mpRename": "改名字",
+  "@mpRename": {
+    "description": "替兔咪改名的 tooltip。"
+  },
+  "mpKnownForPrefix": "相識第 ",
+  "@mpKnownForPrefix": {
+    "description": "檔案頁「相識第 N 天」的前半段。結尾的空格要保留。"
+  },
+  "mpCheckinCard": "報到卡",
+  "@mpCheckinCard": {
+    "description": "報到卡區塊的標題。"
+  },
+  "mpRound": "第 {round} 輪",
+  "@mpRound": {
+    "description": "報到卡目前是第幾輪。",
+    "placeholders": {
+      "round": { "type": "int" }
+    }
+  },
+  "mpStreakDays": "連續 {days} 天",
+  "@mpStreakDays": {
+    "description": "連續報到天數。",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "mpCheckinSemantics": "本輪已報到 {done} 天，滿 {milestone} 天有加碼",
+  "@mpCheckinSemantics": {
+    "description": "報到卡的無障礙描述。",
+    "placeholders": {
+      "done": { "type": "int" },
+      "milestone": { "type": "int" }
+    }
+  },
+  "mpFirstFootprint": "第一個腳印，今天打開就能蓋。",
+  "@mpFirstFootprint": {
+    "description": "報到卡完全空白時的邀請句。"
+  },
+  "mpCoins": "足跡幣",
+  "@mpCoins": {
+    "description": "檔案頁的統計欄位：足跡幣。"
+  },
+  "mpMemoryBook": "回憶本",
+  "@mpMemoryBook": {
+    "description": "檔案頁的統計欄位：回憶本。"
+  },
+  "mpVolumes": "{n} 冊",
+  "@mpVolumes": {
+    "description": "回憶本冊數。中文有量詞「冊」，英文只給數字。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "mpStatSemantics": "{label} {value}，查看足跡",
+  "@mpStatSemantics": {
+    "description": "統計卡的無障礙描述。",
+    "placeholders": {
+      "label": { "type": "String" },
+      "value": { "type": "String" }
+    }
+  },
+  "bpPickBirthday": "選擇生日",
+  "@bpPickBirthday": {
+    "description": "生日選擇器的標題。"
+  },
+  "bpBirthdayHelper": "直接輸入西元年月日，例如 20190403",
+  "@bpBirthdayHelper": {
+    "description": "生日選擇器的輸入說明。範例格式要保留。"
+  },
+  "bpPickDate": "選擇日期",
+  "@bpPickDate": {
+    "description": "一般日期選擇器的預設標題。"
+  },
+  "bpDateHelper": "直接輸入西元年月日，例如 20260615",
+  "@bpDateHelper": {
+    "description": "一般日期選擇器的輸入說明。"
+  },
+  "bpWeekdayPrefix": "週{weekday}",
+  "@bpWeekdayPrefix": {
+    "description": "星期顯示。中文的「週」字在這裡，英文只要簡稱。",
+    "placeholders": {
+      "weekday": { "type": "String" }
+    }
+  },
+  "bpYear": "{year} 年",
+  "@bpYear": {
+    "description": "年份顯示。中文有「年」字。",
+    "placeholders": {
+      "year": { "type": "int" }
+    }
+  },
+  "bpMonth": "{month} 月",
+  "@bpMonth": {
+    "description": "月份顯示。中文有「月」字，英文的月份格會另外處理。",
+    "placeholders": {
+      "month": { "type": "int" }
+    }
+  },
+  "bpDone": "完成",
+  "@bpDone": {
+    "description": "日期選擇器的確認按鈕。"
+  },
+  "bfTitle": "補上之前的足跡",
+  "@bfTitle": {
+    "description": "補打卡頁的標題。"
+  },
+  "bfDateWeekday": "{month}月{day}日 週{weekday}",
+  "@bfDateWeekday": {
+    "description": "補打卡頁的日期標題。",
+    "placeholders": {
+      "month": { "type": "int" },
+      "day": { "type": "int" },
+      "weekday": { "type": "String" }
+    }
+  },
+  "bfNoDays": "還沒有可以補的日子",
+  "@bfNoDays": {
+    "description": "補打卡頁的空狀態：沒有可補的日期。"
+  },
+  "bfNoHabits": "這天還沒有每日習慣",
+  "@bfNoHabits": {
+    "description": "補打卡頁的空狀態：那天沒有安排習慣。"
+  },
+  "bfFooter": "可補昨天起往前 7 天；補登不影響足跡幣與連勝。",
+  "@bfFooter": {
+    "description": "補打卡頁底部的說明。要把「不影響」講清楚。"
+  },
+  "mdEnterDate": "輸入日期",
+  "@mdEnterDate": {
+    "description": "手動輸入日期對話框的預設標題。"
+  },
+  "mdHint": "例：2000-1-1 或 20000101",
+  "@mdHint": {
+    "description": "手動輸入日期的提示字。範例格式要保留。"
+  },
+  "abDateWeekday": "{month}月{day}日 週{weekday}",
+  "@abDateWeekday": {
+    "description": "AppBar 上的今天日期。",
+    "placeholders": {
+      "month": { "type": "int" },
+      "day": { "type": "int" },
+      "weekday": { "type": "String" }
+    }
+  },
+  "abSettings": "設定",
+  "@abSettings": {
+    "description": "AppBar 進入設定的 tooltip。"
+  },
+  "abCoinsWithReview": "足跡與足跡幣，{coins} 枚足跡幣",
+  "@abCoinsWithReview": {
+    "description": "AppBar 足跡幣按鈕的無障礙標籤（可進入回顧頁時）。",
+    "placeholders": {
+      "coins": { "type": "int" }
+    }
+  },
+  "abCoinsOnly": "足跡幣 {coins} 枚",
+  "@abCoinsOnly": {
+    "description": "AppBar 足跡幣的無障礙標籤（不能進回顧頁時）。",
+    "placeholders": {
+      "coins": { "type": "int" }
+    }
+  },
+  "abFootprintsAndCoins": "足跡與足跡幣",
+  "@abFootprintsAndCoins": {
+    "description": "AppBar 足跡幣按鈕的 tooltip。"
+  },
+  "acSoundSettings": "聲音設定",
+  "@acSoundSettings": {
+    "description": "開啟音量設定的 tooltip。"
+  },
+  "acMusic": "音樂",
+  "@acMusic": {
+    "description": "音量設定的區塊：背景音樂。"
+  },
+  "acSfx": "音效",
+  "@acSfx": {
+    "description": "音量設定的區塊：操作音效。"
+  },
+  "fcTodayEarnedSemantics": "今日獲得 {amount} 枚足跡幣",
+  "@fcTodayEarnedSemantics": {
+    "description": "足跡幣獎勵浮層的無障礙描述。",
+    "placeholders": {
+      "amount": { "type": "int" }
+    }
+  },
+  "fcTodayEarned": "今日足跡幣 +{amount}",
+  "@fcTodayEarned": {
+    "description": "足跡幣獎勵浮層的文字。",
+    "placeholders": {
+      "amount": { "type": "int" }
+    }
+  },
+  "csDebugAdjust": "測試調整",
+  "@csDebugAdjust": {
+    "description": "足跡幣帳目的用途說明：開發者測試頁手動加減。會寫進紀錄。"
+  },
+  "csLoginLevel": "連續 Lv.{level}",
+  "@csLoginLevel": {
+    "description": "足跡幣帳目的用途說明：每日登入獎勵的等級。會寫進紀錄。",
+    "placeholders": {
+      "level": { "type": "int" }
+    }
+  },
+  "csLoginStreakDays": "連續登入 {days} 天",
+  "@csLoginStreakDays": {
+    "description": "足跡幣帳目的用途說明：連續登入里程碑。會寫進紀錄。",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "nsTimerChannel": "計時",
+  "@nsTimerChannel": {
+    "description": "Android 通知頻道的顯示名稱：計時類通知。使用者會在系統設定裡看到。"
+  },
+  "nsTimerChannelDesc": "計時（專注 / 運動）階段結束時的提醒",
+  "@nsTimerChannelDesc": {
+    "description": "Android 通知頻道的說明。使用者會在系統設定裡看到。"
+  },
+  "mpanelPullUp": "上拉展開功能",
+  "@mpanelPullUp": {
+    "description": "兔咪場景下方的提示：往上拉開啟功能卡。"
+  },
+  "lsTreatSpecial": "特別的點心",
+  "@lsTreatSpecial": {
+    "description": "報到獎勵的零食名稱：里程碑日。會接在「拿…給牠」後面，英文用小寫。"
+  },
+  "lsTreatCarrot": "紅蘿蔔",
+  "@lsTreatCarrot": {
+    "description": "報到獎勵的零食名稱：連續 7 天以上。"
+  },
+  "lsTreatCookie": "小餅乾",
+  "@lsTreatCookie": {
+    "description": "報到獎勵的零食名稱：一般日。"
+  },
+  "lsSemantics": "連續登入 {days} 天，今日足跡幣 +{amount}",
+  "@lsSemantics": {
+    "description": "報到頁的無障礙描述。",
+    "placeholders": {
+      "days": { "type": "int" },
+      "amount": { "type": "int" }
+    }
+  },
+  "lsStreakPrefix": "連續第 ",
+  "@lsStreakPrefix": {
+    "description": "報到頁「連續第 N 天」的前半段。結尾的空格要保留。"
+  },
+  "lsGiveTreat": "拿{treat}給牠",
+  "@lsGiveTreat": {
+    "description": "報到頁的 CTA：把零食遞給兔咪。",
+    "placeholders": {
+      "treat": { "type": "String" }
+    }
   }
 }

@@ -98,21 +98,23 @@ class OriginalBunnyPainter extends CustomPainter {
     canvas.save();
     canvas.clipPath(body);
     canvas.drawOval(
-        Rect.fromCenter(
-            center: const Offset(512, 920), width: 560, height: 100),
-        _f(_greyShade));
+      Rect.fromCenter(center: const Offset(512, 920), width: 560, height: 100),
+      _f(_greyShade),
+    );
 
     // 白胸腹（頂端銜接下巴白，實測 411-610）
     canvas.drawOval(
-        Rect.fromCenter(
-            center: const Offset(511, 666), width: 200, height: 222),
-        _f(_white));
+      Rect.fromCenter(center: const Offset(511, 666), width: 200, height: 222),
+      _f(_white),
+    );
 
     // 白腳掌
     for (final mirror in [false, true]) {
       final c = _m(const Offset(438, 858), mirror);
       canvas.drawOval(
-          Rect.fromCenter(center: c, width: 96, height: 72), _f(_white));
+        Rect.fromCenter(center: c, width: 96, height: 72),
+        _f(_white),
+      );
     }
 
     // 白掌尖（手臂末端，貼著輪廓內側）
@@ -122,8 +124,9 @@ class OriginalBunnyPainter extends CustomPainter {
       canvas.translate(c.dx, c.dy);
       canvas.rotate(mirror ? -0.35 : 0.35);
       canvas.drawOval(
-          Rect.fromCenter(center: Offset.zero, width: 50, height: 38),
-          _f(_white));
+        Rect.fromCenter(center: Offset.zero, width: 50, height: 38),
+        _f(_white),
+      );
       canvas.restore();
     }
     canvas.restore();
@@ -157,9 +160,21 @@ class OriginalBunnyPainter extends CustomPainter {
     for (final s in spikes) {
       final tip = s[0], notch = s[1];
       tuft.cubicTo(
-          tip.dx - 13, tip.dy + 24, tip.dx - 7, tip.dy + 3, tip.dx, tip.dy);
-      tuft.cubicTo(tip.dx + 7, tip.dy + 3, tip.dx + 13, tip.dy + 24, notch.dx,
-          notch.dy);
+        tip.dx - 13,
+        tip.dy + 24,
+        tip.dx - 7,
+        tip.dy + 3,
+        tip.dx,
+        tip.dy,
+      );
+      tuft.cubicTo(
+        tip.dx + 7,
+        tip.dy + 3,
+        tip.dx + 13,
+        tip.dy + 24,
+        notch.dx,
+        notch.dy,
+      );
     }
     tuft.quadraticBezierTo(515, 215, 436, 190);
     tuft.close();
@@ -189,9 +204,9 @@ class OriginalBunnyPainter extends CustomPainter {
 
     // 下巴→胸口白色銜接（參考圖的白是連續的，蓋掉頸部灰帶）
     canvas.drawOval(
-        Rect.fromCenter(
-            center: const Offset(510, 556), width: 168, height: 52),
-        _f(_white));
+      Rect.fromCenter(center: const Offset(510, 556), width: 168, height: 52),
+      _f(_white),
+    );
   }
 
   // ---------------- 臉（實測五官座標） ----------------
@@ -204,34 +219,45 @@ class OriginalBunnyPainter extends CustomPainter {
           ..moveTo(c.dx - 28, c.dy + 8)
           ..quadraticBezierTo(c.dx, c.dy - 30, c.dx + 28, c.dy + 8);
         canvas.drawPath(
-            happy,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 12
-              ..strokeCap = StrokeCap.round
-              ..color = _eye);
+          happy,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 12
+            ..strokeCap = StrokeCap.round
+            ..color = _eye,
+        );
       } else {
         canvas.save();
         canvas.translate(c.dx, c.dy);
         canvas.scale(1, (1 - 0.92 * blink).clamp(0.08, 1.0));
         canvas.translate(-c.dx, -c.dy);
         canvas.drawOval(
-            Rect.fromCenter(center: c, width: 53, height: 61), _f(_eye));
+          Rect.fromCenter(center: c, width: 53, height: 61),
+          _f(_eye),
+        );
         // 高光：內上大點＋外下小點（實測方位）
         canvas.drawCircle(
-            c + Offset(mirror ? -5 : 5, -10), 9, _f(Colors.white));
-        canvas.drawCircle(c + Offset(mirror ? 9 : -9, 11), 4,
-            _f(Colors.white.withValues(alpha: 0.8)));
+          c + Offset(mirror ? -5 : 5, -10),
+          9,
+          _f(Colors.white),
+        );
+        canvas.drawCircle(
+          c + Offset(mirror ? 9 : -9, 11),
+          4,
+          _f(Colors.white.withValues(alpha: 0.8)),
+        );
         canvas.restore();
       }
 
       // 腮紅（實測 (374,460)，開心加深）
       canvas.drawOval(
-          Rect.fromCenter(
-              center: _m(const Offset(374, 460), mirror),
-              width: 56,
-              height: 40),
-          _f(Color.lerp(_blush, _blushDeep, cheer) ?? _blush));
+        Rect.fromCenter(
+          center: _m(const Offset(374, 460), mirror),
+          width: 56,
+          height: 40,
+        ),
+        _f(Color.lerp(_blush, _blushDeep, cheer) ?? _blush),
+      );
     }
 
     // × 型嘴（固定不變）
@@ -241,12 +267,13 @@ class OriginalBunnyPainter extends CustomPainter {
       ..moveTo(521, 448)
       ..quadraticBezierTo(509, 461, 497, 472);
     canvas.drawPath(
-        x,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4.5
-          ..strokeCap = StrokeCap.round
-          ..color = _noseMouth);
+      x,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.5
+        ..strokeCap = StrokeCap.round
+        ..color = _noseMouth,
+    );
   }
 
   // ---------------- 耳朵（最前層大垂耳，實測曲線，逐頂點軟彎曲） ----------------

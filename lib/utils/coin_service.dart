@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import 'coin_config.dart';
 import 'prefs_keys.dart';
 
@@ -166,10 +167,11 @@ class CoinService {
 
   /// 開發測試用：直接加減金幣（不走來源 gating）；負數會扣到地板 0。
   /// 僅供 debug 測試頁呼叫，release 進不到入口。
-  static Future<void> debugAdd(int amount) async {
+  /// [note] 由呼叫端用 l10n 組好傳進來（會寫進帳目）。
+  static Future<void> debugAdd(int amount, String note) async {
     if (amount == 0) return;
     final prefs = await SharedPreferences.getInstance();
-    await _apply(prefs, DateTime.now(), 'debug', amount, '測試調整');
+    await _apply(prefs, DateTime.now(), 'debug', amount, note);
   }
 
   /// 撤銷（打卡取消用）：對稱扣回，餘額地板 0。
@@ -195,7 +197,12 @@ class CoinService {
   /// - 第一次領 / 連續：等級 +1（封頂 [CoinConfig.loginMaxLevel]）
   /// - 缺席 <= [CoinConfig.loginGraceDays]：等級保住不動（寬限）
   /// - 缺席更久：等級 - [CoinConfig.loginLevelDrop]（最低 1）
-  static Future<LoginReward?> claimDailyLogin({DateTime? now}) async {
+  /// 帳目的用途說明要顯示給使用者看，所以收 l10n（不需要 context，
+  /// AppLocalizations 本身可以傳）。
+  static Future<LoginReward?> claimDailyLogin({
+    DateTime? now,
+    required AppLocalizations l10n,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final ts = now ?? DateTime.now();
     final today = _dateStr(ts);
@@ -245,7 +252,7 @@ class CoinService {
     final awarded = await award(
       CoinSource.dailyLogin,
       amount: amount,
-      note: '連續 Lv.$level',
+      note: l10n.csLoginLevel(level),
       now: ts,
     );
     if (awarded == 0) return null;
@@ -254,7 +261,7 @@ class CoinService {
     if (loginStreak % CoinConfig.loginStreakMilestone == 0) {
       milestoneAmount = await award(
         CoinSource.weeklyStreak,
-        note: '連續登入 $loginStreak 天',
+        note: l10n.csLoginStreakDays(loginStreak),
         now: ts,
       );
     }

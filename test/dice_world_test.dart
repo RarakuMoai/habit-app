@@ -103,7 +103,9 @@ void main() {
     }
 
     // ignore: avoid_print
-    print('對抗性直線甩 counts=$counts chi2=${_chiSquare(counts).toStringAsFixed(2)}');
+    print(
+      '對抗性直線甩 counts=$counts chi2=${_chiSquare(counts).toStringAsFixed(2)}',
+    );
     // 重點不是完美均勻（同一動作重複本來就有慣性），是「六面都出得來、
     // 沒有一面可以穩定押注」：每面至少 5%、最大面不超過 40%
     for (var v = 0; v < 6; v++) {

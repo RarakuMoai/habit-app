@@ -69,9 +69,24 @@ void main() {
 
   test('dailyHabitsAsOf 依 createdAt/deletedAt 篩出當天存在的條目', () {
     final active = [
-      {'id': 'a', 'name': '冥想', 'frequency': 'daily', 'createdAt': '2026-06-01'},
-      {'id': 'b', 'name': '新習慣', 'frequency': 'daily', 'createdAt': '2026-06-25'},
-      {'id': 'w', 'name': '每週運動', 'frequency': 'weekly', 'createdAt': '2026-06-01'},
+      {
+        'id': 'a',
+        'name': '冥想',
+        'frequency': 'daily',
+        'createdAt': '2026-06-01',
+      },
+      {
+        'id': 'b',
+        'name': '新習慣',
+        'frequency': 'daily',
+        'createdAt': '2026-06-25',
+      },
+      {
+        'id': 'w',
+        'name': '每週運動',
+        'frequency': 'weekly',
+        'createdAt': '2026-06-01',
+      },
     ];
     final tombs = [
       {

@@ -21,6 +21,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../utils/app_feedback.dart';
+import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
@@ -78,6 +79,8 @@ const _kSlotEmptyFill = Color(0xFFF9F0DD);
 
 class _LoginStreakPageState extends State<LoginStreakPage>
     with SingleTickerProviderStateMixin {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   static const _mascotAsset = 'assets/mascot/core/tumi_streak.png';
   static const _coinAsset = 'assets/icon/ui/paw_footprint_coin.png';
 
@@ -92,9 +95,9 @@ class _LoginStreakPageState extends State<LoginStreakPage>
   /// 今天能給的零食。連續越久給得越好——讓「連續天數」不只是數字，
   /// 而是「你能給牠的東西變好了」。emoji 是暫時素材，正式圖到位後換掉。
   ({String emoji, String label}) get _treat {
-    if (_isMilestoneDay) return (emoji: '🎂', label: '特別的點心');
-    if (widget.streak >= 7) return (emoji: '🥕', label: '紅蘿蔔');
-    return (emoji: '🍪', label: '小餅乾');
+    if (_isMilestoneDay) return (emoji: '🎂', label: _l10n.lsTreatSpecial);
+    if (widget.streak >= 7) return (emoji: '🥕', label: _l10n.lsTreatCarrot);
+    return (emoji: '🍪', label: _l10n.lsTreatCookie);
   }
 
   /// 遞出零食：兔咪收下 → 開心 → 關頁，讓 main.dart 的足跡幣動畫接手。
@@ -413,7 +416,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
         ? Matrix4.identity()
         : _sealBigMatrix(shown ? 1 : 1.18);
     return Semantics(
-      label: '連續登入 ${widget.streak} 天，今日足跡幣 +${widget.reward.totalAmount}',
+      label: _l10n.lsSemantics(widget.streak, widget.reward.totalAmount),
       child: AnimatedOpacity(
         key: const ValueKey('login-streak-seal'),
         opacity: shown ? 1 : 0,
@@ -439,7 +442,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
               child: Text.rich(
                 TextSpan(
                   children: [
-                    const TextSpan(text: '連續第 '),
+                    TextSpan(text: _l10n.lsStreakPrefix),
                     TextSpan(
                       text: '${widget.streak}',
                       style: AppType.digits(
@@ -448,7 +451,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
                         color: _kNumberInk,
                       ),
                     ),
-                    const TextSpan(text: ' 天'),
+                    TextSpan(text: _l10n.mpDaySuffix),
                   ],
                 ),
                 style: TextStyle(
@@ -505,9 +508,9 @@ class _LoginStreakPageState extends State<LoginStreakPage>
               children: [
                 Row(
                   children: [
-                    const Text(
-                      '報到卡',
-                      style: TextStyle(
+                    Text(
+                      _l10n.mpCheckinCard,
+                      style: const TextStyle(
                         color: _kDeepGold,
                         fontSize: 13.5,
                         fontWeight: FontWeight.w900,
@@ -529,7 +532,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
                           ),
                         ),
                         child: Text(
-                          '第 $round 輪',
+                          _l10n.mpRound(round),
                           style: AppType.digits(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w800,
@@ -542,7 +545,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
                 SizedBox(height: compact ? 7 : 9),
                 // 旁白唸整體進度就好，格子裡的日數字/圖示不逐一唸。
                 Semantics(
-                  label: '本輪已報到 $_cycleDay 天，滿 $milestone 天有加碼',
+                  label: _l10n.mpCheckinSemantics(_cycleDay, milestone),
                   child: ExcludeSemantics(
                     child: Row(
                       children: [
@@ -796,7 +799,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
               child: Text(
-                '今日足跡幣 +${widget.reward.totalAmount}',
+                _l10n.fcTodayEarned(widget.reward.totalAmount),
                 style: AppType.digits(
                   color: _kNumberInk,
                   fontSize: 15,
@@ -839,7 +842,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
               children: [
                 Text(_treat.emoji, style: const TextStyle(fontSize: 22)),
                 const SizedBox(width: 10),
-                Text('拿${_treat.label}給牠'),
+                Text(_l10n.lsGiveTreat(_treat.label)),
               ],
             ),
           ),

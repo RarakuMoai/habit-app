@@ -9,6 +9,8 @@ import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 String _fmt(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -43,7 +45,7 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HabitBackfillPage()));
+    await tester.pumpWidget(l10nTestApp(home: const HabitBackfillPage()));
     await tester.pumpAndSettle();
 
     // 每日習慣與喝水列出；每週習慣不列為可勾項。
@@ -80,7 +82,7 @@ void main() {
           '[{"ml":300,"kind":"cup","at":"2026-01-01T08:00:00.000"}]',
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HabitBackfillPage()));
+    await tester.pumpWidget(l10nTestApp(home: const HabitBackfillPage()));
     await tester.pumpAndSettle();
     await tester.tap(find.text('喝足夠的水'));
     await tester.pumpAndSettle();
@@ -116,7 +118,7 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HabitBackfillPage()));
+    await tester.pumpWidget(l10nTestApp(home: const HabitBackfillPage()));
     await tester.pumpAndSettle();
 
     expect(find.text('牙線'), findsOneWidget);
@@ -131,7 +133,7 @@ void main() {
 
   testWidgets('日期列固定只有昨天起往前七天', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const MaterialApp(home: HabitBackfillPage()));
+    await tester.pumpWidget(l10nTestApp(home: const HabitBackfillPage()));
     await tester.pumpAndSettle();
 
     final strip = find.byKey(const ValueKey('backfill-date-strip'));

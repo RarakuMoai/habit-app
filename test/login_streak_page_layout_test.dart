@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/login_streak_page.dart';
 import 'package:habit_app/utils/coin_service.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -34,7 +36,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: LoginStreakPage(streak: streak, reward: reward),
       ),
     );
@@ -77,8 +79,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      const MaterialApp(
-        home: LoginStreakPage(
+      l10nTestApp(
+        home: const LoginStreakPage(
           streak: 1,
           reward: LoginReward(level: 1, amount: 5, graceUsed: false),
         ),
@@ -176,7 +178,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: Center(

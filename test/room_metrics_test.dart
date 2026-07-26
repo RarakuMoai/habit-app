@@ -58,10 +58,12 @@ void main() {
 
     test('SE：卡片線的螢幕 Y（chrome+場景區）跟 14PM 同一個寬度比例', () {
       final seCardLine =
-          seStatusBar + kSceneAppBarHeight +
+          seStatusBar +
+          kSceneAppBarHeight +
           sceneRegionHeightAnchored(seWidth, seStatusBar);
       final baseCardLine =
-          kBaseChromeTop + sceneRegionHeightAnchored(kBaseWidth, kBaseStatusBarTop);
+          kBaseChromeTop +
+          sceneRegionHeightAnchored(kBaseWidth, kBaseStatusBarTop);
       expect(seCardLine / seWidth, closeTo(baseCardLine / kBaseWidth, 1e-9));
     });
 

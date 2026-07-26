@@ -701,6 +701,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
         id: _notifIdBase + (i - _idx),
         title: title,
         body: body,
+        channelName: _l10n.nsTimerChannel,
+        channelDescription: _l10n.nsTimerChannelDesc,
       );
       if (isLast) break;
       fireAt = fireAt.add(Duration(seconds: _seq[i + 1].dur));
@@ -755,9 +757,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (paused != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(paused.pausedMessage(_l10n))),
-        );
+        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage(_l10n))));
     }
 
     // 從待機 / 完成開始：重新組序列
@@ -856,9 +856,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(_l10n.exerciseSwitchNeedsReset)),
-        );
+        ..showSnackBar(SnackBar(content: Text(_l10n.exerciseSwitchNeedsReset)));
       return;
     }
     if (k == _kind) return;
@@ -1902,9 +1900,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        _l10n.exSettingsTitle(
-                                          _kindName(_kind),
-                                        ),
+                                        _l10n.exSettingsTitle(_kindName(_kind)),
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w900,

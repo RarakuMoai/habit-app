@@ -76,11 +76,15 @@ class NotificationService {
   }
 
   /// 把通知排到 [when]（絕對時間）。同 id 會覆蓋舊的。
+  /// [channelName] / [channelDescription]：Android 通知頻道在系統設定裡的
+  /// 顯示名稱與說明，由有 context 的呼叫端用 l10n 給。
   static Future<void> scheduleAt(
     DateTime when, {
     required int id,
     required String title,
     required String body,
+    required String channelName,
+    required String channelDescription,
   }) async {
     await init();
     final zonedTime = tz.TZDateTime.from(when, tz.local);
@@ -89,18 +93,18 @@ class NotificationService {
       title: title,
       body: body,
       scheduledDate: zonedTime,
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           // id 保留 pomodoro_channel：改 id 會孤立舊頻道與使用者既有通知偏好。
-          // 顯示名稱/說明改成「計時」，因為專注與運動的階段通知都走這條。
+          // 顯示名稱/說明是「計時」，因為專注與運動的階段通知都走這條。
           'pomodoro_channel',
-          '計時',
-          channelDescription: '計時（專注 / 運動）階段結束時的提醒',
+          channelName,
+          channelDescription: channelDescription,
           importance: Importance.high,
           priority: Priority.high,
           category: AndroidNotificationCategory.alarm,
         ),
-        iOS: DarwinNotificationDetails(
+        iOS: const DarwinNotificationDetails(
           presentAlert: true,
           presentSound: true,
           presentBadge: false,

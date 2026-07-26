@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_service.dart';
@@ -243,7 +244,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
         : ((1 - t) / 0.10).clamp(0.0, 1.0);
     return Semantics(
       liveRegion: true,
-      label: '今日獲得 ${widget.amount} 枚足跡幣',
+      label: AppLocalizations.of(context).fcTodayEarnedSemantics(widget.amount),
       child: GestureDetector(
         onTap: _skip,
         child: Opacity(
@@ -269,7 +270,7 @@ class _FootprintCoinRewardOverlayState extends State<FootprintCoinRewardOverlay>
                   vertical: 9,
                 ),
                 child: Text(
-                  '今日足跡幣 +${widget.amount}',
+                  AppLocalizations.of(context).fcTodayEarned(widget.amount),
                   style: AppType.digits(
                     color: const Color(0xFF7A4A17),
                     fontSize: 16,

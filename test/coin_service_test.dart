@@ -1,10 +1,15 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/utils/coin_config.dart';
 import 'package:habit_app/utils/coin_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // 帳目的用途說明走 l10n；測試不跑 widget tree，直接查表拿。
+  final l10n = lookupAppLocalizations(const Locale('zh'));
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -82,7 +87,7 @@ void main() {
 
     test('帳本封頂不超過上限', () async {
       for (var i = 0; i < CoinConfig.ledgerMaxEntries + 5; i++) {
-        await CoinService.debugAdd(1);
+        await CoinService.debugAdd(1, 'test');
       }
       final entries = await CoinService.ledger();
       expect(entries.length, CoinConfig.ledgerMaxEntries);
@@ -91,7 +96,7 @@ void main() {
 
   group('claimDailyLogin 等級曲線', () {
     test('第一次領取 = Lv.1、基礎金額', () async {
-      final r = await CoinService.claimDailyLogin(now: d0612);
+      final r = await CoinService.claimDailyLogin(now: d0612, l10n: l10n);
       expect(r, isNotNull);
       expect(r!.level, 1);
       expect(r.amount, CoinConfig.loginBase);
@@ -99,8 +104,8 @@ void main() {
     });
 
     test('同日第二次領回 null', () async {
-      await CoinService.claimDailyLogin(now: d0612);
-      expect(await CoinService.claimDailyLogin(now: d0612), isNull);
+      await CoinService.claimDailyLogin(now: d0612, l10n: l10n);
+      expect(await CoinService.claimDailyLogin(now: d0612, l10n: l10n), isNull);
     });
 
     test('連續領取每日 +1 並在封頂停住', () async {
@@ -108,6 +113,7 @@ void main() {
       for (var i = 0; i < CoinConfig.loginMaxLevel + 2; i++) {
         r = await CoinService.claimDailyLogin(
           now: d0612.add(Duration(days: i)),
+          l10n: l10n,
         );
       }
       expect(r!.level, CoinConfig.loginMaxLevel);
@@ -119,6 +125,7 @@ void main() {
       for (var i = 0; i < CoinConfig.loginStreakMilestone; i++) {
         reward = await CoinService.claimDailyLogin(
           now: d0612.add(Duration(days: i)),
+          l10n: l10n,
         );
       }
 
@@ -129,13 +136,15 @@ void main() {
     });
 
     test('缺席 1 天（寬限內）等級保住', () async {
-      await CoinService.claimDailyLogin(now: d0612); // Lv.1
+      await CoinService.claimDailyLogin(now: d0612, l10n: l10n); // Lv.1
       await CoinService.claimDailyLogin(
         now: d0612.add(const Duration(days: 1)),
+        l10n: l10n,
       ); // Lv.2
       // 缺席 6/14，6/15 再領
       final r = await CoinService.claimDailyLogin(
         now: d0612.add(const Duration(days: 3)),
+        l10n: l10n,
       );
       expect(r!.level, 2); // 等級不動
       expect(r.graceUsed, isTrue);
@@ -144,20 +153,25 @@ void main() {
     test('缺席超過寬限：降 2 級不歸零、最低 Lv.1', () async {
       // 先爬到封頂
       for (var i = 0; i < CoinConfig.loginMaxLevel; i++) {
-        await CoinService.claimDailyLogin(now: d0612.add(Duration(days: i)));
+        await CoinService.claimDailyLogin(
+          now: d0612.add(Duration(days: i)),
+          l10n: l10n,
+        );
       }
       // 缺席 3 天（> 寬限 1 天）
       final r = await CoinService.claimDailyLogin(
         now: d0612.add(Duration(days: CoinConfig.loginMaxLevel - 1 + 4)),
+        l10n: l10n,
       );
       expect(r!.level, CoinConfig.loginMaxLevel - CoinConfig.loginLevelDrop);
       expect(r.graceUsed, isFalse);
 
       // 從 Lv.1 缺席很久也不會低於 Lv.1
       SharedPreferences.setMockInitialValues({});
-      await CoinService.claimDailyLogin(now: d0612); // Lv.1
+      await CoinService.claimDailyLogin(now: d0612, l10n: l10n); // Lv.1
       final r2 = await CoinService.claimDailyLogin(
         now: d0612.add(const Duration(days: 30)),
+        l10n: l10n,
       );
       expect(r2!.level, 1);
     });

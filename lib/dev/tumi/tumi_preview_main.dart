@@ -47,31 +47,39 @@ class _PreviewBodyState extends State<_PreviewBody>
   void initState() {
     super.initState();
     _breath = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2400))
-      ..repeat(reverse: true);
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
     _sway = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 3600))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(milliseconds: 3600),
+    )..repeat();
     _blink = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 130));
+      vsync: this,
+      duration: const Duration(milliseconds: 130),
+    );
     _bounce = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 520));
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
     _scheduleBlink();
   }
 
   void _scheduleBlink() {
     _blinkTimer = Timer(
-        Duration(milliseconds: 1800 + _rand.nextInt(2600)), () async {
-      if (!mounted) return;
-      await _blink.forward();
-      await _blink.reverse();
-      // 偶爾連眨兩下
-      if (_rand.nextInt(4) == 0 && mounted) {
+      Duration(milliseconds: 1800 + _rand.nextInt(2600)),
+      () async {
+        if (!mounted) return;
         await _blink.forward();
         await _blink.reverse();
-      }
-      _scheduleBlink();
-    });
+        // 偶爾連眨兩下
+        if (_rand.nextInt(4) == 0 && mounted) {
+          await _blink.forward();
+          await _blink.reverse();
+        }
+        _scheduleBlink();
+      },
+    );
   }
 
   @override
@@ -111,9 +119,9 @@ class _PreviewBodyState extends State<_PreviewBody>
                     : 1.0;
                 final squash = _bounce.isAnimating
                     ? 1.0 -
-                        0.10 *
-                            math.sin(b * math.pi) *
-                            math.cos(b * math.pi * 2.5)
+                          0.10 *
+                              math.sin(b * math.pi) *
+                              math.cos(b * math.pi * 2.5)
                     : 1.0;
                 return Transform.scale(
                   scaleY: (1.0 + 0.012 * breath) * squash,

@@ -68,7 +68,10 @@ void main() {
     });
 
     test('targetWeightIn 範圍與 weightIn 相同', () {
-      expect(UserValidators.targetWeightIn(l10n, '154', UnitSystem.imperial), isNull);
+      expect(
+        UserValidators.targetWeightIn(l10n, '154', UnitSystem.imperial),
+        isNull,
+      );
       expect(
         UserValidators.targetWeightIn(l10n, '21', UnitSystem.imperial),
         contains('22–551'),
@@ -100,8 +103,14 @@ void main() {
 
     test('正常與極端但真實的 BMI 通過', () {
       expect(UserValidators.bmiPair(l10n, '173', '70'), isNull); // BMI ≈ 23.4
-      expect(UserValidators.bmiPair(l10n, '170', '30'), isNull); // BMI ≈ 10.4 重度過瘦
-      expect(UserValidators.bmiPair(l10n, '170', '185'), isNull); // BMI ≈ 64 極端肥胖
+      expect(
+        UserValidators.bmiPair(l10n, '170', '30'),
+        isNull,
+      ); // BMI ≈ 10.4 重度過瘦
+      expect(
+        UserValidators.bmiPair(l10n, '170', '185'),
+        isNull,
+      ); // BMI ≈ 64 極端肥胖
     });
 
     test('明顯打錯字（身高體重對調）擋下', () {
@@ -117,7 +126,8 @@ void main() {
       expect(UserValidators.birthday(l10n, null), isNull);
       expect(UserValidators.birthday(l10n, DateTime(1990, 6, 15)), isNull);
       expect(
-        UserValidators.birthday(l10n, 
+        UserValidators.birthday(
+          l10n,
           DateTime.now().subtract(const Duration(days: 1)),
         ),
         isNull,
@@ -126,7 +136,10 @@ void main() {
 
     test('未來日期擋下', () {
       expect(
-        UserValidators.birthday(l10n, DateTime.now().add(const Duration(days: 1))),
+        UserValidators.birthday(
+          l10n,
+          DateTime.now().add(const Duration(days: 1)),
+        ),
         '生日不能是未來日期',
       );
     });
@@ -136,7 +149,10 @@ void main() {
       final exactly130 = DateTime(now.year - 130, now.month, now.day);
       expect(UserValidators.birthday(l10n, exactly130), isNull);
       expect(
-        UserValidators.birthday(l10n, exactly130.subtract(const Duration(days: 1))),
+        UserValidators.birthday(
+          l10n,
+          exactly130.subtract(const Duration(days: 1)),
+        ),
         contains('130'),
       );
     });

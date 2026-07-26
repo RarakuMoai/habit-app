@@ -15,6 +15,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/mascot.dart';
 
@@ -298,7 +299,7 @@ class _PanelHint extends StatelessWidget {
             ],
           ),
           child: Text(
-            '上拉展開功能',
+            AppLocalizations.of(context).mpanelPullUp,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w900,

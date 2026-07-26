@@ -285,12 +285,14 @@ class _DevTestPageState extends State<DevTestPage> {
                         children: [
                           for (final n in [1, 5, 10, 100])
                             FilledButton.tonal(
-                              onPressed: () => CoinService.debugAdd(n),
+                              onPressed: () =>
+                                  CoinService.debugAdd(n, _l10n.csDebugAdjust),
                               child: Text('+$n'),
                             ),
                           OutlinedButton(
                             onPressed: () => CoinService.debugAdd(
                               -CoinService.notifier.value,
+                              _l10n.csDebugAdjust,
                             ),
                             child: Text(_l10n.dvResetZero),
                           ),

@@ -297,9 +297,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     if (paused != null && mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(paused.pausedMessage(_l10n))),
-        );
+        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage(_l10n))));
     }
     // 運作中節拍器面板蓋住兔咪：靜音兔咪語音，避免看不到卻聽到聲音
     MascotPersona.voiceMuted = true;
@@ -715,9 +713,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                             detected == null
                                 ? _l10n.tapApply
                                 : _l10n.tapApplyBpm(detected),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                         ),
                       ),

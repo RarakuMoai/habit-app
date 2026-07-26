@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 
@@ -20,9 +21,9 @@ Future<DateTime?> showBirthdayPicker(
     firstDate: firstDate,
     lastDate: lastDate,
     accent: accent,
-    title: '選擇生日',
+    title: AppLocalizations.of(context).bpPickBirthday,
     icon: Icons.cake_rounded,
-    helperText: '直接輸入西元年月日，例如 20190403',
+    helperText: AppLocalizations.of(context).bpBirthdayHelper,
   );
 }
 
@@ -33,9 +34,10 @@ Future<DateTime?> showAppDatePicker(
   required DateTime firstDate,
   required DateTime lastDate,
   required Color accent,
-  String title = '選擇日期',
+  // 預設文案不能寫在參數預設值（要編譯期常數），null 進來後才取 l10n。
+  String? title,
   IconData icon = Icons.event_rounded,
-  String helperText = '直接輸入西元年月日，例如 20260615',
+  String? helperText,
 }) {
   return showDialog<DateTime>(
     context: context,
@@ -45,9 +47,9 @@ Future<DateTime?> showAppDatePicker(
       firstDate: firstDate,
       lastDate: lastDate,
       accent: accent,
-      title: title,
+      title: title ?? AppLocalizations.of(context).bpPickDate,
       icon: icon,
-      helperText: helperText,
+      helperText: helperText ?? AppLocalizations.of(context).bpDateHelper,
     ),
   );
 }
@@ -207,7 +209,15 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
     _apply(_safe(_sel.year, _sel.month + delta, _sel.day));
   }
 
-  static const List<String> _weekText = ['一', '二', '三', '四', '五', '六', '日'];
+  List<String> _weekText(AppLocalizations l10n) => [
+    l10n.weekdayShortMon,
+    l10n.weekdayShortTue,
+    l10n.weekdayShortWed,
+    l10n.weekdayShortThu,
+    l10n.weekdayShortFri,
+    l10n.weekdayShortSat,
+    l10n.weekdayShortSun,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -321,7 +331,11 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
         suffixIcon: Padding(
           padding: const EdgeInsets.only(right: 14),
           child: Text(
-            _inputInvalid ? '—' : '週${_weekText[_sel.weekday - 1]}',
+            _inputInvalid
+                ? '—'
+                : AppLocalizations.of(context).bpWeekdayPrefix(
+                    _weekText(AppLocalizations.of(context))[_sel.weekday - 1],
+                  ),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -373,14 +387,14 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _headerChip(
-                '${_sel.year} 年',
+                AppLocalizations.of(context).bpYear(_sel.year),
                 _mode == _Mode.year,
                 accent,
                 () => _setMode(_Mode.year),
               ),
               const SizedBox(width: 8),
               _headerChip(
-                '${_sel.month} 月',
+                AppLocalizations.of(context).bpMonth(_sel.month),
                 _mode == _Mode.month,
                 accent,
                 () => _setMode(_Mode.month),
@@ -475,7 +489,7 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
 
     final rows = <Widget>[
       Row(
-        children: _weekText
+        children: _weekText(AppLocalizations.of(context))
             .map(
               (t) => Expanded(
                 child: Center(
@@ -570,11 +584,17 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
         final selected = m == _sel.month;
         final probe = _safe(_sel.year, m, _sel.day);
         final disabled = probe.year != _sel.year || probe.month != m;
-        return _gridButton('$m 月', selected, disabled, accent, () {
-          playHaptic(HapticLevel.selection);
-          _apply(_safe(_sel.year, m, _sel.day));
-          setState(() => _mode = _Mode.day);
-        });
+        return _gridButton(
+          AppLocalizations.of(context).bpMonth(m),
+          selected,
+          disabled,
+          accent,
+          () {
+            playHaptic(HapticLevel.selection);
+            _apply(_safe(_sel.year, m, _sel.day));
+            setState(() => _mode = _Mode.day);
+          },
+        );
       }),
     );
   }
@@ -648,9 +668,9 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
               foregroundColor: AppInk.soft,
               padding: const EdgeInsets.symmetric(vertical: 13),
             ),
-            child: const Text(
-              '取消',
-              style: TextStyle(fontWeight: FontWeight.w800),
+            child: Text(
+              AppLocalizations.of(context).commonCancel,
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ),
@@ -671,9 +691,9 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
               Navigator.pop(context, _sel);
             },
             icon: const Icon(Icons.check_rounded, size: 19),
-            label: const Text(
-              '完成',
-              style: TextStyle(fontWeight: FontWeight.w800),
+            label: Text(
+              AppLocalizations.of(context).bpDone,
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ),

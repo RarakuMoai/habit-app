@@ -15,9 +15,7 @@ void main() {
     });
 
     test('load 讀 prefs 已存值', () async {
-      SharedPreferences.setMockInitialValues({
-        UnitSystem.prefsKey: 'imperial',
-      });
+      SharedPreferences.setMockInitialValues({UnitSystem.prefsKey: 'imperial'});
       final prefs = await SharedPreferences.getInstance();
       expect(UnitSystem.load(prefs), UnitSystem.imperial);
     });
@@ -53,9 +51,7 @@ void main() {
 
       // load 也要把 notifier 拉回 prefs 的值
       await UnitSystem.save(prefs, UnitSystem.metric);
-      SharedPreferences.setMockInitialValues({
-        UnitSystem.prefsKey: 'imperial',
-      });
+      SharedPreferences.setMockInitialValues({UnitSystem.prefsKey: 'imperial'});
       final prefs2 = await SharedPreferences.getInstance();
       UnitSystem.load(prefs2);
       expect(UnitSystem.notifier.value, UnitSystem.imperial);
@@ -90,7 +86,10 @@ void main() {
     test('ml ↔ fl oz', () {
       expect(UnitConvert.mlToFlOz(250), closeTo(8.45, 0.01));
       expect(UnitConvert.flOzToMl(8), closeTo(236.59, 0.01));
-      expect(UnitConvert.flOzToMl(UnitConvert.mlToFlOz(500)), closeTo(500, 1e-9));
+      expect(
+        UnitConvert.flOzToMl(UnitConvert.mlToFlOz(500)),
+        closeTo(500, 1e-9),
+      );
     });
   });
 

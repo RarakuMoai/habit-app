@@ -4,6 +4,8 @@ import 'package:habit_app/utils/coin_service.dart';
 import 'package:habit_app/widgets/footprint_coin_reward_overlay.dart';
 import 'package:habit_app/widgets/reward_animation_anchor.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -18,7 +20,7 @@ void main() {
     CoinService.presentationBalance.value = 100;
 
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: FootprintCoinRewardOverlay(
             amount: 8,
@@ -53,7 +55,7 @@ void main() {
     CoinService.presentationBalance.value = 0;
 
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: FootprintCoinRewardOverlay(
             amount: 25,
@@ -74,7 +76,7 @@ void main() {
   testWidgets('一般獎勵依實際金額出幣，里程碑最多壓縮成九枚', (tester) async {
     Future<void> pumpReward(int amount) async {
       await tester.pumpWidget(
-        MaterialApp(
+        l10nTestApp(
           home: Scaffold(
             body: FootprintCoinRewardOverlay(
               amount: amount,
@@ -106,7 +108,7 @@ void main() {
     CoinService.presentationBalance.value = 0;
 
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: Stack(
             children: [

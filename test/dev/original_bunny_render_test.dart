@@ -12,8 +12,10 @@ void main() {
     const size = 512.0;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.drawRect(const Rect.fromLTWH(0, 0, size, size),
-        Paint()..color = Colors.white);
+    canvas.drawRect(
+      const Rect.fromLTWH(0, 0, size, size),
+      Paint()..color = Colors.white,
+    );
     p.paint(canvas, const Size.square(size));
     final image = await recorder.endRecording().toImage(512, 512);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -25,16 +27,21 @@ void main() {
     await render('cheer', const OriginalBunnyPainter(cheer: 1));
     for (var i = 0; i < 12; i++) {
       final ph = i / 12 * 2 * math.pi;
-      final blink = switch (i) { 7 => 0.7, 8 => 1.0, _ => 0.0 };
+      final blink = switch (i) {
+        7 => 0.7,
+        8 => 1.0,
+        _ => 0.0,
+      };
       await render(
-          'f${i.toString().padLeft(2, '0')}',
-          OriginalBunnyPainter(
-            breath: math.sin(ph),
-            earL: math.sin(ph),
-            earR: math.sin(ph + 0.7),
-            blink: blink,
-            cheer: i >= 10 ? 1 : 0,
-          ));
+        'f${i.toString().padLeft(2, '0')}',
+        OriginalBunnyPainter(
+          breath: math.sin(ph),
+          earL: math.sin(ph),
+          earR: math.sin(ph + 0.7),
+          blink: blink,
+          cheer: i >= 10 ? 1 : 0,
+        ),
+      );
     }
   });
 }

@@ -482,7 +482,9 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     CoinService.presentationBalance.value = startBalance;
     // 演出旗標先舉起來（首頁問候橫幅看到會讓路）；沒獎勵馬上放下。
     CoinService.dailyRewardShowing.value = true;
-    final reward = await CoinService.claimDailyLogin();
+    final reward = await CoinService.claimDailyLogin(
+      l10n: AppLocalizations.of(context),
+    );
     // 連續登入回憶事件：不論這次有沒有新領（冪等），照登入連勝天數判定
     final prefs = await SharedPreferences.getInstance();
     final loginStreak = prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0;

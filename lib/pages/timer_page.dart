@@ -49,34 +49,10 @@ typedef _FocusProfileDefault = ({
 // 四格只代表初始範本；預設名稱由 l10n 提供（_defaultProfileName），
 // 使用者之後可改名與改掉所有時間，存過的名字照原樣顯示。
 const List<_FocusProfileDefault> _focusProfileDefaults = [
-  (
-    focus: 25,
-    shortBreak: 5,
-    rounds: 4,
-    longBreak: 15,
-    longBreakEnabled: true,
-  ),
-  (
-    focus: 50,
-    shortBreak: 10,
-    rounds: 3,
-    longBreak: 15,
-    longBreakEnabled: true,
-  ),
-  (
-    focus: 15,
-    shortBreak: 3,
-    rounds: 4,
-    longBreak: 15,
-    longBreakEnabled: true,
-  ),
-  (
-    focus: 25,
-    shortBreak: 5,
-    rounds: 4,
-    longBreak: 15,
-    longBreakEnabled: true,
-  ),
+  (focus: 25, shortBreak: 5, rounds: 4, longBreak: 15, longBreakEnabled: true),
+  (focus: 50, shortBreak: 10, rounds: 3, longBreak: 15, longBreakEnabled: true),
+  (focus: 15, shortBreak: 3, rounds: 4, longBreak: 15, longBreakEnabled: true),
+  (focus: 25, shortBreak: 5, rounds: 4, longBreak: 15, longBreakEnabled: true),
 ];
 
 class _FocusProfile {
@@ -502,6 +478,8 @@ class _TimerPageState extends State<TimerPage>
         id: _notifIdBase + (i - _idx),
         title: title,
         body: body,
+        channelName: _l10n.nsTimerChannel,
+        channelDescription: _l10n.nsTimerChannelDesc,
       );
       if (isLast) break;
       fireAt = fireAt.add(Duration(seconds: _seq[i + 1].dur));
@@ -550,9 +528,7 @@ class _TimerPageState extends State<TimerPage>
     if (paused != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(paused.pausedMessage(_l10n))),
-        );
+        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage(_l10n))));
     }
     // 從待機 / 完成 → 重新組序列從頭開始
     if (_idle || _finished) {
@@ -734,7 +710,9 @@ class _TimerPageState extends State<TimerPage>
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(_l10n.timerPausedCanResume(paused.pausedMessage(_l10n))),
+            content: Text(
+              _l10n.timerPausedCanResume(paused.pausedMessage(_l10n)),
+            ),
           ),
         );
     }
@@ -1174,9 +1152,7 @@ class _TimerPageState extends State<TimerPage>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(_l10n.focusSettingsNeedsReset)),
-        );
+        ..showSnackBar(SnackBar(content: Text(_l10n.focusSettingsNeedsReset)));
       return;
     }
     var editingProfileIndex = _selected;

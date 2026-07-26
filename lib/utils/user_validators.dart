@@ -109,7 +109,11 @@ class UserValidators {
   }
 
   /// Unit-aware weight check：raw 在 [system] 單位裡，內部轉公制驗證。
-  static String? weightIn(AppLocalizations l10n, String raw, UnitSystem system) {
+  static String? weightIn(
+    AppLocalizations l10n,
+    String raw,
+    UnitSystem system,
+  ) {
     final t = raw.trim();
     if (t.isEmpty) return null;
     final v = double.tryParse(t);

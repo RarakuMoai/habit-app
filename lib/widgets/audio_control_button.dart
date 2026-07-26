@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
@@ -113,7 +114,7 @@ class _AudioControlButtonState extends State<AudioControlButton> {
               accent: widget.accent,
               child: IconButton(
                 icon: Icon(icon, color: color),
-                tooltip: '聲音設定',
+                tooltip: AppLocalizations.of(context).acSoundSettings,
                 onPressed: _togglePanel,
               ),
             );
@@ -293,7 +294,7 @@ class _AudioSettingsPanel extends StatelessWidget {
                   delay: 0.12,
                   child: _AudioTile(
                     icon: Icons.music_note_rounded,
-                    title: '音樂',
+                    title: AppLocalizations.of(context).acMusic,
                     accent: accent,
                     valueListenable: AudioSettingsService.musicMuted,
                     onChanged: (muted) async {
@@ -308,7 +309,7 @@ class _AudioSettingsPanel extends StatelessWidget {
                   delay: 0.24,
                   child: _AudioTile(
                     icon: Icons.touch_app_rounded,
-                    title: '音效',
+                    title: AppLocalizations.of(context).acSfx,
                     accent: accent,
                     valueListenable: AudioSettingsService.sfxMuted,
                     onChanged: (muted) async {

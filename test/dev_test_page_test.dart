@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/pages/dev_test_page.dart';
 import 'package:habit_app/utils/coin_config.dart';
 import 'package:habit_app/utils/coin_service.dart';
@@ -89,7 +90,10 @@ void main() {
       prefs.getBool(PrefsKeys.coinClaim(CoinSource.weeklyStreak.name, today)),
       isNull,
     );
-    final reward = await CoinService.claimDailyLogin(now: now);
+    final reward = await CoinService.claimDailyLogin(
+      now: now,
+      l10n: lookupAppLocalizations(const Locale('zh')),
+    );
     expect(reward, isNotNull);
     expect(reward!.level, 3);
   });
