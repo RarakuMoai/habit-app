@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
@@ -36,6 +37,8 @@ class ReviewPage extends StatefulWidget {
 }
 
 class _ReviewPageState extends State<ReviewPage> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   late int _seg = widget.initialSegment.clamp(0, 1);
   int _offset = 0; // 0=當前週/月，-1=上一個…
 
@@ -168,12 +171,12 @@ class _ReviewPageState extends State<ReviewPage> {
     if (_seg == 0) {
       final s = _weekStart;
       final e = s.add(const Duration(days: 6));
-      final suffix = _offset == 0 ? '（本週）' : '';
+      final suffix = _offset == 0 ? _l10n.rvThisWeekSuffix : '';
       return '${s.month}/${s.day} – ${e.month}/${e.day}$suffix';
     }
     final s = _monthStart;
-    final suffix = _offset == 0 ? '（本月）' : '';
-    return '${s.year} 年 ${s.month} 月$suffix';
+    final suffix = _offset == 0 ? _l10n.rvThisMonthSuffix : '';
+    return _l10n.rvMonthLabel(s.year, s.month, suffix);
   }
 
   void _changeSeg(int seg) {
@@ -201,9 +204,9 @@ class _ReviewPageState extends State<ReviewPage> {
           foregroundColor: AppInk.strong,
           iconTheme: const IconThemeData(color: AppInk.strong),
           actionsIconTheme: const IconThemeData(color: AppInk.strong),
-          title: const Text(
-            '足跡',
-            style: TextStyle(
+          title: Text(
+            _l10n.rvFootprint,
+            style: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 17,
               color: AppInk.strong,
@@ -245,26 +248,29 @@ class _ReviewPageState extends State<ReviewPage> {
               borderRadius: BorderRadius.circular(AppCardStyle.radius),
               border: Border.all(color: const Color(0xFFF3C49E)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                _BackfillIcon(),
-                SizedBox(width: 11),
+                const _BackfillIcon(),
+                const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '忘了打勾？補上最近的習慣',
-                        style: TextStyle(
+                        _l10n.rvBackfillTitle,
+                        style: const TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w900,
                           color: AppInk.strong,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        '可補昨天起往前 7 天，不補發足跡幣與連勝',
-                        style: TextStyle(fontSize: 11.5, color: AppInk.soft),
+                        _l10n.rvBackfillSub,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppInk.soft,
+                        ),
                       ),
                     ],
                   ),
@@ -280,7 +286,7 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Widget _buildSegmentBar() {
-    const labels = ['週', '月'];
+    final labels = [_l10n.rvSegWeek, _l10n.rvSegMonth];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Container(
@@ -324,7 +330,7 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget _buildCoinWalletCard() {
     final todayAmount = _todayLoginAmount();
     final periodStats = _coinPeriodStats();
-    final periodWord = _seg == 0 ? '本週' : '本月';
+    final periodWord = _seg == 0 ? _l10n.rvPeriodWeek : _l10n.rvPeriodMonth;
     final periodLine = _periodCoinLine(periodWord, periodStats);
     final levelText = _loginLevel <= 0 ? '-' : 'Lv.$_loginLevel';
 
@@ -371,9 +377,9 @@ class _ReviewPageState extends State<ReviewPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '足跡錢包',
-                        style: TextStyle(
+                      Text(
+                        _l10n.rvWallet,
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
                           color: AppInk.strong,
@@ -397,9 +403,9 @@ class _ReviewPageState extends State<ReviewPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text(
-                      '目前足跡幣',
-                      style: TextStyle(
+                    Text(
+                      _l10n.rvCurrentCoins,
+                      style: const TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                         color: AppInk.soft,
@@ -422,25 +428,27 @@ class _ReviewPageState extends State<ReviewPage> {
               children: [
                 Expanded(
                   child: _WalletMetric(
-                    label: '今日登入',
-                    value: todayAmount == null ? '未入帳' : '+$todayAmount',
+                    label: _l10n.rvTodayLogin,
+                    value: todayAmount == null
+                        ? _l10n.rvNotCredited
+                        : '+$todayAmount',
                     color: const Color(0xFFE5A327),
                   ),
                 ),
                 const _WalletDivider(),
                 Expanded(
                   child: _WalletMetric(
-                    label: '連續登入',
+                    label: _l10n.rvLoginStreak,
                     value: _loginStreak > 999
-                        ? '999+ 天'
-                        : '${_loginStreak.clamp(0, 999)} 天',
+                        ? _l10n.rvDaysMax
+                        : _l10n.rvDays(_loginStreak.clamp(0, 999)),
                     color: _accent,
                   ),
                 ),
                 const _WalletDivider(),
                 Expanded(
                   child: _WalletMetric(
-                    label: '獎勵等級',
+                    label: _l10n.rvRewardLevel,
                     value: levelText,
                     color: _success,
                   ),
@@ -481,6 +489,7 @@ class _ReviewPageState extends State<ReviewPage> {
       dates: dates,
       activeHabits: _habits,
       tombstones: _tombstones,
+      habitFallbackName: _l10n.rsHabitFallback,
     );
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -508,24 +517,24 @@ class _ReviewPageState extends State<ReviewPage> {
           _buildCountCard(
             icon: Icons.local_fire_department_rounded,
             color: const Color(0xFFEF7A5A),
-            title: '專注',
+            title: _l10n.rvFocus,
             review: ReviewStats.focus(prefs, dates: dates),
-            unitWord: '回合',
-            emptyText: '這段時間還沒有專注紀錄',
+            unitWord: _l10n.rvRounds,
+            emptyText: _l10n.rvFocusEmpty,
           ),
           const SizedBox(height: 12),
           _buildCountCard(
             icon: Icons.fitness_center_rounded,
             color: const Color(0xFF6FAE8E),
-            title: '運動',
+            title: _l10n.rvExercise,
             review: ReviewStats.exercise(prefs, dates: dates),
-            unitWord: '次',
-            emptyText: '這段時間還沒有運動紀錄',
+            unitWord: _l10n.rvTimes,
+            emptyText: _l10n.rvExerciseEmpty,
           ),
         ],
         const SizedBox(height: 18),
         Text(
-          MascotName.fill('這些只是{name}替你記得的，不是分數。'),
+          _l10n.rvNotAScore(MascotName.value),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11.5, color: AppInk.faint),
         ),
@@ -540,7 +549,7 @@ class _ReviewPageState extends State<ReviewPage> {
           onPressed: () => setState(() => _offset -= 1),
           icon: const Icon(Icons.chevron_left_rounded),
           color: AppInk.soft,
-          tooltip: '上一個',
+          tooltip: _l10n.rvPrev,
         ),
         Expanded(
           child: Text(
@@ -557,7 +566,7 @@ class _ReviewPageState extends State<ReviewPage> {
           onPressed: _offset < 0 ? () => setState(() => _offset += 1) : null,
           icon: const Icon(Icons.chevron_right_rounded),
           color: AppInk.soft,
-          tooltip: '下一個',
+          tooltip: _l10n.rvNext,
         ),
       ],
     );
@@ -588,8 +597,14 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   String _periodCoinLine(String periodWord, _CoinPeriodStats stats) {
-    final base = '$periodWord獲得 +${stats.earned} 足跡幣 · 登入 ${stats.loginDays} 天';
-    return stats.milestones > 0 ? '$base · 獎勵 ${stats.milestones} 次' : base;
+    final base = _l10n.rvCoinPeriodLine(
+      periodWord,
+      stats.earned,
+      stats.loginDays,
+    );
+    return stats.milestones > 0
+        ? _l10n.rvCoinPeriodMilestone(base, stats.milestones)
+        : base;
   }
 
   int? _todayLoginAmount() {
@@ -624,16 +639,20 @@ class _ReviewPageState extends State<ReviewPage> {
   String _milestoneLine() {
     final milestone = CoinConfig.loginStreakMilestone;
     if (_loginStreak <= 0) {
-      return '登入獎勵會隨等級提高，連續 $milestone 天再 +${CoinConfig.weeklyStreak} 足跡幣。';
+      return _l10n.rvMilestoneNone(milestone, CoinConfig.weeklyStreak);
     }
     final cycleDays = _loginStreak % milestone;
     if (cycleDays == 0) {
       return _earnedMilestoneToday()
-          ? '今天拿到 $milestone 天獎勵 +${CoinConfig.weeklyStreak} 足跡幣。'
-          : '下一輪 $milestone 天獎勵準備開始。';
+          ? _l10n.rvMilestoneToday(milestone, CoinConfig.weeklyStreak)
+          : _l10n.rvMilestoneNextRound(milestone);
     }
     final remaining = milestone - cycleDays;
-    return '距離 $milestone 天獎勵還差 $remaining 天（+${CoinConfig.weeklyStreak} 足跡幣）。';
+    return _l10n.rvMilestoneRemaining(
+      milestone,
+      remaining,
+      CoinConfig.weeklyStreak,
+    );
   }
 
   bool _isWithinCalendarRange(DateTime at, DateTime start, DateTime end) {
@@ -716,7 +735,7 @@ class _ReviewPageState extends State<ReviewPage> {
     return _Card(
       icon: Icons.timeline_rounded,
       color: _success,
-      title: '每日足跡',
+      title: _l10n.rvDailyFootprint,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -724,13 +743,17 @@ class _ReviewPageState extends State<ReviewPage> {
           const SizedBox(height: 7),
           _FootprintGrid(days: days, leadingBlanks: leadingBlanks),
           const SizedBox(height: 12),
-          const Wrap(
+          Wrap(
             spacing: 12,
             runSpacing: 6,
             children: [
-              _FootprintLegend(color: _success, label: '全勤', filled: true),
-              _FootprintLegend(color: _accent, label: '有留下'),
-              _FootprintLegend(color: AppInk.faint, label: '空白'),
+              _FootprintLegend(
+                color: _success,
+                label: _l10n.rvLegendAllDone,
+                filled: true,
+              ),
+              _FootprintLegend(color: _accent, label: _l10n.rvLegendSome),
+              _FootprintLegend(color: AppInk.faint, label: _l10n.rvLegendEmpty),
             ],
           ),
         ],
@@ -741,10 +764,12 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget _buildTopSummary(HabitReview hr) {
     final String line;
     if (hr.trackedDays == 0) {
-      line = '這段時間還沒有習慣紀錄。\n慢慢來，下次再留下足跡就好。';
+      line = _l10n.rvSummaryEmpty;
     } else {
-      final base = '這段時間你回來了 ${hr.daysActive} 天。';
-      line = hr.daysAllDone > 0 ? '$base\n其中 ${hr.daysAllDone} 天全部完成了。' : base;
+      final base = _l10n.rvSummaryBase(hr.daysActive);
+      line = hr.daysAllDone > 0
+          ? _l10n.rvSummaryAllDone(base, hr.daysAllDone)
+          : base;
     }
     return Container(
       width: double.infinity,
@@ -778,7 +803,7 @@ class _ReviewPageState extends State<ReviewPage> {
               ),
               const SizedBox(width: 10),
               Text(
-                _seg == 0 ? '週回顧' : '月回顧',
+                _seg == 0 ? _l10n.rvWeekReview : _l10n.rvMonthReview,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
@@ -802,7 +827,7 @@ class _ReviewPageState extends State<ReviewPage> {
             children: [
               Expanded(
                 child: _SummaryMetric(
-                  label: '回來',
+                  label: _l10n.rvStatBack,
                   value: hr.daysActive,
                   color: _accent,
                 ),
@@ -810,7 +835,7 @@ class _ReviewPageState extends State<ReviewPage> {
               const _SummaryDivider(),
               Expanded(
                 child: _SummaryMetric(
-                  label: '全勤',
+                  label: _l10n.rvStatAllDone,
                   value: hr.daysAllDone,
                   color: _success,
                 ),
@@ -818,7 +843,7 @@ class _ReviewPageState extends State<ReviewPage> {
               const _SummaryDivider(),
               Expanded(
                 child: _SummaryMetric(
-                  label: '有習慣',
+                  label: _l10n.rvStatHasHabits,
                   value: hr.trackedDays,
                   color: const Color(0xFF9D7B5E),
                 ),
@@ -834,14 +859,18 @@ class _ReviewPageState extends State<ReviewPage> {
     return _Card(
       icon: Icons.spa_rounded,
       color: _accent,
-      title: '習慣',
+      title: _l10n.rvHabits,
       child: hr.perHabit.isEmpty
-          ? _emptyLine('這段時間還沒有每日習慣')
+          ? _emptyLine(_l10n.rvHabitsEmpty)
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '留下 ${hr.daysActive}/${hr.trackedDays} 天 · 全勤 ${hr.daysAllDone} 天',
+                  _l10n.rvHabitLine(
+                    hr.daysActive,
+                    hr.trackedDays,
+                    hr.daysAllDone,
+                  ),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -862,12 +891,14 @@ class _ReviewPageState extends State<ReviewPage> {
     return _Card(
       icon: Icons.water_drop_rounded,
       color: const Color(0xFF5FA8D8),
-      title: '喝水',
+      title: _l10n.rvWater,
       child: wr.daysWithData == 0
-          ? _emptyLine('這段時間還沒有喝水紀錄')
+          ? _emptyLine(_l10n.rvWaterEmpty)
           : Text(
-              '達標 ${wr.daysMetGoal} 天 · 平均每天 '
-              '${UnitFormat.volume(wr.avgMlOnDataDays, _unit)}',
+              _l10n.rvWaterLine(
+                wr.daysMetGoal,
+                UnitFormat.volume(wr.avgMlOnDataDays, _unit),
+              ),
               style: const TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,
@@ -892,8 +923,12 @@ class _ReviewPageState extends State<ReviewPage> {
       child: review.activeDays == 0
           ? _emptyLine(emptyText)
           : Text(
-              '${review.count} $unitWord · ${review.minutes} 分鐘 · '
-              '${review.activeDays} 天',
+              _l10n.rvCountLine(
+                review.count,
+                unitWord,
+                review.minutes,
+                review.activeDays,
+              ),
               style: const TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,
@@ -1073,9 +1108,9 @@ class _HabitTallyRow extends StatelessWidget {
                     color: const Color(0xFFF0E6D8),
                     borderRadius: BorderRadius.circular(7),
                   ),
-                  child: const Text(
-                    '已刪除',
-                    style: TextStyle(fontSize: 10, color: AppInk.soft),
+                  child: Text(
+                    AppLocalizations.of(context).rvDeleted,
+                    style: const TextStyle(fontSize: 10, color: AppInk.soft),
                   ),
                 ),
               ),
@@ -1134,7 +1169,7 @@ class _SummaryMetric extends StatelessWidget {
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            '$value 天',
+            AppLocalizations.of(context).rvDays(value),
             style: AppType.digits(
               fontSize: 18,
               fontWeight: FontWeight.w900,
@@ -1181,13 +1216,21 @@ class _DayFootprint {
 class _WeekdayLabels extends StatelessWidget {
   const _WeekdayLabels();
 
-  static const _labels = ['一', '二', '三', '四', '五', '六', '日'];
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final labels = [
+      l10n.weekdayShortMon,
+      l10n.weekdayShortTue,
+      l10n.weekdayShortWed,
+      l10n.weekdayShortThu,
+      l10n.weekdayShortFri,
+      l10n.weekdayShortSat,
+      l10n.weekdayShortSun,
+    ];
     return Row(
       children: [
-        for (final label in _labels)
+        for (final label in labels)
           Expanded(
             child: Text(
               label,
@@ -1242,7 +1285,7 @@ class _FootprintCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = _cellColors(day.status);
-    final label = _semanticLabel(day);
+    final label = _semanticLabel(AppLocalizations.of(context), day);
     return Semantics(
       label: label,
       child: DecoratedBox(
@@ -1312,18 +1355,18 @@ class _FootprintCell extends StatelessWidget {
     }
   }
 
-  String _semanticLabel(_DayFootprint day) {
+  String _semanticLabel(AppLocalizations l10n, _DayFootprint day) {
     switch (day.status) {
       case _FootprintStatus.done:
-        return '${day.date} 全勤';
+        return l10n.rvDayAllDone(day.date);
       case _FootprintStatus.partial:
-        return '${day.date} 完成 ${day.done}/${day.total}';
+        return l10n.rvDayPartial(day.date, day.done, day.total);
       case _FootprintStatus.missed:
-        return '${day.date} 有習慣，尚未留下紀錄';
+        return l10n.rvDayNoRecord(day.date);
       case _FootprintStatus.none:
-        return '${day.date} 沒有每日習慣';
+        return l10n.rvDayNoHabits(day.date);
       case _FootprintStatus.future:
-        return '${day.date} 尚未到來';
+        return l10n.rvDayFuture(day.date);
     }
   }
 }

@@ -73,11 +73,14 @@ class CountReview {
 }
 
 abstract final class ReviewStats {
+  /// [habitFallbackName]：歷史紀錄裡沒存名字時的後備顯示文字（由呼叫端
+  /// 用 l10n 給，這裡不碰 context）。
   static HabitReview habits(
     SharedPreferences prefs, {
     required List<String> dates,
     required List<Map<String, dynamic>> activeHabits,
     required List<Map<String, dynamic>> tombstones,
+    required String habitFallbackName,
   }) {
     var daysActive = 0;
     var daysAllDone = 0;
@@ -101,7 +104,7 @@ abstract final class ReviewStats {
         final prev = tallies[id];
         tallies[id] = HabitTally(
           id: id,
-          name: (h['name'] as String?) ?? '習慣',
+          name: (h['name'] as String?) ?? habitFallbackName,
           deleted: h['deleted'] == true,
           done: (prev?.done ?? 0) + (isDone ? 1 : 0),
           total: (prev?.total ?? 0) + 1,

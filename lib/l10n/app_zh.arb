@@ -4197,5 +4197,336 @@
     "placeholders": {
       "title": { "type": "String" }
     }
+  },
+
+  "rvThisWeekSuffix": "（本週）",
+  "@rvThisWeekSuffix": {
+    "description": "回顧頁期間標籤的後綴：正在看的是本週。括號要保留。"
+  },
+  "rvThisMonthSuffix": "（本月）",
+  "@rvThisMonthSuffix": {
+    "description": "回顧頁期間標籤的後綴：正在看的是本月。"
+  },
+  "rvMonthLabel": "{year} 年 {month} 月{suffix}",
+  "@rvMonthLabel": {
+    "description": "回顧頁的月份標籤。suffix 可能是「（本月）」或空字串。",
+    "placeholders": {
+      "year": { "type": "int" },
+      "month": { "type": "int" },
+      "suffix": { "type": "String" }
+    }
+  },
+  "rvFootprint": "足跡",
+  "@rvFootprint": {
+    "description": "回顧頁的頁面標題。足跡是這個 app 對「累積紀錄」的說法。"
+  },
+  "rvBackfillTitle": "忘了打勾？補上最近的習慣",
+  "@rvBackfillTitle": {
+    "description": "補打卡入口的標題。"
+  },
+  "rvBackfillSub": "可補昨天起往前 7 天，不補發足跡幣與連勝",
+  "@rvBackfillSub": {
+    "description": "補打卡入口的說明。要把「不補發」講清楚。"
+  },
+  "rvSegWeek": "週",
+  "@rvSegWeek": {
+    "description": "回顧頁的期間切換：週。要非常短。"
+  },
+  "rvSegMonth": "月",
+  "@rvSegMonth": {
+    "description": "回顧頁的期間切換：月。要非常短。"
+  },
+  "rvPeriodWeek": "本週",
+  "@rvPeriodWeek": {
+    "description": "用在句子裡的期間詞：本週。"
+  },
+  "rvPeriodMonth": "本月",
+  "@rvPeriodMonth": {
+    "description": "用在句子裡的期間詞：本月。"
+  },
+  "rvWallet": "足跡錢包",
+  "@rvWallet": {
+    "description": "足跡幣區塊的標題。"
+  },
+  "rvCurrentCoins": "目前足跡幣",
+  "@rvCurrentCoins": {
+    "description": "目前餘額的欄位標籤。"
+  },
+  "rvTodayLogin": "今日登入",
+  "@rvTodayLogin": {
+    "description": "今天登入獎勵的欄位標籤。"
+  },
+  "rvNotCredited": "未入帳",
+  "@rvNotCredited": {
+    "description": "今天還沒領到登入獎勵。"
+  },
+  "rvLoginStreak": "連續登入",
+  "@rvLoginStreak": {
+    "description": "連續登入天數的欄位標籤。"
+  },
+  "rvDaysMax": "999+ 天",
+  "@rvDaysMax": {
+    "description": "連續登入天數超過上限時的顯示。"
+  },
+  "rvDays": "{n} 天",
+  "@rvDays": {
+    "description": "天數。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "rvRewardLevel": "獎勵等級",
+  "@rvRewardLevel": {
+    "description": "登入獎勵等級的欄位標籤。"
+  },
+  "rvFocus": "專注",
+  "@rvFocus": {
+    "description": "回顧頁的專注統計卡標題。"
+  },
+  "rvRounds": "回合",
+  "@rvRounds": {
+    "description": "專注的計量單位：回合。接在數字後面。"
+  },
+  "rvFocusEmpty": "這段時間還沒有專注紀錄",
+  "@rvFocusEmpty": {
+    "description": "專注卡的空狀態。中性描述，不催促。"
+  },
+  "rvExercise": "運動",
+  "@rvExercise": {
+    "description": "回顧頁的運動統計卡標題。"
+  },
+  "rvTimes": "次",
+  "@rvTimes": {
+    "description": "運動的計量單位：次。接在數字後面。"
+  },
+  "rvExerciseEmpty": "這段時間還沒有運動紀錄",
+  "@rvExerciseEmpty": {
+    "description": "運動卡的空狀態。"
+  },
+  "rvNotAScore": "這些只是{name}替你記得的，不是分數。",
+  "@rvNotAScore": {
+    "description": "回顧頁底部的說明。這是產品態度：不評分、不比較。{name} 是兔咪名。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "rvPrev": "上一個",
+  "@rvPrev": {
+    "description": "看上一個期間的 tooltip。"
+  },
+  "rvNext": "下一個",
+  "@rvNext": {
+    "description": "看下一個期間的 tooltip。"
+  },
+  "rvCoinPeriodLine": "{period}獲得 +{earned} 足跡幣 · 登入 {days} 天",
+  "@rvCoinPeriodLine": {
+    "description": "這個期間的足跡幣摘要。period 是「本週／本月」。",
+    "placeholders": {
+      "period": { "type": "String" },
+      "earned": { "type": "int" },
+      "days": { "type": "int" }
+    }
+  },
+  "rvCoinPeriodMilestone": "{base} · 獎勵 {n} 次",
+  "@rvCoinPeriodMilestone": {
+    "description": "足跡幣摘要後面追加的里程碑次數。",
+    "placeholders": {
+      "base": { "type": "String" },
+      "n": { "type": "int" }
+    }
+  },
+  "rvMilestoneNone": "登入獎勵會隨等級提高，連續 {days} 天再 +{bonus} 足跡幣。",
+  "@rvMilestoneNone": {
+    "description": "還沒開始連續登入時的說明。",
+    "placeholders": {
+      "days": { "type": "int" },
+      "bonus": { "type": "int" }
+    }
+  },
+  "rvMilestoneToday": "今天拿到 {days} 天獎勵 +{bonus} 足跡幣。",
+  "@rvMilestoneToday": {
+    "description": "今天剛好領到里程碑獎勵。",
+    "placeholders": {
+      "days": { "type": "int" },
+      "bonus": { "type": "int" }
+    }
+  },
+  "rvMilestoneNextRound": "下一輪 {days} 天獎勵準備開始。",
+  "@rvMilestoneNextRound": {
+    "description": "里程碑剛結算完、新一輪開始。",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "rvMilestoneRemaining": "距離 {days} 天獎勵還差 {remaining} 天（+{bonus} 足跡幣）。",
+  "@rvMilestoneRemaining": {
+    "description": "距離下一個里程碑還差幾天。",
+    "placeholders": {
+      "days": { "type": "int" },
+      "remaining": { "type": "int" },
+      "bonus": { "type": "int" }
+    }
+  },
+  "rvDailyFootprint": "每日足跡",
+  "@rvDailyFootprint": {
+    "description": "日曆卡的標題。"
+  },
+  "rvLegendAllDone": "全勤",
+  "@rvLegendAllDone": {
+    "description": "日曆圖例：當天習慣全部完成。"
+  },
+  "rvLegendSome": "有留下",
+  "@rvLegendSome": {
+    "description": "日曆圖例：當天有留下紀錄但沒全完成。"
+  },
+  "rvLegendEmpty": "空白",
+  "@rvLegendEmpty": {
+    "description": "日曆圖例：當天沒有紀錄。"
+  },
+  "rvSummaryEmpty": "這段時間還沒有習慣紀錄。\n慢慢來，下次再留下足跡就好。",
+  "@rvSummaryEmpty": {
+    "description": "回顧頁頂端摘要的空狀態。安撫語氣，換行要保留。"
+  },
+  "rvSummaryBase": "這段時間你回來了 {days} 天。",
+  "@rvSummaryBase": {
+    "description": "回顧頁頂端摘要：回來了幾天。",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "rvSummaryAllDone": "{base}\n其中 {days} 天全部完成了。",
+  "@rvSummaryAllDone": {
+    "description": "回顧摘要追加：其中幾天全勤。換行要保留。",
+    "placeholders": {
+      "base": { "type": "String" },
+      "days": { "type": "int" }
+    }
+  },
+  "rvWeekReview": "週回顧",
+  "@rvWeekReview": {
+    "description": "日曆卡上方的標題：週。"
+  },
+  "rvMonthReview": "月回顧",
+  "@rvMonthReview": {
+    "description": "日曆卡上方的標題：月。"
+  },
+  "rvStatBack": "回來",
+  "@rvStatBack": {
+    "description": "統計欄位：有留下紀錄的天數。"
+  },
+  "rvStatAllDone": "全勤",
+  "@rvStatAllDone": {
+    "description": "統計欄位：全部完成的天數。"
+  },
+  "rvStatHasHabits": "有習慣",
+  "@rvStatHasHabits": {
+    "description": "統計欄位：有安排習慣的天數。"
+  },
+  "rvHabits": "習慣",
+  "@rvHabits": {
+    "description": "回顧頁的習慣統計卡標題。"
+  },
+  "rvHabitsEmpty": "這段時間還沒有每日習慣",
+  "@rvHabitsEmpty": {
+    "description": "習慣卡的空狀態。"
+  },
+  "rvHabitLine": "留下 {active}/{tracked} 天 · 全勤 {allDone} 天",
+  "@rvHabitLine": {
+    "description": "習慣卡的統計句。",
+    "placeholders": {
+      "active": { "type": "int" },
+      "tracked": { "type": "int" },
+      "allDone": { "type": "int" }
+    }
+  },
+  "rvWater": "喝水",
+  "@rvWater": {
+    "description": "回顧頁的喝水統計卡標題。"
+  },
+  "rvWaterEmpty": "這段時間還沒有喝水紀錄",
+  "@rvWaterEmpty": {
+    "description": "喝水卡的空狀態。"
+  },
+  "rvWaterLine": "達標 {days} 天 · 平均每天 {avg}",
+  "@rvWaterLine": {
+    "description": "喝水卡的統計句。avg 已含單位。",
+    "placeholders": {
+      "days": { "type": "int" },
+      "avg": { "type": "String" }
+    }
+  },
+  "rvCountLine": "{count} {unit} · {minutes} 分鐘 · {days} 天",
+  "@rvCountLine": {
+    "description": "專注／運動卡的統計句。unit 是「回合／次」。",
+    "placeholders": {
+      "count": { "type": "int" },
+      "unit": { "type": "String" },
+      "minutes": { "type": "int" },
+      "days": { "type": "int" }
+    }
+  },
+  "rvDeleted": "已刪除",
+  "@rvDeleted": {
+    "description": "習慣已被刪除，但歷史紀錄還在時的標記。"
+  },
+  "rvDayAllDone": "{date} 全勤",
+  "@rvDayAllDone": {
+    "description": "日曆格的無障礙描述：全部完成。",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rvDayPartial": "{date} 完成 {done}/{total}",
+  "@rvDayPartial": {
+    "description": "日曆格的無障礙描述：部分完成。",
+    "placeholders": {
+      "date": { "type": "String" },
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "rvDayNoRecord": "{date} 有習慣，尚未留下紀錄",
+  "@rvDayNoRecord": {
+    "description": "日曆格的無障礙描述：有安排但沒紀錄。",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rvDayNoHabits": "{date} 沒有每日習慣",
+  "@rvDayNoHabits": {
+    "description": "日曆格的無障礙描述：那天沒安排習慣。",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rvDayFuture": "{date} 尚未到來",
+  "@rvDayFuture": {
+    "description": "日曆格的無障礙描述：未來的日子。",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rsHabitFallback": "習慣",
+  "@rsHabitFallback": {
+    "description": "歷史紀錄裡找不到習慣名稱時的後備顯示。"
+  },
+  "srNewMemory": "新的回憶・{label}",
+  "@srNewMemory": {
+    "description": "繪本揭曉頁頂端的標記。中間是全形間隔號。",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "srTapToCollect": "點一下，收進回憶本 ✧",
+  "@srTapToCollect": {
+    "description": "繪本最後一頁的提示。結尾的 ✧ 要保留。"
+  },
+  "srTapToContinue": "點一下，繼續 ✧",
+  "@srTapToContinue": {
+    "description": "繪本翻頁提示。結尾的 ✧ 要保留。"
+  },
+  "mbrTitle": "兔咪回憶本",
+  "@mbrTitle": {
+    "description": "回憶本閱讀器的標題。這裡的「兔咪」是產品固定用法，不隨使用者改的名字變。"
   }
 }

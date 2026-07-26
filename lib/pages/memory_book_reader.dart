@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/mascot.dart';
@@ -113,7 +114,7 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
               child: Column(
                 children: [
                   Text(
-                    '兔咪回憶本',
+                    AppLocalizations.of(context).mbrTitle,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppInk.strong.withValues(alpha: 0.86),

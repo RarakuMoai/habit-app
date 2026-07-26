@@ -9,8 +9,18 @@ void main() {
   final week = ['2026-06-22', '2026-06-23', '2026-06-24'];
 
   final habits = [
-    {'id': 'read', 'name': '閱讀', 'frequency': 'daily', 'createdAt': '2020-01-01'},
-    {'id': 'med', 'name': '冥想', 'frequency': 'daily', 'createdAt': '2026-06-23'},
+    {
+      'id': 'read',
+      'name': '閱讀',
+      'frequency': 'daily',
+      'createdAt': '2020-01-01',
+    },
+    {
+      'id': 'med',
+      'name': '冥想',
+      'frequency': 'daily',
+      'createdAt': '2026-06-23',
+    },
   ];
 
   test('habits：回來天數 / 全勤天數 / 每習慣 tally', () async {
@@ -29,6 +39,7 @@ void main() {
       dates: week,
       activeHabits: habits,
       tombstones: const [],
+      habitFallbackName: '習慣',
     );
 
     expect(hr.trackedDays, 3);
@@ -51,12 +62,7 @@ void main() {
     });
     final prefs = await SharedPreferences.getInstance();
 
-    final wr = ReviewStats.water(
-      prefs,
-      dates: week,
-      goalMl: 2000,
-      cupMl: 250,
-    );
+    final wr = ReviewStats.water(prefs, dates: week, goalMl: 2000, cupMl: 250);
     expect(wr.daysWithData, 2);
     expect(wr.daysMetGoal, 1); // 只有 6/22 達 2000
     expect(wr.avgMlOnDataDays, 1500); // (2000+1000)/2
@@ -92,6 +98,7 @@ void main() {
       dates: week,
       activeHabits: const [],
       tombstones: const [],
+      habitFallbackName: '習慣',
     );
     expect(hr.trackedDays, 0);
     expect(hr.perHabit, isEmpty);

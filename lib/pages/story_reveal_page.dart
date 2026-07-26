@@ -13,6 +13,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/sfx_service.dart';
@@ -209,7 +210,7 @@ class _StoryRevealPageState extends State<StoryRevealPage>
               border: Border.all(color: kMemoryAccent.withValues(alpha: 0.16)),
             ),
             child: Text(
-              '新的回憶・${widget.event.label}',
+              AppLocalizations.of(context).srNewMemory(widget.event.label),
               style: TextStyle(
                 color: kMemoryAccent.withValues(alpha: 0.95),
                 fontSize: 10.5,
@@ -335,7 +336,9 @@ class _StoryRevealPageState extends State<StoryRevealPage>
                 child: child,
               ),
               child: Text(
-                _isLastPage ? '點一下，收進回憶本 ✧' : '點一下，繼續 ✧',
+                _isLastPage
+                    ? AppLocalizations.of(context).srTapToCollect
+                    : AppLocalizations.of(context).srTapToContinue,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: kMemoryAccent.withValues(alpha: 0.95),

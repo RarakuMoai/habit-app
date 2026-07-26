@@ -6,6 +6,8 @@ import 'package:habit_app/utils/story_catalog.dart';
 import 'package:habit_app/utils/story_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -28,7 +30,7 @@ void main() {
     final event = storyEventById('comeback');
 
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: MemoryBookReader(
           entries: [StoryUnlock(event.id, DateTime(2026, 7, 12))],
         ),
@@ -50,7 +52,7 @@ void main() {
     final event = storyEventById('streak_7');
 
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: StoryRevealPage(event: event, date: DateTime(2026, 7, 12)),
       ),
     );
