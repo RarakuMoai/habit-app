@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
@@ -17,6 +18,7 @@ Future<void> showAddRewardSheet(
   required List<RewardItem> existingRewards,
   required Future<void> Function() onSaved,
 }) async {
+  final l10n = AppLocalizations.of(context);
   final nameCtrl = TextEditingController();
   final pointCtrl = TextEditingController();
   final selectedIds = Set<String>.from(children.map((c) => c.id));
@@ -68,15 +70,18 @@ Future<void> showAddRewardSheet(
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '新增獎勵',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Text(
+                  l10n.rsAddTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 14),
 
                 // 套用小孩
                 Text(
-                  '套用小孩',
+                  l10n.hsApplyToChildren,
                   style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 4),
@@ -149,8 +154,10 @@ Future<void> showAddRewardSheet(
                           Expanded(
                             child: Text(
                               selectedPresetCfgs.isEmpty
-                                  ? '從常用獎勵選取'
-                                  : '已選 ${selectedPresetCfgs.length} 個常用獎勵',
+                                  ? l10n.rsPickPreset
+                                  : l10n.rsPickedPresets(
+                                      selectedPresetCfgs.length,
+                                    ),
                               style: TextStyle(
                                 color: selectedPresetCfgs.isEmpty
                                     ? AppInk.soft
@@ -180,7 +187,7 @@ Future<void> showAddRewardSheet(
                   controller: nameCtrl,
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
-                    hintText: '自訂獎勵名稱...',
+                    hintText: l10n.rsCustomNameHint,
                     filled: true,
                     fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
@@ -206,7 +213,7 @@ Future<void> showAddRewardSheet(
                       LengthLimitingTextInputFormatter(4),
                     ],
                     decoration: InputDecoration(
-                      labelText: '所需積分',
+                      labelText: l10n.rsPointsCost,
                       filled: true,
                       fillColor: AppSurfaces.fill,
                       border: OutlineInputBorder(
@@ -229,7 +236,7 @@ Future<void> showAddRewardSheet(
                             final rewards = await loadRewards(prefs);
                             for (final e in selectedPresetCfgs.entries) {
                               final rewardName = e.value.minutes > 0
-                                  ? '${e.key} ${e.value.minutes} 分鐘'
+                                  ? l10n.rsNameMinutes(e.key, e.value.minutes)
                                   : e.key;
                               rewards.add(
                                 RewardItem(
@@ -266,7 +273,7 @@ Future<void> showAddRewardSheet(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
-                      total == 0 ? '請選擇或輸入獎勵' : '新增 ($total 項)',
+                      total == 0 ? l10n.rsPickOrType : l10n.hsAddCount(total),
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -288,6 +295,7 @@ Future<void> showEditRewardSheet(
   required List<ChildData> children,
   required Future<void> Function() onSaved,
 }) async {
+  final l10n = AppLocalizations.of(context);
   final nameCtrl = TextEditingController(text: reward.name);
   final pointCtrl = TextEditingController(text: reward.pointsCost.toString());
   final selectedIds = Set<String>.from(reward.childIds);
@@ -326,13 +334,16 @@ Future<void> showEditRewardSheet(
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '編輯獎勵',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Text(
+                  l10n.rsEditTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  '套用小孩',
+                  l10n.hsApplyToChildren,
                   style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 6),
@@ -362,7 +373,7 @@ Future<void> showEditRewardSheet(
                   autofocus: true,
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
-                    labelText: '獎勵名稱',
+                    labelText: l10n.rsNameLabel,
                     filled: true,
                     fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
@@ -389,7 +400,7 @@ Future<void> showEditRewardSheet(
                   ],
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
-                    labelText: '所需積分',
+                    labelText: l10n.rsPointsCost,
                     filled: true,
                     fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
@@ -435,9 +446,9 @@ Future<void> showEditRewardSheet(
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text(
-                      '儲存',
-                      style: TextStyle(color: Colors.white),
+                    child: Text(
+                      l10n.commonSave,
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                 ),

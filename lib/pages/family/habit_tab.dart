@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/sfx_service.dart';
@@ -31,6 +32,8 @@ class HabitTab extends StatefulWidget {
 }
 
 class _HabitTabState extends State<HabitTab> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   List<ChildHabit> _habits = [];
   List<DeductionItem> _deductions = [];
   bool _loaded = false;
@@ -77,7 +80,7 @@ class _HabitTabState extends State<HabitTab> {
       prefs: prefs,
       child: widget.child,
       delta: habit.points,
-      reason: '完成習慣：${habit.name}',
+      reason: _l10n.htReasonComplete(habit.name),
     );
 
     final allHabits = await loadHabits(prefs);
@@ -116,7 +119,7 @@ class _HabitTabState extends State<HabitTab> {
       prefs: prefs,
       child: widget.child,
       delta: -habit.points,
-      reason: '撤銷完成：${habit.name}',
+      reason: _l10n.htReasonUndo(habit.name),
     );
 
     final allHabits = await loadHabits(prefs);
@@ -146,18 +149,23 @@ class _HabitTabState extends State<HabitTab> {
   }
 
   // ── 特殊積分（需家長密碼）──
-  static const _kAddPresets = [
-    Preset('幫忙做家事', 10, '🏠'),
-    Preset('表現良好', 10, '😊'),
-    Preset('考試進步', 20, '📈'),
-    Preset('幫助別人', 10, '🤝'),
-    Preset('準時完成作業', 15, '⏰'),
-    Preset('主動學習', 15, '📚'),
+  // 這裡的名稱只當「快速理由」的挑選標籤，選了之後會寫進積分紀錄的
+  // reason 字串；不像 kHabitPresets 那樣拿去跟已存資料比對，所以可以翻譯。
+  List<Preset> get _addPresets => [
+    Preset(_l10n.htPresetChores, 10, '🏠'),
+    Preset(_l10n.htPresetGoodBehavior, 10, '😊'),
+    Preset(_l10n.htPresetExamProgress, 20, '📈'),
+    Preset(_l10n.htPresetHelpedOthers, 10, '🤝'),
+    Preset(_l10n.htPresetHomeworkOnTime, 15, '⏰'),
+    Preset(_l10n.htPresetSelfStudy, 15, '📚'),
   ];
 
   Future<void> _giveSpecialPoints() async {
     if (!mounted) return;
-    final ok = await verifyParentPinIfNeeded(context, title: '請輸入家長密碼以給予特殊積分');
+    final ok = await verifyParentPinIfNeeded(
+      context,
+      title: _l10n.htPinSpecialPoints,
+    );
     if (!ok || !mounted) return;
 
     var isAdd = true;
@@ -206,24 +214,27 @@ class _HabitTabState extends State<HabitTab> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    '特殊積分',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  Text(
+                    _l10n.htSpecialPoints,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 14),
 
                   // 加分 / 扣分 切換
                   SegmentedButton<bool>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: true,
-                        label: Text('加分'),
-                        icon: Icon(Icons.add_circle_outline),
+                        label: Text(_l10n.htAdd),
+                        icon: const Icon(Icons.add_circle_outline),
                       ),
                       ButtonSegment(
                         value: false,
-                        label: Text('扣分'),
-                        icon: Icon(Icons.remove_circle_outline),
+                        label: Text(_l10n.htDeduct),
+                        icon: const Icon(Icons.remove_circle_outline),
                       ),
                     ],
                     selected: {isAdd},
@@ -251,12 +262,12 @@ class _HabitTabState extends State<HabitTab> {
                       if (isAdd) {
                         final result = await showFamilyPresetSubSheet(
                           context,
-                          _kAddPresets.toList(),
+                          _addPresets,
                           Map.from(selectedAddPresets),
-                          title: '快速理由',
+                          title: _l10n.htQuickReasons,
                           accentColor: Colors.green.shade600,
-                          dialogLabel: '加幾分',
-                          adjustDialogTitle: '調整分數',
+                          dialogLabel: _l10n.htAddHowMany,
+                          adjustDialogTitle: _l10n.htAdjustPoints,
                         );
                         if (result != null) {
                           setS(() {
@@ -272,11 +283,11 @@ class _HabitTabState extends State<HabitTab> {
                               .map((d) => Preset(d.name, d.points))
                               .toList(),
                           Map.from(selectedDeductItems),
-                          title: '扣分項目',
+                          title: _l10n.htDeductItems,
                           accentColor: Colors.red.shade600,
                           badgePrefix: '-',
-                          dialogLabel: '扣幾分',
-                          adjustDialogTitle: '調整分數',
+                          dialogLabel: _l10n.htDeductHowMany,
+                          adjustDialogTitle: _l10n.htAdjustPoints,
                         );
                         if (result != null) {
                           setS(() {
@@ -323,8 +334,12 @@ class _HabitTabState extends State<HabitTab> {
                           Expanded(
                             child: Text(
                               selectedPresets.isEmpty
-                                  ? (isAdd ? '從快速理由選取' : '從扣分項目選取')
-                                  : '已選 ${selectedPresets.length} 項',
+                                  ? (isAdd
+                                        ? _l10n.htPickQuickReason
+                                        : _l10n.htPickDeductItem)
+                                  : _l10n.htSelectedCount(
+                                      selectedPresets.length,
+                                    ),
                               style: TextStyle(
                                 color: selectedPresets.isEmpty
                                     ? AppInk.soft
@@ -357,7 +372,7 @@ class _HabitTabState extends State<HabitTab> {
                     controller: reasonCtrl,
                     onChanged: (_) => setS(() {}),
                     decoration: InputDecoration(
-                      hintText: isAdd ? '自訂原因...' : '自訂原因...',
+                      hintText: _l10n.htCustomReason,
                       filled: true,
                       fillColor: AppSurfaces.fill,
                       border: OutlineInputBorder(
@@ -380,7 +395,9 @@ class _HabitTabState extends State<HabitTab> {
                         LengthLimitingTextInputFormatter(4),
                       ],
                       decoration: InputDecoration(
-                        labelText: isAdd ? '自訂加分數' : '自訂扣分數',
+                        labelText: isAdd
+                            ? _l10n.htCustomAddPoints
+                            : _l10n.htCustomDeductPoints,
                         filled: true,
                         fillColor: AppSurfaces.fill,
                         border: OutlineInputBorder(
@@ -421,12 +438,14 @@ class _HabitTabState extends State<HabitTab> {
                                   for (final entry in presets.entries)
                                     (
                                       delta: sign * entry.value,
-                                      reason: '特殊積分：${entry.key}',
+                                      reason: _l10n.htReasonSpecial(entry.key),
                                     ),
                                   if (customReason.isNotEmpty && customPts > 0)
                                     (
                                       delta: sign * customPts,
-                                      reason: '特殊積分：$customReason',
+                                      reason: _l10n.htReasonSpecial(
+                                        customReason,
+                                      ),
                                     ),
                                 ],
                               );
@@ -437,7 +456,10 @@ class _HabitTabState extends State<HabitTab> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    '已更新 ${widget.child.name} 的積分，目前共 $latestPts 分',
+                                    _l10n.htPointsUpdated(
+                                      widget.child.name,
+                                      latestPts,
+                                    ),
                                   ),
                                 ),
                               );
@@ -452,7 +474,7 @@ class _HabitTabState extends State<HabitTab> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
-                        isAdd ? '確認加分' : '確認扣分',
+                        isAdd ? _l10n.htConfirmAdd : _l10n.htConfirmDeduct,
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
@@ -483,12 +505,12 @@ class _HabitTabState extends State<HabitTab> {
         children: [
           // ── 習慣區塊 ──
           if (_habits.isEmpty)
-            _emptyHint('尚無習慣，請家長至家長管理新增')
+            _emptyHint(_l10n.htNoHabits)
           else ...[
             // 每日習慣
             if (dailyHabits.isNotEmpty) ...[
               HabitSectionHeader(
-                label: '每日習慣',
+                label: _l10n.htDailyHabits,
                 icon: Icons.wb_sunny_rounded,
                 color: Colors.orange,
                 done: dailyHabits.where(_isDoneToday).length,
@@ -510,7 +532,7 @@ class _HabitTabState extends State<HabitTab> {
             if (weeklyHabits.isNotEmpty) ...[
               if (dailyHabits.isNotEmpty) const SizedBox(height: 18),
               HabitSectionHeader(
-                label: '每週習慣',
+                label: _l10n.htWeeklyHabits,
                 icon: Icons.calendar_view_week_rounded,
                 color: Colors.indigo,
                 done: weeklyHabits
@@ -537,7 +559,7 @@ class _HabitTabState extends State<HabitTab> {
           OutlinedButton.icon(
             onPressed: _giveSpecialPoints,
             icon: const Icon(Icons.star_outline, size: 16),
-            label: const Text('特殊積分'),
+            label: Text(_l10n.htSpecialPoints),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.purple,
               side: BorderSide(color: Colors.purple.withValues(alpha: 0.5)),
@@ -576,7 +598,7 @@ class _HabitTabState extends State<HabitTab> {
           Icon(Icons.stars_rounded, size: 13, color: Colors.orange.shade400),
           const SizedBox(width: 4),
           Text(
-            '今日已獲得 +$todayPts 分',
+            _l10n.htTodayEarned(todayPts),
             style: TextStyle(
               fontSize: 11,
               color: Colors.orange.shade700,
@@ -618,6 +640,8 @@ class _HabitItem extends StatefulWidget {
 
 class _HabitItemState extends State<_HabitItem>
     with SingleTickerProviderStateMixin {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   late AnimationController _ctrl;
   late Animation<double> _scale;
 
@@ -764,8 +788,11 @@ class _HabitItemState extends State<_HabitItem>
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Text(
                                   habit.minutes > 0
-                                      ? '+${habit.points} 分 · ${habit.minutes} 分鐘'
-                                      : '+${habit.points} 分',
+                                      ? _l10n.htHabitPointsMinutes(
+                                          habit.points,
+                                          habit.minutes,
+                                        )
+                                      : _l10n.pmHabitPoints(habit.points),
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: Colors.orange.shade600,

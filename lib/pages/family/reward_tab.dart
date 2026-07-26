@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_auth.dart';
 import 'family_models.dart';
@@ -23,6 +24,8 @@ class RewardTab extends StatefulWidget {
 }
 
 class _RewardTabState extends State<RewardTab> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   List<RewardItem> _rewards = [];
   List<VoucherLog> _vouchers = [];
   bool _loaded = false;
@@ -51,7 +54,7 @@ class _RewardTabState extends State<RewardTab> {
 
   String _rewardName(String rewardId) {
     final r = _rewards.where((r) => r.id == rewardId).firstOrNull;
-    return r?.name ?? '已刪除的獎勵';
+    return r?.name ?? _l10n.rtDeletedReward;
   }
 
   Future<void> _redeem(RewardItem r) async {
@@ -59,7 +62,7 @@ class _RewardTabState extends State<RewardTab> {
     if (widget.child.points < r.pointsCost) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('積分不足，無法兌換')));
+      ).showSnackBar(SnackBar(content: Text(_l10n.rtNotEnoughPoints)));
       return;
     }
 
@@ -68,12 +71,12 @@ class _RewardTabState extends State<RewardTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (_, setS) => AlertDialog(
-          title: Text('兌換「${r.name}」'),
+          title: Text(_l10n.rtRedeemTitle(r.name)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '每張票券需 ${r.pointsCost} 分',
+                _l10n.rtCostPerVoucher(r.pointsCost),
                 style: TextStyle(fontSize: 13, color: AppInk.soft),
               ),
               const SizedBox(height: 16),
@@ -87,7 +90,7 @@ class _RewardTabState extends State<RewardTab> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      '$qty 張',
+                      _l10n.rtVoucherCount(qty),
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -104,7 +107,10 @@ class _RewardTabState extends State<RewardTab> {
               ),
               const SizedBox(height: 8),
               Text(
-                '共需 ${r.pointsCost * qty} 分（剩餘 ${widget.child.points - r.pointsCost * qty} 分）',
+                _l10n.rtTotalCost(
+                  r.pointsCost * qty,
+                  widget.child.points - r.pointsCost * qty,
+                ),
                 style: TextStyle(fontSize: 13, color: AppInk.soft),
               ),
             ],
@@ -112,11 +118,14 @@ class _RewardTabState extends State<RewardTab> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('取消', style: TextStyle(color: AppInk.soft)),
+              child: Text(
+                _l10n.commonCancel,
+                style: TextStyle(color: AppInk.soft),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('確認兌換'),
+              child: Text(_l10n.rtConfirmRedeem),
             ),
           ],
         ),
@@ -129,7 +138,7 @@ class _RewardTabState extends State<RewardTab> {
       prefs: prefs,
       child: widget.child,
       delta: -(r.pointsCost * qty),
-      reason: '兌換票券：${r.name} x$qty',
+      reason: _l10n.rtReasonRedeem(r.name, qty),
     );
     final allVouchers = await loadVouchers(prefs);
     final now = nowStr();
@@ -150,23 +159,29 @@ class _RewardTabState extends State<RewardTab> {
 
   Future<void> _useVoucher(VoucherLog v) async {
     if (!mounted) return;
-    final ok = await verifyParentPinIfNeeded(context, title: '請輸入家長密碼以使用票券');
+    final ok = await verifyParentPinIfNeeded(
+      context,
+      title: _l10n.rtPinUseVoucher,
+    );
     if (!ok || !mounted) return;
     final rewardName = _rewardName(v.rewardId);
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('使用票券'),
-        content: Text('確定使用「$rewardName」這張票券嗎？'),
+        title: Text(_l10n.rtUseVoucherTitle),
+        content: Text(_l10n.rtUseVoucherMessage(rewardName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('取消', style: TextStyle(color: AppInk.soft)),
+            child: Text(
+              _l10n.commonCancel,
+              style: TextStyle(color: AppInk.soft),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('確認使用'),
+            child: Text(_l10n.rtConfirmUse),
           ),
         ],
       ),
@@ -203,17 +218,17 @@ class _RewardTabState extends State<RewardTab> {
           // ── 我的票券 ──
           _SectionHeader(
             icon: Icons.confirmation_num_outlined,
-            label: '我的票券',
+            label: _l10n.rtMyVouchers,
             color: Colors.purple.shade400,
             trailing: pendingVouchers.isEmpty
                 ? null
-                : '${pendingVouchers.length} 張',
+                : _l10n.rtVoucherCount(pendingVouchers.length),
           ),
           if (pendingVouchers.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(
-                '目前沒有票券',
+                _l10n.rtNoVouchers,
                 style: TextStyle(fontSize: 13, color: AppInk.faint),
               ),
             )
@@ -231,14 +246,14 @@ class _RewardTabState extends State<RewardTab> {
           // ── 可兌換獎勵 ──
           _SectionHeader(
             icon: Icons.card_giftcard_outlined,
-            label: '可兌換獎勵',
+            label: _l10n.rtAvailableRewards,
             color: Colors.amber.shade700,
           ),
           if (_rewards.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(
-                '尚無獎勵，請家長至家長管理新增',
+                _l10n.rtNoRewards,
                 style: TextStyle(fontSize: 13, color: AppInk.faint),
               ),
             )
@@ -263,7 +278,7 @@ class _RewardTabState extends State<RewardTab> {
               child: ExpansionTile(
                 leading: Icon(Icons.history, color: AppInk.soft, size: 20),
                 title: Text(
-                  '兌換紀錄（${usedVouchers.length} 張）',
+                  _l10n.rtHistoryTitle(usedVouchers.length),
                   style: TextStyle(fontSize: 14, color: AppInk.soft),
                 ),
                 tilePadding: EdgeInsets.zero,
@@ -282,7 +297,7 @@ class _RewardTabState extends State<RewardTab> {
                       style: const TextStyle(fontSize: 13),
                     ),
                     subtitle: Text(
-                      '兌換 ${v.redeemedAt}　使用 ${v.usedAt}',
+                      _l10n.rtHistoryLine(v.redeemedAt, v.usedAt),
                       style: TextStyle(fontSize: 11, color: AppInk.faint),
                     ),
                   );
@@ -383,7 +398,9 @@ class _VoucherCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '兌換於 ${voucher.redeemedAt}',
+                    AppLocalizations.of(
+                      context,
+                    ).rtRedeemedAt(voucher.redeemedAt),
                     style: TextStyle(fontSize: 11, color: AppInk.soft),
                   ),
                 ],
@@ -405,7 +422,7 @@ class _VoucherCard extends StatelessWidget {
                 ),
                 textStyle: const TextStyle(fontSize: 13),
               ),
-              child: const Text('使用'),
+              child: Text(AppLocalizations.of(context).rtUse),
             ),
           ],
         ),
@@ -462,7 +479,9 @@ class _RewardCard extends StatelessWidget {
                       Icon(Icons.star, size: 12, color: Colors.amber.shade600),
                       const SizedBox(width: 2),
                       Text(
-                        '${reward.pointsCost} 分',
+                        AppLocalizations.of(
+                          context,
+                        ).pmRewardCost(reward.pointsCost),
                         style: TextStyle(fontSize: 12, color: AppInk.soft),
                       ),
                     ],
@@ -488,7 +507,11 @@ class _RewardCard extends StatelessWidget {
                 ),
                 textStyle: const TextStyle(fontSize: 13),
               ),
-              child: Text(canAfford ? '兌換' : '積分不足'),
+              child: Text(
+                canAfford
+                    ? AppLocalizations.of(context).rtRedeem
+                    : AppLocalizations.of(context).rtCantAfford,
+              ),
             ),
           ],
         ),

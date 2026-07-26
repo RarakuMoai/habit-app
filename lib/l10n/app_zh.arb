@@ -3278,5 +3278,538 @@
     "placeholders": {
       "points": { "type": "int" }
     }
+  },
+
+  "htReasonComplete": "完成習慣：{name}",
+  "@htReasonComplete": {
+    "description": "積分紀錄的理由：完成某個習慣。會寫進紀錄，之後照原樣顯示。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "htReasonUndo": "撤銷完成：{name}",
+  "@htReasonUndo": {
+    "description": "積分紀錄的理由：取消勾選某個習慣。會寫進紀錄。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "htReasonSpecial": "特殊積分：{name}",
+  "@htReasonSpecial": {
+    "description": "積分紀錄的理由：家長給的特殊加減分。會寫進紀錄。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "htPinSpecialPoints": "請輸入家長密碼以給予特殊積分",
+  "@htPinSpecialPoints": {
+    "description": "給特殊積分前要求輸入家長密碼的對話框標題。"
+  },
+  "htSpecialPoints": "特殊積分",
+  "@htSpecialPoints": {
+    "description": "家長手動加減分的面板標題與入口按鈕。"
+  },
+  "htAdd": "加分",
+  "@htAdd": {
+    "description": "特殊積分面板的加分／扣分切換：加分。"
+  },
+  "htDeduct": "扣分",
+  "@htDeduct": {
+    "description": "特殊積分面板的加分／扣分切換：扣分。"
+  },
+  "htQuickReasons": "快速理由",
+  "@htQuickReasons": {
+    "description": "加分常用理由的選取面板標題。"
+  },
+  "htAddHowMany": "加幾分",
+  "@htAddHowMany": {
+    "description": "調整加分分數的輸入欄標籤。"
+  },
+  "htDeductHowMany": "扣幾分",
+  "@htDeductHowMany": {
+    "description": "調整扣分分數的輸入欄標籤。"
+  },
+  "htAdjustPoints": "調整分數",
+  "@htAdjustPoints": {
+    "description": "調整單一項目分數的對話框標題。"
+  },
+  "htDeductItems": "扣分項目",
+  "@htDeductItems": {
+    "description": "扣分項目的選取面板標題。"
+  },
+  "htPickQuickReason": "從快速理由選取",
+  "@htPickQuickReason": {
+    "description": "還沒選任何加分理由時的提示。"
+  },
+  "htPickDeductItem": "從扣分項目選取",
+  "@htPickDeductItem": {
+    "description": "還沒選任何扣分項目時的提示。"
+  },
+  "htSelectedCount": "已選 {n} 項",
+  "@htSelectedCount": {
+    "description": "已選取幾個項目。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "htCustomReason": "自訂原因...",
+  "@htCustomReason": {
+    "description": "自訂加減分原因的輸入提示。結尾的刪節號要保留。"
+  },
+  "htCustomAddPoints": "自訂加分數",
+  "@htCustomAddPoints": {
+    "description": "自訂加分分數的欄位標籤。"
+  },
+  "htCustomDeductPoints": "自訂扣分數",
+  "@htCustomDeductPoints": {
+    "description": "自訂扣分分數的欄位標籤。"
+  },
+  "htPointsUpdated": "已更新 {name} 的積分，目前共 {total} 分",
+  "@htPointsUpdated": {
+    "description": "加減分完成後的 SnackBar。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "total": { "type": "int" }
+    }
+  },
+  "htConfirmAdd": "確認加分",
+  "@htConfirmAdd": {
+    "description": "特殊積分面板的送出按鈕：加分模式。"
+  },
+  "htConfirmDeduct": "確認扣分",
+  "@htConfirmDeduct": {
+    "description": "特殊積分面板的送出按鈕：扣分模式。"
+  },
+  "htNoHabits": "尚無習慣，請家長至家長管理新增",
+  "@htNoHabits": {
+    "description": "小孩的習慣列表空狀態。指路給家長。"
+  },
+  "htDailyHabits": "每日習慣",
+  "@htDailyHabits": {
+    "description": "小孩習慣列表的區塊標題：每天要做的。"
+  },
+  "htWeeklyHabits": "每週習慣",
+  "@htWeeklyHabits": {
+    "description": "小孩習慣列表的區塊標題：每週幾次的。"
+  },
+  "htTodayEarned": "今日已獲得 +{points} 分",
+  "@htTodayEarned": {
+    "description": "小孩今天已經拿到的積分。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "htHabitPointsMinutes": "+{points} 分 · {minutes} 分鐘",
+  "@htHabitPointsMinutes": {
+    "description": "習慣列的副標：積分與建議時長。",
+    "placeholders": {
+      "points": { "type": "int" },
+      "minutes": { "type": "int" }
+    }
+  },
+  "prtCustom": "自訂",
+  "@prtCustom": {
+    "description": "積分紀錄的時間篩選：自訂區間（還沒選日期時）。"
+  },
+  "prtAll": "全部",
+  "@prtAll": {
+    "description": "積分紀錄的時間篩選：不限期間。"
+  },
+  "prtEmptyAll": "尚無積分紀錄",
+  "@prtEmptyAll": {
+    "description": "積分紀錄的空狀態：完全沒有紀錄。"
+  },
+  "prtEmptyRange": "此期間無積分紀錄",
+  "@prtEmptyRange": {
+    "description": "積分紀錄的空狀態：這個篩選區間內沒有。"
+  },
+  "prtDelta": "{sign}{delta} 分",
+  "@prtDelta": {
+    "description": "單筆積分紀錄的變動值。sign 是加號或空字串（負數的負號在 delta 裡）。",
+    "placeholders": {
+      "sign": { "type": "String" },
+      "delta": { "type": "int" }
+    }
+  },
+  "prtTotal": "共 {total} 分",
+  "@prtTotal": {
+    "description": "單筆積分紀錄變動後的累積總分。",
+    "placeholders": {
+      "total": { "type": "int" }
+    }
+  },
+  "rtDeletedReward": "已刪除的獎勵",
+  "@rtDeletedReward": {
+    "description": "票券對應的獎勵已被刪除時顯示的名稱。"
+  },
+  "rtNotEnoughPoints": "積分不足，無法兌換",
+  "@rtNotEnoughPoints": {
+    "description": "積分不夠兌換獎勵的提示。"
+  },
+  "rtRedeemTitle": "兌換「{name}」",
+  "@rtRedeemTitle": {
+    "description": "兌換獎勵的確認對話框標題。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "rtCostPerVoucher": "每張票券需 {points} 分",
+  "@rtCostPerVoucher": {
+    "description": "兌換對話框：單張票券的價格。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "rtVoucherCount": "{n} 張",
+  "@rtVoucherCount": {
+    "description": "票券張數。中文有量詞「張」，英文只給數字。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "rtTotalCost": "共需 {cost} 分（剩餘 {left} 分）",
+  "@rtTotalCost": {
+    "description": "兌換對話框：總價與兌換後剩餘積分。",
+    "placeholders": {
+      "cost": { "type": "int" },
+      "left": { "type": "int" }
+    }
+  },
+  "rtConfirmRedeem": "確認兌換",
+  "@rtConfirmRedeem": {
+    "description": "兌換獎勵的確認按鈕。"
+  },
+  "rtReasonRedeem": "兌換票券：{name} x{qty}",
+  "@rtReasonRedeem": {
+    "description": "積分紀錄的理由：兌換票券。會寫進紀錄。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "qty": { "type": "int" }
+    }
+  },
+  "rtPinUseVoucher": "請輸入家長密碼以使用票券",
+  "@rtPinUseVoucher": {
+    "description": "使用票券前要求輸入家長密碼的對話框標題。"
+  },
+  "rtUseVoucherTitle": "使用票券",
+  "@rtUseVoucherTitle": {
+    "description": "使用票券的確認對話框標題。"
+  },
+  "rtUseVoucherMessage": "確定使用「{name}」這張票券嗎？",
+  "@rtUseVoucherMessage": {
+    "description": "使用票券的確認內容。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "rtConfirmUse": "確認使用",
+  "@rtConfirmUse": {
+    "description": "使用票券的確認按鈕。"
+  },
+  "rtMyVouchers": "我的票券",
+  "@rtMyVouchers": {
+    "description": "小孩獎勵頁的區塊標題：手上還沒用的票券。"
+  },
+  "rtNoVouchers": "目前沒有票券",
+  "@rtNoVouchers": {
+    "description": "票券列表的空狀態。"
+  },
+  "rtAvailableRewards": "可兌換獎勵",
+  "@rtAvailableRewards": {
+    "description": "小孩獎勵頁的區塊標題：可以換的東西。"
+  },
+  "rtNoRewards": "尚無獎勵，請家長至家長管理新增",
+  "@rtNoRewards": {
+    "description": "可兌換獎勵的空狀態。指路給家長。"
+  },
+  "rtHistoryTitle": "兌換紀錄（{n} 張）",
+  "@rtHistoryTitle": {
+    "description": "已使用票券的區塊標題。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "rtHistoryLine": "兌換 {redeemed}　使用 {used}",
+  "@rtHistoryLine": {
+    "description": "已使用票券的日期。中間是全形空格，請保留。",
+    "placeholders": {
+      "redeemed": { "type": "String" },
+      "used": { "type": "String" }
+    }
+  },
+  "rtRedeemedAt": "兌換於 {date}",
+  "@rtRedeemedAt": {
+    "description": "未使用票券上顯示的兌換日期。",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "rtUse": "使用",
+  "@rtUse": {
+    "description": "票券上的使用按鈕。"
+  },
+  "rtRedeem": "兌換",
+  "@rtRedeem": {
+    "description": "獎勵卡上的兌換按鈕。"
+  },
+  "rtCantAfford": "積分不足",
+  "@rtCantAfford": {
+    "description": "積分不夠時獎勵卡按鈕的停用文字。"
+  },
+  "ppsPresetHabits": "常用習慣",
+  "@ppsPresetHabits": {
+    "description": "常用習慣選取面板的標題。"
+  },
+  "ppsPointsOnDone": "完成可得積分",
+  "@ppsPointsOnDone": {
+    "description": "習慣完成可得積分的欄位標籤。"
+  },
+  "ppsAdjustPoints": "調整積分",
+  "@ppsAdjustPoints": {
+    "description": "調整單一常用項目積分的對話框標題。"
+  },
+  "ppsSelectedCount": "{n} 項已選",
+  "@ppsSelectedCount": {
+    "description": "常用項目面板右上角的已選數量。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "ppsConfirmNone": "確認（未選取）",
+  "@ppsConfirmNone": {
+    "description": "常用項目面板的送出按鈕：一項都沒選（停用態）。"
+  },
+  "ppsConfirmCount": "確認選取 ({n} 項)",
+  "@ppsConfirmCount": {
+    "description": "常用項目面板的送出按鈕：已選 n 項。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "ppsAdjustPointsFor": "調整積分：{name}",
+  "@ppsAdjustPointsFor": {
+    "description": "調整某個常用項目積分的對話框標題。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "hpsPresetTitle": "常用習慣",
+  "@hpsPresetTitle": {
+    "description": "新增習慣時，常用習慣選取面板的標題。"
+  },
+  "hpsWeeklyTarget": "每週目標",
+  "@hpsWeeklyTarget": {
+    "description": "每週習慣的次數目標欄位標題。"
+  },
+  "hpsTimes": "次",
+  "@hpsTimes": {
+    "description": "次數單位。接在數字後面。"
+  },
+  "hpsCustomizable": "可自訂時間",
+  "@hpsCustomizable": {
+    "description": "常用習慣卡上的標記：這個習慣可以設定時長。"
+  },
+  "hpsCustomizableFreq": "可自訂時間・可設頻率",
+  "@hpsCustomizableFreq": {
+    "description": "常用習慣卡上的標記：可設時長也可設頻率。中間是全形間隔號。"
+  },
+  "hpsNoDuration": "未設時間",
+  "@hpsNoDuration": {
+    "description": "常用習慣卡：還沒設定時長。"
+  },
+  "hpsMinutesSet": "{minutes} 分鐘",
+  "@hpsMinutesSet": {
+    "description": "已設定的時長。",
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "hpsFreqWeekly": "・每週 {n} 次",
+  "@hpsFreqWeekly": {
+    "description": "常用習慣卡的頻率摘要：每週幾次。開頭的間隔號要保留。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "hpsFreqDaily": "・每日",
+  "@hpsFreqDaily": {
+    "description": "常用習慣卡的頻率摘要：每天。開頭的間隔號要保留。"
+  },
+  "hsAddTitle": "新增習慣",
+  "@hsAddTitle": {
+    "description": "新增習慣面板的標題。"
+  },
+  "hsApplyToChildren": "套用小孩",
+  "@hsApplyToChildren": {
+    "description": "選擇這些項目要套用給哪些小孩的區塊標題。"
+  },
+  "hsPickPreset": "從常用習慣選取",
+  "@hsPickPreset": {
+    "description": "還沒選任何常用習慣時的提示。"
+  },
+  "hsPickedPresets": "已選 {n} 個常用習慣",
+  "@hsPickedPresets": {
+    "description": "已選了幾個常用習慣。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "hsCustomHabit": "自訂習慣",
+  "@hsCustomHabit": {
+    "description": "自訂習慣區塊的標題（還沒輸入名稱時）。"
+  },
+  "hsNameHint": "習慣名稱",
+  "@hsNameHint": {
+    "description": "習慣名稱的輸入提示。"
+  },
+  "hsPointsHint": "完成可得分數",
+  "@hsPointsHint": {
+    "description": "習慣完成可得分數的輸入提示。"
+  },
+  "hsFrequency": "頻率",
+  "@hsFrequency": {
+    "description": "習慣頻率的區塊標題。"
+  },
+  "hsDaily": "每日",
+  "@hsDaily": {
+    "description": "習慣頻率選項：每天。"
+  },
+  "hsWeekly": "每週",
+  "@hsWeekly": {
+    "description": "習慣頻率選項：每週幾次。"
+  },
+  "hsTimesSuffix": "  次",
+  "@hsTimesSuffix": {
+    "description": "每週次數後面的單位。開頭兩個空格是視覺間隔，請保留。"
+  },
+  "hsDurationOptional": "持續時間（選填）",
+  "@hsDurationOptional": {
+    "description": "習慣持續時間的區塊標題。括號標示可以不填。"
+  },
+  "hsPickOrType": "請選擇或輸入習慣",
+  "@hsPickOrType": {
+    "description": "一項都沒選也沒輸入時，送出按鈕的停用文字。"
+  },
+  "hsAddCount": "新增 ({n} 項)",
+  "@hsAddCount": {
+    "description": "新增習慣面板的送出按鈕。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "hsEditTitle": "編輯習慣",
+  "@hsEditTitle": {
+    "description": "編輯習慣面板的標題。"
+  },
+  "dsAddTitle": "新增扣分項目",
+  "@dsAddTitle": {
+    "description": "新增扣分項目面板的標題。"
+  },
+  "dsPresetTitle": "常用扣分項目",
+  "@dsPresetTitle": {
+    "description": "常用扣分項目選取面板的標題。"
+  },
+  "dsPickPreset": "從常用項目選取",
+  "@dsPickPreset": {
+    "description": "還沒選任何常用扣分項目時的提示。"
+  },
+  "dsPickedPresets": "已選 {n} 個常用項目",
+  "@dsPickedPresets": {
+    "description": "已選了幾個常用扣分項目。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "dsCustomNameHint": "自訂扣分項目名稱...",
+  "@dsCustomNameHint": {
+    "description": "自訂扣分項目名稱的輸入提示。結尾的刪節號要保留。"
+  },
+  "dsCustomPoints": "自訂扣分數",
+  "@dsCustomPoints": {
+    "description": "自訂扣分項目的分數欄位標籤。"
+  },
+  "dsPickOrType": "請選擇或輸入項目",
+  "@dsPickOrType": {
+    "description": "一項都沒選也沒輸入時，送出按鈕的停用文字。"
+  },
+  "dsEditTitle": "編輯扣分項目",
+  "@dsEditTitle": {
+    "description": "編輯扣分項目面板的標題。"
+  },
+  "dsNameLabel": "扣分項目名稱",
+  "@dsNameLabel": {
+    "description": "扣分項目名稱的欄位標籤。"
+  },
+  "rsAddTitle": "新增獎勵",
+  "@rsAddTitle": {
+    "description": "新增獎勵面板的標題。"
+  },
+  "rsPickPreset": "從常用獎勵選取",
+  "@rsPickPreset": {
+    "description": "還沒選任何常用獎勵時的提示。"
+  },
+  "rsPickedPresets": "已選 {n} 個常用獎勵",
+  "@rsPickedPresets": {
+    "description": "已選了幾個常用獎勵。",
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+  "rsCustomNameHint": "自訂獎勵名稱...",
+  "@rsCustomNameHint": {
+    "description": "自訂獎勵名稱的輸入提示。結尾的刪節號要保留。"
+  },
+  "rsPointsCost": "所需積分",
+  "@rsPointsCost": {
+    "description": "兌換獎勵所需積分的欄位標籤。"
+  },
+  "rsNameMinutes": "{name} {minutes} 分鐘",
+  "@rsNameMinutes": {
+    "description": "獎勵名稱加上時長的摘要。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "minutes": { "type": "int" }
+    }
+  },
+  "rsPickOrType": "請選擇或輸入獎勵",
+  "@rsPickOrType": {
+    "description": "一項都沒選也沒輸入時，送出按鈕的停用文字。"
+  },
+  "rsEditTitle": "編輯獎勵",
+  "@rsEditTitle": {
+    "description": "編輯獎勵面板的標題。"
+  },
+  "rsNameLabel": "獎勵名稱",
+  "@rsNameLabel": {
+    "description": "獎勵名稱的欄位標籤。"
+  },
+  "rpsPresetTitle": "常用獎勵",
+  "@rpsPresetTitle": {
+    "description": "常用獎勵選取面板的標題。"
+  },
+
+  "htPresetChores": "幫忙做家事",
+  "@htPresetChores": {
+    "description": "特殊加分的快速理由。選了之後會寫進積分紀錄。"
+  },
+  "htPresetGoodBehavior": "表現良好",
+  "@htPresetGoodBehavior": {
+    "description": "特殊加分的快速理由。"
+  },
+  "htPresetExamProgress": "考試進步",
+  "@htPresetExamProgress": {
+    "description": "特殊加分的快速理由。"
+  },
+  "htPresetHelpedOthers": "幫助別人",
+  "@htPresetHelpedOthers": {
+    "description": "特殊加分的快速理由。"
+  },
+  "htPresetHomeworkOnTime": "準時完成作業",
+  "@htPresetHomeworkOnTime": {
+    "description": "特殊加分的快速理由。"
+  },
+  "htPresetSelfStudy": "主動學習",
+  "@htPresetSelfStudy": {
+    "description": "特殊加分的快速理由。"
   }
 }

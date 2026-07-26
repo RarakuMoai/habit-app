@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_store.dart';
@@ -17,6 +18,8 @@ class PointRecordTab extends StatefulWidget {
 }
 
 class _PointRecordTabState extends State<PointRecordTab> {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   List<PointRecord> _records = [];
   bool _loaded = false;
   // 'week' | 'month' | 'custom' | 'all'；預設本週
@@ -86,7 +89,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
 
   String _customLabel() {
     final r = _customRange;
-    if (r == null) return '自訂';
+    if (r == null) return _l10n.prtCustom;
     String fmt(DateTime d) => '${d.month}/${d.day}';
     return '${fmt(r.start)}–${fmt(r.end)}';
   }
@@ -125,9 +128,9 @@ class _PointRecordTabState extends State<PointRecordTab> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _filterChip('本週', 'week'),
+                _filterChip(_l10n.weightRangeWeek, 'week'),
                 const SizedBox(width: 8),
-                _filterChip('本月', 'month'),
+                _filterChip(_l10n.weightRangeMonth, 'month'),
                 const SizedBox(width: 8),
                 // 自訂：點擊開啟日期選擇器
                 GestureDetector(
@@ -139,7 +142,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _filterChip('全部', 'all'),
+                _filterChip(_l10n.prtAll, 'all'),
               ],
             ),
           ),
@@ -148,7 +151,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
           Expanded(
             child: Center(
               child: Text(
-                _filter == 'all' ? '尚無積分紀錄' : '此期間無積分紀錄',
+                _filter == 'all' ? _l10n.prtEmptyAll : _l10n.prtEmptyRange,
                 style: TextStyle(color: AppInk.faint, fontSize: 15),
               ),
             ),
@@ -186,7 +189,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '${isPlus ? '+' : ''}${r.delta} 分',
+                          _l10n.prtDelta(isPlus ? '+' : '', r.delta),
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -194,7 +197,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
                           ),
                         ),
                         Text(
-                          '共 ${r.total} 分',
+                          _l10n.prtTotal(r.total),
                           style: TextStyle(fontSize: 11, color: AppInk.faint),
                         ),
                       ],

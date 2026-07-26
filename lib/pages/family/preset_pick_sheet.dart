@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_presets.dart';
 
@@ -10,12 +11,17 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
   BuildContext context,
   List<Preset> available,
   Map<String, int> initial, {
-  String title = '常用習慣',
+  // 預設文案不能寫在參數預設值（要編譯期常數），null 進來後才取 l10n。
+  String? title,
   Color accentColor = Colors.orange,
   String badgePrefix = '+',
-  String dialogLabel = '完成可得積分',
-  String adjustDialogTitle = '調整積分',
+  String? dialogLabel,
+  String? adjustDialogTitle,
 }) {
+  final l10n = AppLocalizations.of(context);
+  title ??= l10n.ppsPresetHabits;
+  dialogLabel ??= l10n.ppsPointsOnDone;
+  adjustDialogTitle ??= l10n.ppsAdjustPoints;
   final selected = Map<String, int>.from(initial);
   return showModalBottomSheet<Map<String, int>>(
     context: context,
@@ -50,7 +56,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      title,
+                      title!,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -59,7 +65,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                   ),
                   if (selected.isNotEmpty)
                     Text(
-                      '${selected.length} 項已選',
+                      l10n.ppsSelectedCount(selected.length),
                       style: TextStyle(fontSize: 12, color: AppInk.soft),
                     ),
                 ],
@@ -139,7 +145,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                     TextButton(
                                       onPressed: () => Navigator.pop(dCtx),
                                       child: Text(
-                                        '取消',
+                                        l10n.commonCancel,
                                         style: TextStyle(color: AppInk.soft),
                                       ),
                                     ),
@@ -148,7 +154,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                         dCtx,
                                         int.tryParse(ctrl.text) ?? pts,
                                       ),
-                                      child: const Text('確認'),
+                                      child: Text(l10n.commonConfirm),
                                     ),
                                   ],
                                 ),
@@ -238,8 +244,8 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                   ),
                   child: Text(
                     selected.isEmpty
-                        ? '確認（未選取）'
-                        : '確認選取 (${selected.length} 項)',
+                        ? l10n.ppsConfirmNone
+                        : l10n.ppsConfirmCount(selected.length),
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),

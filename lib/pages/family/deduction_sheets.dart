@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
@@ -24,6 +25,7 @@ Future<void> showAddDeductionSheet(
   required List<DeductionItem> existingDeductions,
   required Future<void> Function() onSaved,
 }) async {
+  final l10n = AppLocalizations.of(context);
   final nameCtrl = TextEditingController();
   final pointCtrl = TextEditingController(text: '5');
   final selectedIds = Set<String>.from(children.map((c) => c.id));
@@ -75,15 +77,18 @@ Future<void> showAddDeductionSheet(
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '新增扣分項目',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Text(
+                  l10n.dsAddTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 14),
 
                 // 套用小孩
                 Text(
-                  '套用小孩',
+                  l10n.hsApplyToChildren,
                   style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 4),
@@ -124,10 +129,10 @@ Future<void> showAddDeductionSheet(
                             ),
                           ),
                         ),
-                        title: '常用扣分項目',
+                        title: l10n.dsPresetTitle,
                         accentColor: Colors.red.shade600,
                         badgePrefix: '-',
-                        dialogLabel: '扣幾分',
+                        dialogLabel: l10n.htDeductHowMany,
                       );
                       if (result != null) {
                         setS(() {
@@ -169,8 +174,10 @@ Future<void> showAddDeductionSheet(
                           Expanded(
                             child: Text(
                               selectedPresets.isEmpty
-                                  ? '從常用項目選取'
-                                  : '已選 ${selectedPresets.length} 個常用項目',
+                                  ? l10n.dsPickPreset
+                                  : l10n.dsPickedPresets(
+                                      selectedPresets.length,
+                                    ),
                               style: TextStyle(
                                 color: selectedPresets.isEmpty
                                     ? AppInk.soft
@@ -200,7 +207,7 @@ Future<void> showAddDeductionSheet(
                   controller: nameCtrl,
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
-                    hintText: '自訂扣分項目名稱...',
+                    hintText: l10n.dsCustomNameHint,
                     filled: true,
                     fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
@@ -223,7 +230,7 @@ Future<void> showAddDeductionSheet(
                       LengthLimitingTextInputFormatter(4),
                     ],
                     decoration: InputDecoration(
-                      labelText: '自訂扣分數',
+                      labelText: l10n.dsCustomPoints,
                       filled: true,
                       fillColor: AppSurfaces.fill,
                       border: OutlineInputBorder(
@@ -289,7 +296,7 @@ Future<void> showAddDeductionSheet(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
-                      total == 0 ? '請選擇或輸入項目' : '新增 ($total 項)',
+                      total == 0 ? l10n.dsPickOrType : l10n.hsAddCount(total),
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -310,6 +317,7 @@ Future<void> showEditDeductionSheet(
   required DeductionItem item,
   required Future<void> Function() onSaved,
 }) async {
+  final l10n = AppLocalizations.of(context);
   final nameCtrl = TextEditingController(text: item.name);
   final pointCtrl = TextEditingController(text: item.points.toString());
 
@@ -346,9 +354,12 @@ Future<void> showEditDeductionSheet(
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                '編輯扣分項目',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                l10n.dsEditTitle,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -356,7 +367,7 @@ Future<void> showEditDeductionSheet(
                 autofocus: true,
                 onChanged: (_) => setS(() {}),
                 decoration: InputDecoration(
-                  labelText: '扣分項目名稱',
+                  labelText: l10n.dsNameLabel,
                   filled: true,
                   fillColor: AppSurfaces.fill,
                   border: OutlineInputBorder(
@@ -379,7 +390,7 @@ Future<void> showEditDeductionSheet(
                 ],
                 onChanged: (_) => setS(() {}),
                 decoration: InputDecoration(
-                  labelText: '扣幾分',
+                  labelText: l10n.htDeductHowMany,
                   filled: true,
                   fillColor: AppSurfaces.fill,
                   border: OutlineInputBorder(
@@ -424,9 +435,9 @@ Future<void> showEditDeductionSheet(
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: const Text(
-                    '儲存',
-                    style: TextStyle(color: Colors.white),
+                  child: Text(
+                    l10n.commonSave,
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ),

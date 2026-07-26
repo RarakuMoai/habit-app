@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_presets.dart';
 import 'family_widgets.dart';
@@ -12,6 +13,7 @@ Widget _buildFamilyPresetCustomization(
   HabitPresetCfg cfg,
   StateSetter setS,
 ) {
+  final l10n = AppLocalizations.of(context);
   return Container(
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -65,7 +67,10 @@ Widget _buildFamilyPresetCustomization(
                 ),
               ),
             ),
-            Text('分鐘', style: TextStyle(fontSize: 13, color: AppInk.soft)),
+            Text(
+              l10n.fwMinutes,
+              style: TextStyle(fontSize: 13, color: AppInk.soft),
+            ),
             const SizedBox(width: 14),
             AdjustBtn(
               icon: Icons.add,
@@ -89,13 +94,13 @@ Widget _buildFamilyPresetCustomization(
               Icon(Icons.repeat, size: 15, color: Colors.orange.shade500),
               const SizedBox(width: 10),
               FreqChip(
-                label: '每日',
+                label: l10n.hsDaily,
                 selected: cfg.frequency == 'daily',
                 onTap: () => setS(() => cfg.frequency = 'daily'),
               ),
               const SizedBox(width: 8),
               FreqChip(
-                label: '每週',
+                label: l10n.hsWeekly,
                 selected: cfg.frequency == 'weekly',
                 onTap: () => setS(() => cfg.frequency = 'weekly'),
               ),
@@ -108,7 +113,7 @@ Widget _buildFamilyPresetCustomization(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '每週目標',
+                    l10n.hpsWeeklyTarget,
                     style: TextStyle(fontSize: 12, color: AppInk.soft),
                   ),
                   const SizedBox(width: 12),
@@ -129,7 +134,10 @@ Widget _buildFamilyPresetCustomization(
                       ),
                     ),
                   ),
-                  Text('次', style: TextStyle(fontSize: 13, color: AppInk.soft)),
+                  Text(
+                    l10n.hpsTimes,
+                    style: TextStyle(fontSize: 13, color: AppInk.soft),
+                  ),
                   const SizedBox(width: 10),
                   AdjustBtn(
                     icon: Icons.add,
@@ -150,6 +158,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
   List<Preset> available,
   Map<String, HabitPresetCfg> initial,
 ) {
+  final l10n = AppLocalizations.of(context);
   final tempSelected = <String, HabitPresetCfg>{
     for (final e in initial.entries)
       e.key: HabitPresetCfg(
@@ -194,10 +203,10 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                     color: Colors.orange,
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '常用習慣',
-                      style: TextStyle(
+                      l10n.hpsPresetTitle,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -205,7 +214,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                   ),
                   if (tempSelected.isNotEmpty)
                     Text(
-                      '${tempSelected.length} 項已選',
+                      l10n.ppsSelectedCount(tempSelected.length),
                       style: TextStyle(fontSize: 12, color: AppInk.soft),
                     ),
                 ],
@@ -278,7 +287,9 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                             top: 3,
                                           ),
                                           child: Text(
-                                            '可自訂時間${p.supportsFrequency ? "・可設頻率" : ""}',
+                                            p.supportsFrequency
+                                                ? l10n.hpsCustomizableFreq
+                                                : l10n.hpsCustomizable,
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: AppInk.soft,
@@ -291,7 +302,8 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                             top: 3,
                                           ),
                                           child: Text(
-                                            '${cfg.minutes > 0 ? "${cfg.minutes} 分鐘" : "未設時間"}${cfg.frequency == "weekly" ? "・每週 ${cfg.weeklyTarget} 次" : "・每日"}',
+                                            '${cfg.minutes > 0 ? l10n.hpsMinutesSet(cfg.minutes) : l10n.hpsNoDuration}'
+                                            '${cfg.frequency == "weekly" ? l10n.hpsFreqWeekly(cfg.weeklyTarget) : l10n.hpsFreqDaily}',
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: Colors.orange.shade600,
@@ -320,7 +332,9 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                     final newPts = await showDialog<int>(
                                       context: ctx,
                                       builder: (dCtx) => AlertDialog(
-                                        title: Text('調整積分：${p.name}'),
+                                        title: Text(
+                                          l10n.ppsAdjustPointsFor(p.name),
+                                        ),
                                         content: TextField(
                                           controller: ctrl,
                                           keyboardType: TextInputType.number,
@@ -329,8 +343,8 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                                 .digitsOnly,
                                             LengthLimitingTextInputFormatter(4),
                                           ],
-                                          decoration: const InputDecoration(
-                                            labelText: '完成可得積分',
+                                          decoration: InputDecoration(
+                                            labelText: l10n.ppsPointsOnDone,
                                           ),
                                           autofocus: true,
                                         ),
@@ -339,7 +353,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                             onPressed: () =>
                                                 Navigator.pop(dCtx),
                                             child: Text(
-                                              '取消',
+                                              l10n.commonCancel,
                                               style: TextStyle(
                                                 color: AppInk.soft,
                                               ),
@@ -350,7 +364,7 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                               dCtx,
                                               int.tryParse(ctrl.text) ?? pts,
                                             ),
-                                            child: const Text('確認'),
+                                            child: Text(l10n.commonConfirm),
                                           ),
                                         ],
                                       ),
@@ -479,8 +493,8 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                   ),
                   child: Text(
                     tempSelected.isEmpty
-                        ? '確認（未選取）'
-                        : '確認選取 (${tempSelected.length} 項)',
+                        ? l10n.ppsConfirmNone
+                        : l10n.ppsConfirmCount(tempSelected.length),
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),

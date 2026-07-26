@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
@@ -18,6 +19,7 @@ Future<void> showAddHabitSheet(
   required List<ChildHabit> existingHabits,
   required Future<void> Function() onSaved,
 }) async {
+  final l10n = AppLocalizations.of(context);
   final nameCtrl = TextEditingController();
   final pointCtrl = TextEditingController(text: '10');
   final selectedIds = Set<String>.from(children.map((c) => c.id));
@@ -73,15 +75,18 @@ Future<void> showAddHabitSheet(
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '新增習慣',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Text(
+                  l10n.hsAddTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 14),
 
                 // 套用小孩
                 Text(
-                  '套用小孩',
+                  l10n.hsApplyToChildren,
                   style: TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
                 const SizedBox(height: 4),
@@ -154,8 +159,10 @@ Future<void> showAddHabitSheet(
                           Expanded(
                             child: Text(
                               selectedPresetCfgs.isEmpty
-                                  ? '從常用習慣選取'
-                                  : '已選 ${selectedPresetCfgs.length} 個常用習慣',
+                                  ? l10n.hsPickPreset
+                                  : l10n.hsPickedPresets(
+                                      selectedPresetCfgs.length,
+                                    ),
                               style: TextStyle(
                                 color: selectedPresetCfgs.isEmpty
                                     ? AppInk.soft
@@ -217,7 +224,7 @@ Future<void> showAddHabitSheet(
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            hasCustom ? customName : '自訂習慣',
+                            hasCustom ? customName : l10n.hsCustomHabit,
                             style: TextStyle(
                               color: hasCustom
                                   ? Colors.deepOrange.shade700
@@ -255,7 +262,7 @@ Future<void> showAddHabitSheet(
                           onChanged: (_) => setS(() {}),
                           maxLength: 20,
                           decoration: InputDecoration(
-                            hintText: '習慣名稱',
+                            hintText: l10n.hsNameHint,
                             filled: true,
                             fillColor: Colors.white,
                             border: OutlineInputBorder(
@@ -292,7 +299,7 @@ Future<void> showAddHabitSheet(
                             LengthLimitingTextInputFormatter(4),
                           ],
                           decoration: InputDecoration(
-                            hintText: '完成可得分數',
+                            hintText: l10n.hsPointsHint,
                             filled: true,
                             fillColor: Colors.white,
                             border: OutlineInputBorder(
@@ -325,7 +332,7 @@ Future<void> showAddHabitSheet(
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          '頻率',
+                          l10n.hsFrequency,
                           style: TextStyle(
                             fontSize: 12,
                             color: AppInk.soft,
@@ -336,13 +343,13 @@ Future<void> showAddHabitSheet(
                         Row(
                           children: [
                             FreqChip(
-                              label: '每日',
+                              label: l10n.hsDaily,
                               selected: freq == 'daily',
                               onTap: () => setS(() => freq = 'daily'),
                             ),
                             const SizedBox(width: 8),
                             FreqChip(
-                              label: '每週',
+                              label: l10n.hsWeekly,
                               selected: freq == 'weekly',
                               onTap: () => setS(() => freq = 'weekly'),
                             ),
@@ -362,7 +369,7 @@ Future<void> showAddHabitSheet(
                                 ),
                               ),
                               Text(
-                                '  次',
+                                l10n.hsTimesSuffix,
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: AppInk.soft,
@@ -379,7 +386,7 @@ Future<void> showAddHabitSheet(
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          '持續時間（選填）',
+                          l10n.hsDurationOptional,
                           style: TextStyle(
                             fontSize: 12,
                             color: AppInk.soft,
@@ -455,7 +462,7 @@ Future<void> showAddHabitSheet(
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      '分鐘',
+                                      l10n.fwMinutes,
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: minutes > 0
@@ -558,7 +565,7 @@ Future<void> showAddHabitSheet(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
-                      total == 0 ? '請選擇或輸入習慣' : '新增 ($total 項)',
+                      total == 0 ? l10n.hsPickOrType : l10n.hsAddCount(total),
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -579,6 +586,7 @@ Future<void> showEditHabitSheet(
   required ChildHabit habit,
   required Future<void> Function() onSaved,
 }) async {
+  final l10n = AppLocalizations.of(context);
   final nameCtrl = TextEditingController(text: habit.name);
   final pointCtrl = TextEditingController(text: habit.points.toString());
   var freq = habit.frequency;
@@ -619,9 +627,12 @@ Future<void> showEditHabitSheet(
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '編輯習慣',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Text(
+                  l10n.hsEditTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -629,7 +640,7 @@ Future<void> showEditHabitSheet(
                   autofocus: true,
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
-                    labelText: '習慣名稱',
+                    labelText: l10n.hsNameHint,
                     filled: true,
                     fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
@@ -652,7 +663,7 @@ Future<void> showEditHabitSheet(
                   ],
                   onChanged: (_) => setS(() {}),
                   decoration: InputDecoration(
-                    labelText: '完成可得分數',
+                    labelText: l10n.hsPointsHint,
                     filled: true,
                     fillColor: AppSurfaces.fill,
                     border: OutlineInputBorder(
@@ -668,7 +679,7 @@ Future<void> showEditHabitSheet(
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  '頻率',
+                  l10n.hsFrequency,
                   style: TextStyle(
                     fontSize: 12,
                     color: AppInk.soft,
@@ -679,13 +690,13 @@ Future<void> showEditHabitSheet(
                 Row(
                   children: [
                     FreqChip(
-                      label: '每日',
+                      label: l10n.hsDaily,
                       selected: freq == 'daily',
                       onTap: () => setS(() => freq = 'daily'),
                     ),
                     const SizedBox(width: 8),
                     FreqChip(
-                      label: '每週',
+                      label: l10n.hsWeekly,
                       selected: freq == 'weekly',
                       onTap: () => setS(() => freq = 'weekly'),
                     ),
@@ -705,7 +716,7 @@ Future<void> showEditHabitSheet(
                         ),
                       ),
                       Text(
-                        '  次',
+                        l10n.hsTimesSuffix,
                         style: TextStyle(fontSize: 13, color: AppInk.soft),
                       ),
                       const SizedBox(width: 8),
@@ -719,7 +730,7 @@ Future<void> showEditHabitSheet(
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  '持續時間（選填）',
+                  l10n.hsDurationOptional,
                   style: TextStyle(
                     fontSize: 12,
                     color: AppInk.soft,
@@ -798,7 +809,7 @@ Future<void> showEditHabitSheet(
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                '分鐘',
+                                l10n.fwMinutes,
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: minutes > 0
@@ -877,9 +888,9 @@ Future<void> showEditHabitSheet(
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text(
-                      '儲存',
-                      style: TextStyle(color: Colors.white),
+                    child: Text(
+                      l10n.commonSave,
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
