@@ -5206,5 +5206,171 @@
   "hsPickOrTypeHome": "請輸入或選擇習慣",
   "@hsPickOrTypeHome": {
     "description": "首頁新增習慣面板：一項都沒選也沒輸入時的送出按鈕停用文字。"
+  },
+
+  "obNeedHeight": "請填寫身高",
+  "@obNeedHeight": {
+    "description": "前導頁基本資料：身高沒填時的行內提示。"
+  },
+  "obNeedWeight": "請填寫體重",
+  "@obNeedWeight": {
+    "description": "前導頁基本資料：體重沒填時的行內提示。"
+  },
+  "obRatioOdd": "比例異常",
+  "@obRatioOdd": {
+    "description": "前導頁基本資料：身高體重比例不合理時的極短提示（欄位旁邊，空間很小）。"
+  },
+  "obNeedGender": "請選擇性別",
+  "@obNeedGender": {
+    "description": "前導頁基本資料：性別沒選時的提示。"
+  },
+  "obNeedBirthday": "請填寫生日",
+  "@obNeedBirthday": {
+    "description": "前導頁基本資料：生日沒填時的提示。"
+  },
+  "obBirthdayUnparsed": "看不懂這個日期，試試 2000-1-1 或 20000101",
+  "@obBirthdayUnparsed": {
+    "description": "前導頁：生日格式解析不出來。範例格式要保留，那是實際支援的輸入方式。"
+  },
+  "obBirthdayOutOfRange": "日期超出可選範圍",
+  "@obBirthdayOutOfRange": {
+    "description": "前導頁：生日超出允許範圍。"
+  },
+  "obHealthyWeightRange": "健康體重約 {low}–{high} {unit}",
+  "@obHealthyWeightRange": {
+    "description": "前導頁：依身高估算的健康體重區間。中間是連接號 U+2013。",
+    "placeholders": {
+      "low": { "type": "String" },
+      "high": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "obSuggestTarget": "建議 {value}{unit}",
+  "@obSuggestTarget": {
+    "description": "前導頁：建議的目標體重。中文數字與單位間不空格。",
+    "placeholders": {
+      "value": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "obTapToContinue": "點一下繼續",
+  "@obTapToContinue": {
+    "description": "前導頁第一頁的提示：點畫面繼續。"
+  },
+  "obContinue": "繼續",
+  "@obContinue": {
+    "description": "前導頁的繼續按鈕。"
+  },
+  "obNameHint": "幫我取個名字",
+  "@obNameHint": {
+    "description": "兔咪取名的輸入提示。這是輸入框的 hint，以兔咪的口吻寫。"
+  },
+  "obNext": "下一步",
+  "@obNext": {
+    "description": "前導頁的下一步按鈕。"
+  },
+  "obNicknameHint": "輸入你的暱稱",
+  "@obNicknameHint": {
+    "description": "使用者暱稱的輸入提示。"
+  },
+  "obDecline": "不用了",
+  "@obDecline": {
+    "description": "前導頁功能邀請的拒絕按鈕。"
+  },
+  "obConfirmOffTitle": "確定先關掉{name}嗎？",
+  "@obConfirmOffTitle": {
+    "description": "前導頁：確認關掉某個功能。name 是功能名稱。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "obConfirmOffMessage": "之後想用，可以在「設定 → 功能開關」隨時打開喔。",
+  "@obConfirmOffMessage": {
+    "description": "前導頁：關掉功能的安撫說明，指路給設定頁。"
+  },
+  "obKeepIt": "還是留著",
+  "@obKeepIt": {
+    "description": "前導頁：改變主意、保留這個功能。"
+  },
+  "obTurnOff": "確定關掉",
+  "@obTurnOff": {
+    "description": "前導頁：確認關掉這個功能。"
+  },
+  "obWaterAccept": "好，幫我記",
+  "@obWaterAccept": {
+    "description": "前導頁喝水邀請的同意按鈕。以使用者的口吻寫。"
+  },
+  "obWaterFeature": "喝水提醒",
+  "@obWaterFeature": {
+    "description": "喝水功能的名稱，用在「確定先關掉…嗎？」裡。"
+  },
+  "obFocusAccept": "好，開著",
+  "@obFocusAccept": {
+    "description": "前導頁專注計時邀請的同意按鈕。"
+  },
+  "obFocusFeature": "專注計時",
+  "@obFocusFeature": {
+    "description": "專注計時功能的名稱。"
+  },
+  "obFamilyFeature": "家庭模式",
+  "@obFamilyFeature": {
+    "description": "家庭模式功能的名稱。"
+  },
+  "obHabitFreqTitle": "想多久做一次？",
+  "@obHabitFreqTitle": {
+    "description": "前導頁：設定習慣頻率的區塊標題。"
+  },
+  "obTimesPerWeek": "{times} 次",
+  "@obTimesPerWeek": {
+    "description": "每週次數。",
+    "placeholders": {
+      "times": { "type": "int" }
+    }
+  },
+  "obHeightFt": "身高",
+  "@obHeightFt": {
+    "description": "英制身高欄位的標籤（單位另外顯示為 ft）。"
+  },
+  "obHeightCm": "身高（cm）",
+  "@obHeightCm": {
+    "description": "公制身高欄位的標籤。"
+  },
+  "obWeightWithUnit": "體重（{unit}）",
+  "@obWeightWithUnit": {
+    "description": "體重欄位的標籤，括號內是單位。",
+    "placeholders": {
+      "unit": { "type": "String" }
+    }
+  },
+  "obTargetWeightOptional": "目標體重（{unit}，選填）",
+  "@obTargetWeightOptional": {
+    "description": "目標體重欄位的標籤。括號標示單位與「可以不填」。",
+    "placeholders": {
+      "unit": { "type": "String" }
+    }
+  },
+  "obBirthdayHint": "點這裡選生日",
+  "@obBirthdayHint": {
+    "description": "生日欄位的提示字：點開選擇器。"
+  },
+  "obFillDone": "填寫完成",
+  "@obFillDone": {
+    "description": "前導頁基本資料的送出按鈕。"
+  },
+  "obLaterMaybe": "下次再說",
+  "@obLaterMaybe": {
+    "description": "前導頁基本資料的略過按鈕。"
+  },
+  "obActivityTitle": "一週大概運動幾天？",
+  "@obActivityTitle": {
+    "description": "前導頁：詢問活動量的區塊標題。"
+  },
+  "obStart": "開始",
+  "@obStart": {
+    "description": "前導頁最後一頁的開始按鈕。"
+  },
+  "obBack": "回上一步",
+  "@obBack": {
+    "description": "前導頁返回上一步的 tooltip。"
   }
 }

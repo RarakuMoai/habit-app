@@ -24,6 +24,10 @@ import '../widgets/mascot_scene.dart';
 
 // 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
+//
+// name 沒有走 l10n：這些名稱選取後會直接存成習慣名，而首頁的去重與
+// 喝水／體重連動判定都比對它（見 kHomePresets）。翻譯會讓連動失效。
+// 詳見 docs/i18n_migration.md 的跳過清單。
 const List<({String emoji, String name, bool freq})> _kOnboardingHabits = [
   (emoji: '🦷', name: '刷牙', freq: false),
   (emoji: '🧹', name: '整理環境', freq: false),
@@ -44,6 +48,8 @@ class OnboardingPage extends StatefulWidget {
 
 class _OnboardingPageState extends State<OnboardingPage>
     with WidgetsBindingObserver {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -109,7 +115,7 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 畫面3：用戶暱稱
   final TextEditingController _nicknameController = TextEditingController();
-  String _mascotName = '兔咪';
+  String _mascotName = MascotName.fallback;
 
   // 畫面4/5/6：功能引導（預設開啟，按「不用了」確認後才關）
   bool? _waterEnabled;
@@ -137,13 +143,15 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 活動量（內部仍用久坐/輕度/中度/高度）— 跟 profile_edit_page 共用 key 與選項
   String _activityLevel = '';
 
-  // 活動量選項 → 前端顯示為一週運動天數。跟 profile_edit_page 那邊保持同步，
-  // 改一邊另一邊要記得跟著改（值會被 water_page / weight_page 拿去算 TDEE 與每日水量）
-  static const Map<String, String> _activityDayLabels = {
-    '久坐': '幾乎沒有',
-    '輕度': '1-2 天',
-    '中度': '3-4 天',
-    '高度': '5 天以上',
+  // 活動量的儲存值（water_page / weight_page 拿去算 TDEE 與每日水量時比對
+  // 這些中文字串），i18n 只換顯示標籤、不動儲存值。與 profile_edit_page 同步。
+  static const List<String> _activityLevels = ['久坐', '輕度', '中度', '高度'];
+
+  String _activityLabel(String value) => switch (value) {
+    '久坐' => _l10n.activityAlmostNone,
+    '輕度' => _l10n.activityDays1to2,
+    '中度' => _l10n.activityDays3to4,
+    _ => _l10n.activityDays5plus,
   };
 
   // 用戶暱稱（畫面3填完後存起來）
@@ -410,14 +418,12 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  String? get _weightErrTextRaw =>
-      UserValidators.weightIn(
+  String? get _weightErrTextRaw => UserValidators.weightIn(
     AppLocalizations.of(context),
     _weightController.text,
     _unit,
   );
-  String? get _targetWeightErrTextRaw =>
-      UserValidators.targetWeightIn(
+  String? get _targetWeightErrTextRaw => UserValidators.targetWeightIn(
     AppLocalizations.of(context),
     _targetWeightController.text,
     _unit,
@@ -459,10 +465,10 @@ class _OnboardingPageState extends State<OnboardingPage>
     // 正在編輯就不顯示（不管之前 touched 過沒，重新進來改也算「還在改」）
     if (_heightFocus.hasFocus || _heightInFocus.hasFocus) return null;
     if (!_heightInputFinished) return null;
-    if (_bodyInfoSubmitAttempted && !_hasHeightInput) return '請填寫身高';
+    if (_bodyInfoSubmitAttempted && !_hasHeightInput) return _l10n.obNeedHeight;
     final raw = _heightErrTextRaw;
     if (raw != null) return raw;
-    if (_bmiOddVisible) return '比例異常';
+    if (_bmiOddVisible) return _l10n.obRatioOdd;
     return null;
   }
 
@@ -470,11 +476,11 @@ class _OnboardingPageState extends State<OnboardingPage>
     if (_weightFocus.hasFocus) return null;
     if (!_weightInputFinished) return null;
     if (_bodyInfoSubmitAttempted && _weightController.text.trim().isEmpty) {
-      return '請填寫體重';
+      return _l10n.obNeedWeight;
     }
     final raw = _weightErrTextRaw;
     if (raw != null) return raw;
-    if (_bmiOddVisible) return '比例異常';
+    if (_bmiOddVisible) return _l10n.obRatioOdd;
     return null;
   }
 
@@ -486,7 +492,7 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 性別/生日是非 TextField 控制項（chip / picker），用獨立 helper 顯示紅字
   String? get _genderError {
-    if (_bodyInfoSubmitAttempted && _gender.isEmpty) return '請選擇性別';
+    if (_bodyInfoSubmitAttempted && _gender.isEmpty) return _l10n.obNeedGender;
     return null;
   }
 
@@ -496,11 +502,11 @@ class _OnboardingPageState extends State<OnboardingPage>
         _bodyInfoSubmitAttempted ||
         _birthdayTouched ||
         !_birthdayFocus.hasFocus;
-    if (_bodyInfoSubmitAttempted && raw.isEmpty) return '請填寫生日';
+    if (_bodyInfoSubmitAttempted && raw.isEmpty) return _l10n.obNeedBirthday;
     if (raw.isEmpty || !shouldValidate) return null;
 
     final parsed = parseLenientDate(raw);
-    if (parsed == null) return '看不懂這個日期，試試 2000-1-1 或 20000101';
+    if (parsed == null) return _l10n.obBirthdayUnparsed;
     return _birthdayDateError(parsed);
   }
 
@@ -517,7 +523,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   String? _birthdayDateError(DateTime value) {
     if (value.isBefore(_birthdayFirstDate) ||
         value.isAfter(_birthdayLastDate)) {
-      return '日期超出可選範圍';
+      return _l10n.obBirthdayOutOfRange;
     }
     return UserValidators.birthday(AppLocalizations.of(context), value);
   }
@@ -601,7 +607,11 @@ class _OnboardingPageState extends State<OnboardingPage>
           const SizedBox(width: 5),
           Expanded(
             child: Text(
-              '健康體重約 ${suggestion.low}–${suggestion.high} ${suggestion.unit}',
+              _l10n.obHealthyWeightRange(
+                '${suggestion.low}',
+                '${suggestion.high}',
+                suggestion.unit,
+              ),
               style: const TextStyle(fontSize: 12, color: AppInk.soft),
             ),
           ),
@@ -634,7 +644,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
         ),
         child: Text(
-          '建議 ${suggestion.suggest}${suggestion.unit}',
+          _l10n.obSuggestTarget('${suggestion.suggest}', suggestion.unit),
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         ),
       ),
@@ -707,7 +717,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     await prefs.setString(
       PrefsKeys.userNickname,
       _nicknameController.text.trim().isEmpty
-          ? '你'
+          ? _l10n.hpNicknameFallback
           : _nicknameController.text.trim(),
     );
     await prefs.setBool(PrefsKeys.waterEnabled, _waterEnabled ?? false);
@@ -1008,11 +1018,11 @@ class _OnboardingPageState extends State<OnboardingPage>
           AnimatedOpacity(
             opacity: _page1Done ? 0.0 : 1.0,
             duration: const Duration(milliseconds: 300),
-            child: const Padding(
-              padding: EdgeInsets.only(bottom: 14),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
               child: Text(
-                '點一下繼續',
-                style: TextStyle(fontSize: 13, color: AppInk.faint),
+                _l10n.obTapToContinue,
+                style: const TextStyle(fontSize: 13, color: AppInk.faint),
               ),
             ),
           ),
@@ -1031,9 +1041,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                   vertical: 14,
                 ),
               ),
-              child: const Text(
-                '繼續',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              child: Text(
+                _l10n.obContinue,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
           ),
@@ -1093,7 +1103,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                   // 太長會毀掉句子節奏，所以比使用者暱稱更短
                   maxLength: 6,
                   decoration: InputDecoration(
-                    hintText: '幫我取個名字',
+                    hintText: _l10n.obNameHint,
                     counterText: '',
                     filled: true,
                     fillColor: Colors.white,
@@ -1119,7 +1129,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               onPressed: () {
                 setState(
                   () => _mascotName = _mascotController.text.trim().isEmpty
-                      ? '兔咪'
+                      ? MascotName.fallback
                       : _mascotController.text.trim(),
                 );
                 _nextPage();
@@ -1131,9 +1141,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text(
-                '下一步',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              child: Text(
+                _l10n.obNext,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
           ),
@@ -1157,7 +1167,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             style: const TextStyle(fontSize: 18),
             maxLength: 12,
             decoration: InputDecoration(
-              hintText: '輸入你的暱稱',
+              hintText: _l10n.obNicknameHint,
               counterText: '',
               filled: true,
               fillColor: Colors.white,
@@ -1191,9 +1201,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text(
-                '下一步',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              child: Text(
+                _l10n.obNext,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
           ),
@@ -1220,7 +1230,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           const SizedBox(height: 32),
           _optionButton(acceptLabel, onAccept),
           _optionButton(
-            '不用了',
+            _l10n.obDecline,
             () => _confirmDecline(declineName, onDeclineConfirmed),
             color: Colors.red.shade400,
           ),
@@ -1235,17 +1245,17 @@ class _OnboardingPageState extends State<OnboardingPage>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('確定先關掉$name嗎？'),
-        content: const Text('之後想用，可以在「設定 → 功能開關」隨時打開喔。'),
+        title: Text(_l10n.obConfirmOffTitle(name)),
+        content: Text(_l10n.obConfirmOffMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('還是留著'),
+            child: Text(_l10n.obKeepIt),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
-            child: const Text('確定關掉'),
+            child: Text(_l10n.obTurnOff),
           ),
         ],
       ),
@@ -1260,12 +1270,12 @@ class _OnboardingPageState extends State<OnboardingPage>
   Widget _buildPage4() {
     return _featureIntroPage(
       bubble: '口渴前，我會輕輕提醒你喝水。\n先幫你開著好嗎？',
-      acceptLabel: '好，幫我記',
+      acceptLabel: _l10n.obWaterAccept,
       onAccept: () {
         setState(() => _waterEnabled = true);
         _nextPage(playSound: false);
       },
-      declineName: '喝水提醒',
+      declineName: _l10n.obWaterFeature,
       onDeclineConfirmed: () {
         setState(() => _waterEnabled = false);
         _nextPage(playSound: false);
@@ -1277,12 +1287,12 @@ class _OnboardingPageState extends State<OnboardingPage>
   Widget _buildPage5() {
     return _featureIntroPage(
       bubble: '專心的時候，我幫你顧著時間。\n要先開著專注計時嗎？',
-      acceptLabel: '好，開著',
+      acceptLabel: _l10n.obFocusAccept,
       onAccept: () {
         setState(() => _timerEnabled = true);
         _nextPage(playSound: false);
       },
-      declineName: '專注計時',
+      declineName: _l10n.obFocusFeature,
       onDeclineConfirmed: () {
         setState(() => _timerEnabled = false);
         _nextPage(playSound: false);
@@ -1294,12 +1304,12 @@ class _OnboardingPageState extends State<OnboardingPage>
   Widget _buildFamilyPage() {
     return _featureIntroPage(
       bubble: '家裡有小朋友的話，\n我也能陪他們記小任務。\n要先開著嗎？',
-      acceptLabel: '好，開著',
+      acceptLabel: _l10n.obFocusAccept,
       onAccept: () {
         setState(() => _familyEnabled = true);
         _nextPage(playSound: false);
       },
-      declineName: '家庭模式',
+      declineName: _l10n.obFamilyFeature,
       onDeclineConfirmed: () {
         setState(() => _familyEnabled = false);
         _nextPage(playSound: false);
@@ -1342,7 +1352,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child: Text(
-                _selectedHabits.isEmpty ? '略過' : '下一步',
+                _selectedHabits.isEmpty ? _l10n.commonSkip : _l10n.obNext,
                 style: TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
@@ -1410,7 +1420,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '想多久做一次？',
+                          _l10n.obHabitFreqTitle,
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.orange.shade700,
@@ -1487,7 +1497,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                       _playOnboardingSfx(SfxCue.tap);
                       setState(() => _weeklyTimes[name] = 3);
                     },
-                    child: _freqPill('每週', false),
+                    child: _freqPill(_l10n.hsWeekly, false),
                   ),
           ),
           const SizedBox(width: 6),
@@ -1497,7 +1507,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               if (isWeekly) _playOnboardingSfx(SfxCue.tap);
               setState(() => _weeklyTimes.remove(name));
             },
-            child: _freqPill('每日', !isWeekly),
+            child: _freqPill(_l10n.hsDaily, !isWeekly),
           ),
         ],
       ),
@@ -1516,11 +1526,11 @@ class _OnboardingPageState extends State<OnboardingPage>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(
-              '每週',
-              style: TextStyle(
+              _l10n.hsWeekly,
+              style: const TextStyle(
                 fontSize: 13,
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -1534,7 +1544,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           SizedBox(
             width: 34,
             child: Text(
-              '$times 次',
+              _l10n.obTimesPerWeek(times),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 13,
@@ -1760,7 +1770,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(2),
                 ],
-                decoration: deco('身高', 'ft'),
+                decoration: deco(_l10n.obHeightFt, 'ft'),
               ),
             ),
             const SizedBox(width: 10),
@@ -1810,18 +1820,18 @@ class _OnboardingPageState extends State<OnboardingPage>
           Row(
             children: [
               Text(
-                '性別',
+                _l10n.genderLabel,
                 style: TextStyle(
                   color: Colors.orange.shade800,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(width: 16),
-              _genderChip('男'),
+              _genderChip('男', _l10n.genderMale),
               const SizedBox(width: 8),
-              _genderChip('女'),
+              _genderChip('女', _l10n.genderFemale),
               const SizedBox(width: 8),
-              _genderChip('不透露'),
+              _genderChip('不透露', _l10n.genderUndisclosed),
             ],
           ),
           if (_genderError != null)
@@ -1842,7 +1852,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             _onboardingNumField(
               controller: _heightController,
               focusNode: _heightFocus,
-              label: '身高（cm）',
+              label: _l10n.obHeightCm,
               errorText: _heightErrText,
               decimalMax: UserRanges.heightMaxCm,
             ),
@@ -1851,7 +1861,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           _onboardingNumField(
             controller: _weightController,
             focusNode: _weightFocus,
-            label: '體重（${UnitFormat.weightLabel(_unit)}）',
+            label: _l10n.obWeightWithUnit(UnitFormat.weightLabel(_unit)),
             errorText: _weightErrText,
             // 英制(lb)不補小數
             decimalMax: _unit == UnitSystem.imperial
@@ -1863,7 +1873,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           _onboardingNumField(
             controller: _targetWeightController,
             focusNode: _targetWeightFocus,
-            label: '目標體重（${UnitFormat.weightLabel(_unit)}，選填）',
+            label: _l10n.obTargetWeightOptional(UnitFormat.weightLabel(_unit)),
             errorText: _targetWeightErrText,
             suffixWidget: _targetWeightSuggestSuffix(),
             decimalMax: _unit == UnitSystem.imperial
@@ -1880,8 +1890,8 @@ class _OnboardingPageState extends State<OnboardingPage>
             showCursor: false,
             onTap: _openBirthdayPicker,
             decoration: InputDecoration(
-              labelText: '生日',
-              hintText: '點這裡選生日',
+              labelText: _l10n.birthdayLabel,
+              hintText: _l10n.obBirthdayHint,
               errorText: _birthdayError,
               errorMaxLines: 2,
               suffixIcon: const Icon(
@@ -1918,15 +1928,18 @@ class _OnboardingPageState extends State<OnboardingPage>
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: const Text(
-                '填寫完成',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              child: Text(
+                _l10n.obFillDone,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
           ),
           TextButton(
             onPressed: _nextPage,
-            child: const Text('下次再說', style: TextStyle(color: AppInk.soft)),
+            child: Text(
+              _l10n.obLaterMaybe,
+              style: const TextStyle(color: AppInk.soft),
+            ),
           ),
         ],
       ),
@@ -1934,12 +1947,13 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   // 性別選擇按鈕
-  Widget _genderChip(String label) {
-    final selected = _gender == label;
+  // value 是儲存值（跨頁邏輯比對它），label 只是顯示文字。
+  Widget _genderChip(String value, String label) {
+    final selected = _gender == value;
     return GestureDetector(
       onTap: () {
         if (!selected) _playOnboardingSfx(SfxCue.tap);
-        setState(() => _gender = label);
+        setState(() => _gender = value);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -1962,12 +1976,12 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   // 活動量 chip（樣式跟 _genderChip 一致）
-  Widget _activityChip(String label) {
-    final selected = _activityLevel == label;
+  Widget _activityChip(String value) {
+    final selected = _activityLevel == value;
     return GestureDetector(
       onTap: () {
         if (!selected) _playOnboardingSfx(SfxCue.tap);
-        setState(() => _activityLevel = label);
+        setState(() => _activityLevel = value);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -1979,7 +1993,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
         ),
         child: Text(
-          _activityDayLabels[label] ?? label,
+          _activityLabel(value),
           style: TextStyle(
             color: selected ? Colors.white : AppInk.soft,
             fontSize: 14,
@@ -2005,7 +2019,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '一週大概運動幾天？',
+            _l10n.obActivityTitle,
             style: TextStyle(
               color: Colors.orange.shade800,
               fontSize: 13,
@@ -2016,7 +2030,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           Wrap(
             spacing: 7,
             runSpacing: 7,
-            children: _activityDayLabels.keys.map(_activityChip).toList(),
+            children: _activityLevels.map(_activityChip).toList(),
           ),
         ],
       ),
@@ -2045,9 +2059,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                 elevation: 4,
                 shadowColor: Colors.orange.withValues(alpha: 0.4),
               ),
-              child: const Text(
-                '開始',
-                style: TextStyle(
+              child: Text(
+                _l10n.obStart,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -2156,7 +2170,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                       color: Colors.orange,
                     ),
                     onPressed: _handleBack,
-                    tooltip: '回上一步',
+                    tooltip: _l10n.obBack,
                   ),
                 ),
               ),
