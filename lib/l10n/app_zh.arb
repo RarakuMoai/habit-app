@@ -2205,8 +2205,8 @@
   "@sumFastest": {
     "description": "結算畫面：平均思考最快玩家的徽章。emoji 保留。"
   },
-  "sumTimeUp": "時間到",
-  "@sumTimeUp": {
+  "gameTimeUp": "時間到",
+  "@gameTimeUp": {
     "description": "棋鐘時間用盡的標記（結算徽章與盤面狀態共用）。"
   },
   "sumHandsAndTime": "{n} 手 · {time}",
@@ -2229,8 +2229,8 @@
     }
   },
 
-  "pfOvertime": "超時",
-  "@pfOvertime": {
+  "gameOvertime": "超時",
+  "@gameOvertime": {
     "description": "對局盤面：超過回合時間的狀態字。要短。"
   },
   "pfFirstPlayer": "第一位",
@@ -2253,8 +2253,8 @@
   "@pfTapToNext": {
     "description": "多人桌遊進行中的操作提示。"
   },
-  "pfHandCount": "第 {n} 手",
-  "@pfHandCount": {
+  "gameHandCount": "第 {n} 手",
+  "@gameHandCount": {
     "description": "對局盤面：目前第幾手。",
     "placeholders": {
       "n": { "type": "int" }

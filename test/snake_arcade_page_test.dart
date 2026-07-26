@@ -471,7 +471,7 @@ void main() {
   testWidgets('全螢幕彩蛋：窗簾開場、離開後回呼 onClosed', (tester) async {
     var closed = false;
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: SnakeArcadeEgg(
           onClosed: () => closed = true,
           engineBuilder: () => SnakeArcadeEngine(seed: 11),
@@ -492,7 +492,7 @@ void main() {
     var dice = 0;
     var three = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Center(
           child: SizedBox(
             width: 300,
@@ -539,8 +539,8 @@ void main() {
 
   testWidgets('shell 預設入口由三指開啟全螢幕菜園小蛇', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      l10nTestApp(
+        home: const Scaffold(
           body: MascotPageShell(
             accent: Colors.green,
             scene: ColoredBox(color: Colors.white),
@@ -573,8 +573,8 @@ void main() {
 
   testWidgets('骰子彩蛋開啟時，上方三指長按會無縫切到菜園小蛇', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      l10nTestApp(
+        home: const Scaffold(
           body: MascotPageShell(
             accent: Colors.green,
             scene: ColoredBox(color: Colors.white),

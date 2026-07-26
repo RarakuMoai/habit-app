@@ -197,7 +197,7 @@ class TableSummaryOverlay extends StatelessWidget {
                 if (engine.flagFallIndex == i) ...[
                   const SizedBox(width: 6),
                   _miniBadge(
-                    l10n.sumTimeUp,
+                    l10n.gameTimeUp,
                     AppInk.danger,
                     AppInk.danger.withValues(alpha: 0.10),
                   ),

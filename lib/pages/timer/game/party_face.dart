@@ -7,6 +7,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/sfx_service.dart';
@@ -42,6 +43,8 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
   bool _tapHandled = false;
 
   TableTimerEngine get engine => widget.engine;
+
+  AppLocalizations get _l10n => AppLocalizations.of(context);
 
   @override
   void initState() {
@@ -260,11 +263,11 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
     final String? statusText;
     if (engine.isFree) {
       timeText = formatTableElapsed(engine.elapsedInTurn);
-      statusText = ready ? null : '自由計時';
+      statusText = ready ? null : _l10n.tableTimeFree;
     } else if (engine.inOvertime) {
       timeText =
           '+${formatTableElapsed(Duration(seconds: engine.overtimeSeconds))}';
-      statusText = '超時';
+      statusText = _l10n.gameOvertime;
     } else {
       timeText = formatTableSeconds(
         ready ? engine.config.turnSeconds : engine.remainingSeconds,
@@ -297,7 +300,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            ready ? '第一位' : '現在輪到',
+            ready ? _l10n.pfFirstPlayer : _l10n.pfNowTurn,
             style: const TextStyle(
               fontSize: 15.5,
               fontWeight: FontWeight.w800,
@@ -452,20 +455,20 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
                 ),
               ),
               const SizedBox(width: 12),
-              const Column(
+              Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '下一位',
-                    style: TextStyle(
+                    _l10n.pfNextPlayer,
+                    style: const TextStyle(
                       fontSize: 15.5,
                       fontWeight: FontWeight.w800,
                       color: TableTheme.tableInkFaint,
                     ),
                   ),
-                  SizedBox(height: 1),
-                  Icon(
+                  const SizedBox(height: 1),
+                  const Icon(
                     Icons.arrow_forward_rounded,
                     size: 20,
                     color: TableTheme.tableInkFaint,
@@ -506,9 +509,9 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: TableTheme.tableDivider),
         ),
-        child: const Text(
-          '準備好了就點桌面開始',
-          style: TextStyle(
+        child: Text(
+          _l10n.pfTapToStart,
+          style: const TextStyle(
             fontSize: 15.5,
             fontWeight: FontWeight.w800,
             color: TableTheme.tableInkStrong,
@@ -518,9 +521,9 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
     }
     return Column(
       children: [
-        const Text(
-          '走完了就點桌面，換下一位',
-          style: TextStyle(
+        Text(
+          _l10n.pfTapToNext,
+          style: const TextStyle(
             fontSize: 14.5,
             fontWeight: FontWeight.w700,
             color: TableTheme.tableInkFaint,
@@ -528,7 +531,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
         ),
         const SizedBox(height: 4),
         Text(
-          '第 ${engine.turnCount} 手',
+          _l10n.gameHandCount(engine.turnCount),
           style: AppType.digits(
             fontSize: 12.5,
             color: TableTheme.tableInkFaint,

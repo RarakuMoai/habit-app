@@ -12,13 +12,15 @@ import 'package:habit_app/widgets/mascot_page_shell.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 Widget _detectorHarness({
   required bool enabled,
   required VoidCallback onTrigger,
   bool threeFingerEnabled = true,
   VoidCallback? onThreeFingerTrigger,
 }) {
-  return MaterialApp(
+  return l10nTestApp(
     home: TwoFingerEggDetector(
       enabled: enabled,
       onTrigger: onTrigger,
@@ -257,7 +259,7 @@ void main() {
   testWidgets('彩蛋演出：窗簾蓋滿才換景，無擲骰鈕與教學文字，結束遊戲跑完退場才回呼', (tester) async {
     var closed = false;
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(body: DiceDuelEgg(onClosed: () => closed = true)),
       ),
     );
@@ -296,8 +298,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      l10nTestApp(
+        home: const Scaffold(
           body: Padding(
             padding: EdgeInsets.all(20),
             child: DiceDuelResultSummary(
@@ -323,8 +325,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      l10nTestApp(
+        home: const Scaffold(
           body: Padding(
             padding: EdgeInsets.all(12),
             child: DiceDuelScoreboard(
@@ -348,7 +350,7 @@ void main() {
 
   testWidgets('結果後抓同一顆骰子無縫進下一局，保留落點朝向與本次戰績', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: SizedBox(
             width: 390,
@@ -403,7 +405,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(body: DiceDuelPanel(onClose: () {})),
       ),
     );
@@ -415,7 +417,7 @@ void main() {
 
   testWidgets('shell：兩指長按場景把彩蛋掛上 root overlay，結束遊戲後移除', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: MascotPageShell(
           accent: Colors.orange,
           scene: const SizedBox.expand(),
@@ -447,7 +449,7 @@ void main() {
   testWidgets('shell：三指長按走獨立 callback，不會開啟骰子 overlay', (tester) async {
     var threeFingerFired = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: MascotPageShell(
           accent: Colors.orange,
           scene: const SizedBox.expand(),

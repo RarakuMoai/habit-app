@@ -5,6 +5,7 @@
 // （跟按下實體棋鐘側鈕一樣直覺）。
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/sfx_service.dart';
@@ -34,6 +35,8 @@ class _ChessFaceState extends State<ChessFace>
   late final AnimationController _breath;
 
   TableTimerEngine get engine => widget.engine;
+
+  AppLocalizations get _l10n => AppLocalizations.of(context);
 
   @override
   void initState() {
@@ -191,7 +194,7 @@ class _ChessFaceState extends State<ChessFace>
                       height: 20,
                       child: flagged || (active && engine.inOvertime)
                           ? Text(
-                              flagged ? '時間到' : '超時',
+                              flagged ? _l10n.gameTimeUp : _l10n.gameOvertime,
                               style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
@@ -200,9 +203,9 @@ class _ChessFaceState extends State<ChessFace>
                               ),
                             )
                           : (active
-                                ? const Text(
-                                    '輪到你 · 走完點這裡',
-                                    style: TextStyle(
+                                ? Text(
+                                    _l10n.cfYourTurnTapHere,
+                                    style: const TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w700,
                                       color: TableTheme.tableInkFaint,
@@ -249,11 +252,11 @@ class _ChessFaceState extends State<ChessFace>
 
   Widget _middleLabel(bool ready) {
     if (ready) {
-      return const Text(
-        '點自己那側開始',
+      return Text(
+        _l10n.cfTapYourSide,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13.5,
           fontWeight: FontWeight.w800,
           color: TableTheme.tableInkFaint,
@@ -262,7 +265,7 @@ class _ChessFaceState extends State<ChessFace>
     }
     if (engine.phase == TablePhase.finished) {
       return Text(
-        '${engine.players[engine.flagFallIndex!].name} 時間到',
+        _l10n.cfPlayerTimeUp(engine.players[engine.flagFallIndex!].name),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
@@ -273,7 +276,7 @@ class _ChessFaceState extends State<ChessFace>
       );
     }
     return Text(
-      '第 ${engine.turnCount} 手',
+      _l10n.gameHandCount(engine.turnCount),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: AppType.digits(fontSize: 14, color: TableTheme.tableInkSoft),
@@ -303,9 +306,7 @@ class _ChessFaceState extends State<ChessFace>
           child: Icon(
             icon,
             size: 20,
-            color: onTap == null
-                ? AppInk.iconFaint
-                : TableTheme.tableInkStrong,
+            color: onTap == null ? AppInk.iconFaint : TableTheme.tableInkStrong,
           ),
         ),
       ),

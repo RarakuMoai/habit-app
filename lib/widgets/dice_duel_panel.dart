@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../pages/timer/game/dice_tray.dart' show DiceWorldPainter;
 import '../pages/timer/game/dice_world.dart';
 import '../pages/timer/game/table_timer_theme.dart';
@@ -443,12 +444,22 @@ class DiceDuelScoreboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final detail =
-        '你 ${score.playerWins} 勝・$mascotName ${score.mascotWins} 勝・平手 ${score.ties}';
+    final l10n = AppLocalizations.of(context);
+    final detail = l10n.ddpScoreLine(
+      score.playerWins,
+      mascotName,
+      score.mascotWins,
+      score.ties,
+    );
     return Semantics(
       container: true,
-      label:
-          '本次 ${score.rounds} 局，你 ${score.playerWins} 勝，$mascotName ${score.mascotWins} 勝，平手 ${score.ties}',
+      label: l10n.ddpScoreSemantics(
+        score.rounds,
+        score.playerWins,
+        mascotName,
+        score.mascotWins,
+        score.ties,
+      ),
       child: ExcludeSemantics(
         child: Container(
           key: const ValueKey('dice-duel-scoreboard'),
@@ -480,7 +491,7 @@ class DiceDuelScoreboard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '本次 ${score.rounds} 局',
+                      l10n.ddpRoundsThisTime(score.rounds),
                       maxLines: 1,
                       style: const TextStyle(
                         color: AppInk.strong,
@@ -532,16 +543,23 @@ class DiceDuelResultSummary extends StatelessWidget {
     required this.mascotValue,
   });
 
-  String get _resultLabel => switch (outcome) {
-    DiceDuelOutcome.playerWin => '你贏了！',
-    DiceDuelOutcome.mascotWin => '$mascotName贏了！',
-    DiceDuelOutcome.tie => '平手！',
+  String _resultLabel(AppLocalizations l10n) => switch (outcome) {
+    DiceDuelOutcome.playerWin => l10n.ddpYouWin,
+    DiceDuelOutcome.mascotWin => l10n.ddpMascotWin(mascotName),
+    DiceDuelOutcome.tie => l10n.ddpTie,
   };
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final resultLabel = _resultLabel(l10n);
     return Semantics(
-      label: '$_resultLabel，你 $playerValue 點，$mascotName $mascotValue 點',
+      label: l10n.ddpResultSemantics(
+        resultLabel,
+        playerValue,
+        mascotName,
+        mascotValue,
+      ),
       child: ExcludeSemantics(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -549,7 +567,7 @@ class DiceDuelResultSummary extends StatelessWidget {
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                _resultLabel,
+                resultLabel,
                 maxLines: 1,
                 style: AppType.digits(
                   fontSize: 25,
@@ -562,7 +580,7 @@ class DiceDuelResultSummary extends StatelessWidget {
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                '你 $playerValue・$mascotName $mascotValue',
+                l10n.ddpVsLine(playerValue, mascotName, mascotValue),
                 maxLines: 1,
                 style: AppType.digits(
                   fontSize: 13.5,
@@ -606,7 +624,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
   DiceDuelSessionScore _score = const DiceDuelSessionScore();
   Timer? _handoffTimer;
 
-  String _mascotName = '兔咪';
+  String _mascotName = MascotName.fallback;
   DateTime _lastImpactFeedback = DateTime.fromMillisecondsSinceEpoch(0);
   bool _matReady = false;
 
@@ -855,7 +873,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
                 child: Center(
                   child: _capsule(
                     child: Text(
-                      '你：$_playerValue',
+                      AppLocalizations.of(context).ddpYouPrefix(_playerValue!),
                       style: AppType.digits(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -908,7 +926,7 @@ class _DiceDuelPanelState extends State<DiceDuelPanel>
                   ),
                   const SizedBox(width: 9),
                   _pillButton(
-                    label: '結束遊戲',
+                    label: AppLocalizations.of(context).ddpEndGame,
                     filled: false,
                     width: 100,
                     onTap: widget.onClose,

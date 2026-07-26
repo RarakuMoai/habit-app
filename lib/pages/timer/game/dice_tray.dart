@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/prefs_keys.dart';
@@ -66,6 +67,8 @@ class DiceTrayOverlay extends StatefulWidget {
 class _DiceTrayOverlayState extends State<DiceTrayOverlay>
     with SingleTickerProviderStateMixin {
   static const int maxDice = 6;
+
+  AppLocalizations get _l10n => AppLocalizations.of(context);
 
   late final Ticker _ticker;
   Duration _lastTick = Duration.zero;
@@ -242,7 +245,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
                               border: Border.all(color: TableTheme.hairline),
                             ),
                             child: Text(
-                              '合計 ${_world.total}',
+                              _l10n.dtTotal(_world.total),
                               style: AppType.digits(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w800,
@@ -265,9 +268,9 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
                           children: [
                             _throwButton(),
                             const SizedBox(height: 8),
-                            const Text(
-                              '按住把骰子吸過來，甩出去！',
-                              style: TextStyle(
+                            Text(
+                              _l10n.dtHint,
+                              style: const TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                                 color: TableTheme.inkFaint,
@@ -275,9 +278,9 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
                             ),
                             TextButton(
                               onPressed: widget.onClose,
-                              child: const Text(
-                                '收起',
-                                style: TextStyle(
+                              child: Text(
+                                _l10n.dtCollapse,
+                                style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
                                   color: TableTheme.inkSoft,
@@ -328,7 +331,7 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Text(
-            '$_count 顆骰子',
+            _l10n.dtDiceCount(_count),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w900,
@@ -349,17 +352,21 @@ class _DiceTrayOverlayState extends State<DiceTrayOverlay>
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: _throwAll,
-        child: const SizedBox(
+        child: SizedBox(
           width: 200,
           height: 54,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.casino_rounded, size: 24, color: Color(0xFF241A12)),
-              SizedBox(width: 8),
+              const Icon(
+                Icons.casino_rounded,
+                size: 24,
+                color: Color(0xFF241A12),
+              ),
+              const SizedBox(width: 8),
               Text(
-                '擲骰子',
-                style: TextStyle(
+                _l10n.dtRoll,
+                style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFF241A12),

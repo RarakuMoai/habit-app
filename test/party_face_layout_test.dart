@@ -6,6 +6,8 @@ import 'package:habit_app/pages/timer/game/party_face.dart';
 import 'package:habit_app/pages/timer/game/table_timer_engine.dart';
 import 'package:habit_app/pages/timer/game/table_timer_models.dart';
 
+import 'l10n_test_app.dart';
+
 TableTimerConfig _config({List<TablePlayer>? players}) => TableTimerConfig(
   mode: TableGameMode.party,
   players:
@@ -30,9 +32,7 @@ Future<void> _pumpFace(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(body: PartyFace(engine: engine)),
-    ),
+    l10nTestApp(home: Scaffold(body: PartyFace(engine: engine))),
   );
   await tester.pump();
 }
