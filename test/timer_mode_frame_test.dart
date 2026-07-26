@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/widgets/timer_mode_frame.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   Widget harness(ValueNotifier<double> height) {
-    return MaterialApp(
+    return l10nTestApp(
       home: Scaffold(
         body: Center(
           child: ValueListenableBuilder<double>(
@@ -170,8 +172,8 @@ void main() {
 
   testWidgets('不同文字長度的狀態膠囊維持同尺寸', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      l10nTestApp(
+        home: const Scaffold(
           body: Row(
             children: [
               TimerStatusPill(

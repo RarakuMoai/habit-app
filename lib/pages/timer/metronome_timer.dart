@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/mascot.dart';
@@ -25,20 +26,21 @@ const int _kMaxBeats = 12; // 拍號分子上限（每小節幾拍）
 const double _pendMaxAngle = 0.46; // 擺幅 ±約 26°（state 與畫家共用）
 
 // 一種細分選項。parts = 每「主拍」切幾下（傳給音訊引擎做等分）。
+// labelId / hintId 是 l10n 解析用的識別碼（_subLabelText / _subHintText）。
 // 其餘為自繪音符圖示參數：notes 音符顆數、beams 符尾橫桿、tuplet 連音數字
 // （0=不標）、dotted 附點（複合拍主拍 = 一個附點四分音符）。
 class _SubOption {
   final int parts;
-  final String label;
-  final String hint;
+  final String labelId;
+  final String hintId;
   final int notes;
   final int beams;
   final int tuplet;
   final bool dotted;
   const _SubOption(
     this.parts,
-    this.label, {
-    required this.hint,
+    this.labelId, {
+    required this.hintId,
     this.notes = 1,
     this.beams = 0,
     this.tuplet = 0,
@@ -48,14 +50,10 @@ class _SubOption {
 
 class _TempoNoteOption {
   final String id;
-  final String label;
-  final String shortLabel;
   final int units; // 以十六分音符為 1：八分=2、四分=4、附點四分=6。
   final _SubOption glyph;
   const _TempoNoteOption({
     required this.id,
-    required this.label,
-    required this.shortLabel,
     required this.units,
     required this.glyph,
   });
@@ -63,26 +61,20 @@ class _TempoNoteOption {
 
 const _tempoQuarter = _TempoNoteOption(
   id: 'quarter',
-  label: '四分音符',
-  shortLabel: '四分',
   units: 4,
-  glyph: _SubOption(1, '四分', hint: '每拍一下'),
+  glyph: _SubOption(1, 'quarter', hintId: 'one'),
 );
 
 const _tempoEighth = _TempoNoteOption(
   id: 'eighth',
-  label: '八分音符',
-  shortLabel: '八分',
   units: 2,
-  glyph: _SubOption(1, '八分', hint: '每拍一下', beams: 1),
+  glyph: _SubOption(1, 'eighth', hintId: 'one', beams: 1),
 );
 
 const _tempoDottedQuarter = _TempoNoteOption(
   id: 'dotted_quarter',
-  label: '附點四分',
-  shortLabel: '附點四分',
   units: 6,
-  glyph: _SubOption(1, '附點四分', hint: '每大拍一下', dotted: true),
+  glyph: _SubOption(1, 'dotted_quarter', hintId: 'bigOne', dotted: true),
 );
 
 const List<_TempoNoteOption> _tempoNoteOptions = [
@@ -93,45 +85,44 @@ const List<_TempoNoteOption> _tempoNoteOptions = [
 
 // BPM 拍值 = 四分音符時：細分走 2 的系統。
 const List<_SubOption> _simpleSubs = [
-  _SubOption(1, '四分', hint: '每拍一下'),
-  _SubOption(2, '八分', hint: '每拍 2 下', notes: 2, beams: 1),
-  _SubOption(3, '三連', hint: '每拍 3 下', notes: 3, beams: 1, tuplet: 3),
-  _SubOption(4, '十六分', hint: '每拍 4 下', notes: 4, beams: 2),
+  _SubOption(1, 'quarter', hintId: 'one'),
+  _SubOption(2, 'eighth', hintId: 'two', notes: 2, beams: 1),
+  _SubOption(3, 'triplet', hintId: 'three', notes: 3, beams: 1, tuplet: 3),
+  _SubOption(4, 'sixteenth', hintId: 'four', notes: 4, beams: 2),
 ];
 
 // BPM 拍值 = 八分音符時：相同「每拍幾下」，但實際音符再縮一級。
 const List<_SubOption> _eighthSubs = [
-  _SubOption(1, '八分', hint: '每拍一下', beams: 1),
-  _SubOption(2, '十六分', hint: '每拍 2 下', notes: 2, beams: 2),
-  _SubOption(3, '三連', hint: '每拍 3 下', notes: 3, beams: 2, tuplet: 3),
-  _SubOption(4, '三十二分', hint: '每拍 4 下', notes: 4, beams: 3),
+  _SubOption(1, 'eighth', hintId: 'one', beams: 1),
+  _SubOption(2, 'sixteenth', hintId: 'two', notes: 2, beams: 2),
+  _SubOption(3, 'triplet', hintId: 'three', notes: 3, beams: 2, tuplet: 3),
+  _SubOption(4, 'thirtysecond', hintId: 'four', notes: 4, beams: 3),
 ];
 
 // BPM 拍值 = 附點四分音符時：複合拍自然三等分。
 const List<_SubOption> _compoundSubs = [
-  _SubOption(1, '附點四分', hint: '每大拍一下', dotted: true),
-  _SubOption(3, '八分', hint: '每大拍 3 下', notes: 3, beams: 1),
-  _SubOption(6, '十六分', hint: '每大拍 6 下', notes: 6, beams: 2),
+  _SubOption(1, 'dotted_quarter', hintId: 'bigOne', dotted: true),
+  _SubOption(3, 'eighth', hintId: 'bigThree', notes: 3, beams: 1),
+  _SubOption(6, 'sixteenth', hintId: 'bigSix', notes: 6, beams: 2),
 ];
 
 class _TimeSignaturePreset {
   final int beats;
   final int unit;
-  final String hint;
-  const _TimeSignaturePreset(this.beats, this.unit, this.hint);
+  const _TimeSignaturePreset(this.beats, this.unit);
 
   String get label => '$beats/$unit';
 }
 
 const List<_TimeSignaturePreset> _signaturePresets = [
-  _TimeSignaturePreset(1, 4, '每拍都打點'),
-  _TimeSignaturePreset(2, 4, '進行曲、快歌'),
-  _TimeSignaturePreset(3, 4, '圓舞曲感'),
-  _TimeSignaturePreset(4, 4, '最常見'),
-  _TimeSignaturePreset(3, 8, '一組三連感'),
-  _TimeSignaturePreset(6, 8, '兩組三連感'),
-  _TimeSignaturePreset(9, 8, '三組三連感'),
-  _TimeSignaturePreset(12, 8, '四組三連感'),
+  _TimeSignaturePreset(1, 4),
+  _TimeSignaturePreset(2, 4),
+  _TimeSignaturePreset(3, 4),
+  _TimeSignaturePreset(4, 4),
+  _TimeSignaturePreset(3, 8),
+  _TimeSignaturePreset(6, 8),
+  _TimeSignaturePreset(9, 8),
+  _TimeSignaturePreset(12, 8),
 ];
 
 /// 單純節拍器：可調 BPM、拍號（每小節拍數）、第一拍重音、音色、音量。
@@ -202,6 +193,51 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     }
   }
 
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
+  // labelId / hintId → l10n 文字。
+  String _noteName(String labelId) => switch (labelId) {
+    'quarter' => _l10n.noteQuarterShort,
+    'eighth' => _l10n.noteEighthShort,
+    'triplet' => _l10n.noteTriplet,
+    'sixteenth' => _l10n.noteSixteenth,
+    'thirtysecond' => _l10n.noteThirtySecond,
+    _ => _l10n.noteDottedQuarter,
+  };
+
+  String _subHintText(String hintId) => switch (hintId) {
+    'one' => _l10n.subHintPerBeatOne,
+    'two' => _l10n.subHintPerBeat2,
+    'three' => _l10n.subHintPerBeat3,
+    'four' => _l10n.subHintPerBeat4,
+    'bigOne' => _l10n.subHintPerBigBeatOne,
+    'bigThree' => _l10n.subHintPerBigBeat3,
+    _ => _l10n.subHintPerBigBeat6,
+  };
+
+  String _tempoNoteFull(_TempoNoteOption o) => switch (o.id) {
+    'quarter' => _l10n.noteQuarterFull,
+    'eighth' => _l10n.noteEighthFull,
+    _ => _l10n.noteDottedQuarter,
+  };
+
+  String _tempoNoteShort(_TempoNoteOption o) => switch (o.id) {
+    'quarter' => _l10n.noteQuarterShort,
+    'eighth' => _l10n.noteEighthShort,
+    _ => _l10n.noteDottedQuarter,
+  };
+
+  String _sigHint(_TimeSignaturePreset p) => switch (p.label) {
+    '1/4' => _l10n.sigHintEveryBeat,
+    '2/4' => _l10n.sigHintMarch,
+    '3/4' => _l10n.sigHintWaltz,
+    '4/4' => _l10n.sigHintCommon,
+    '3/8' => _l10n.sigHintOneTriplet,
+    '6/8' => _l10n.sigHintTwoTriplets,
+    '9/8' => _l10n.sigHintThreeTriplets,
+    _ => _l10n.sigHintFourTriplets,
+  };
+
   Future<void> _loadPrefs() async {
     final p = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -261,7 +297,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     if (paused != null && mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage)));
+        ..showSnackBar(
+          SnackBar(content: Text(paused.pausedMessage(_l10n))),
+        );
     }
     // 運作中節拍器面板蓋住兔咪：靜音兔咪語音，避免看不到卻聽到聲音
     MascotPersona.voiceMuted = true;
@@ -364,7 +402,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     'dotted_quarter' => _compoundSubs,
     _ => _simpleSubs,
   };
-  String get _tempoNoteSummary => '${_tempoNote.label} = $_bpm';
+  String get _tempoNoteSummary =>
+      _l10n.tempoNoteEquals(_tempoNoteFull(_tempoNote), _bpm);
 
   _SubOption get _currentSub => _subOptions.firstWhere(
     (o) => o.parts == _subParts,
@@ -551,10 +590,10 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'TAP 抓節奏',
-                          style: TextStyle(
+                          _l10n.tapTempoTitle,
+                          style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w900,
                             color: AppInk.strong,
@@ -564,9 +603,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '照你想要的速度連點下方大圓，點兩下以上就會顯示偵測到的速度；按「套用」才會更改 BPM。',
-                    style: TextStyle(
+                  Text(
+                    _l10n.tapTempoInstructions,
+                    style: const TextStyle(
                       fontSize: 12.5,
                       height: 1.5,
                       fontWeight: FontWeight.w600,
@@ -596,9 +635,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                                       color: color,
                                     ),
                                     const SizedBox(height: 4),
-                                    const Text(
-                                      '點我抓拍',
-                                      style: TextStyle(
+                                    Text(
+                                      _l10n.tapPadIdle,
+                                      style: const TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w800,
                                         color: AppInk.soft,
@@ -633,7 +672,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    detected == null ? '至少連點 2 下' : '繼續點會越抓越準',
+                    detected == null
+                        ? _l10n.tapAtLeastTwo
+                        : _l10n.tapKeepTapping,
                     style: const TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
@@ -646,9 +687,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                       Expanded(
                         child: TextButton(
                           onPressed: () => Navigator.pop(ctx),
-                          child: const Text(
-                            '取消',
-                            style: TextStyle(
+                          child: Text(
+                            _l10n.commonCancel,
+                            style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               color: AppInk.soft,
                             ),
@@ -671,7 +712,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                               ? null
                               : () => Navigator.pop(ctx, detected),
                           child: Text(
-                            detected == null ? '套用' : '套用 $detected BPM',
+                            detected == null
+                                ? _l10n.tapApply
+                                : _l10n.tapApplyBpm(detected),
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                             ),
@@ -706,7 +749,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         stateKey: _running,
         color: color,
         icon: _running ? Icons.graphic_eq_rounded : Icons.music_note_rounded,
-        label: _running ? '節拍播放中' : '準備節拍',
+        label: _running ? _l10n.metroPlaying : _l10n.metroReady,
       ),
       progress: _beatDots(color),
       controls: TimerControlCluster(
@@ -716,19 +759,19 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         primaryLabel: '$_bpm BPM',
         leading: TimerSecondaryAction(
           icon: Icons.remove_rounded,
-          label: '減速',
+          label: _l10n.metroSlower,
           onTap: _bpm > _kMinBpm ? () => _setBpm(_bpm - 1) : null,
           repeatable: true,
         ),
         trailing: TimerSecondaryAction(
           icon: Icons.add_rounded,
-          label: '加速',
+          label: _l10n.metroFaster,
           onTap: _bpm < _kMaxBpm ? () => _setBpm(_bpm + 1) : null,
           repeatable: true,
         ),
       ),
       statusLine: Text(
-        '$_bpm BPM · $_tempoNoteSummary · $_beats/$_beatUnit · ${_currentSub.label}',
+        '$_bpm BPM · $_tempoNoteSummary · $_beats/$_beatUnit · ${_noteName(_currentSub.labelId)}',
         style: const TextStyle(
           color: AppInk.soft,
           fontSize: 13,
@@ -866,9 +909,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                 Icon(Icons.arrow_drop_down_rounded, size: 20, color: color),
               ],
             ),
-            const Text(
-              '拍號',
-              style: TextStyle(
+            Text(
+              _l10n.signatureLabel,
+              style: const TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w800,
                 color: AppInk.soft,
@@ -898,9 +941,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                 Icon(Icons.arrow_drop_down_rounded, size: 20, color: color),
               ],
             ),
-            const Text(
-              '細分',
-              style: TextStyle(
+            Text(
+              _l10n.subdivisionLabel,
+              style: const TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w800,
                 color: AppInk.soft,
@@ -991,7 +1034,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                           height: 30,
                         ),
                       ),
-                      label: p.hint,
+                      label: _sigHint(p),
                     ),
                 ],
               ),
@@ -1036,7 +1079,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                           ),
                         ),
                       ),
-                      label: '${o.label} · ${o.hint}',
+                      label:
+                          '${_noteName(o.labelId)} · ${_subHintText(o.hintId)}',
                     ),
                 ],
               ),
@@ -1167,23 +1211,23 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                const Expanded(
+                                Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        '節拍器設定',
-                                        style: TextStyle(
+                                        _l10n.metroSettingsTitle,
+                                        style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w900,
                                           color: AppInk.strong,
                                         ),
                                       ),
-                                      SizedBox(height: 2),
+                                      const SizedBox(height: 2),
                                       Text(
-                                        '音色、音量與跟拍方式',
-                                        style: TextStyle(
+                                        _l10n.metroSettingsSubtitle,
+                                        style: const TextStyle(
                                           fontSize: 12.5,
                                           color: AppInk.soft,
                                           fontWeight: FontWeight.w600,
@@ -1205,7 +1249,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                             _sheetSectionTitle(
                               Icons.graphic_eq_rounded,
                               color,
-                              '音色（點一下試聽）',
+                              _l10n.sectionToneTap,
                             ),
                             const SizedBox(height: 8),
                             LayoutBuilder(
@@ -1234,22 +1278,26 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                             _sheetSectionTitle(
                               Icons.volume_up_rounded,
                               color,
-                              '音量',
+                              _l10n.sectionVolume,
                             ),
                             _sheetVolumeRow(
                               color,
                               (v) => apply(() => _setVolume(v)),
                             ),
                             const SizedBox(height: 14),
-                            _sheetSectionTitle(Icons.tune_rounded, color, '跟拍'),
+                            _sheetSectionTitle(
+                              Icons.tune_rounded,
+                              color,
+                              _l10n.sectionFollowBeat,
+                            ),
                             const SizedBox(height: 8),
                             _sheetSwitchTile(
                               Icons.line_weight_rounded,
                               color,
-                              '第一拍重音',
+                              _l10n.accentFirstLabel,
                               _secondaryAccentEvery > 0
-                                  ? '小節開頭加重，複合拍補分組重音'
-                                  : '小節開頭加重，方便抓拍',
+                                  ? _l10n.accentFirstSubCompound
+                                  : _l10n.accentFirstSub,
                               _accent,
                               (v) => apply(() => _setAccent(v)),
                             ),
@@ -1257,8 +1305,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                             _sheetSwitchTile(
                               Icons.vibration_rounded,
                               color,
-                              '觸覺跟拍',
-                              '靜音可用，會略增加耗電',
+                              _l10n.hapticFollowLabel,
+                              _l10n.hapticExtraBatteryNote,
                               _haptic,
                               (v) => apply(() => _setHaptic(v)),
                             ),
@@ -1266,7 +1314,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                             _sheetSectionTitle(
                               Icons.grid_view_rounded,
                               color,
-                              '拍號與細分',
+                              _l10n.sectionSignatureSub,
                             ),
                             const SizedBox(height: 8),
                             _sheetRhythmPanel(color, apply),
@@ -1288,9 +1336,9 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                         ),
                         onPressed: () => Navigator.pop(ctx),
                         icon: const Icon(Icons.check_rounded, size: 19),
-                        label: const Text(
-                          '完成',
-                          style: TextStyle(fontWeight: FontWeight.w800),
+                        label: Text(
+                          _l10n.commonDone,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
                     ),
@@ -1318,15 +1366,15 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sheetMiniLabel('拍號'),
+        _sheetMiniLabel(_l10n.signatureLabel),
         const SizedBox(height: 8),
         _sheetSignatureChoices(color, apply),
         const SizedBox(height: 12),
-        _sheetMiniLabel('BPM 拍值：$_tempoNoteSummary'),
+        _sheetMiniLabel(_l10n.miniBpmNote(_tempoNoteSummary)),
         const SizedBox(height: 8),
         _sheetTempoNoteChoices(color, apply),
         const SizedBox(height: 12),
-        _sheetMiniLabel('細分拍（依目前 BPM 拍值）'),
+        _sheetMiniLabel(_l10n.miniSubdivisionNote),
         const SizedBox(height: 8),
         _sheetSubdivisionChoices(color, apply),
       ],
@@ -1368,7 +1416,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                       : AppInk.strong,
                 ),
                 title: p.label,
-                sub: p.hint,
+                sub: _sigHint(p),
                 onTap: () => apply(() => _setTimeSignature(p.beats, p.unit)),
               ),
           ],
@@ -1398,8 +1446,8 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                   color: o.parts == _subParts ? color : AppInk.strong,
                   height: 24,
                 ),
-                title: o.label,
-                sub: o.hint,
+                title: _noteName(o.labelId),
+                sub: _subHintText(o.hintId),
                 onTap: () => apply(() => _setSubdivision(o.parts)),
               ),
           ],
@@ -1429,7 +1477,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                   color: o.id == _tempoNote.id ? color : AppInk.strong,
                   height: 24,
                 ),
-                title: o.shortLabel,
+                title: _tempoNoteShort(o),
                 sub: '= $_bpm',
                 onTap: () => apply(() => _setTempoNote(o.id)),
               ),
@@ -1564,7 +1612,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
-                  tone.label,
+                  tone.labelOf(_l10n),
                   maxLines: 2,
                   style: TextStyle(
                     color: selected ? color : AppInk.strong,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/coin_config.dart';
@@ -30,37 +31,18 @@ enum ExerciseKind { tabata, hiit, emom, gym, jog }
 
 enum _ExPhase { idle, prep, warmup, work, rest, cooldown, finished }
 
-// 子模式靜態資訊（名稱/說明/圖示/主色）
-typedef _ExMeta = ({String name, String desc, IconData icon, Color color});
+// 子模式靜態資訊（圖示/主色）。名稱與說明走 l10n（_kindName / _kindDesc）。
+typedef _ExMeta = ({IconData icon, Color color});
 
 const Map<ExerciseKind, _ExMeta> _exMeta = {
-  ExerciseKind.tabata: (
-    name: 'Tabata',
-    desc: '20 秒衝刺 / 10 秒喘息',
-    icon: Icons.bolt_rounded,
-    color: Color(0xFFEF5350),
-  ),
-  ExerciseKind.hiit: (
-    name: 'HIIT',
-    desc: '高強度有氧間歇',
-    icon: Icons.whatshot_rounded,
-    color: Color(0xFFFF8A50),
-  ),
-  ExerciseKind.emom: (
-    name: 'EMOM',
-    desc: '每分鐘一組循環',
-    icon: Icons.repeat_rounded,
-    color: Color(0xFF66BB6A),
-  ),
+  ExerciseKind.tabata: (icon: Icons.bolt_rounded, color: Color(0xFFEF5350)),
+  ExerciseKind.hiit: (icon: Icons.whatshot_rounded, color: Color(0xFFFF8A50)),
+  ExerciseKind.emom: (icon: Icons.repeat_rounded, color: Color(0xFF66BB6A)),
   ExerciseKind.gym: (
-    name: '重訓',
-    desc: '組數與組間休息',
     icon: Icons.fitness_center_rounded,
     color: Color(0xFF42A5F5),
   ),
   ExerciseKind.jog: (
-    name: '超慢跑',
-    desc: '180 BPM 輕鬆節拍',
     icon: Icons.directions_run_rounded,
     color: Color(0xFFAB47BC),
   ),
@@ -296,6 +278,25 @@ class ExerciseTimerState extends State<ExerciseTimer>
   static String _dateStr(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
+  // Tabata / HIIT / EMOM 是通用專有名詞，各語言不翻；重訓、超慢跑走 l10n。
+  String _kindName(ExerciseKind k) => switch (k) {
+    ExerciseKind.tabata => 'Tabata',
+    ExerciseKind.hiit => 'HIIT',
+    ExerciseKind.emom => 'EMOM',
+    ExerciseKind.gym => _l10n.exKindGym,
+    ExerciseKind.jog => _l10n.exKindJog,
+  };
+
+  String _kindDesc(ExerciseKind k) => switch (k) {
+    ExerciseKind.tabata => _l10n.exDescTabata,
+    ExerciseKind.hiit => _l10n.exDescHiit,
+    ExerciseKind.emom => _l10n.exDescEmom,
+    ExerciseKind.gym => _l10n.exDescGym,
+    ExerciseKind.jog => _l10n.exDescJog,
+  };
+
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final today = _dateStr(DateTime.now());
@@ -414,16 +415,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('清除今日運動成果？'),
-        content: const Text('會把今天的運動次數與累計分鐘歸零。'),
+        title: Text(_l10n.clearTodayExerciseTitle),
+        content: Text(_l10n.clearTodayExerciseBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(_l10n.commonCancel),
           ),
           FilledButton.tonal(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('清除'),
+            child: Text(_l10n.clearAction),
           ),
         ],
       ),
@@ -693,7 +694,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     for (var i = _idx; i < _seq.length && (i - _idx) < _maxNotifs; i++) {
       final isLast = i == _seq.length - 1;
       final (title, body) = isLast
-          ? ('🎉 訓練完成', '辛苦了，做得好！')
+          ? (_l10n.notifTrainingDoneTitle, _l10n.notifTrainingDoneBody)
           : _notifFor(_seq[i + 1]);
       await NotificationService.scheduleAt(
         fireAt,
@@ -709,12 +710,15 @@ class ExerciseTimerState extends State<ExerciseTimer>
   (String, String) _notifFor(_Step next) => switch (next.phase) {
     _ExPhase.work =>
       _kind == ExerciseKind.jog
-          ? ('🏃 保持節奏', '${_cfg.bpm} BPM，輕鬆跑起來')
-          : ('💪 開始運動', '第 ${next.round} / ${_cfg.rounds} 組'),
-    _ExPhase.rest => ('😮‍💨 休息一下', '深呼吸，準備下一組'),
-    _ExPhase.warmup => ('🤸 開始暖身', '先動一動身體'),
-    _ExPhase.cooldown => ('🧘 收操緩和', '放鬆伸展，慢慢收尾'),
-    _ => ('開始', ''),
+          ? (_l10n.notifJogKeepPaceTitle, _l10n.notifJogKeepPaceBody(_cfg.bpm))
+          : (
+              _l10n.notifWorkStartTitle,
+              _l10n.setOfTotal(next.round, _cfg.rounds),
+            ),
+    _ExPhase.rest => (_l10n.notifRestTitle, _l10n.notifRestBody),
+    _ExPhase.warmup => (_l10n.notifWarmupTitle, _l10n.notifWarmupBody),
+    _ExPhase.cooldown => (_l10n.notifCooldownTitle, _l10n.notifCooldownBody),
+    _ => (_l10n.notifStartFallback, ''),
   };
 
   // ── 操作 ──
@@ -751,7 +755,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (paused != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage)));
+        ..showSnackBar(
+          SnackBar(content: Text(paused.pausedMessage(_l10n))),
+        );
     }
 
     // 從待機 / 完成開始：重新組序列
@@ -836,7 +842,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (workSeconds >= 30) {
       CoinService.award(
         CoinSource.exerciseDone,
-        note: '${_exMeta[_kind]!.name} 完成',
+        note: _l10n.coinNoteExercise(_kindName(_kind)),
       );
     }
     MascotPersona.interact(MascotContext.allDone);
@@ -850,7 +856,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('請先按「重設」歸零，才能切換模式喔')));
+        ..showSnackBar(
+          SnackBar(content: Text(_l10n.exerciseSwitchNeedsReset)),
+        );
       return;
     }
     if (k == _kind) return;
@@ -881,13 +889,14 @@ class ExerciseTimerState extends State<ExerciseTimer>
   };
 
   String get _phaseLabel => switch (_phase) {
-    _ExPhase.idle => _exMeta[_kind]!.name,
-    _ExPhase.prep => '準備',
-    _ExPhase.warmup => '暖身',
-    _ExPhase.work => _kind == ExerciseKind.jog ? '保持節奏' : '運動',
-    _ExPhase.rest => '休息',
-    _ExPhase.cooldown => '收操',
-    _ExPhase.finished => '完成',
+    _ExPhase.idle => _kindName(_kind),
+    _ExPhase.prep => _l10n.exPhasePrep,
+    _ExPhase.warmup => _l10n.exPhaseWarmup,
+    _ExPhase.work =>
+      _kind == ExerciseKind.jog ? _l10n.exPhaseKeepPace : _l10n.exPhaseWork,
+    _ExPhase.rest => _l10n.exPhaseRest,
+    _ExPhase.cooldown => _l10n.exPhaseCooldown,
+    _ExPhase.finished => _l10n.phaseFinished,
   };
 
   IconData get _phaseIcon => switch (_phase) {
@@ -909,18 +918,18 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (_idle) {
       final c = _cfg;
       if (_kind == ExerciseKind.jog) {
-        return '${c.bpm} BPM · ${c.work ~/ 60} 分';
+        return _l10n.exRingJogIdle(c.bpm, c.work ~/ 60);
       }
       return c.loop
-          ? '${c.work}s × ${c.rounds} 組'
-          : '${c.work}s / ${c.rest}s × ${c.rounds}';
+          ? _l10n.exRingLoop(c.work, c.rounds)
+          : _l10n.exRingWorkRest(c.work, c.rest, c.rounds);
     }
-    if (_finished) return '今天又動了一次';
+    if (_finished) return _l10n.exRingFinished;
     if (_kind == ExerciseKind.jog && _phase == _ExPhase.work) {
-      return '${_cfg.bpm} BPM · 小步頻';
+      return _l10n.exRingJogRunning(_cfg.bpm);
     }
     if (_phase == _ExPhase.work || _phase == _ExPhase.rest) {
-      return '第 $_round / ${_cfg.rounds} 組';
+      return _l10n.setOfTotal(_round, _cfg.rounds);
     }
     return _phaseLabel;
   }
@@ -945,12 +954,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
         onPrimary: _startPause,
         leading: TimerSecondaryAction(
           icon: Icons.replay_rounded,
-          label: '重設',
+          label: _l10n.timerResetLabel,
           onTap: _idle ? null : _reset,
         ),
         trailing: TimerSecondaryAction(
           icon: Icons.skip_next_rounded,
-          label: '跳過',
+          label: _l10n.timerSkipLabel,
           onTap: _idle || _finished ? null : _skip,
         ),
       ),
@@ -1036,15 +1045,20 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (_isRunning && end != null) {
       final hh = end.hour.toString().padLeft(2, '0');
       final mm = end.minute.toString().padLeft(2, '0');
-      return '$_phaseLabel中 · $hh:$mm 結束';
+      return _l10n.exStatusRunning(_phaseLabel, '$hh:$mm');
     }
-    if (_finished) return '完成 ${_exMeta[_kind]!.name}，今天又多動了一段';
+    if (_finished) return _l10n.exStatusFinished(_kindName(_kind));
     final c = _cfg;
     if (_kind == ExerciseKind.jog) {
-      return '超慢跑 · ${c.work ~/ 60} 分 · 暖身 ${c.warmupOn ? c.warmup ~/ 60 : 0} 分';
+      return _l10n.exStatusJogIdle(
+        c.work ~/ 60,
+        c.warmupOn ? c.warmup ~/ 60 : 0,
+      );
     }
-    final rest = c.loop ? '循環' : '休息 ${c.rest} 秒';
-    return '${_exMeta[_kind]!.name} · 運動 ${c.work} 秒 · $rest';
+    final rest = c.loop
+        ? _l10n.exStatusLoopPart
+        : _l10n.exStatusRestPart(c.rest);
+    return _l10n.exStatusIdleLine(_kindName(_kind), c.work, rest);
   }
 
   Widget _tonePicker({
@@ -1072,7 +1086,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                 color: color,
                 width: tileWidth,
                 icon: iconFor(tone),
-                label: tone.label,
+                label: tone.labelOf(_l10n),
                 selected: selected == tone,
                 onTap: () => onSelected(tone),
               ),
@@ -1200,7 +1214,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
             ),
             const SizedBox(height: 1),
             Text(
-              meta.name,
+              _kindName(k),
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w800,
@@ -1398,7 +1412,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
           Expanded(
             child: _statPill(
               icon: Icons.local_fire_department_rounded,
-              label: '今日運動',
+              label: _l10n.statTodayExercise,
               value: '×$_todaySessions',
               color: const Color(0xFFFF8A50),
             ),
@@ -1407,14 +1421,14 @@ class ExerciseTimerState extends State<ExerciseTimer>
           Expanded(
             child: _statPill(
               icon: Icons.timer_rounded,
-              label: '累計',
-              value: '$_todayMinutes 分',
+              label: _l10n.statAccumulated,
+              value: _l10n.minutesCount(_todayMinutes),
               color: const Color(0xFF26A69A),
             ),
           ),
           const SizedBox(width: 4),
           Tooltip(
-            message: '清除今日運動統計',
+            message: _l10n.clearTodayExerciseTooltip,
             child: Material(
               color: Colors.transparent,
               shape: const CircleBorder(),
@@ -1533,9 +1547,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
     required int max,
     required int step,
     required ValueChanged<int> onChanged,
-    String unit = '秒',
+    String? unit,
     bool enabled = true,
   }) {
+    unit ??= _l10n.unitSecondsWord;
     final canDecrease = enabled && value > min;
     final canIncrease = enabled && value < max;
     return AnimatedOpacity(
@@ -1721,14 +1736,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
     final c = _cfg;
     final String big;
     if (_kind == ExerciseKind.jog) {
-      big = '${c.work ~/ 60} 分 · ${c.bpm} BPM';
+      big = _l10n.exSummaryJogBig(c.work ~/ 60, c.bpm);
     } else if (c.loop) {
-      big = '${c.work} 秒 ×${c.rounds}';
+      big = _l10n.exSummaryLoopBig(c.work, c.rounds);
     } else {
-      big = '${c.work} / ${c.rest} 秒 ×${c.rounds}';
+      big = _l10n.exSummaryWorkRestBig(c.work, c.rest, c.rounds);
     }
-    final small =
-        '暖身 ${c.warmupOn ? c.warmup : 0} 秒 · 收操 ${c.cooldownOn ? c.cooldown : 0} 秒';
+    final small = _l10n.exSummarySmall(
+      c.warmupOn ? c.warmup : 0,
+      c.cooldownOn ? c.cooldown : 0,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1790,7 +1807,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('請先按「重設」，再調整運動設定')));
+        ..showSnackBar(
+          SnackBar(content: Text(_l10n.exerciseSettingsNeedsReset)),
+        );
       return;
     }
     playFeedback(SfxCue.tap);
@@ -1883,7 +1902,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        '${meta.name} 設定',
+                                        _l10n.exSettingsTitle(
+                                          _kindName(_kind),
+                                        ),
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w900,
@@ -1892,7 +1913,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        meta.desc,
+                                        _kindDesc(_kind),
                                         style: const TextStyle(
                                           fontSize: 12.5,
                                           color: AppInk.soft,
@@ -1915,7 +1936,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             _exSectionTitle(
                               icon: Icons.grid_view_rounded,
                               color: meta.color,
-                              title: '運動類別',
+                              title: _l10n.sectionExKind,
                             ),
                             const SizedBox(height: 8),
                             SizedBox(
@@ -1953,26 +1974,26 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             _exSectionTitle(
                               icon: Icons.av_timer_rounded,
                               color: meta.color,
-                              title: '時間長度',
+                              title: _l10n.sectionTimeLength,
                             ),
                             const SizedBox(height: 8),
                             if (_kind == ExerciseKind.jog)
                               _exStepperCard(
-                                label: '慢跑時間',
-                                sub: '這次跑多久',
+                                label: _l10n.jogTimeLabel,
+                                sub: _l10n.jogTimeSub,
                                 icon: meta.icon,
                                 color: meta.color,
                                 value: c.work ~/ 60,
                                 min: 1,
                                 max: 120,
                                 step: 1,
-                                unit: '分',
+                                unit: _l10n.unitMinuteShort,
                                 onChanged: (v) => apply(() => c.work = v * 60),
                               )
                             else
                               _exStepperCard(
-                                label: '運動時間',
-                                sub: '每組專注多久',
+                                label: _l10n.workTimeLabel,
+                                sub: _l10n.workTimeSub,
                                 icon: meta.icon,
                                 color: meta.color,
                                 value: c.work,
@@ -1984,8 +2005,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             if (!c.loop && _kind != ExerciseKind.jog) ...[
                               const SizedBox(height: 8),
                               _exStepperCard(
-                                label: '休息時間',
-                                sub: '每組之間喘口氣',
+                                label: _l10n.restTimeLabel,
+                                sub: _l10n.restTimeSub,
                                 icon: Icons.self_improvement_rounded,
                                 color: meta.color,
                                 value: c.rest,
@@ -1998,22 +2019,22 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             if (_kind != ExerciseKind.jog) ...[
                               const SizedBox(height: 8),
                               _exStepperCard(
-                                label: '組數',
-                                sub: '一共做幾組',
+                                label: _l10n.setsLabel,
+                                sub: _l10n.setsSub,
                                 icon: Icons.repeat_rounded,
                                 color: meta.color,
                                 value: c.rounds,
                                 min: 1,
                                 max: 99,
                                 step: 1,
-                                unit: '組',
+                                unit: _l10n.unitSetsWord,
                                 onChanged: (v) => apply(() => c.rounds = v),
                               ),
                             ],
                             const SizedBox(height: 8),
                             _exStepperCard(
-                              label: '開始前準備',
-                              sub: '倒數幾秒再開始',
+                              label: _l10n.prepLabel,
+                              sub: _l10n.prepSub,
                               icon: Icons.hourglass_top_rounded,
                               color: meta.color,
                               value: c.prep,
@@ -2026,12 +2047,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             _exSectionTitle(
                               icon: Icons.self_improvement_rounded,
                               color: meta.color,
-                              title: '暖身 / 收操',
+                              title: _l10n.sectionWarmCool,
                             ),
                             const SizedBox(height: 8),
                             _exSwitchTile(
-                              label: '暖身',
-                              sub: '開始前先動一動',
+                              label: _l10n.exPhaseWarmup,
+                              sub: _l10n.warmupSwitchSub,
                               icon: Icons.accessibility_new_rounded,
                               color: meta.color,
                               value: c.warmupOn,
@@ -2040,8 +2061,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             if (c.warmupOn) ...[
                               const SizedBox(height: 8),
                               _exStepperCard(
-                                label: '暖身時間',
-                                sub: '熱身倒數',
+                                label: _l10n.warmupTimeLabel,
+                                sub: _l10n.warmupTimeSub,
                                 icon: Icons.accessibility_new_rounded,
                                 color: meta.color,
                                 value: c.warmup,
@@ -2053,8 +2074,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             ],
                             const SizedBox(height: 8),
                             _exSwitchTile(
-                              label: '收操',
-                              sub: '結束後緩和伸展',
+                              label: _l10n.exPhaseCooldown,
+                              sub: _l10n.cooldownSwitchSub,
                               icon: Icons.spa_rounded,
                               color: meta.color,
                               value: c.cooldownOn,
@@ -2063,8 +2084,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
                             if (c.cooldownOn) ...[
                               const SizedBox(height: 8),
                               _exStepperCard(
-                                label: '收操時間',
-                                sub: '緩和倒數',
+                                label: _l10n.cooldownTimeLabel,
+                                sub: _l10n.cooldownTimeSub,
                                 icon: Icons.spa_rounded,
                                 color: meta.color,
                                 value: c.cooldown,
@@ -2079,12 +2100,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
                               _exSectionTitle(
                                 icon: Icons.music_note_rounded,
                                 color: meta.color,
-                                title: '節拍器',
+                                title: _l10n.modeMetronome,
                               ),
                               const SizedBox(height: 8),
                               _exStepperCard(
-                                label: '節拍速度',
-                                sub: '每分鐘拍數',
+                                label: _l10n.bpmLabel,
+                                sub: _l10n.bpmSub,
                                 icon: Icons.speed_rounded,
                                 color: meta.color,
                                 value: c.bpm,
@@ -2100,8 +2121,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
                               ),
                               const SizedBox(height: 8),
                               _exSwitchTile(
-                                label: '節拍器音效',
-                                sub: '跟著節奏出聲',
+                                label: _l10n.metronomeSoundLabel,
+                                sub: _l10n.metronomeSoundSub,
                                 icon: Icons.music_note_rounded,
                                 color: meta.color,
                                 value: c.metronomeSoundOn,
@@ -2151,8 +2172,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
                               ),
                               const SizedBox(height: 8),
                               _exSwitchTile(
-                                label: '觸覺節拍',
-                                sub: '靜音可用，會略增加耗電',
+                                label: _l10n.hapticBeatLabel,
+                                sub: _l10n.hapticExtraBatteryNote,
                                 icon: Icons.vibration_rounded,
                                 color: meta.color,
                                 value: c.metronomeOn,
@@ -2179,7 +2200,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                                   c.metronomeVolume = d.metronomeVolume;
                                   c.metronomeTone = d.metronomeTone;
                                 }),
-                                child: const Text('還原預設'),
+                                child: Text(_l10n.restoreDefaultsAction),
                               ),
                             ),
                           ],
@@ -2200,9 +2221,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
                         ),
                         onPressed: () => Navigator.pop(ctx),
                         icon: const Icon(Icons.check_rounded, size: 19),
-                        label: const Text(
-                          '完成',
-                          style: TextStyle(fontWeight: FontWeight.w800),
+                        label: Text(
+                          _l10n.commonDone,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
                     ),

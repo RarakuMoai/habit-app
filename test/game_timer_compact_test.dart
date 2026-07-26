@@ -10,6 +10,8 @@ import 'package:habit_app/pages/timer/game/table_timer_theme.dart';
 import 'package:habit_app/pages/timer/game_timer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   test('直向家庭遊戲桌背景已收入 asset bundle', () async {
     final data = await rootBundle.load(TableTheme.tableAsset);
@@ -38,7 +40,7 @@ void main() {
 
     final height = ValueNotifier<double>(500);
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: ValueListenableBuilder<double>(
             valueListenable: height,
@@ -106,8 +108,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      l10nTestApp(
+        home: const Scaffold(
           body: Center(
             child: SizedBox(height: 560, width: 400, child: GameTimer()),
           ),

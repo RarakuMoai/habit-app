@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
@@ -38,7 +39,6 @@ enum _Phase { idle, focus, shortBreak, longBreak, finished }
 typedef _Step = ({_Phase phase, int dur, int round});
 
 typedef _FocusProfileDefault = ({
-  String name,
   int focus,
   int shortBreak,
   int rounds,
@@ -46,10 +46,10 @@ typedef _FocusProfileDefault = ({
   bool longBreakEnabled,
 });
 
-// 四個名稱只代表初始範本；使用者之後可改名與改掉所有時間。
+// 四格只代表初始範本；預設名稱由 l10n 提供（_defaultProfileName），
+// 使用者之後可改名與改掉所有時間，存過的名字照原樣顯示。
 const List<_FocusProfileDefault> _focusProfileDefaults = [
   (
-    name: '經典',
     focus: 25,
     shortBreak: 5,
     rounds: 4,
@@ -57,7 +57,6 @@ const List<_FocusProfileDefault> _focusProfileDefaults = [
     longBreakEnabled: true,
   ),
   (
-    name: '深度',
     focus: 50,
     shortBreak: 10,
     rounds: 3,
@@ -65,7 +64,6 @@ const List<_FocusProfileDefault> _focusProfileDefaults = [
     longBreakEnabled: true,
   ),
   (
-    name: '輕量',
     focus: 15,
     shortBreak: 3,
     rounds: 4,
@@ -73,7 +71,6 @@ const List<_FocusProfileDefault> _focusProfileDefaults = [
     longBreakEnabled: true,
   ),
   (
-    name: '自訂',
     focus: 25,
     shortBreak: 5,
     rounds: 4,
@@ -92,15 +89,15 @@ class _FocusProfile {
   bool longBreakEnabled;
 
   _FocusProfile(this.defaults)
-    : name = defaults.name,
+    : name = '',
       focus = defaults.focus,
       shortBreak = defaults.shortBreak,
       rounds = defaults.rounds,
       longBreak = defaults.longBreak,
       longBreakEnabled = defaults.longBreakEnabled;
 
-  void restoreDefaults() {
-    name = defaults.name;
+  void restoreDefaults(String defaultName) {
+    name = defaultName;
     focus = defaults.focus;
     shortBreak = defaults.shortBreak;
     rounds = defaults.rounds;
@@ -208,6 +205,17 @@ class _TimerPageState extends State<TimerPage>
   static String _dateStr(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
+  // 各格方案的預設名（l10n）。只在「沒存過名字」與「恢復初始值」時使用，
+  // 使用者存過的名字照原樣顯示，不做即時翻譯（見 docs/i18n_migration.md）。
+  String _defaultProfileName(int index) => switch (index) {
+    0 => _l10n.focusProfileClassic,
+    1 => _l10n.focusProfileDeep,
+    2 => _l10n.focusProfileLight,
+    _ => _l10n.focusProfileCustom,
+  };
+
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final today = _dateStr(DateTime.now());
@@ -236,8 +244,9 @@ class _TimerPageState extends State<TimerPage>
             ? prefs.getString(PrefsKeys.timerCustomName(_legacyCustomSlot))
             : null;
         final loadedName = prefs.getString(PrefsKeys.timerFocusProfileName(i));
-        profile.name = (loadedName ?? legacyName ?? defaults.name).trim();
-        if (profile.name.isEmpty) profile.name = defaults.name;
+        profile.name = (loadedName ?? legacyName ?? _defaultProfileName(i))
+            .trim();
+        if (profile.name.isEmpty) profile.name = _defaultProfileName(i);
         profile.focus =
             (prefs.getInt(PrefsKeys.timerFocusProfileFocus(i)) ??
                     (isLegacyCustom
@@ -413,7 +422,10 @@ class _TimerPageState extends State<TimerPage>
   void _awardIfFocus(_Step step) {
     if (step.phase != _Phase.focus) return;
     _recordFocusRound(step.dur ~/ 60);
-    CoinService.award(CoinSource.tomatoDone, note: '專注 ${step.dur ~/ 60} 分');
+    CoinService.award(
+      CoinSource.tomatoDone,
+      note: _l10n.coinNoteFocus(step.dur ~/ 60),
+    );
   }
 
   // 由絕對結束時刻反推剩餘秒數；背景期間跨了多個階段就逐段補算（含給幣）。
@@ -483,7 +495,7 @@ class _TimerPageState extends State<TimerPage>
     for (var i = _idx; i < _seq.length && (i - _idx) < _maxChainNotifs; i++) {
       final isLast = i == _seq.length - 1;
       final (title, body) = isLast
-          ? ('🎉 完成這次專注', '$_rounds 個專注回合完成，辛苦了！')
+          ? (_l10n.notifFocusAllDoneTitle, _l10n.notifFocusAllDoneBody(_rounds))
           : _notifFor(_seq[i + 1]);
       await NotificationService.scheduleAt(
         fireAt,
@@ -497,10 +509,16 @@ class _TimerPageState extends State<TimerPage>
   }
 
   (String, String) _notifFor(_Step next) => switch (next.phase) {
-    _Phase.focus => ('🎯 開始專注', '第 ${next.round} / $_rounds 回合'),
-    _Phase.shortBreak => ('☕ 休息一下', '喘口氣，等等繼續'),
-    _Phase.longBreak => ('🛋️ 長休息', '這次循環快完成了'),
-    _ => ('開始', ''),
+    _Phase.focus => (
+      _l10n.notifFocusStartTitle,
+      _l10n.roundOfTotal(next.round, _rounds),
+    ),
+    _Phase.shortBreak => (
+      _l10n.notifShortBreakTitle,
+      _l10n.notifShortBreakBody,
+    ),
+    _Phase.longBreak => (_l10n.notifLongBreakTitle, _l10n.notifLongBreakBody),
+    _ => (_l10n.notifStartFallback, ''),
   };
 
   // ── 操作 ──
@@ -532,7 +550,9 @@ class _TimerPageState extends State<TimerPage>
     if (paused != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(paused.pausedMessage)));
+        ..showSnackBar(
+          SnackBar(content: Text(paused.pausedMessage(_l10n))),
+        );
     }
     // 從待機 / 完成 → 重新組序列從頭開始
     if (_idle || _finished) {
@@ -607,7 +627,7 @@ class _TimerPageState extends State<TimerPage>
 
   String _profileLabel(int index) {
     final name = _profiles[index].name.trim();
-    return name.isEmpty ? _profiles[index].defaults.name : name;
+    return name.isEmpty ? _defaultProfileName(index) : name;
   }
 
   // 主畫面的四格只負責快速切換；編輯則一律由獨立的「設定」按鈕進入。
@@ -616,7 +636,7 @@ class _TimerPageState extends State<TimerPage>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('請先按「重設」，再切換專注方案')));
+        ..showSnackBar(SnackBar(content: Text(_l10n.focusSwitchNeedsReset)));
       return;
     }
     setState(() {
@@ -650,11 +670,11 @@ class _TimerPageState extends State<TimerPage>
   };
 
   String get _phaseLabel => switch (_phase) {
-    _Phase.focus => '專注時間',
-    _Phase.shortBreak => '短休息',
-    _Phase.longBreak => '長休息',
-    _Phase.finished => '完成',
-    _Phase.idle => '準備開始',
+    _Phase.focus => _l10n.phaseFocusTime,
+    _Phase.shortBreak => _l10n.phaseShortBreak,
+    _Phase.longBreak => _l10n.phaseLongBreak,
+    _Phase.finished => _l10n.phaseFinished,
+    _Phase.idle => _l10n.phaseIdle,
   };
 
   IconData get _phaseIcon => switch (_phase) {
@@ -684,10 +704,10 @@ class _TimerPageState extends State<TimerPage>
 
   // 切換列每個模式的圖示與標籤。
   (IconData, String) _modeChrome(_TimerMode mode) => switch (mode) {
-    _TimerMode.focus => (Icons.psychology_rounded, '專注'),
-    _TimerMode.exercise => (Icons.directions_run_rounded, '運動'),
-    _TimerMode.metronome => (Icons.av_timer_rounded, '節拍器'),
-    _TimerMode.game => (Icons.casino_rounded, '遊戲'),
+    _TimerMode.focus => (Icons.psychology_rounded, _l10n.modeFocus),
+    _TimerMode.exercise => (Icons.directions_run_rounded, _l10n.modeExercise),
+    _TimerMode.metronome => (Icons.av_timer_rounded, _l10n.modeMetronome),
+    _TimerMode.game => (Icons.casino_rounded, _l10n.modeGame),
   };
 
   void _switchMode(_TimerMode mode) {
@@ -713,7 +733,9 @@ class _TimerPageState extends State<TimerPage>
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text('${paused.pausedMessage}，可隨時切回繼續')),
+          SnackBar(
+            content: Text(_l10n.timerPausedCanResume(paused.pausedMessage(_l10n))),
+          ),
         );
     }
   }
@@ -886,12 +908,12 @@ class _TimerPageState extends State<TimerPage>
         onPrimary: _startPause,
         leading: TimerSecondaryAction(
           icon: Icons.replay_rounded,
-          label: '重設',
+          label: _l10n.timerResetLabel,
           onTap: _idle ? null : _reset,
         ),
         trailing: TimerSecondaryAction(
           icon: Icons.skip_next_rounded,
-          label: '跳過',
+          label: _l10n.timerSkipLabel,
           onTap: _idle || _finished ? null : _skipPhase,
         ),
       ),
@@ -932,8 +954,8 @@ class _TimerPageState extends State<TimerPage>
           Expanded(
             child: _statPill(
               icon: Icons.check_circle_rounded,
-              label: '今日完成',
-              value: '$_todayFocusRounds 回合',
+              label: _l10n.statTodayDone,
+              value: _l10n.roundsCount(_todayFocusRounds),
               color: const Color(0xFFFF7043),
             ),
           ),
@@ -941,8 +963,8 @@ class _TimerPageState extends State<TimerPage>
           Expanded(
             child: _statPill(
               icon: Icons.hourglass_bottom_rounded,
-              label: '專注時間',
-              value: '$_todayFocusMin 分',
+              label: _l10n.phaseFocusTime,
+              value: _l10n.minutesCount(_todayFocusMin),
               color: const Color(0xFF66BB6A),
             ),
           ),
@@ -1004,18 +1026,25 @@ class _TimerPageState extends State<TimerPage>
     if (_isRunning && end != null) {
       final hh = end.hour.toString().padLeft(2, '0');
       final mm = end.minute.toString().padLeft(2, '0');
-      return _phase == _Phase.focus ? '專注中 · $hh:$mm 結束' : '休息中 · $hh:$mm 結束';
+      final t = '$hh:$mm';
+      return _phase == _Phase.focus
+          ? _l10n.focusRunningUntil(t)
+          : _l10n.breakRunningUntil(t);
     }
-    if (_finished) return '這次專注完成了 🎉';
+    if (_finished) return _l10n.focusSessionDoneLine;
     if (_idle) {
       // 分鐘為主、講白節奏：專注×次數 · 休息 · 結尾長休（依設定條件顯示）。
       // 只有 1 回合時沒有中間休息；休息 0 分或關閉長休都略過。
-      final parts = <String>['專注 $_focusMin 分 ×$_rounds'];
-      if (_rounds > 1 && _shortMin > 0) parts.add('休息 $_shortMin 分');
-      if (_longBreakEnabled && _longMin > 0) parts.add('結尾長休 $_longMin 分');
+      final parts = <String>[_l10n.focusIdleFocusPart(_focusMin, _rounds)];
+      if (_rounds > 1 && _shortMin > 0) {
+        parts.add(_l10n.focusIdleBreakPart(_shortMin));
+      }
+      if (_longBreakEnabled && _longMin > 0) {
+        parts.add(_l10n.focusIdleLongPart(_longMin));
+      }
       return parts.join(' · ');
     }
-    return '已暫停 · 按開始繼續';
+    return _l10n.pausedPressStart;
   }
 
   // 簡單圓點表示每個專注回合，避免引入額外的番茄鐘概念。
@@ -1145,7 +1174,9 @@ class _TimerPageState extends State<TimerPage>
       playHaptic(HapticLevel.light);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('請先按「重設」，再調整專注設定')));
+        ..showSnackBar(
+          SnackBar(content: Text(_l10n.focusSettingsNeedsReset)),
+        );
       return;
     }
     var editingProfileIndex = _selected;
@@ -1194,16 +1225,17 @@ class _TimerPageState extends State<TimerPage>
             Future<void> restoreProfile() async {
               FocusScope.of(ctx).unfocus();
               final currentName = _profileLabel(profileIndex);
+              final defaultName = _defaultProfileName(profileIndex);
               final confirmed = await showAppConfirmDialog(
                 ctx,
-                title: '恢復「${profile.defaults.name}」初始值？',
-                message: '會把「$currentName」的名稱、專注與休息時間、回合數全部恢復成初始設定。',
-                confirmLabel: '確認恢復',
+                title: _l10n.restoreProfileTitle(defaultName),
+                message: _l10n.restoreProfileMessage(currentName),
+                confirmLabel: _l10n.restoreProfileConfirm,
                 danger: true,
               );
               if (!confirmed || !mounted || !ctx.mounted) return;
               nameFieldRevision++;
-              applyProfile(profile.restoreDefaults);
+              applyProfile(() => profile.restoreDefaults(defaultName));
               playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
             }
 
@@ -1269,19 +1301,19 @@ class _TimerPageState extends State<TimerPage>
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
-                                      children: const [
+                                      children: [
                                         Text(
-                                          '專注計時設定',
-                                          style: TextStyle(
+                                          _l10n.focusSettingsTitle,
+                                          style: const TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.w900,
                                             color: AppInk.strong,
                                           ),
                                         ),
-                                        SizedBox(height: 2),
+                                        const SizedBox(height: 2),
                                         Text(
-                                          '安排你的專注節奏',
-                                          style: TextStyle(
+                                          _l10n.focusSettingsSubtitle,
+                                          style: const TextStyle(
                                             fontSize: 12.5,
                                             color: AppInk.soft,
                                             fontWeight: FontWeight.w600,
@@ -1302,7 +1334,7 @@ class _TimerPageState extends State<TimerPage>
                               const SizedBox(height: 14),
                               _settingsSectionTitle(
                                 icon: Icons.view_carousel_rounded,
-                                title: '專注方案',
+                                title: _l10n.sectionFocusProfiles,
                               ),
                               const SizedBox(height: 8),
                               SizedBox(
@@ -1338,7 +1370,7 @@ class _TimerPageState extends State<TimerPage>
                               const SizedBox(height: 14),
                               _settingsSectionTitle(
                                 icon: Icons.label_rounded,
-                                title: '方案名稱',
+                                title: _l10n.sectionProfileName,
                               ),
                               const SizedBox(height: 8),
                               TextFormField(
@@ -1350,7 +1382,7 @@ class _TimerPageState extends State<TimerPage>
                                 textInputAction: TextInputAction.done,
                                 decoration: InputDecoration(
                                   counterText: '',
-                                  hintText: profile.defaults.name,
+                                  hintText: _defaultProfileName(profileIndex),
                                   hintStyle: const TextStyle(
                                     color: Color(0xFFD7CCC5),
                                     fontWeight: FontWeight.w600,
@@ -1390,12 +1422,12 @@ class _TimerPageState extends State<TimerPage>
                               const SizedBox(height: 14),
                               _settingsSectionTitle(
                                 icon: Icons.av_timer_rounded,
-                                title: '時間與回合',
+                                title: _l10n.sectionTimeAndRounds,
                               ),
                               const SizedBox(height: 8),
                               _timerStepperCard(
-                                label: '專注',
-                                sub: '進入安靜工作段',
+                                label: _l10n.modeFocus,
+                                sub: _l10n.focusStepperSub,
                                 icon: Icons.local_fire_department_rounded,
                                 color: const Color(0xFFFF7043),
                                 value: _focusMin,
@@ -1407,8 +1439,8 @@ class _TimerPageState extends State<TimerPage>
                               ),
                               const SizedBox(height: 8),
                               _timerStepperCard(
-                                label: '短休息',
-                                sub: '專注回合之間喘口氣',
+                                label: _l10n.phaseShortBreak,
+                                sub: _l10n.shortBreakStepperSub,
                                 icon: Icons.local_cafe_rounded,
                                 color: const Color(0xFF66BB6A),
                                 value: _shortMin,
@@ -1420,27 +1452,27 @@ class _TimerPageState extends State<TimerPage>
                               ),
                               const SizedBox(height: 8),
                               _timerStepperCard(
-                                label: '回合數',
-                                sub: '這次要完成幾個專注回合',
+                                label: _l10n.roundsStepperLabel,
+                                sub: _l10n.roundsStepperSub,
                                 icon: Icons.tag_rounded,
                                 color: const Color(0xFFFF7043),
                                 value: _rounds,
                                 min: 1,
                                 max: 8,
                                 step: 1,
-                                unit: '回合',
+                                unit: _l10n.unitRoundsWord,
                                 onChanged: (v) =>
                                     applyProfile(() => profile.rounds = v),
                               ),
                               const SizedBox(height: 16),
                               _settingsSectionTitle(
                                 icon: Icons.spa_rounded,
-                                title: '結尾長休息',
+                                title: _l10n.sectionEndLongBreak,
                               ),
                               const SizedBox(height: 8),
                               _timerSwitchTile(
-                                label: '結尾長休息',
-                                sub: '所有專注回合後加一段放鬆',
+                                label: _l10n.sectionEndLongBreak,
+                                sub: _l10n.longBreakSwitchSub,
                                 icon: Icons.spa_rounded,
                                 value: _longBreakEnabled,
                                 onChanged: (v) => applyProfile(
@@ -1449,8 +1481,8 @@ class _TimerPageState extends State<TimerPage>
                               ),
                               const SizedBox(height: 8),
                               _timerStepperCard(
-                                label: '長休息',
-                                sub: '完成這次循環後放鬆',
+                                label: _l10n.phaseLongBreak,
+                                sub: _l10n.longBreakStepperSub,
                                 icon: Icons.self_improvement_rounded,
                                 color: const Color(0xFF26A69A),
                                 value: _longMin,
@@ -1463,7 +1495,7 @@ class _TimerPageState extends State<TimerPage>
                               ),
                               const SizedBox(height: 14),
                               _restoreDefaultsTile(
-                                defaultName: profile.defaults.name,
+                                defaultName: _defaultProfileName(profileIndex),
                                 onTap: () => unawaited(restoreProfile()),
                               ),
                               const SizedBox(height: 4),
@@ -1485,9 +1517,9 @@ class _TimerPageState extends State<TimerPage>
                           ),
                           onPressed: () => Navigator.pop(ctx),
                           icon: const Icon(Icons.check_rounded, size: 19),
-                          label: const Text(
-                            '完成',
-                            style: TextStyle(fontWeight: FontWeight.w800),
+                          label: Text(
+                            _l10n.commonDone,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                         ),
                       ),
@@ -1502,10 +1534,11 @@ class _TimerPageState extends State<TimerPage>
     );
     if (!mounted) return;
     var namesChanged = false;
-    for (final profile in _profiles) {
+    for (var i = 0; i < _profiles.length; i++) {
+      final profile = _profiles[i];
       final trimmed = profile.name.trim();
       if (trimmed == profile.name && trimmed.isNotEmpty) continue;
-      profile.name = trimmed.isEmpty ? profile.defaults.name : trimmed;
+      profile.name = trimmed.isEmpty ? _defaultProfileName(i) : trimmed;
       namesChanged = true;
     }
     if (namesChanged) {
@@ -1543,8 +1576,8 @@ class _TimerPageState extends State<TimerPage>
                 size: 17,
               ),
               const SizedBox(width: 6),
-              const Text(
-                '目前節奏',
+              Text(
+                _l10n.currentRhythmTitle,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
@@ -1559,7 +1592,9 @@ class _TimerPageState extends State<TimerPage>
                   borderRadius: BorderRadius.circular(99),
                 ),
                 child: Text(
-                  _longBreakEnabled ? '含長休 $_longMin 分' : '不含長休',
+                  _longBreakEnabled
+                      ? _l10n.withLongBreak(_longMin)
+                      : _l10n.withoutLongBreak,
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -1574,24 +1609,24 @@ class _TimerPageState extends State<TimerPage>
             children: [
               Expanded(
                 child: _settingsSummaryMetric(
-                  label: '專注',
-                  value: '$_focusMin 分',
+                  label: _l10n.modeFocus,
+                  value: _l10n.minutesCount(_focusMin),
                   color: const Color(0xFFFF7043),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _settingsSummaryMetric(
-                  label: '短休息',
-                  value: '$_shortMin 分',
+                  label: _l10n.phaseShortBreak,
+                  value: _l10n.minutesCount(_shortMin),
                   color: const Color(0xFF66BB6A),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _settingsSummaryMetric(
-                  label: '回合',
-                  value: '$_rounds 回合',
+                  label: _l10n.unitRoundsWord,
+                  value: _l10n.roundsCount(_rounds),
                   color: const Color(0xFFE8604C),
                 ),
               ),
@@ -1679,7 +1714,7 @@ class _TimerPageState extends State<TimerPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '恢復「$defaultName」初始值',
+                      _l10n.restoreProfileTileTitle(defaultName),
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w800,
@@ -1687,9 +1722,9 @@ class _TimerPageState extends State<TimerPage>
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      '名稱、時間與回合都會重設',
-                      style: TextStyle(
+                    Text(
+                      _l10n.restoreProfileTileSub,
+                      style: const TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                         color: AppInk.faint,
@@ -1740,9 +1775,10 @@ class _TimerPageState extends State<TimerPage>
     required int max,
     required int step,
     required ValueChanged<int> onChanged,
-    String unit = '分鐘',
+    String? unit,
     bool enabled = true,
   }) {
+    unit ??= _l10n.unitMinutesWord;
     final canDecrease = enabled && value > min;
     final canIncrease = enabled && value < max;
     return AnimatedOpacity(
@@ -1950,13 +1986,13 @@ class _TimerPageState extends State<TimerPage>
 
   // 環內副標：執行中報結束時刻，暫停/待機給情境短語
   String _ringSubtitle() {
-    if (_idle) return '共 $_rounds 回合';
-    if (_finished) return '這次專注完成 🎉';
-    if (!_isRunning) return '已暫停';
+    if (_idle) return _l10n.ringTotalRounds(_rounds);
+    if (_finished) return _l10n.ringFocusDone;
+    if (!_isRunning) return _l10n.ringPaused;
     return switch (_phase) {
-      _Phase.focus => '第 $_round / $_rounds 回合',
-      _Phase.shortBreak => '喘口氣',
-      _Phase.longBreak => '好好放鬆',
+      _Phase.focus => _l10n.roundOfTotal(_round, _rounds),
+      _Phase.shortBreak => _l10n.ringBreathe,
+      _Phase.longBreak => _l10n.ringRelax,
       _ => '',
     };
   }

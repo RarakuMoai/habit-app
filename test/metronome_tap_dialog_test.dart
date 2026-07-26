@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/timer/metronome_timer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
   testWidgets('TAP 開獨立測速視窗，取消不改、套用才改 BPM', (tester) async {
     SharedPreferences.setMockInitialValues({});
@@ -13,8 +15,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
+      l10nTestApp(
+        home: const Scaffold(
           body: Center(
             child: SizedBox(height: 620, width: 400, child: MetronomeTimer()),
           ),

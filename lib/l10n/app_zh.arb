@@ -715,5 +715,947 @@
     "placeholders": {
       "years": { "type": "int" }
     }
+  },
+
+  "timerPausedFocus": "專注計時已暫停",
+  "@timerPausedFocus": {
+    "description": "另一個計時工具啟動、把專注計時自動暫停時的 SnackBar 提示。"
+  },
+  "timerPausedExercise": "運動計時已暫停",
+  "@timerPausedExercise": {
+    "description": "另一個計時工具啟動、把運動計時自動暫停時的 SnackBar 提示。"
+  },
+  "timerPausedMetronome": "節拍器已暫停",
+  "@timerPausedMetronome": {
+    "description": "另一個計時工具啟動、把節拍器自動暫停時的 SnackBar 提示。"
+  },
+  "timerPausedCanResume": "{message}，可隨時切回繼續",
+  "@timerPausedCanResume": {
+    "description": "切換計時模式時的 SnackBar：message 是上面的「XX已暫停」句。",
+    "placeholders": {
+      "message": { "type": "String" }
+    }
+  },
+  "timerSettingsEntry": "設定",
+  "@timerSettingsEntry": {
+    "description": "四種計時工具右上角的設定入口小膠囊。要短。"
+  },
+
+  "toneWood": "木魚",
+  "@toneWood": {
+    "description": "節拍器音色名稱：木魚聲。"
+  },
+  "toneKick": "溫和鼓聲",
+  "@toneKick": {
+    "description": "節拍器音色名稱：溫和的鼓聲。"
+  },
+  "toneLowWood": "低木",
+  "@toneLowWood": {
+    "description": "節拍器音色名稱：低音木頭聲。"
+  },
+  "toneBell": "柔鈴",
+  "@toneBell": {
+    "description": "節拍器音色名稱：柔和鈴聲。"
+  },
+
+  "focusProfileClassic": "經典",
+  "@focusProfileClassic": {
+    "description": "專注計時預設方案名（25/5×4）。只在第一次建立或按「恢復初始值」時寫入，使用者可改名。"
+  },
+  "focusProfileDeep": "深度",
+  "@focusProfileDeep": {
+    "description": "專注計時預設方案名（50/10×3）。同 focusProfileClassic 的使用時機。"
+  },
+  "focusProfileLight": "輕量",
+  "@focusProfileLight": {
+    "description": "專注計時預設方案名（15/3×4）。同 focusProfileClassic 的使用時機。"
+  },
+  "focusProfileCustom": "自訂",
+  "@focusProfileCustom": {
+    "description": "專注計時第四格方案的預設名。同 focusProfileClassic 的使用時機。"
+  },
+
+  "modeFocus": "專注",
+  "@modeFocus": {
+    "description": "計時頁上方模式切換列：專注（番茄鐘）。要短。"
+  },
+  "modeExercise": "運動",
+  "@modeExercise": {
+    "description": "計時頁上方模式切換列：運動（間歇訓練）。要短。"
+  },
+  "modeMetronome": "節拍器",
+  "@modeMetronome": {
+    "description": "計時頁上方模式切換列：節拍器。也當運動設定裡節拍器區塊標題。"
+  },
+  "modeGame": "遊戲",
+  "@modeGame": {
+    "description": "計時頁上方模式切換列：遊戲（桌遊計時）。要短。"
+  },
+
+  "phaseFocusTime": "專注時間",
+  "@phaseFocusTime": {
+    "description": "專注計時的階段膠囊：專注段。也是今日統計的「專注時間」標籤。"
+  },
+  "phaseShortBreak": "短休息",
+  "@phaseShortBreak": {
+    "description": "專注計時的階段名：回合之間的短休息。"
+  },
+  "phaseLongBreak": "長休息",
+  "@phaseLongBreak": {
+    "description": "專注計時的階段名：結尾長休息。"
+  },
+  "phaseFinished": "完成",
+  "@phaseFinished": {
+    "description": "計時器的階段名：整段流程完成。"
+  },
+  "phaseIdle": "準備開始",
+  "@phaseIdle": {
+    "description": "專注計時的階段膠囊：還沒開始的待機狀態。"
+  },
+
+  "timerResetLabel": "重設",
+  "@timerResetLabel": {
+    "description": "計時器的次要控制鈕：停止並歸零。要短。"
+  },
+  "timerSkipLabel": "跳過",
+  "@timerSkipLabel": {
+    "description": "計時器的次要控制鈕：跳過當前階段。要短。"
+  },
+
+  "notifFocusAllDoneTitle": "🎉 完成這次專注",
+  "@notifFocusAllDoneTitle": {
+    "description": "系統通知標題：整輪專注循環完成。emoji 保留。"
+  },
+  "notifFocusAllDoneBody": "{rounds} 個專注回合完成，辛苦了！",
+  "@notifFocusAllDoneBody": {
+    "description": "系統通知內文：整輪專注循環完成。",
+    "placeholders": {
+      "rounds": { "type": "int" }
+    }
+  },
+  "notifFocusStartTitle": "🎯 開始專注",
+  "@notifFocusStartTitle": {
+    "description": "系統通知標題：下一個專注回合開始。"
+  },
+  "roundOfTotal": "第 {round} / {rounds} 回合",
+  "@roundOfTotal": {
+    "description": "第幾回合／共幾回合。專注通知內文與圓環副標共用。",
+    "placeholders": {
+      "round": { "type": "int" },
+      "rounds": { "type": "int" }
+    }
+  },
+  "notifShortBreakTitle": "☕ 休息一下",
+  "@notifShortBreakTitle": {
+    "description": "系統通知標題：進入短休息。"
+  },
+  "notifShortBreakBody": "喘口氣，等等繼續",
+  "@notifShortBreakBody": {
+    "description": "系統通知內文：進入短休息。"
+  },
+  "notifLongBreakTitle": "🛋️ 長休息",
+  "@notifLongBreakTitle": {
+    "description": "系統通知標題：進入結尾長休息。"
+  },
+  "notifLongBreakBody": "這次循環快完成了",
+  "@notifLongBreakBody": {
+    "description": "系統通知內文：進入結尾長休息。"
+  },
+  "notifStartFallback": "開始",
+  "@notifStartFallback": {
+    "description": "計時通知的保底標題（理論上不會出現）。"
+  },
+
+  "coinNoteFocus": "專注 {minutes} 分",
+  "@coinNoteFocus": {
+    "description": "足跡幣入帳備註：完成一個專注回合。寫入時就固定，歷史紀錄不隨語言改變。",
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "coinNoteExercise": "{name} 完成",
+  "@coinNoteExercise": {
+    "description": "足跡幣入帳備註：完成一次運動。name 是運動類別名（Tabata、重訓等）。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+
+  "focusSwitchNeedsReset": "請先按「重設」，再切換專注方案",
+  "@focusSwitchNeedsReset": {
+    "description": "SnackBar：計時進行中想切換專注方案時的擋下提示。「重設」要與 timerResetLabel 一致。"
+  },
+  "focusSettingsNeedsReset": "請先按「重設」，再調整專注設定",
+  "@focusSettingsNeedsReset": {
+    "description": "SnackBar：計時進行中想開專注設定時的擋下提示。"
+  },
+  "exerciseSwitchNeedsReset": "請先按「重設」歸零，才能切換模式喔",
+  "@exerciseSwitchNeedsReset": {
+    "description": "SnackBar：運動進行中想切換運動類別時的擋下提示，語氣輕鬆。"
+  },
+  "exerciseSettingsNeedsReset": "請先按「重設」，再調整運動設定",
+  "@exerciseSettingsNeedsReset": {
+    "description": "SnackBar：運動進行中想開運動設定時的擋下提示。"
+  },
+
+  "statTodayDone": "今日完成",
+  "@statTodayDone": {
+    "description": "專注今日統計列的標籤，後面接「N 回合」。"
+  },
+  "roundsCount": "{count} 回合",
+  "@roundsCount": {
+    "description": "回合數量顯示（統計列、摘要卡共用）。",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "minutesCount": "{count} 分",
+  "@minutesCount": {
+    "description": "分鐘數量顯示（統計列、摘要卡共用）。",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "focusRunningUntil": "專注中 · {time} 結束",
+  "@focusRunningUntil": {
+    "description": "專注計時狀態列：進行中，顯示預計結束時刻（HH:MM）。",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "breakRunningUntil": "休息中 · {time} 結束",
+  "@breakRunningUntil": {
+    "description": "專注計時狀態列：休息中，顯示預計結束時刻。",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "focusSessionDoneLine": "這次專注完成了 🎉",
+  "@focusSessionDoneLine": {
+    "description": "專注計時狀態列：整輪完成。emoji 保留。"
+  },
+  "focusIdleFocusPart": "專注 {min} 分 ×{rounds}",
+  "@focusIdleFocusPart": {
+    "description": "待機狀態列的節奏摘要片段：專注時長×回合。片段之間用「 · 」串接。",
+    "placeholders": {
+      "min": { "type": "int" },
+      "rounds": { "type": "int" }
+    }
+  },
+  "focusIdleBreakPart": "休息 {min} 分",
+  "@focusIdleBreakPart": {
+    "description": "待機狀態列的節奏摘要片段：回合間休息。",
+    "placeholders": {
+      "min": { "type": "int" }
+    }
+  },
+  "focusIdleLongPart": "結尾長休 {min} 分",
+  "@focusIdleLongPart": {
+    "description": "待機狀態列的節奏摘要片段：結尾長休息。",
+    "placeholders": {
+      "min": { "type": "int" }
+    }
+  },
+  "pausedPressStart": "已暫停 · 按開始繼續",
+  "@pausedPressStart": {
+    "description": "專注計時狀態列：暫停中。"
+  },
+
+  "focusSettingsTitle": "專注計時設定",
+  "@focusSettingsTitle": {
+    "description": "專注設定底板的標題。"
+  },
+  "focusSettingsSubtitle": "安排你的專注節奏",
+  "@focusSettingsSubtitle": {
+    "description": "專注設定底板的副標。"
+  },
+  "sectionFocusProfiles": "專注方案",
+  "@sectionFocusProfiles": {
+    "description": "專注設定底板的區塊標題：四個快捷方案。"
+  },
+  "sectionProfileName": "方案名稱",
+  "@sectionProfileName": {
+    "description": "專注設定底板的區塊標題：改方案名字。"
+  },
+  "sectionTimeAndRounds": "時間與回合",
+  "@sectionTimeAndRounds": {
+    "description": "專注設定底板的區塊標題：時長與回合數。"
+  },
+  "sectionEndLongBreak": "結尾長休息",
+  "@sectionEndLongBreak": {
+    "description": "專注設定底板的區塊標題與開關列標題：結尾長休息。"
+  },
+  "focusStepperSub": "進入安靜工作段",
+  "@focusStepperSub": {
+    "description": "專注時長調整卡的副標。"
+  },
+  "shortBreakStepperSub": "專注回合之間喘口氣",
+  "@shortBreakStepperSub": {
+    "description": "短休息時長調整卡的副標。"
+  },
+  "roundsStepperLabel": "回合數",
+  "@roundsStepperLabel": {
+    "description": "回合數調整卡的標籤。"
+  },
+  "roundsStepperSub": "這次要完成幾個專注回合",
+  "@roundsStepperSub": {
+    "description": "回合數調整卡的副標。"
+  },
+  "longBreakSwitchSub": "所有專注回合後加一段放鬆",
+  "@longBreakSwitchSub": {
+    "description": "結尾長休息開關的副標。"
+  },
+  "longBreakStepperSub": "完成這次循環後放鬆",
+  "@longBreakStepperSub": {
+    "description": "長休息時長調整卡的副標。"
+  },
+  "unitMinutesWord": "分鐘",
+  "@unitMinutesWord": {
+    "description": "步進卡的單位字：分鐘。"
+  },
+  "unitRoundsWord": "回合",
+  "@unitRoundsWord": {
+    "description": "步進卡與摘要卡的單位字：回合。"
+  },
+  "unitSecondsWord": "秒",
+  "@unitSecondsWord": {
+    "description": "步進卡的單位字：秒。"
+  },
+  "unitSetsWord": "組",
+  "@unitSetsWord": {
+    "description": "步進卡的單位字：運動的組。"
+  },
+  "unitMinuteShort": "分",
+  "@unitMinuteShort": {
+    "description": "步進卡的單位字：分（短版）。"
+  },
+  "restoreProfileTitle": "恢復「{name}」初始值？",
+  "@restoreProfileTitle": {
+    "description": "恢復專注方案初始值的確認框標題。name 是方案的預設名。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "restoreProfileMessage": "會把「{name}」的名稱、專注與休息時間、回合數全部恢復成初始設定。",
+  "@restoreProfileMessage": {
+    "description": "恢復專注方案初始值的確認框內文。name 是方案目前顯示的名字。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "restoreProfileConfirm": "確認恢復",
+  "@restoreProfileConfirm": {
+    "description": "恢復初始值確認框的主按鈕（紅色危險動作）。"
+  },
+  "restoreProfileTileTitle": "恢復「{name}」初始值",
+  "@restoreProfileTileTitle": {
+    "description": "專注設定底板底部的恢復入口列標題。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "restoreProfileTileSub": "名稱、時間與回合都會重設",
+  "@restoreProfileTileSub": {
+    "description": "恢復入口列的副標。"
+  },
+  "currentRhythmTitle": "目前節奏",
+  "@currentRhythmTitle": {
+    "description": "專注設定底板摘要卡的標題。"
+  },
+  "withLongBreak": "含長休 {min} 分",
+  "@withLongBreak": {
+    "description": "摘要卡右上膠囊：有開結尾長休息。",
+    "placeholders": {
+      "min": { "type": "int" }
+    }
+  },
+  "withoutLongBreak": "不含長休",
+  "@withoutLongBreak": {
+    "description": "摘要卡右上膠囊：沒開結尾長休息。"
+  },
+  "ringTotalRounds": "共 {rounds} 回合",
+  "@ringTotalRounds": {
+    "description": "專注圓環副標：待機時顯示總回合數。",
+    "placeholders": {
+      "rounds": { "type": "int" }
+    }
+  },
+  "ringFocusDone": "這次專注完成 🎉",
+  "@ringFocusDone": {
+    "description": "專注圓環副標：整輪完成。"
+  },
+  "ringPaused": "已暫停",
+  "@ringPaused": {
+    "description": "計時圓環副標：暫停中。"
+  },
+  "ringBreathe": "喘口氣",
+  "@ringBreathe": {
+    "description": "專注圓環副標：短休息中，語氣輕鬆。"
+  },
+  "ringRelax": "好好放鬆",
+  "@ringRelax": {
+    "description": "專注圓環副標：長休息中。"
+  },
+
+  "exKindGym": "重訓",
+  "@exKindGym": {
+    "description": "運動類別名：重量訓練。Tabata／HIIT／EMOM 各語言保留原文。"
+  },
+  "exKindJog": "超慢跑",
+  "@exKindJog": {
+    "description": "運動類別名：超慢跑（slow jogging）。"
+  },
+  "exDescTabata": "20 秒衝刺 / 10 秒喘息",
+  "@exDescTabata": {
+    "description": "Tabata 的一句話說明。"
+  },
+  "exDescHiit": "高強度有氧間歇",
+  "@exDescHiit": {
+    "description": "HIIT 的一句話說明。"
+  },
+  "exDescEmom": "每分鐘一組循環",
+  "@exDescEmom": {
+    "description": "EMOM 的一句話說明。"
+  },
+  "exDescGym": "組數與組間休息",
+  "@exDescGym": {
+    "description": "重訓的一句話說明。"
+  },
+  "exDescJog": "180 BPM 輕鬆節拍",
+  "@exDescJog": {
+    "description": "超慢跑的一句話說明。"
+  },
+  "clearTodayExerciseTitle": "清除今日運動成果？",
+  "@clearTodayExerciseTitle": {
+    "description": "清除今日運動統計的確認框標題。"
+  },
+  "clearTodayExerciseBody": "會把今天的運動次數與累計分鐘歸零。",
+  "@clearTodayExerciseBody": {
+    "description": "清除今日運動統計的確認框內文。"
+  },
+  "clearAction": "清除",
+  "@clearAction": {
+    "description": "確認框的「清除」主按鈕。"
+  },
+  "clearTodayExerciseTooltip": "清除今日運動統計",
+  "@clearTodayExerciseTooltip": {
+    "description": "運動統計列垃圾桶圖示的 tooltip。"
+  },
+  "notifTrainingDoneTitle": "🎉 訓練完成",
+  "@notifTrainingDoneTitle": {
+    "description": "系統通知標題：整段訓練完成。"
+  },
+  "notifTrainingDoneBody": "辛苦了，做得好！",
+  "@notifTrainingDoneBody": {
+    "description": "系統通知內文：整段訓練完成。"
+  },
+  "notifJogKeepPaceTitle": "🏃 保持節奏",
+  "@notifJogKeepPaceTitle": {
+    "description": "系統通知標題：超慢跑主段開始。"
+  },
+  "notifJogKeepPaceBody": "{bpm} BPM，輕鬆跑起來",
+  "@notifJogKeepPaceBody": {
+    "description": "系統通知內文：超慢跑主段開始。",
+    "placeholders": {
+      "bpm": { "type": "int" }
+    }
+  },
+  "notifWorkStartTitle": "💪 開始運動",
+  "@notifWorkStartTitle": {
+    "description": "系統通知標題：下一組運動開始。"
+  },
+  "setOfTotal": "第 {round} / {rounds} 組",
+  "@setOfTotal": {
+    "description": "第幾組／共幾組。運動通知內文與圓環副標共用。",
+    "placeholders": {
+      "round": { "type": "int" },
+      "rounds": { "type": "int" }
+    }
+  },
+  "notifRestTitle": "😮‍💨 休息一下",
+  "@notifRestTitle": {
+    "description": "系統通知標題：進入組間休息。"
+  },
+  "notifRestBody": "深呼吸，準備下一組",
+  "@notifRestBody": {
+    "description": "系統通知內文：進入組間休息。"
+  },
+  "notifWarmupTitle": "🤸 開始暖身",
+  "@notifWarmupTitle": {
+    "description": "系統通知標題：進入暖身。"
+  },
+  "notifWarmupBody": "先動一動身體",
+  "@notifWarmupBody": {
+    "description": "系統通知內文：進入暖身。"
+  },
+  "notifCooldownTitle": "🧘 收操緩和",
+  "@notifCooldownTitle": {
+    "description": "系統通知標題：進入收操。"
+  },
+  "notifCooldownBody": "放鬆伸展，慢慢收尾",
+  "@notifCooldownBody": {
+    "description": "系統通知內文：進入收操。"
+  },
+  "exPhasePrep": "準備",
+  "@exPhasePrep": {
+    "description": "運動階段名：開始前倒數準備。"
+  },
+  "exPhaseWarmup": "暖身",
+  "@exPhaseWarmup": {
+    "description": "運動階段名：暖身。也是設定裡暖身開關的標籤。"
+  },
+  "exPhaseWork": "運動",
+  "@exPhaseWork": {
+    "description": "運動階段名：主運動段。"
+  },
+  "exPhaseKeepPace": "保持節奏",
+  "@exPhaseKeepPace": {
+    "description": "超慢跑主段的階段膠囊文字。"
+  },
+  "exPhaseRest": "休息",
+  "@exPhaseRest": {
+    "description": "運動階段名：組間休息。"
+  },
+  "exPhaseCooldown": "收操",
+  "@exPhaseCooldown": {
+    "description": "運動階段名：收操緩和。也是設定裡收操開關的標籤。"
+  },
+  "exRingJogIdle": "{bpm} BPM · {min} 分",
+  "@exRingJogIdle": {
+    "description": "運動圓環副標：超慢跑待機時的設定摘要。",
+    "placeholders": {
+      "bpm": { "type": "int" },
+      "min": { "type": "int" }
+    }
+  },
+  "exRingLoop": "{seconds}s × {rounds} 組",
+  "@exRingLoop": {
+    "description": "運動圓環副標：EMOM 型（無休息）待機摘要。s 是秒的英文縮寫，保留。",
+    "placeholders": {
+      "seconds": { "type": "int" },
+      "rounds": { "type": "int" }
+    }
+  },
+  "exRingWorkRest": "{work}s / {rest}s × {rounds}",
+  "@exRingWorkRest": {
+    "description": "運動圓環副標：一般間歇待機摘要（運動秒/休息秒×組數）。",
+    "placeholders": {
+      "work": { "type": "int" },
+      "rest": { "type": "int" },
+      "rounds": { "type": "int" }
+    }
+  },
+  "exRingFinished": "今天又動了一次",
+  "@exRingFinished": {
+    "description": "運動圓環副標：訓練完成，語氣鼓勵。"
+  },
+  "exRingJogRunning": "{bpm} BPM · 小步頻",
+  "@exRingJogRunning": {
+    "description": "運動圓環副標：超慢跑進行中。",
+    "placeholders": {
+      "bpm": { "type": "int" }
+    }
+  },
+  "exStatusRunning": "{phase}中 · {time} 結束",
+  "@exStatusRunning": {
+    "description": "運動狀態列：進行中。phase 是階段名（運動／休息等），中文直接接「中」。英文請自然改寫。",
+    "placeholders": {
+      "phase": { "type": "String" },
+      "time": { "type": "String" }
+    }
+  },
+  "exStatusFinished": "完成 {name}，今天又多動了一段",
+  "@exStatusFinished": {
+    "description": "運動狀態列：訓練完成。name 是運動類別名。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "exStatusJogIdle": "超慢跑 · {min} 分 · 暖身 {warmup} 分",
+  "@exStatusJogIdle": {
+    "description": "運動狀態列：超慢跑待機摘要。",
+    "placeholders": {
+      "min": { "type": "int" },
+      "warmup": { "type": "int" }
+    }
+  },
+  "exStatusRestPart": "休息 {seconds} 秒",
+  "@exStatusRestPart": {
+    "description": "運動狀態列待機摘要的休息片段。",
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  },
+  "exStatusLoopPart": "循環",
+  "@exStatusLoopPart": {
+    "description": "運動狀態列待機摘要：EMOM 型顯示「循環」代替休息秒數。"
+  },
+  "exStatusIdleLine": "{name} · 運動 {seconds} 秒 · {restPart}",
+  "@exStatusIdleLine": {
+    "description": "運動狀態列：一般間歇待機摘要。restPart 是 exStatusRestPart 或 exStatusLoopPart。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "seconds": { "type": "int" },
+      "restPart": { "type": "String" }
+    }
+  },
+  "statTodayExercise": "今日運動",
+  "@statTodayExercise": {
+    "description": "運動今日統計列的標籤，後面接「×N」次數。"
+  },
+  "statAccumulated": "累計",
+  "@statAccumulated": {
+    "description": "運動今日統計列的標籤，後面接「N 分」。"
+  },
+  "exSettingsTitle": "{name} 設定",
+  "@exSettingsTitle": {
+    "description": "運動設定底板的標題。name 是運動類別名。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "sectionExKind": "運動類別",
+  "@sectionExKind": {
+    "description": "運動設定底板的區塊標題：五種運動類別。"
+  },
+  "sectionTimeLength": "時間長度",
+  "@sectionTimeLength": {
+    "description": "運動設定底板的區塊標題：各段時長。"
+  },
+  "jogTimeLabel": "慢跑時間",
+  "@jogTimeLabel": {
+    "description": "超慢跑時長調整卡的標籤。"
+  },
+  "jogTimeSub": "這次跑多久",
+  "@jogTimeSub": {
+    "description": "超慢跑時長調整卡的副標。"
+  },
+  "workTimeLabel": "運動時間",
+  "@workTimeLabel": {
+    "description": "運動段時長調整卡的標籤。"
+  },
+  "workTimeSub": "每組專注多久",
+  "@workTimeSub": {
+    "description": "運動段時長調整卡的副標。"
+  },
+  "restTimeLabel": "休息時間",
+  "@restTimeLabel": {
+    "description": "組間休息時長調整卡的標籤。"
+  },
+  "restTimeSub": "每組之間喘口氣",
+  "@restTimeSub": {
+    "description": "組間休息時長調整卡的副標。"
+  },
+  "setsLabel": "組數",
+  "@setsLabel": {
+    "description": "組數調整卡的標籤。"
+  },
+  "setsSub": "一共做幾組",
+  "@setsSub": {
+    "description": "組數調整卡的副標。"
+  },
+  "prepLabel": "開始前準備",
+  "@prepLabel": {
+    "description": "開始前倒數調整卡的標籤。"
+  },
+  "prepSub": "倒數幾秒再開始",
+  "@prepSub": {
+    "description": "開始前倒數調整卡的副標。"
+  },
+  "sectionWarmCool": "暖身 / 收操",
+  "@sectionWarmCool": {
+    "description": "運動設定底板的區塊標題：暖身與收操。"
+  },
+  "warmupSwitchSub": "開始前先動一動",
+  "@warmupSwitchSub": {
+    "description": "暖身開關的副標。"
+  },
+  "warmupTimeLabel": "暖身時間",
+  "@warmupTimeLabel": {
+    "description": "暖身時長調整卡的標籤。"
+  },
+  "warmupTimeSub": "熱身倒數",
+  "@warmupTimeSub": {
+    "description": "暖身時長調整卡的副標。"
+  },
+  "cooldownSwitchSub": "結束後緩和伸展",
+  "@cooldownSwitchSub": {
+    "description": "收操開關的副標。"
+  },
+  "cooldownTimeLabel": "收操時間",
+  "@cooldownTimeLabel": {
+    "description": "收操時長調整卡的標籤。"
+  },
+  "cooldownTimeSub": "緩和倒數",
+  "@cooldownTimeSub": {
+    "description": "收操時長調整卡的副標。"
+  },
+  "bpmLabel": "節拍速度",
+  "@bpmLabel": {
+    "description": "BPM 調整卡的標籤。"
+  },
+  "bpmSub": "每分鐘拍數",
+  "@bpmSub": {
+    "description": "BPM 調整卡的副標。"
+  },
+  "metronomeSoundLabel": "節拍器音效",
+  "@metronomeSoundLabel": {
+    "description": "超慢跑節拍器音效開關的標籤。"
+  },
+  "metronomeSoundSub": "跟著節奏出聲",
+  "@metronomeSoundSub": {
+    "description": "超慢跑節拍器音效開關的副標。"
+  },
+  "hapticBeatLabel": "觸覺節拍",
+  "@hapticBeatLabel": {
+    "description": "超慢跑觸覺節拍開關的標籤。"
+  },
+  "hapticExtraBatteryNote": "靜音可用，會略增加耗電",
+  "@hapticExtraBatteryNote": {
+    "description": "觸覺節拍／觸覺跟拍開關的副標：提醒耗電（運動與節拍器共用）。"
+  },
+  "restoreDefaultsAction": "還原預設",
+  "@restoreDefaultsAction": {
+    "description": "運動設定底板底部的還原預設文字鈕。"
+  },
+  "exSummaryJogBig": "{min} 分 · {bpm} BPM",
+  "@exSummaryJogBig": {
+    "description": "運動設定摘要卡大字：超慢跑。",
+    "placeholders": {
+      "min": { "type": "int" },
+      "bpm": { "type": "int" }
+    }
+  },
+  "exSummaryLoopBig": "{seconds} 秒 ×{rounds}",
+  "@exSummaryLoopBig": {
+    "description": "運動設定摘要卡大字：EMOM 型。",
+    "placeholders": {
+      "seconds": { "type": "int" },
+      "rounds": { "type": "int" }
+    }
+  },
+  "exSummaryWorkRestBig": "{work} / {rest} 秒 ×{rounds}",
+  "@exSummaryWorkRestBig": {
+    "description": "運動設定摘要卡大字：一般間歇。",
+    "placeholders": {
+      "work": { "type": "int" },
+      "rest": { "type": "int" },
+      "rounds": { "type": "int" }
+    }
+  },
+  "exSummarySmall": "暖身 {warmup} 秒 · 收操 {cooldown} 秒",
+  "@exSummarySmall": {
+    "description": "運動設定摘要卡小字：暖身與收操秒數（關閉時帶 0）。",
+    "placeholders": {
+      "warmup": { "type": "int" },
+      "cooldown": { "type": "int" }
+    }
+  },
+
+  "noteQuarterFull": "四分音符",
+  "@noteQuarterFull": {
+    "description": "節拍器音符名（全稱）：四分音符。"
+  },
+  "noteQuarterShort": "四分",
+  "@noteQuarterShort": {
+    "description": "節拍器音符名（短版）：四分。"
+  },
+  "noteEighthFull": "八分音符",
+  "@noteEighthFull": {
+    "description": "節拍器音符名（全稱）：八分音符。"
+  },
+  "noteEighthShort": "八分",
+  "@noteEighthShort": {
+    "description": "節拍器音符名（短版）：八分。"
+  },
+  "noteDottedQuarter": "附點四分",
+  "@noteDottedQuarter": {
+    "description": "節拍器音符名：附點四分音符（全稱與短版共用）。"
+  },
+  "noteTriplet": "三連",
+  "@noteTriplet": {
+    "description": "節拍器細分名：三連音。"
+  },
+  "noteSixteenth": "十六分",
+  "@noteSixteenth": {
+    "description": "節拍器音符名：十六分。"
+  },
+  "noteThirtySecond": "三十二分",
+  "@noteThirtySecond": {
+    "description": "節拍器音符名：三十二分。"
+  },
+  "subHintPerBeatOne": "每拍一下",
+  "@subHintPerBeatOne": {
+    "description": "細分說明：每拍打一下。"
+  },
+  "subHintPerBeat2": "每拍 2 下",
+  "@subHintPerBeat2": {
+    "description": "細分說明：每拍打 2 下。"
+  },
+  "subHintPerBeat3": "每拍 3 下",
+  "@subHintPerBeat3": {
+    "description": "細分說明：每拍打 3 下。"
+  },
+  "subHintPerBeat4": "每拍 4 下",
+  "@subHintPerBeat4": {
+    "description": "細分說明：每拍打 4 下。"
+  },
+  "subHintPerBigBeatOne": "每大拍一下",
+  "@subHintPerBigBeatOne": {
+    "description": "細分說明：複合拍每大拍打一下。"
+  },
+  "subHintPerBigBeat3": "每大拍 3 下",
+  "@subHintPerBigBeat3": {
+    "description": "細分說明：複合拍每大拍打 3 下。"
+  },
+  "subHintPerBigBeat6": "每大拍 6 下",
+  "@subHintPerBigBeat6": {
+    "description": "細分說明：複合拍每大拍打 6 下。"
+  },
+  "sigHintEveryBeat": "每拍都打點",
+  "@sigHintEveryBeat": {
+    "description": "拍號 1/4 的說明。"
+  },
+  "sigHintMarch": "進行曲、快歌",
+  "@sigHintMarch": {
+    "description": "拍號 2/4 的說明。"
+  },
+  "sigHintWaltz": "圓舞曲感",
+  "@sigHintWaltz": {
+    "description": "拍號 3/4 的說明。"
+  },
+  "sigHintCommon": "最常見",
+  "@sigHintCommon": {
+    "description": "拍號 4/4 的說明。"
+  },
+  "sigHintOneTriplet": "一組三連感",
+  "@sigHintOneTriplet": {
+    "description": "拍號 3/8 的說明。"
+  },
+  "sigHintTwoTriplets": "兩組三連感",
+  "@sigHintTwoTriplets": {
+    "description": "拍號 6/8 的說明。"
+  },
+  "sigHintThreeTriplets": "三組三連感",
+  "@sigHintThreeTriplets": {
+    "description": "拍號 9/8 的說明。"
+  },
+  "sigHintFourTriplets": "四組三連感",
+  "@sigHintFourTriplets": {
+    "description": "拍號 12/8 的說明。"
+  },
+  "metroPlaying": "節拍播放中",
+  "@metroPlaying": {
+    "description": "節拍器狀態膠囊：播放中。"
+  },
+  "metroReady": "準備節拍",
+  "@metroReady": {
+    "description": "節拍器狀態膠囊：待機。"
+  },
+  "metroSlower": "減速",
+  "@metroSlower": {
+    "description": "節拍器控制鈕：BPM −1。要短。"
+  },
+  "metroFaster": "加速",
+  "@metroFaster": {
+    "description": "節拍器控制鈕：BPM ＋1。要短。"
+  },
+  "tempoNoteEquals": "{label} = {bpm}",
+  "@tempoNoteEquals": {
+    "description": "BPM 拍值摘要，例如「四分音符 = 120」。",
+    "placeholders": {
+      "label": { "type": "String" },
+      "bpm": { "type": "int" }
+    }
+  },
+  "tapTempoTitle": "TAP 抓節奏",
+  "@tapTempoTitle": {
+    "description": "TAP 測速對話框的標題。TAP 保留英文。"
+  },
+  "tapTempoInstructions": "照你想要的速度連點下方大圓，點兩下以上就會顯示偵測到的速度；按「套用」才會更改 BPM。",
+  "@tapTempoInstructions": {
+    "description": "TAP 測速對話框的操作說明。"
+  },
+  "tapPadIdle": "點我抓拍",
+  "@tapPadIdle": {
+    "description": "TAP 大圓還沒點過時的文字。"
+  },
+  "tapAtLeastTwo": "至少連點 2 下",
+  "@tapAtLeastTwo": {
+    "description": "TAP 對話框底部提示：還沒點滿兩下。"
+  },
+  "tapKeepTapping": "繼續點會越抓越準",
+  "@tapKeepTapping": {
+    "description": "TAP 對話框底部提示：已有偵測值時鼓勵繼續點。"
+  },
+  "tapApply": "套用",
+  "@tapApply": {
+    "description": "TAP 對話框套用鈕（未偵測到速度時的停用態文字）。"
+  },
+  "tapApplyBpm": "套用 {bpm} BPM",
+  "@tapApplyBpm": {
+    "description": "TAP 對話框套用鈕：帶上偵測到的 BPM。",
+    "placeholders": {
+      "bpm": { "type": "int" }
+    }
+  },
+  "signatureLabel": "拍號",
+  "@signatureLabel": {
+    "description": "節拍器主畫面拍號鈕的小標與設定裡的小節標籤。"
+  },
+  "subdivisionLabel": "細分",
+  "@subdivisionLabel": {
+    "description": "節拍器主畫面細分鈕的小標。"
+  },
+  "metroSettingsTitle": "節拍器設定",
+  "@metroSettingsTitle": {
+    "description": "節拍器設定底板的標題。"
+  },
+  "metroSettingsSubtitle": "音色、音量與跟拍方式",
+  "@metroSettingsSubtitle": {
+    "description": "節拍器設定底板的副標。"
+  },
+  "sectionToneTap": "音色（點一下試聽）",
+  "@sectionToneTap": {
+    "description": "節拍器設定的音色區塊標題，括號提示點擊會試聽。"
+  },
+  "sectionVolume": "音量",
+  "@sectionVolume": {
+    "description": "節拍器設定的音量區塊標題。"
+  },
+  "sectionFollowBeat": "跟拍",
+  "@sectionFollowBeat": {
+    "description": "節拍器設定的跟拍（重音／觸覺）區塊標題。"
+  },
+  "accentFirstLabel": "第一拍重音",
+  "@accentFirstLabel": {
+    "description": "第一拍重音開關的標籤。"
+  },
+  "accentFirstSubCompound": "小節開頭加重，複合拍補分組重音",
+  "@accentFirstSubCompound": {
+    "description": "第一拍重音開關副標（複合拍時的版本）。"
+  },
+  "accentFirstSub": "小節開頭加重，方便抓拍",
+  "@accentFirstSub": {
+    "description": "第一拍重音開關副標（一般拍）。"
+  },
+  "hapticFollowLabel": "觸覺跟拍",
+  "@hapticFollowLabel": {
+    "description": "節拍器觸覺跟拍開關的標籤。"
+  },
+  "sectionSignatureSub": "拍號與細分",
+  "@sectionSignatureSub": {
+    "description": "節拍器設定的拍號與細分區塊標題。"
+  },
+  "miniBpmNote": "BPM 拍值：{summary}",
+  "@miniBpmNote": {
+    "description": "節拍器設定裡 BPM 拍值小標。summary 是 tempoNoteEquals 的結果。",
+    "placeholders": {
+      "summary": { "type": "String" }
+    }
+  },
+  "miniSubdivisionNote": "細分拍（依目前 BPM 拍值）",
+  "@miniSubdivisionNote": {
+    "description": "節拍器設定裡細分拍的小標。"
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../l10n/app_localizations.dart';
 import 'usage_stats.dart';
 
 // 專注 / 運動兩個計時器互斥：同一時間只允許一個「實際倒數中」。
@@ -20,10 +21,10 @@ enum ActiveTimer { focus, exercise, metronome }
 
 extension ActiveTimerLabel on ActiveTimer {
   /// 被搶鎖暫停時給使用者看的提示字。
-  String get pausedMessage => switch (this) {
-    ActiveTimer.focus => '專注計時已暫停',
-    ActiveTimer.exercise => '運動計時已暫停',
-    ActiveTimer.metronome => '節拍器已暫停',
+  String pausedMessage(AppLocalizations l10n) => switch (this) {
+    ActiveTimer.focus => l10n.timerPausedFocus,
+    ActiveTimer.exercise => l10n.timerPausedExercise,
+    ActiveTimer.metronome => l10n.timerPausedMetronome,
   };
 }
 

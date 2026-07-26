@@ -7,23 +7,31 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:just_audio/just_audio.dart';
 
+import '../l10n/app_localizations.dart';
 import 'app_audio_session.dart';
 
 enum MetronomeTone {
   // gain：把各音色的峰值正規化到相近響度（原檔 kick/bell 峰值偏低，聽起來小聲）。
   // 量過原始波形峰值後反推：目標峰值 ~0.85 滿格。
-  wood('wood', '木魚', 'assets/sounds/metronome_wood.wav', 1.05),
+  wood('wood', 'assets/sounds/metronome_wood.wav', 1.05),
   // kick 峰值正規化後已近滿格，要再放大一倍只能拉高 gain；超出滿格的部分由
   // _applyGain 的 soft-clip 平滑壓住（不硬裁切爆音），RMS 上去＝聽起來變大聲。
-  kick('kick', '溫和鼓聲', 'assets/sounds/metronome_kick.wav', 3.6),
-  lowWood('low_wood', '低木', 'assets/sounds/metronome_lowwood.wav', 1.25),
-  bell('bell', '柔鈴', 'assets/sounds/metronome_bell.wav', 2.0);
+  kick('kick', 'assets/sounds/metronome_kick.wav', 3.6),
+  lowWood('low_wood', 'assets/sounds/metronome_lowwood.wav', 1.25),
+  bell('bell', 'assets/sounds/metronome_bell.wav', 2.0);
 
-  const MetronomeTone(this.id, this.label, this.assetPath, this.gain);
+  const MetronomeTone(this.id, this.assetPath, this.gain);
   final String id;
-  final String label;
   final String assetPath;
   final double gain;
+
+  /// 顯示名稱（i18n）。
+  String labelOf(AppLocalizations l10n) => switch (this) {
+    MetronomeTone.wood => l10n.toneWood,
+    MetronomeTone.kick => l10n.toneKick,
+    MetronomeTone.lowWood => l10n.toneLowWood,
+    MetronomeTone.bell => l10n.toneBell,
+  };
 
   static MetronomeTone fromId(String? id) => MetronomeTone.values.firstWhere(
     (tone) => tone.id == id,

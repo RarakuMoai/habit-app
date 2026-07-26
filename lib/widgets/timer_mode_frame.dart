@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
 import 'hold_repeat_button.dart';
 
@@ -515,9 +516,9 @@ class TimerSettingsAction extends StatelessWidget {
               children: [
                 Icon(Icons.tune_rounded, size: 16, color: color),
                 const SizedBox(width: 5),
-                const Text(
-                  '設定',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).timerSettingsEntry,
+                  style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     color: AppInk.strong,
