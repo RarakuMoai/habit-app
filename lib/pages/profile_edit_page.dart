@@ -104,7 +104,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     setState(() {
       _unit = unit;
       _nicknameCtrl.text = prefs.getString(PrefsKeys.userNickname) ?? '';
-      _mascotCtrl.text = prefs.getString(PrefsKeys.mascotName) ?? '兔咪';
+      _mascotCtrl.text =
+          prefs.getString(PrefsKeys.mascotName) ?? MascotName.fallback;
       _gender = prefs.getString(PrefsKeys.userGender) ?? '';
       _activityLevel = prefs.getString(PrefsKeys.userActivityLevel) ?? '';
       if (h != null) {
