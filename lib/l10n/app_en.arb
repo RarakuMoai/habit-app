@@ -1128,5 +1128,21 @@
   "dvUndoShift": "Undo shift",
   "dvShift2Grace": "Shift 2 days → grace",
   "dvShift3Break": "Shift 3 days → break",
-  "dvRestoreOverrides": "Restore scene/menu overrides"
+  "dvRestoreOverrides": "Restore scene/menu overrides",
+
+  "commonMove": "Move",
+  "habitNameMinutes": "{name} {minutes} min",
+  "hcHabitSemantics": "Habit: {name}{state}",
+  "hcStateDone": " — done",
+  "hcStateNotDone": " — not done",
+  "hcWeeklySemantics": "Weekly habit: {name}, {count} of {target} this week{state}",
+  "hcStateReached": " — target met",
+  "hcLinkedWeight": "Linked to Weight",
+  "hcLinkedWater": "Linked to Water",
+  "hpNicknameFallback": "you",
+  "hpCoinNoteAllDone": "All done today",
+  "hpRenameTitle": "Rename",
+  "hpEmptyTitle": "No habits yet",
+  "hpEmptySub": "Tap \"Add habit\" above\nand start with one small thing",
+  "hsPickOrTypeHome": "Type or pick a habit"
 }

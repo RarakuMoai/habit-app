@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/weight_records.dart';
 import '../../widgets/habit_ui.dart';
@@ -55,6 +56,8 @@ class HabitCard extends StatefulWidget {
 }
 
 class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   late AnimationController _ctrl;
   late Animation<double> _scale;
   // 勾勾描繪動畫：done 轉 true 時從 0 畫到 1
@@ -196,7 +199,10 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
       child: Semantics(
         button: true,
         toggled: done,
-        label: '習慣：$name${done ? '，已完成' : '，未完成'}',
+        label: l10n.hcHabitSemantics(
+          name,
+          done ? l10n.hcStateDone : l10n.hcStateNotDone,
+        ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
@@ -358,8 +364,8 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                               const SizedBox(width: 3),
                                               Text(
                                                 isWeightHabitName(name)
-                                                    ? '連動體重頁面'
-                                                    : '連動喝水頁面',
+                                                    ? l10n.hcLinkedWeight
+                                                    : l10n.hcLinkedWater,
                                                 style: TextStyle(
                                                   fontSize: 11,
                                                   color: linkedAccent,
@@ -375,7 +381,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                       size: 20,
                                       color: AppInk.iconFaint,
                                     ),
-                                    itemBuilder: (_) => _habitMenuItems(),
+                                    itemBuilder: (_) => _habitMenuItems(l10n),
                                     onSelected: (v) {
                                       switch (v) {
                                         case 'move':
@@ -415,9 +421,12 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
       // VoiceOver：念出名稱與本週進度（點擊 = 累加一次）
       child: Semantics(
         button: true,
-        label:
-            '每週習慣：$name，本週 ${widget.weeklyCount} / ${widget.weeklyTarget} 次'
-            '${done ? '，已達標' : ''}',
+        label: l10n.hcWeeklySemantics(
+          name,
+          widget.weeklyCount,
+          widget.weeklyTarget,
+          done ? l10n.hcStateReached : '',
+        ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
@@ -586,7 +595,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                               size: 20,
                               color: AppInk.iconFaint,
                             ),
-                            itemBuilder: (_) => _habitMenuItems(),
+                            itemBuilder: (_) => _habitMenuItems(l10n),
                             onSelected: (v) {
                               switch (v) {
                                 case 'move':
@@ -647,24 +656,24 @@ class _HoldFillPainter extends CustomPainter {
 
 // 移動/編輯/刪除選單項目（每日/每週卡共用）：icon + 文字。
 // 「移動」是讓使用者發現拖曳排序功能的入口（長按之外的明示路徑）。
-List<PopupMenuItem<String>> _habitMenuItems() => [
-  const PopupMenuItem(
+List<PopupMenuItem<String>> _habitMenuItems(AppLocalizations l10n) => [
+  PopupMenuItem(
     value: 'move',
     child: Row(
       children: [
-        Icon(Icons.open_with_rounded, size: 18, color: AppInk.soft),
-        SizedBox(width: 10),
-        Text('移動'),
+        const Icon(Icons.open_with_rounded, size: 18, color: AppInk.soft),
+        const SizedBox(width: 10),
+        Text(l10n.commonMove),
       ],
     ),
   ),
-  const PopupMenuItem(
+  PopupMenuItem(
     value: 'edit',
     child: Row(
       children: [
-        Icon(Icons.edit_outlined, size: 18, color: AppInk.soft),
-        SizedBox(width: 10),
-        Text('編輯'),
+        const Icon(Icons.edit_outlined, size: 18, color: AppInk.soft),
+        const SizedBox(width: 10),
+        Text(l10n.commonEdit),
       ],
     ),
   ),
@@ -678,7 +687,7 @@ List<PopupMenuItem<String>> _habitMenuItems() => [
           color: Colors.red.shade400,
         ),
         const SizedBox(width: 10),
-        Text('刪除', style: TextStyle(color: Colors.red.shade400)),
+        Text(l10n.commonDelete, style: TextStyle(color: Colors.red.shade400)),
       ],
     ),
   ),

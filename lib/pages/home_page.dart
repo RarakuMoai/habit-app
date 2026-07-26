@@ -9,6 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
@@ -63,12 +64,18 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+// 喝水 preset 的名稱同時是「已存習慣的識別鍵」：喝水頁連動靠比對它，
+// 所以不能翻譯（見 docs/i18n_migration.md 的跳過清單）。
+const String _kWaterHabitPresetName = '喝足夠的水';
+
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   final List<Map<String, dynamic>> habits = [];
   bool isLoading = true;
   int streak = 0;
-  String _nickname = '你';
-  String mascotName0 = '兔咪';
+  String _nickname = '';
+  String mascotName0 = MascotName.fallback;
   bool yesterdayAllDone = false;
   // 換日線（一天從幾點開始）；loadHabits 每次顯示首頁時從 prefs 重讀。
   int _dayStartHour = LogicalDate.defaultHour;
@@ -178,8 +185,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final today = todayString();
     final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
     streak = prefs.getInt(PrefsKeys.streak) ?? 0;
-    _nickname = prefs.getString(PrefsKeys.userNickname) ?? '你';
-    mascotName0 = prefs.getString(PrefsKeys.mascotName) ?? '兔咪';
+    _nickname =
+        prefs.getString(PrefsKeys.userNickname) ?? _l10n.hpNicknameFallback;
+    mascotName0 = prefs.getString(PrefsKeys.mascotName) ?? MascotName.fallback;
     userBirthday = DateTime.tryParse(
       prefs.getString(PrefsKeys.userBirthday) ?? '',
     );
@@ -278,7 +286,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     // 跨頁籤切換時首頁會整頁重建，didUpdateWidget 不會觸發，
     // 因此在這裡依喝水頁達標狀態同步「喝足夠的水」習慣的勾選狀態
-    final waterIdx = habits.indexWhere((h) => h['name'] == '喝足夠的水');
+    final waterIdx = habits.indexWhere(
+      (h) => h['name'] == _kWaterHabitPresetName,
+    );
     if (waterIdx != -1 &&
         habits[waterIdx]['done'] != widget.waterHabitAutoComplete) {
       habits[waterIdx]['done'] = widget.waterHabitAutoComplete;
@@ -512,7 +522,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _syncWaterHabit(bool done) {
-    final idx = habits.indexWhere((h) => h['name'] == '喝足夠的水');
+    final idx = habits.indexWhere((h) => h['name'] == _kWaterHabitPresetName);
     if (idx == -1 || habits[idx]['done'] == done) return;
     setState(() => habits[idx]['done'] = done);
     saveHabits();
@@ -726,7 +736,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!isWeekly) unawaited(_recordTodayHistory());
     if (!wasAllDone && allDone0) {
       // 當日全完成加碼（每日一次，service 內建防重複）
-      CoinService.award(CoinSource.allHabitsDone, note: '今日全完成');
+      CoinService.award(
+        CoinSource.allHabitsDone,
+        note: _l10n.hpCoinNoteAllDone,
+      );
       playFeedback(SfxCue.complete);
       _celebCtrl.forward(from: 0);
       setState(() => _mascotReactionTick++);
@@ -752,7 +765,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     } else {
       playFeedback(SfxCue.cancel);
     }
-    if (habits[index]['name'] == '喝足夠的水') {
+    if (habits[index]['name'] == _kWaterHabitPresetName) {
       widget.onWaterHabitToggled?.call(habits[index]['done'] as bool);
     }
     _syncMascotToPersona();
@@ -802,7 +815,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         await _syncTodayHistory(prefs);
       });
     }
-    if (name == '喝足夠的水') {
+    if (name == _kWaterHabitPresetName) {
       SharedPreferences.getInstance().then((prefs) async {
         await prefs.setBool(PrefsKeys.waterEnabled, false);
         widget.onSettingsChanged?.call();
@@ -820,18 +833,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('改名'),
+        title: Text(_l10n.hpRenameTitle),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           maxLength: kHabitNameMaxLength,
-          decoration: const InputDecoration(labelText: '習慣名稱'),
+          decoration: InputDecoration(labelText: _l10n.hsNameHint),
         ),
         actions: [
           dialogCancelAction(ctx, onPressed: () => Navigator.pop(ctx, false)),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('儲存'),
+            child: Text(_l10n.commonSave),
           ),
         ],
       ),
@@ -847,9 +860,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final name = habits[index]['name'] as String;
     final confirm = await showAppConfirmDialog(
       context,
-      title: '刪除習慣',
-      message: '確定要刪除「$name」嗎？',
-      confirmLabel: '刪除',
+      title: _l10n.pmDeleteHabitTitle,
+      message: _l10n.pmDeleteNamedMessage(name),
+      confirmLabel: _l10n.commonDelete,
       danger: true,
     );
     if (confirm) deleteHabit(index);
@@ -910,7 +923,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             setState(() {
               if (customName.isNotEmpty) {
                 final fullName = customMinutes > 0
-                    ? '$customName $customMinutes 分鐘'
+                    ? _l10n.habitNameMinutes(customName, customMinutes)
                     : customName;
                 final map = <String, dynamic>{
                   'id': HabitHistory.newId(),
@@ -931,7 +944,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 final p = available.firstWhere((p) => p.name == entry.key);
                 final cfg = entry.value;
                 final habitName = (p.defaultMinutes != null && cfg.minutes > 0)
-                    ? '${p.name} ${cfg.minutes} 分鐘'
+                    ? _l10n.habitNameMinutes(p.name, cfg.minutes)
                     : p.name;
                 final map = <String, dynamic>{
                   'id': HabitHistory.newId(),
@@ -1261,7 +1274,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  '新增習慣',
+                  _l10n.hsAddTitle,
                   style: TextStyle(
                     color: Colors.orange.shade800,
                     fontWeight: FontWeight.w700,
@@ -1321,9 +1334,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const Text(
-                  '完成排序',
-                  style: TextStyle(
+                Text(
+                  _l10n.wdDoneSort,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
@@ -1469,7 +1482,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverToBoxAdapter(
               child: HabitSectionHeader(
-                label: '每日習慣',
+                label: _l10n.htDailyHabits,
                 icon: Icons.wb_sunny_rounded,
                 color: Colors.orange,
                 done: dailyDoneCount,
@@ -1489,7 +1502,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverToBoxAdapter(
               child: HabitSectionHeader(
-                label: '每週習慣',
+                label: _l10n.htWeeklyHabits,
                 icon: Icons.calendar_view_week_rounded,
                 color: Colors.indigo,
                 done: weeklyMetCount,
@@ -1540,19 +1553,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   child: Icon(Icons.spa_rounded, size: 30, color: accent),
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  '還沒有任何習慣',
-                  style: TextStyle(
+                Text(
+                  _l10n.hpEmptyTitle,
+                  style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                     color: AppInk.strong,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  '點上面的「新增習慣」\n從一件小事開始吧',
+                Text(
+                  _l10n.hpEmptySub,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     height: 1.5,
                     fontWeight: FontWeight.w500,

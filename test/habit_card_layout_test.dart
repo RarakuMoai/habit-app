@@ -7,13 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:habit_app/pages/home/habit_card.dart';
 
+import 'l10n_test_app.dart';
+
 void main() {
-  Future<void> pumpCard(
-    WidgetTester tester, {
-    required bool isLinked,
-  }) async {
+  Future<void> pumpCard(WidgetTester tester, {required bool isLinked}) async {
     await tester.pumpWidget(
-      MaterialApp(
+      l10nTestApp(
         home: Scaffold(
           body: Center(
             child: HabitCard(
@@ -34,9 +33,7 @@ void main() {
   Rect circleRect(WidgetTester tester) {
     final finder = find.descendant(
       of: find.byType(ListTile),
-      matching: find.byWidgetPredicate(
-        (w) => w is AnimatedContainer,
-      ),
+      matching: find.byWidgetPredicate((w) => w is AnimatedContainer),
     );
     return tester.getRect(finder.first);
   }

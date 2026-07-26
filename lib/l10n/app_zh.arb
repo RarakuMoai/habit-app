@@ -3082,11 +3082,11 @@
   },
   "fwDurationTitle": "持續時間",
   "@fwDurationTitle": {
-    "description": "設定習慣／獎勵持續幾分鐘的對話框標題。"
+    "description": "設定習慣／獎勵持續幾分鐘的對話框標題（家庭頁與首頁共用）。"
   },
   "fwMinutes": "分鐘",
   "@fwMinutes": {
-    "description": "分鐘單位。接在數字後面。"
+    "description": "分鐘單位。接在數字後面（多處共用）。"
   },
   "pmDeleteChildTitle": "刪除小孩",
   "@pmDeleteChildTitle": {
@@ -3595,15 +3595,15 @@
   },
   "hpsPresetTitle": "常用習慣",
   "@hpsPresetTitle": {
-    "description": "新增習慣時，常用習慣選取面板的標題。"
+    "description": "常用習慣選取面板的標題（家庭頁與首頁共用）。"
   },
   "hpsWeeklyTarget": "每週目標",
   "@hpsWeeklyTarget": {
-    "description": "每週習慣的次數目標欄位標題。"
+    "description": "每週習慣的次數目標欄位標題（家庭頁與首頁共用）。"
   },
   "hpsTimes": "次",
   "@hpsTimes": {
-    "description": "次數單位。接在數字後面。"
+    "description": "次數單位。接在數字後面（家庭頁與首頁共用）。"
   },
   "hpsCustomizable": "可自訂時間",
   "@hpsCustomizable": {
@@ -3637,7 +3637,7 @@
   },
   "hsAddTitle": "新增習慣",
   "@hsAddTitle": {
-    "description": "新增習慣面板的標題。"
+    "description": "新增習慣面板的標題（家庭頁與首頁共用）。"
   },
   "hsApplyToChildren": "套用小孩",
   "@hsApplyToChildren": {
@@ -3656,11 +3656,11 @@
   },
   "hsCustomHabit": "自訂習慣",
   "@hsCustomHabit": {
-    "description": "自訂習慣區塊的標題（還沒輸入名稱時）。"
+    "description": "自訂習慣區塊的標題（還沒輸入名稱時；家庭頁與首頁共用）。"
   },
   "hsNameHint": "習慣名稱",
   "@hsNameHint": {
-    "description": "習慣名稱的輸入提示。"
+    "description": "習慣名稱的輸入提示（家庭頁與首頁共用）。"
   },
   "hsPointsHint": "完成可得分數",
   "@hsPointsHint": {
@@ -3668,23 +3668,23 @@
   },
   "hsFrequency": "頻率",
   "@hsFrequency": {
-    "description": "習慣頻率的區塊標題。"
+    "description": "習慣頻率的區塊標題（家庭頁與首頁共用）。"
   },
   "hsDaily": "每日",
   "@hsDaily": {
-    "description": "習慣頻率選項：每天。"
+    "description": "習慣頻率選項：每天（家庭頁與首頁共用）。"
   },
   "hsWeekly": "每週",
   "@hsWeekly": {
-    "description": "習慣頻率選項：每週幾次。"
+    "description": "習慣頻率選項：每週幾次（家庭頁與首頁共用）。"
   },
   "hsTimesSuffix": "  次",
   "@hsTimesSuffix": {
-    "description": "每週次數後面的單位。開頭兩個空格是視覺間隔，請保留。"
+    "description": "每週次數後面的單位（家庭頁與首頁共用）。開頭兩個空格是視覺間隔，請保留。"
   },
   "hsDurationOptional": "持續時間（選填）",
   "@hsDurationOptional": {
-    "description": "習慣持續時間的區塊標題。括號標示可以不填。"
+    "description": "習慣持續時間的區塊標題（家庭頁與首頁共用）。括號標示可以不填。"
   },
   "hsPickOrType": "請選擇或輸入習慣",
   "@hsPickOrType": {
@@ -3692,14 +3692,14 @@
   },
   "hsAddCount": "新增 ({n} 項)",
   "@hsAddCount": {
-    "description": "新增習慣面板的送出按鈕。",
+    "description": "新增習慣面板的送出按鈕（家庭頁與首頁共用）。",
     "placeholders": {
       "n": { "type": "int" }
     }
   },
   "hsEditTitle": "編輯習慣",
   "@hsEditTitle": {
-    "description": "編輯習慣面板的標題。"
+    "description": "編輯習慣面板的標題（家庭頁與首頁共用）。"
   },
   "dsAddTitle": "新增扣分項目",
   "@dsAddTitle": {
@@ -5131,5 +5131,80 @@
   "dvRestoreOverrides": "恢復場景/選單覆寫",
   "@dvRestoreOverrides": {
     "description": "開發者測試：清除所有測試覆寫。"
+  },
+
+  "commonMove": "移動",
+  "@commonMove": {
+    "description": "進入拖曳排序模式的通用選單項。"
+  },
+  "habitNameMinutes": "{name} {minutes} 分鐘",
+  "@habitNameMinutes": {
+    "description": "把時長接在習慣名稱後面組成完整名稱。注意：這個組合字串會被存起來，之後再用正則解析回來，改格式要一起改解析端。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "minutes": { "type": "int" }
+    }
+  },
+  "hcHabitSemantics": "習慣：{name}{state}",
+  "@hcHabitSemantics": {
+    "description": "每日習慣卡的無障礙描述。state 是「，已完成／，未完成」。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "state": { "type": "String" }
+    }
+  },
+  "hcStateDone": "，已完成",
+  "@hcStateDone": {
+    "description": "習慣卡無障礙描述的狀態片段：已完成。開頭的標點要保留。"
+  },
+  "hcStateNotDone": "，未完成",
+  "@hcStateNotDone": {
+    "description": "習慣卡無障礙描述的狀態片段：未完成。"
+  },
+  "hcWeeklySemantics": "每週習慣：{name}，本週 {count} / {target} 次{state}",
+  "@hcWeeklySemantics": {
+    "description": "每週習慣卡的無障礙描述。state 是「，已達標」或空字串。",
+    "placeholders": {
+      "name": { "type": "String" },
+      "count": { "type": "int" },
+      "target": { "type": "int" },
+      "state": { "type": "String" }
+    }
+  },
+  "hcStateReached": "，已達標",
+  "@hcStateReached": {
+    "description": "每週習慣卡無障礙描述的片段：已達標。"
+  },
+  "hcLinkedWeight": "連動體重頁面",
+  "@hcLinkedWeight": {
+    "description": "習慣卡上的標記：這個習慣跟體重頁連動，勾選會同步。"
+  },
+  "hcLinkedWater": "連動喝水頁面",
+  "@hcLinkedWater": {
+    "description": "習慣卡上的標記：這個習慣跟喝水頁連動。"
+  },
+  "hpNicknameFallback": "你",
+  "@hpNicknameFallback": {
+    "description": "使用者還沒設暱稱時，稱呼語的後備值。中文用「你」，英文小寫 you 以便接在句中。"
+  },
+  "hpCoinNoteAllDone": "今日全完成",
+  "@hpCoinNoteAllDone": {
+    "description": "足跡幣帳目的用途說明：當天所有習慣都完成。會寫進紀錄。"
+  },
+  "hpRenameTitle": "改名",
+  "@hpRenameTitle": {
+    "description": "習慣改名的對話框標題。"
+  },
+  "hpEmptyTitle": "還沒有任何習慣",
+  "@hpEmptyTitle": {
+    "description": "首頁習慣列表的空狀態標題。"
+  },
+  "hpEmptySub": "點上面的「新增習慣」\n從一件小事開始吧",
+  "@hpEmptySub": {
+    "description": "首頁習慣列表的空狀態說明。換行要保留。邀請語氣。"
+  },
+  "hsPickOrTypeHome": "請輸入或選擇習慣",
+  "@hsPickOrTypeHome": {
+    "description": "首頁新增習慣面板：一項都沒選也沒輸入時的送出按鈕停用文字。"
   }
 }
