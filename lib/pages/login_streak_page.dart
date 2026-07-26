@@ -20,8 +20,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../utils/app_feedback.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
