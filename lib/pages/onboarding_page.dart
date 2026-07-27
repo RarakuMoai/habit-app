@@ -65,57 +65,17 @@ class _OnboardingPageState extends State<OnboardingPage>
   Timer? _typingTimer;
 
   // 畫面2：吉祥物名稱
-  final TextEditingController _mascotController = TextEditingController(
-    text: '兔咪',
-  );
-  // 骰子隨機名字用：可愛、好唸、之後多語也通用的小名池
-  static const List<String> _mascotNamePool = [
-    '兔咪',
-    '啾啾',
-    '糰子',
-    '麻糬',
-    '棉花糖',
-    '雪球',
-    '紅豆',
-    '布丁',
-    '奶茶',
-    '咪寶',
-    '跳跳',
-    '阿白',
-    '泡泡',
-    '小雲',
-    '朵朵',
-    '星星',
-    '小月',
-    '晴晴',
-    '露露',
-    '糖糖',
-    '蜜糖',
-    '奶油',
-    '可可',
-    '芝麻',
-    '豆花',
-    '柚子',
-    '小桃',
-    '小栗',
-    '小米',
-    '米糰',
-    '布布',
-    '啵啵',
-    '圓圓',
-    '毛球',
-    '小鈴',
-    '小燈',
-    '萌萌',
-    '軟糖',
-    '奶泡',
-    '白白',
-  ];
+  final TextEditingController _mascotController = TextEditingController();
+  // 預設名要走 l10n，但 field initializer 拿不到 context，延到
+  // didChangeDependencies 填一次。
+  bool _mascotDefaultApplied = false;
+  // 骰子隨機名字用的小名池：文案在 ARB（各語言各自挑一組，不是逐字翻）。
+  List<String> get _mascotNamePool => _l10n.mascotNamePool.split('|');
   final math.Random _nameRng = math.Random();
 
   // 畫面3：用戶暱稱
   final TextEditingController _nicknameController = TextEditingController();
-  String _mascotName = MascotName.fallback;
+  String _mascotName = '';
 
   // 畫面4/5/6：功能引導（預設開啟，按「不用了」確認後才關）
   bool? _waterEnabled;
@@ -200,6 +160,18 @@ class _OnboardingPageState extends State<OnboardingPage>
   final Set<String> _selectedHabits = {};
   // 習慣選擇頁：設為「每週」的習慣 → 名稱對應每週次數；未列入者為每日
   final Map<String, int> _weeklyTimes = {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 預設兔咪名走 l10n（英文介面是 Tumi）；只在還沒填過時帶入，
+    // 不會蓋掉使用者已經打的字。
+    if (!_mascotDefaultApplied) {
+      _mascotDefaultApplied = true;
+      _mascotController.text = _l10n.mascotDefaultName;
+      _mascotName = _l10n.mascotDefaultName;
+    }
+  }
 
   @override
   void initState() {
@@ -709,7 +681,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     await prefs.setString(
       PrefsKeys.mascotName,
       _mascotController.text.trim().isEmpty
-          ? MascotName.fallback
+          ? _l10n.mascotDefaultName
           : _mascotController.text.trim(),
     );
     // 同步全域名字，帶 {name} 的系統文案立刻換掉
@@ -1099,9 +1071,12 @@ class _OnboardingPageState extends State<OnboardingPage>
                   controller: _mascotController,
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 18),
-                  // 名字會被帶進系統文案（「{name}替你收好的每一個小小時刻」），
-                  // 太長會毀掉句子節奏，所以比使用者暱稱更短
-                  maxLength: 6,
+                  // 名字會被帶進很多系統文案（「{name}的夥伴檔案」…），限長
+                  // 是為了防破版，所以數的是顯示寬度而非字元數：中文 6 字
+                  // 與英文 12 字元同寬（見 kMascotNameMaxUnits）。
+                  inputFormatters: const [
+                    DisplayWidthLimitingFormatter(kMascotNameMaxUnits),
+                  ],
                   decoration: InputDecoration(
                     hintText: _l10n.obNameHint,
                     counterText: '',
@@ -1129,7 +1104,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               onPressed: () {
                 setState(
                   () => _mascotName = _mascotController.text.trim().isEmpty
-                      ? MascotName.fallback
+                      ? _l10n.mascotDefaultName
                       : _mascotController.text.trim(),
                 );
                 _nextPage();

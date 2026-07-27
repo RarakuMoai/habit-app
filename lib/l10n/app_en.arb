@@ -894,7 +894,7 @@
   "wdMusicSub": "Pick by mood",
   "wdMusicUnlockedCount": "{owned} / {total} unlocked",
   "wdMemoryBook": "Memory book",
-  "wdMemoryBookSub": "Every little moment {name} kept for you",
+  "wdMemoryBookSub": "Every little moment, kept for you",
   "wdMemoryCollection": "Memories",
   "wdNewMemory": "New",
   "wdUnwrittenPage": "Not written yet",
@@ -1251,5 +1251,8 @@
   "lsTreatCookie": "a cookie",
   "lsSemantics": "{days}-day login streak, +{amount} coins today",
   "lsStreakPrefix": "Day ",
-  "lsGiveTreat": "Give {treat}"
+  "lsGiveTreat": "Give {treat}",
+
+  "mascotDefaultName": "Tumi",
+  "mascotNamePool": "Tumi|Chirpy|Dango|Mochi|Marshmallow|Snowball|Adzuki|Pudding|Milktea|Mimi|Hoppy|Snowy|Bubble|Cloudy|Petal|Star|Moona|Sunny|Dewy|Sugar|Honey|Butter|Cocoa|Sesame|Tofu|Yuzu|Peachy|Chestnut|Millet|Ricecake|Bunbun|Popo|Roundy|Pompom|Jingle|Lumi|Momo|Gummy|Foamy|Snowdrop"
 }

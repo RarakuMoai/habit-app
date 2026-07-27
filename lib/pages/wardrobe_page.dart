@@ -594,7 +594,7 @@ class _WardrobePageState extends State<WardrobePage>
         _WardrobeHeader(
           icon: Icons.auto_stories_rounded,
           title: _l10n.wdMemoryBook,
-          subtitle: _l10n.wdMemoryBookSub(MascotName.value),
+          subtitle: _l10n.wdMemoryBookSub,
           trailing: '${entries.length}/${storyCatalog.length}',
           color: kMemoryAccent,
         ),

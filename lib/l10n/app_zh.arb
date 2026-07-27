@@ -3998,12 +3998,9 @@
   "@wdMemoryBook": {
     "description": "衣櫃的回憶本區塊標題。"
   },
-  "wdMemoryBookSub": "{name}替你收好的每一個小小時刻",
+  "wdMemoryBookSub": "替你收好的每一個小小時刻",
   "@wdMemoryBookSub": {
-    "description": "回憶本區塊副標。{name} 是兔咪名。",
-    "placeholders": {
-      "name": { "type": "String" }
-    }
+    "description": "回憶本區塊副標。刻意不帶兔咪名：這行只給一行寬度（maxLines: 1），窄機上名字會把它擠成「…」，而名字在正上方的標題已經出現過。"
   },
   "wdMemoryCollection": "回憶收藏",
   "@wdMemoryCollection": {
@@ -5682,5 +5679,14 @@
     "placeholders": {
       "treat": { "type": "String" }
     }
+  },
+
+  "mascotDefaultName": "兔咪",
+  "@mascotDefaultName": {
+    "description": "兔咪的預設名字（前導頁輸入框的初始值）。使用者可以改；改過之後就照存的顯示。這是角色名，跟產品名 appTitle 分開。"
+  },
+  "mascotNamePool": "兔咪|啾啾|糰子|麻糬|棉花糖|雪球|紅豆|布丁|奶茶|咪寶|跳跳|阿白|泡泡|小雲|朵朵|星星|小月|晴晴|露露|糖糖|蜜糖|奶油|可可|芝麻|豆花|柚子|小桃|小栗|小米|米糰|布布|啵啵|圓圓|毛球|小鈴|小燈|萌萌|軟糖|奶泡|白白",
+  "@mascotNamePool": {
+    "description": "取名骰子的候選小名，用半角 | 分隔。翻譯時請「重新挑一組目標語言本身可愛好唸的小名」，不要逐字翻中文（「小雲」翻成 Little Cloud 會很怪）。調性參考：食物、質地、疊字、顏色。數量不必跟中文相同，但每個名字不能超過 12 個半寬單位（CJK 算 2、拉丁字母算 1），否則輸入框會擋住。第一個是預設名。"
   }
 }

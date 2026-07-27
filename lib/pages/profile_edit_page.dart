@@ -859,9 +859,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         icon: Icons.pets_rounded,
                         label: _l10n.peMascotNameLabel,
                         controller: _mascotCtrl,
-                        // 與 onboarding 一致：名字會進系統文案，上限比暱稱短
-                        maxLength: 6,
-                        hint: MascotName.fallback,
+                        // 與 onboarding 一致：限長是為了防破版，數的是顯示
+                        // 寬度而非字元數（中文 6 字＝英文 12 字元）。
+                        inputFormatters: const [
+                          DisplayWidthLimitingFormatter(kMascotNameMaxUnits),
+                        ],
+                        hint: _l10n.mascotDefaultName,
                         accent: _identityAccent,
                       ),
 

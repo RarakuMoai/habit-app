@@ -11,6 +11,79 @@ const int kHabitNameMaxLength = 20;
 String clampHabitName(String raw) =>
     raw.trim().characters.take(kHabitNameMaxLength).toString();
 
+// ── 兔咪名字：用「顯示寬度」限長，不用字元數 ──────────────────
+//
+// 名字會嵌進很多系統文案（「{name}的夥伴檔案」、「{name}造型」…），限長的
+// 目的是防破版，所以該數的是「佔多寬」而不是「幾個字」。CJK 是全寬（一個字
+// 約等於兩個拉丁字元），所以中文 6 字與英文 12 字元的視覺寬度相同。
+//
+// 12 這個數字的依據（2026-07-26 實測 iPhone SE 320pt 寬）：最吃緊的
+// 「{name}的夥伴檔案」AppBar 標題可容納中文 11 字，12 半寬單位留了將近
+// 一倍的邊際。詳見 docs/i18n_migration.md。
+const int kMascotNameMaxUnits = 12;
+
+// 全寬（East Asian Wide／Fullwidth）字位的主要 Unicode 區段。
+// 沒用完整的 EAW 屬性表——這幾段涵蓋中日韓與 emoji，夠這個用途。
+bool _isWideChar(String ch) {
+  if (ch.isEmpty) return false;
+  final c = ch.runes.first;
+  return (c >= 0x1100 && c <= 0x115F) || // 韓文字母 Jamo
+      (c >= 0x2E80 && c <= 0x303F) || // CJK 部首、符號與標點
+      (c >= 0x3040 && c <= 0x33FF) || // 平假名、片假名、注音、相容字
+      (c >= 0x3400 && c <= 0x4DBF) || // CJK 擴充 A
+      (c >= 0x4E00 && c <= 0x9FFF) || // CJK 統一漢字
+      (c >= 0xA960 && c <= 0xA97F) || // 韓文字母擴充 A
+      (c >= 0xAC00 && c <= 0xD7A3) || // 韓文音節
+      (c >= 0xF900 && c <= 0xFAFF) || // CJK 相容漢字
+      (c >= 0xFE30 && c <= 0xFE4F) || // CJK 相容形式
+      (c >= 0xFF00 && c <= 0xFF60) || // 全寬 ASCII
+      (c >= 0xFFE0 && c <= 0xFFE6) || // 全寬符號
+      (c >= 0x1F300 && c <= 0x1FAFF) || // emoji
+      (c >= 0x20000 && c <= 0x3FFFD); // CJK 擴充 B 以後
+}
+
+/// 字串的顯示寬度，單位是「半寬字元」：全寬字位算 2、其餘算 1。
+int displayWidth(String s) =>
+    s.characters.fold(0, (sum, ch) => sum + (_isWideChar(ch) ? 2 : 1));
+
+/// 依顯示寬度截斷（以字位為單位，不會把 emoji 砍成半個）。
+String clampToDisplayWidth(String raw, int maxUnits) {
+  var used = 0;
+  final out = StringBuffer();
+  for (final ch in raw.characters) {
+    final w = _isWideChar(ch) ? 2 : 1;
+    if (used + w > maxUnits) break;
+    used += w;
+    out.write(ch);
+  }
+  return out.toString();
+}
+
+/// 兔咪名字輸入用：擋在 [maxUnits] 個半寬單位內。
+///
+/// 用 formatter 而不是 TextField 的 maxLength，因為 maxLength 只能數字元，
+/// 對「中文 6 字／英文 12 字元」這種依語言不同的上限做不到；而且 formatter
+/// 連混打（「小雲Cloud」）也算得對。
+class DisplayWidthLimitingFormatter extends TextInputFormatter {
+  final int maxUnits;
+
+  const DisplayWidthLimitingFormatter(this.maxUnits);
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (displayWidth(newValue.text) <= maxUnits) return newValue;
+    final clamped = clampToDisplayWidth(newValue.text, maxUnits);
+    // 超出就退回上一個合法狀態的長度，游標收到尾端。
+    return TextEditingValue(
+      text: clamped,
+      selection: TextSelection.collapsed(offset: clamped.length),
+    );
+  }
+}
+
 // 自動補小數點：使用者極可能漏打小數點時幫忙補上。
 //
 // 規則（刻意保守，只在「極高機率」才動）：[text] 是純整數、超出合理上限

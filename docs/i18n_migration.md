@@ -11,7 +11,7 @@
 | `l10n.yaml` | ✅ 專案根目錄 |
 | ARB | ✅ `lib/l10n/app_zh.arb`（模板）、`app_en.arb` |
 | `AppLocalizations` 掛上 MaterialApp | ✅ |
-| 已遷移的字串 | **1192 個 key**——`lib/` 的功能 UI 字串已全部遷完 |
+| 已遷移的字串 | **1194 個 key**——`lib/` 的功能 UI 字串已全部遷完 |
 | **還沒遷移** | 只剩兔咪台詞與繪本旁白（等文本定稿），以及下面「刻意不遷」那幾類 |
 | 英文文案 | ⚠️ 目前是直譯，語氣還沒打磨；兔咪台詞的英文是**重寫**（見下） |
 
@@ -65,12 +65,44 @@
 
 ### 3. 其他不算 UI 字串的
 
-- `onboarding_page.dart` 的兔咪名字候選池（38 個中文名）——換語言要重新設計一組
-  名字，跟台詞同性質的文本工作，不是翻譯
 - `widgets/mascot_bubbles.dart` 的 `assert` 訊息——只給開發者看
 - `dev/tumi/tumi_preview_main.dart`——獨立 dev entry（自己的 `main()`、
   沒掛 localizations delegate），註解已標明「不進正式 app」
 - 註解、正則裡的字元類別（`utils/lenient_date.dart` 的 `[-/.年]`）
+
+## 兔咪名字：長度上限用「顯示寬度」而不是字元數
+
+名字會嵌進很多系統文案（「{name}的夥伴檔案」、「{name}造型」…），限長的目的
+**只是防破版**，所以該數的是「佔多寬」，不是「幾個字」。CJK 是全寬，一個字約
+等於兩個拉丁字元——**中文 6 字與英文 12 字元的視覺寬度相同**。
+
+上限：`kMascotNameMaxUnits = 12`（半寬單位；全寬字算 2、其餘算 1），實作在
+`utils/input_formatters.dart` 的 `DisplayWidthLimitingFormatter`。用 formatter
+而不是 `TextField.maxLength`，因為 maxLength 只能數字元、做不到依語言不同的
+上限，而且 formatter 連混打（「小雲Cloud」）也算得對。
+
+**12 的依據**（2026-07-26 實測 iPhone SE 320pt 寬，載入專案 Nunito 量英文、
+中文用 CJK 1em）：
+
+| 位置 | 可用寬 | 固定文字 | 名字能完整顯示到 |
+|---|---|---|---|
+| 檔案頁 AppBar「{name}的夥伴檔案」 | 288px / 18px 字 | 5 字 | 中文 11 字 |
+| 同上（14PM 430pt） | 398px | 5 字 | 中文 17 字 |
+
+12 半寬單位（＝中文 6 字）對最吃緊的 AppBar 留了將近一倍邊際。
+
+順帶修掉的既有瑕疵：衣櫃回憶本副標原本是「{name}替你收好的每一個小小時刻」，
+固定文字 12 個中文字又只給一行，SE 上名字超過 4 字就會被截成「…」。已把名字
+抽掉（名字在正上方的標題已經出現過），那處不再是限制點。
+
+**加新的「名字 + 固定文字」單行文案時**，先確認固定部分別太長。要驗證就照上面
+的方法量：抓該處 `RenderParagraph` 的 `constraints.maxWidth`，除以字級得到可用
+em 數，扣掉固定文字的 em 數就是名字的空間。
+
+名字候選池在 ARB 的 `mascotNamePool`（半角 `|` 分隔）。**翻譯時要重新挑一組
+目標語言本身好唸的小名，不是逐字翻**（「小雲」翻成 Little Cloud 會很怪）。
+預設名走 `mascotDefaultName`（中文「兔咪」／英文 "Tumi"）；`MascotName.fallback`
+仍是 const「兔咪」，當沒有 context 時的最後防線。
 
 ## 沒 context 的地方怎麼拿文案
 
