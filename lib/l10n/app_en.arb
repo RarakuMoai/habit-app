@@ -137,10 +137,22 @@
   "ddDeleteWordLabel": "Type DELETE to confirm",
   "ddPermanentDelete": "Delete forever",
 
-  "peIntroTitle": "Help Tumi get to know you",
+  "peIntroTitle": "Help {name} get to know you",
+  "@peIntroTitle": {
+    "description": "Profile intro title using the mascot name chosen by the user.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
   "peIntroSubtitle": "Only the nickname is required — everything else can wait.",
   "peSectionName": "Names",
-  "peSectionNameSubtitle": "What you and Tumi like to be called",
+  "peSectionNameSubtitle": "What you and {name} like to be called",
+  "@peSectionNameSubtitle": {
+    "description": "Names section subtitle using the mascot name chosen by the user.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
   "peNicknameLabel": "Nickname",
   "peNicknameHint": "What should we call you?",
   "peNicknameRequired": "Nickname can't be empty",
@@ -555,11 +567,11 @@
   "waterTodayTitle": "Today's water",
   "waterPillReached": "All set",
   "waterMoodTooMuch": "That's a lot of water today — take a break.",
-  "waterMoodReached": "You're all hydrated for today.",
+  "waterMoodReached": "You've had plenty of water today.",
   "waterMoodNearly": "Almost there — small sips.",
-  "waterMoodHalf": "Past halfway — your body's being looked after.",
-  "waterMoodStarted": "Sip by sip adds up.",
-  "waterMoodEmpty": "Have a sip and let your body wake up.",
+  "waterMoodHalf": "Past halfway — your body's keeping up.",
+  "waterMoodStarted": "Sip by sip adds up, and your body feels it.",
+  "waterMoodEmpty": "Nothing yet today — have a sip.",
   "waterAdjustGoalSemantics": "Adjust water goal",
   "waterAdjustGoal": "Adjust goal",
   "waterSuggestAmount": "Suggested: {amount}",

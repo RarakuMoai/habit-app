@@ -526,7 +526,7 @@ class DiceDuelScoreboard extends StatelessWidget {
   }
 }
 
-/// 對決結果文字獨立成可縮放的摘要。角色名稱雖然目前輸入上限是 12 字，
+/// 對決結果文字獨立成可縮放的摘要。角色名稱雖然目前輸入上限是 6 字，
 /// 仍不能假設一定叫「兔咪」或一定是短中文；結果標題與比分各自縮放，
 /// 狹窄螢幕也維持單行，而完整內容交給語意標籤朗讀。
 class DiceDuelResultSummary extends StatelessWidget {

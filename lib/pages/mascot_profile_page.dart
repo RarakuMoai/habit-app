@@ -106,19 +106,11 @@ class MascotCallingCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               child: Stack(
                 children: [
-                  const Positioned(
-                    right: -30,
-                    top: -38,
-                    child: _CallingCardGlow(
-                      size: 112,
-                      color: Color(0x45F39A7A),
-                    ),
-                  ),
                   Positioned(
-                    right: -14,
-                    bottom: -20,
+                    right: -12,
+                    top: -20,
                     child: Transform.rotate(
-                      angle: -0.24,
+                      angle: 0.20,
                       child: Opacity(
                         opacity: 0.08,
                         child: Image.asset(

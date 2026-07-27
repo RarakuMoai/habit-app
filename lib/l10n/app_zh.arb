@@ -554,9 +554,12 @@
     "description": "重置全部資料對話框的紅色主按鈕。"
   },
 
-  "peIntroTitle": "讓兔咪更認識你",
+  "peIntroTitle": "讓{name}更認識你",
   "@peIntroTitle": {
-    "description": "基本資料頁頂部介紹卡的大標。「兔咪」是吉祥物的預設名（產品識別），目前不隨改名變動。"
+    "description": "基本資料頁頂部介紹卡的大標，名字隨使用者替吉祥物取的名字變動。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
   },
   "peIntroSubtitle": "只有暱稱必填，其他資料都可以慢慢補上。",
   "@peIntroSubtitle": {
@@ -566,9 +569,12 @@
   "@peSectionName": {
     "description": "基本資料頁「稱呼」分區標題（暱稱＋吉祥物名字）。"
   },
-  "peSectionNameSubtitle": "你和兔咪想怎麼被叫",
+  "peSectionNameSubtitle": "你和{name}想怎麼被叫",
   "@peSectionNameSubtitle": {
-    "description": "稱呼分區的副標。「兔咪」同 peIntroTitle 的說明。"
+    "description": "稱呼分區的副標，名字隨使用者替吉祥物取的名字變動。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
   },
   "peNicknameLabel": "暱稱",
   "@peNicknameLabel": {
@@ -2462,7 +2468,7 @@
   "@waterMoodTooMuch": {
     "description": "喝水頁摘要卡的一句話狀態：超過警告線。關心語氣。"
   },
-  "waterMoodReached": "今天的補水已經照顧好了。",
+  "waterMoodReached": "今天的水分很足夠了。",
   "@waterMoodReached": {
     "description": "喝水頁摘要卡的一句話狀態：已達標。"
   },
@@ -2470,15 +2476,15 @@
   "@waterMoodNearly": {
     "description": "喝水頁摘要卡的一句話狀態：進度 75% 以上。"
   },
-  "waterMoodHalf": "已經過一半了，身體有被照顧到。",
+  "waterMoodHalf": "已經過一半，身體有跟上了。",
   "@waterMoodHalf": {
     "description": "喝水頁摘要卡的一句話狀態：進度過半。"
   },
-  "waterMoodStarted": "小口小口累積，也很好。",
+  "waterMoodStarted": "小口小口累積，身體也會慢慢變好。",
   "@waterMoodStarted": {
     "description": "喝水頁摘要卡的一句話狀態：已經喝了一些。"
   },
-  "waterMoodEmpty": "先喝一口，讓身體慢慢醒來。",
+  "waterMoodEmpty": "今天還沒喝，先來一口吧。",
   "@waterMoodEmpty": {
     "description": "喝水頁摘要卡的一句話狀態：今天還沒喝。邀請語氣，不催促。"
   },

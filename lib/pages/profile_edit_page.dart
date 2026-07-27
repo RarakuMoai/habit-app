@@ -68,6 +68,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     super.initState();
     // 欄位變動時重繪，驅動儲存按鈕狀態與範圍錯誤提示
     _nicknameCtrl.addListener(() => setState(() {}));
+    // 兔咪名字同步反映在頁面介紹文案，不再固定顯示預設名。
+    _mascotCtrl.addListener(() => setState(() {}));
     _heightCtrl.addListener(() => setState(() {}));
     _heightInCtrl.addListener(() => setState(() {}));
     _weightCtrl.addListener(() => setState(() {}));
@@ -204,6 +206,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   AppLocalizations get _l10n => AppLocalizations.of(context);
 
+  String get _displayMascotName {
+    final name = _mascotCtrl.text.trim();
+    return name.isEmpty ? MascotName.fallback : name;
+  }
+
   // 取得目前單位下顯示用的錯誤訊息（null 表示沒問題）
   String? get _heightError {
     if (_unit == UnitSystem.imperial) {
@@ -286,7 +293,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _l10n.peIntroTitle,
+                  _l10n.peIntroTitle(_displayMascotName),
                   style: const TextStyle(
                     fontSize: 20,
                     height: 1.15,
@@ -831,7 +838,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       _sectionTitle(
                         icon: Icons.badge_rounded,
                         title: _l10n.peSectionName,
-                        subtitle: _l10n.peSectionNameSubtitle,
+                        subtitle: _l10n.peSectionNameSubtitle(
+                          _displayMascotName,
+                        ),
                         accent: _identityAccent,
                       ),
                       _textCard(

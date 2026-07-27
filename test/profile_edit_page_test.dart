@@ -12,7 +12,7 @@ void main() {
   testWidgets('基本資料以彩色大字分區呈現，SE 尺寸可完整捲動', (tester) async {
     SharedPreferences.setMockInitialValues({
       PrefsKeys.userNickname: '小優',
-      PrefsKeys.mascotName: '兔咪',
+      PrefsKeys.mascotName: '小白',
       PrefsKeys.userHeight: 165.0,
       PrefsKeys.userWeight: 55.0,
     });
@@ -25,8 +25,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('profile-edit-intro')), findsOneWidget);
-    expect(find.text('讓兔咪更認識你'), findsOneWidget);
+    expect(find.text('讓小白更認識你'), findsOneWidget);
     expect(find.text('稱呼'), findsOneWidget);
+    expect(find.text('你和小白想怎麼被叫'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('關於你'),
