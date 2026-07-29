@@ -1601,7 +1601,7 @@ class _TimerPageState extends State<TimerPage>
               const SizedBox(width: 8),
               Expanded(
                 child: _settingsSummaryMetric(
-                  label: _l10n.unitRoundsWord,
+                  label: _l10n.roundsStepperLabel,
                   value: _l10n.roundsCount(_rounds),
                   color: const Color(0xFFE8604C),
                 ),

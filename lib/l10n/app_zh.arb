@@ -2156,9 +2156,14 @@
   "@stgPause": {
     "description": "暫停對局的按鈕。要短。"
   },
-  "stgMascotRestSemantics": "兔咪陪你休息一下",
+  "stgMascotRestSemantics": "{name}陪你休息一下",
   "@stgMascotRestSemantics": {
-    "description": "暫停畫面兔咪插圖的無障礙描述。「兔咪」是吉祥物預設名。"
+    "description": "暫停畫面兔咪插圖的無障礙描述。name 是兔咪目前的名字（可改名）。",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "stgRestTitle": "先休息一下",
   "@stgRestTitle": {
@@ -2188,9 +2193,14 @@
     "description": "暫停面板：目前這一手重新計時。"
   },
 
-  "sumHappyMascotSemantics": "開心的兔咪",
+  "sumHappyMascotSemantics": "開心的{name}",
   "@sumHappyMascotSemantics": {
-    "description": "結算畫面兔咪插圖的無障礙描述。"
+    "description": "結算畫面兔咪插圖的無障礙描述。name 是兔咪目前的名字（可改名）。",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "sumGameOver": "對局結束",
   "@sumGameOver": {

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
+import '../../../utils/mascot.dart';
 import 'table_timer_engine.dart';
 import 'table_timer_theme.dart';
 
@@ -88,7 +89,7 @@ class TableSummaryOverlay extends StatelessWidget {
                               width: 104,
                               height: 104,
                               fit: BoxFit.contain,
-                              semanticLabel: l10n.sumHappyMascotSemantics,
+                              semanticLabel: l10n.sumHappyMascotSemantics(MascotName.value),
                             ),
                             const Positioned(
                               right: 74,

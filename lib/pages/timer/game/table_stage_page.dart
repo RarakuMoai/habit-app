@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
+import '../../../utils/mascot.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../utils/wake_guard.dart';
 import '../../../widgets/app_dialogs.dart';
@@ -356,7 +357,7 @@ class _PauseOverlay extends StatelessWidget {
                               width: 92,
                               height: 92,
                               fit: BoxFit.contain,
-                              semanticLabel: l10n.stgMascotRestSemantics,
+                              semanticLabel: l10n.stgMascotRestSemantics(MascotName.value),
                             ),
                             Positioned(
                               right: 2,
