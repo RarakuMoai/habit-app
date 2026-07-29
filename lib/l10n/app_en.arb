@@ -1198,7 +1198,7 @@
   "mpPartnerBadge": "{name}'s partner card",
   "mpTogetherPrefix": "Day ",
   "mpDaySuffix": " together",
-  "mpViewProfile": "View profile",
+  "mpViewProfile": "Profile",
   "mpViewCoins": "View footprints and paw coins — you have {coins}",
   "mpProfileTitle": "{name}'s profile",
   "mpProfileTitleFallback": "Profile",

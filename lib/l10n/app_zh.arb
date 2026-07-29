@@ -5430,7 +5430,7 @@
   },
   "mpViewProfile": "查看檔案",
   "@mpViewProfile": {
-    "description": "進入夥伴檔案頁的無障礙標籤。"
+    "description": "名片上進入夥伴檔案頁的按鈕文字（兼無障礙標籤）。按鈕很窄，英文要短——旁邊有徽章圖示與 › 箭頭，語意夠清楚。"
   },
   "mpViewCoins": "查看足跡與足跡幣，目前 {coins} 枚",
   "@mpViewCoins": {

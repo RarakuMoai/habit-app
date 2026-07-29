@@ -825,16 +825,21 @@ class _TimerPageState extends State<TimerPage>
                   color: selected ? Colors.white : AppInk.soft,
                 ),
                 SizedBox(width: iconGap),
+                // FittedBox：中文四個模式都放得下、不會被縮；英文
+                // ("Metronome") 在 SE 的 1/4 欄寬放不下，等比縮到剛好，
+                // 免得被 fade 成「Metronom」。
                 Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    softWrap: false,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w800,
-                      color: selected ? Colors.white : AppInk.soft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w800,
+                        color: selected ? Colors.white : AppInk.soft,
+                      ),
                     ),
                   ),
                 ),

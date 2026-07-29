@@ -115,6 +115,21 @@ class _StartupState {
   const _StartupState({required this.startAtHome});
 }
 
+/// 截圖／版面驗證用的語言覆寫：`--dart-define=APP_LOCALE=en`。
+///
+/// 英文比中文長，版面又是照中文寬度調的，所以英文文案改完要能實際渲染一遍。
+/// 走編譯期常數而不是 prefs，理由同 `SCENE_HOUR`：模擬器的 cfprefsd 快取會
+/// 把外部改的 plist 隨機蓋回去。`kDevToolsEnabled` 關掉後整段是 no-op。
+Locale? get _devLocaleOverride {
+  if (!kDevToolsEnabled) return null;
+  const code = String.fromEnvironment('APP_LOCALE');
+  return switch (code) {
+    'en' => const Locale('en'),
+    'zh' => const Locale('zh', 'TW'),
+    _ => null,
+  };
+}
+
 class MyApp extends StatefulWidget {
   final bool? startAtHome;
   const MyApp({super.key, this.startAtHome});
@@ -185,7 +200,9 @@ class _MyAppState extends State<MyApp> {
       supportedLocales: AppLocalizations.supportedLocales,
       // ⚠️ 暫時鎖定繁中。英文文案只有骨架，現在放開會變成半中半英。
       // 英文文本完成後移除這行，改為跟隨系統語言。
-      locale: const Locale('zh', 'TW'),
+      // 截圖工作流：--dart-define=APP_LOCALE=en 可暫時切語言驗版面
+      // （同 SCENE_HOUR，走編譯期常數；kDevToolsEnabled 閘門，正式版 no-op）。
+      locale: _devLocaleOverride ?? const Locale('zh', 'TW'),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7043)),
         useMaterial3: true,
@@ -271,6 +288,12 @@ class _MyAppState extends State<MyApp> {
       // clamp 到 1.0–1.3：仍尊重系統放大（可讀性 +30%），但不會炸版；
       // 縮小方向不跟（本來字就不大）。
       builder: (context, child) {
+        // 使用者還沒替兔咪取名時，預設名要跟著語言走（中文「兔咪」／英文
+        // "Tumi"）。MascotName.load 在 runApp 之前跑、拿不到 context，所以補
+        // 在這裡：builder 已經在 Localizations 底下，換語言會再跑一次。
+        MascotName.applyDefaultName(
+          AppLocalizations.of(context).mascotDefaultName,
+        );
         final mq = MediaQuery.of(context);
         final scale = mq.textScaler.scale(1.0).clamp(1.0, 1.3);
         return MediaQuery(

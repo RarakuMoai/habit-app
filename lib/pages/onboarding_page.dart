@@ -1791,7 +1791,9 @@ class _OnboardingPageState extends State<OnboardingPage>
         children: [
           _speechBubble(bubbleText),
           const SizedBox(height: 14),
-          // 性別選擇
+          // 性別選擇。三顆 chip 走 Wrap：中文（男／女／不透露）在 SE 上一行
+          // 放得下，版面不變；英文（Prefer not to say）會自動折到第二行，
+          // 原本的固定 Row 在 SE 上會溢出 30px。
           Row(
             children: [
               Text(
@@ -1802,11 +1804,17 @@ class _OnboardingPageState extends State<OnboardingPage>
                 ),
               ),
               const SizedBox(width: 16),
-              _genderChip('男', _l10n.genderMale),
-              const SizedBox(width: 8),
-              _genderChip('女', _l10n.genderFemale),
-              const SizedBox(width: 8),
-              _genderChip('不透露', _l10n.genderUndisclosed),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _genderChip('男', _l10n.genderMale),
+                    _genderChip('女', _l10n.genderFemale),
+                    _genderChip('不透露', _l10n.genderUndisclosed),
+                  ],
+                ),
+              ),
             ],
           ),
           if (_genderError != null)

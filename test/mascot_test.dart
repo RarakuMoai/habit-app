@@ -343,4 +343,43 @@ void main() {
       }
     }
   });
+
+  group('預設名跟著語言走', () {
+    // MascotName.load 在 runApp 之前跑（拿不到 context），所以英文的預設名
+    // "Tumi" 是 MaterialApp.builder 拿到 l10n 之後才用 applyDefaultName 補上。
+    // 這幾條守住「補的時候不能動到使用者自己取的名字」。
+    tearDown(() {
+      MascotName.applyDefaultName(MascotName.fallback);
+      MascotName.set(null);
+    });
+
+    testWidgets('沒取過名字時，套用語言預設名會換掉顯示的名字', (tester) async {
+      MascotName.set(null);
+      expect(MascotName.value, MascotName.fallback);
+
+      MascotName.applyDefaultName('Tumi');
+      await tester.pump();
+
+      expect(MascotName.value, 'Tumi');
+    });
+
+    testWidgets('取過名字的人不受影響', (tester) async {
+      MascotName.set('小雲');
+
+      MascotName.applyDefaultName('Tumi');
+      await tester.pump();
+
+      expect(MascotName.value, '小雲');
+    });
+
+    testWidgets('取過名字後又清空，回到目前語言的預設名', (tester) async {
+      MascotName.applyDefaultName('Tumi');
+      await tester.pump();
+      MascotName.set('Mochi');
+      expect(MascotName.value, 'Mochi');
+
+      MascotName.set('   '); // 只有空白＝沒取名
+      expect(MascotName.value, 'Tumi');
+    });
+  });
 }

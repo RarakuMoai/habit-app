@@ -7,7 +7,8 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'prefs_keys.dart';
@@ -25,7 +26,15 @@ import 'sfx_service.dart';
 /// 新程式碼一律用這個當名字來源；散在各頁的 `prefs.getString(mascotName)`
 /// 是舊寫法（正是硬編碼「兔咪」的成因），改到那頁行為時順路換過來。
 abstract final class MascotName {
+  /// 最後防線：`load` 在 `runApp` 之前跑，那時還沒有 context 可以問 l10n。
   static const String fallback = '兔咪';
+
+  /// 使用者沒取過名字時要顯示的名字。語言不同預設名也不同（中文「兔咪」／
+  /// 英文 "Tumi"），所以 l10n 就緒後由 [applyDefaultName] 覆寫。
+  static String _defaultName = fallback;
+
+  /// 目前顯示的名字是預設值（使用者還沒取過名字）。
+  static bool _usingDefault = true;
 
   /// 目前名字。改名後呼叫 [load] 或 [set] 會通知所有監聽者。
   static final ValueNotifier<String> current = ValueNotifier<String>(fallback);
@@ -39,7 +48,35 @@ abstract final class MascotName {
 
   static void set(String? name) {
     final trimmed = name?.trim();
-    current.value = (trimmed == null || trimmed.isEmpty) ? fallback : trimmed;
+    _usingDefault = trimmed == null || trimmed.isEmpty;
+    current.value = _usingDefault ? _defaultName : trimmed!;
+  }
+
+  /// 掛上這個語言的預設名（`l10n.mascotDefaultName`）。使用者已經取過名字就
+  /// 不動他的名字，只換掉「還沒取名」時要顯示的那個。
+  ///
+  /// 呼叫端在 `MaterialApp.builder` 裡（拿得到 Localizations 的最外層），
+  /// 語言改變時會再跑一次。
+  ///
+  /// 那裡是 build 期間，直接改 notifier 會讓正在 build 的監聽者
+  /// `markNeedsBuild`，所以 build 中要延到這一幀畫完再改；不在 build 中
+  /// （測試、或 l10n 之外的呼叫）就直接更新，免得等一個永遠不會來的 frame。
+  static void applyDefaultName(String name) {
+    if (_defaultName == name) return;
+    _defaultName = name;
+    if (!_usingDefault) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    final building =
+        phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks ||
+        phase == SchedulerPhase.transientCallbacks;
+    if (!building) {
+      current.value = _defaultName;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_usingDefault) current.value = _defaultName;
+    });
   }
 
   /// 把文案模板裡的 `{name}` 換成目前名字。
