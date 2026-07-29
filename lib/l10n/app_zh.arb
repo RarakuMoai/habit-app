@@ -4301,10 +4301,6 @@
   "@rvFocus": {
     "description": "回顧頁的專注統計卡標題。"
   },
-  "rvRounds": "回合",
-  "@rvRounds": {
-    "description": "專注的計量單位：回合。接在數字後面。"
-  },
   "rvFocusEmpty": "這段時間還沒有專注紀錄",
   "@rvFocusEmpty": {
     "description": "專注卡的空狀態。中性描述，不催促。"
@@ -4312,10 +4308,6 @@
   "rvExercise": "運動",
   "@rvExercise": {
     "description": "回顧頁的運動統計卡標題。"
-  },
-  "rvTimes": "次",
-  "@rvTimes": {
-    "description": "運動的計量單位：次。接在數字後面。"
   },
   "rvExerciseEmpty": "這段時間還沒有運動紀錄",
   "@rvExerciseEmpty": {
@@ -4473,14 +4465,34 @@
       "avg": { "type": "String" }
     }
   },
-  "rvCountLine": "{count} {unit} · {minutes} 分鐘 · {days} 天",
-  "@rvCountLine": {
-    "description": "專注／運動卡的統計句。unit 是「回合／次」。",
+  "rvFocusCountLine": "{count} 回合 · {minutes} 分鐘 · {days} 天",
+  "@rvFocusCountLine": {
+    "description": "專注卡的統計句：回合數・分鐘・天數。",
     "placeholders": {
-      "count": { "type": "int" },
-      "unit": { "type": "String" },
-      "minutes": { "type": "int" },
-      "days": { "type": "int" }
+      "count": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      },
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "rvExerciseCountLine": "{count} 次 · {minutes} 分鐘 · {days} 天",
+  "@rvExerciseCountLine": {
+    "description": "運動卡的統計句：次數・分鐘・天數。",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      },
+      "days": {
+        "type": "int"
+      }
     }
   },
   "rvDeleted": "已刪除",
@@ -5687,6 +5699,10 @@
   "lsStreakPrefix": "連續第 ",
   "@lsStreakPrefix": {
     "description": "報到頁「連續第 N 天」的前半段。結尾的空格要保留。"
+  },
+  "lsStreakSuffix": " 天",
+  "@lsStreakSuffix": {
+    "description": "報到頁「連續第 N 天」的後半段。中文是「 天」，英文要用連勝專用的說法（不是名片那句「一起走到第 N 天」）。開頭的空格要保留。"
   },
   "lsGiveTreat": "拿{treat}給牠",
   "@lsGiveTreat": {

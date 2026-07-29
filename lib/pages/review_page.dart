@@ -519,7 +519,7 @@ class _ReviewPageState extends State<ReviewPage> {
             color: const Color(0xFFEF7A5A),
             title: _l10n.rvFocus,
             review: ReviewStats.focus(prefs, dates: dates),
-            unitWord: _l10n.rvRounds,
+            lineText: _l10n.rvFocusCountLine,
             emptyText: _l10n.rvFocusEmpty,
           ),
           const SizedBox(height: 12),
@@ -528,7 +528,7 @@ class _ReviewPageState extends State<ReviewPage> {
             color: const Color(0xFF6FAE8E),
             title: _l10n.rvExercise,
             review: ReviewStats.exercise(prefs, dates: dates),
-            unitWord: _l10n.rvTimes,
+            lineText: _l10n.rvExerciseCountLine,
             emptyText: _l10n.rvExerciseEmpty,
           ),
         ],
@@ -913,7 +913,7 @@ class _ReviewPageState extends State<ReviewPage> {
     required Color color,
     required String title,
     required CountReview review,
-    required String unitWord,
+    required String Function(int count, int minutes, int days) lineText,
     required String emptyText,
   }) {
     return _Card(
@@ -923,12 +923,7 @@ class _ReviewPageState extends State<ReviewPage> {
       child: review.activeDays == 0
           ? _emptyLine(emptyText)
           : Text(
-              _l10n.rvCountLine(
-                review.count,
-                unitWord,
-                review.minutes,
-                review.activeDays,
-              ),
+              lineText(review.count, review.minutes, review.activeDays),
               style: const TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,

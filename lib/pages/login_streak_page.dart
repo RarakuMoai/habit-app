@@ -451,7 +451,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
                         color: _kNumberInk,
                       ),
                     ),
-                    TextSpan(text: _l10n.mpDaySuffix),
+                    TextSpan(text: _l10n.lsStreakSuffix),
                   ],
                 ),
                 style: TextStyle(
