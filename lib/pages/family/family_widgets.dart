@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
+import '../../utils/mascot.dart';
 
 class FamilyEmptyInvite extends StatelessWidget {
   final Color accent;
@@ -71,7 +72,7 @@ class FamilyEmptyInvite extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          subtitle ?? l10n.famEmptySub,
+                          subtitle ?? l10n.famEmptySub(MascotName.value),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

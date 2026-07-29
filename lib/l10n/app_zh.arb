@@ -2982,9 +2982,14 @@
   "@famEmptyTitle": {
     "description": "家庭頁還沒有小孩時的空狀態標題。"
   },
-  "famEmptySub": "兔咪會幫你們記小任務和積分。",
+  "famEmptySub": "{name}會幫你們記小任務和積分。",
   "@famEmptySub": {
-    "description": "家庭頁空狀態副標。這是 app 的說明，不是兔咪自己說話。"
+    "description": "家庭頁空狀態副標。這是 app 的說明，不是兔咪自己說話。name 是兔咪目前的名字（可改名）。",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "pinEnterParent": "請輸入家長密碼",
   "@pinEnterParent": {
