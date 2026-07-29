@@ -1159,7 +1159,7 @@
 
   "obNeedHeight": "Enter your height",
   "obNeedWeight": "Enter your weight",
-  "obRatioOdd": "Check these",
+  "obRatioOdd": "Looks off",
   "obNeedGender": "Pick one",
   "obNeedBirthday": "Enter your birthday",
   "obBirthdayUnparsed": "Couldn't read that date — try 2000-1-1 or 20000101",
@@ -1173,7 +1173,7 @@
   "obNicknameHint": "Your nickname",
   "obDecline": "No thanks",
   "obConfirmOffTitle": "Turn off {name} for now?",
-  "obConfirmOffMessage": "You can turn it on anytime under Settings → Features.",
+  "obConfirmOffMessage": "You can turn it on anytime under Settings → Feature toggles.",
   "obKeepIt": "Keep it",
   "obTurnOff": "Turn it off",
   "obWaterAccept": "Yes, track it",
@@ -1190,7 +1190,7 @@
   "obBirthdayHint": "Tap to pick",
   "obFillDone": "Done",
   "obLaterMaybe": "Maybe later",
-  "obActivityTitle": "How many days a week do you move?",
+  "obActivityTitle": "How many days a week do you exercise?",
   "obStart": "Start",
   "obBack": "Back",
 
@@ -1254,5 +1254,5 @@
   "lsGiveTreat": "Give {treat}",
 
   "mascotDefaultName": "Tumi",
-  "mascotNamePool": "Tumi|Chirpy|Dango|Mochi|Marshmallow|Snowball|Adzuki|Pudding|Milktea|Mimi|Hoppy|Snowy|Bubble|Cloudy|Petal|Star|Moona|Sunny|Dewy|Sugar|Honey|Butter|Cocoa|Sesame|Tofu|Yuzu|Peachy|Chestnut|Millet|Ricecake|Bunbun|Popo|Roundy|Pompom|Jingle|Lumi|Momo|Gummy|Foamy|Snowdrop"
+  "mascotNamePool": "Tumi|Chirpy|Dango|Mochi|Marshmallow|Snowball|Adzuki|Pudding|Boba|Mimi|Hoppy|Snowy|Bubble|Cloudy|Petal|Star|Moona|Sunny|Dewy|Sugar|Honey|Butter|Cocoa|Sesame|Tofu|Yuzu|Peachy|Chestnut|Nugget|Biscuit|Bunbun|Popo|Muffin|Pompom|Jingle|Lumi|Momo|Gummy|Fluffy|Snowdrop"
 }
