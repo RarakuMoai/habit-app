@@ -2968,7 +2968,7 @@
   },
   "famChildSubtitle": "今天也慢慢累積",
   "@famChildSubtitle": {
-    "description": "小孩卡片的副標。比 famSubtitle 短，因為卡片窄。"
+    "description": "小孩卡片的副標。要比 famSubtitle 短很多：卡片右半會被「家長管理」FAB 蓋住，英文的 FAB 又比中文寬，實測只剩約 15 個半寬單位。"
   },
   "famParentManage": "家長管理",
   "@famParentManage": {
