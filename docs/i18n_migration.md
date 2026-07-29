@@ -104,6 +104,34 @@ em 數，扣掉固定文字的 em 數就是名字的空間。
 預設名走 `mascotDefaultName`（中文「兔咪」／英文 "Tumi"）；`MascotName.fallback`
 仍是 const「兔咪」，當沒有 context 時的最後防線。
 
+## 英文文案規則（2026-07-29 定案）
+
+第一批與第二批是分開直譯的，術語與大小寫不一致。以下是統一後的規則，
+**加新的英文文案時照這個寫**。
+
+### 術語表——同一個概念只用一個詞
+
+| 概念 | 用 | 不要用 |
+|---|---|---|
+| 家長密碼 | `passcode` | ~~PIN~~、~~password~~ |
+| 足跡幣 | 標籤／餘額用全名 **`Paw coins`**；句子裡前面已經有數字時用 `{n} coins`（不囉唆） | ~~paw-coin~~（連字號）、單獨的 `Coins` 當標籤 |
+| 兔咪 | 指角色本身用 `{name}`（使用者可改名）；指「這個角色」這個概念用 `mascot`（如欄位標籤 "Mascot name"）；產品名才是固定的 `Tumi` | 在文案裡寫死 `Tumi` |
+| 刪除類 | `delete`＝刪掉某個項目、`clear`＝清空內容但保留容器、`remove`＝從清單移除、`erase`＝整體抹除 | 混用 |
+
+### 大小寫：一律 sentence case
+
+只有第一個字與專有名詞大寫。例外：
+- 產品名 `Tumi Habits`
+- 縮寫 `BMI` `BMR` `TDEE` `BPM` `AM/PM` `TAP` `Lv.`
+- 分頁名（`Show the Water tab`）、能力名（`Hunt bonus`）、人名（`Fischer`）
+- 要使用者照打的字（`Type DELETE to confirm`）
+
+### 標點
+
+- 刪節號一律用 `…`（U+2026），不要打三個點
+- 完整句子（有主詞動詞）結尾加句點；標籤、按鈕、片語不加
+- 破折號用 `—`（em dash），前後留空格
+
 ## 沒 context 的地方怎麼拿文案
 
 utils／service 層沒有 `BuildContext`，一律**由呼叫端把組好的字串傳進來**，
