@@ -190,6 +190,41 @@ em 數，扣掉固定文字的 em 數就是名字的空間。
 還是值得找母語人士做一次 proofreading。這一點要如實告知，不要讓擁有者
 以為 AI 潤過就等於母語品質。
 
+## 英文版面驗證：`--dart-define=APP_LOCALE=en`
+
+文案順不順跟版面裝不裝得下是兩件事。**英文普遍比中文長，而版面是照中文寬度
+調的**，所以改完英文一定要實際渲染一遍。
+
+`main.dart` 鎖著 `zh_TW`，要看英文用這個（同 `SCENE_HOUR` 的常駐鉤子，
+`kDevToolsEnabled` 閘門，正式版 no-op）：
+
+```bash
+flutter build ios --simulator --debug --dart-define=APP_LOCALE=en
+```
+
+用 **iPhone SE（最窄）** 跑；模擬器可以直接點擊／打字，不必再靠 seed prefs
+繞路。debug build 會把溢出畫成黃黑斜紋，那是最好抓的訊號。
+
+2026-07-29 第一次實跑（首頁／計時四模式／喝水／體重／衣櫃三分頁／設定全區／
+基本資料／夥伴檔案／回顧週月／報到／前導頁全流程／家庭頁）抓到五個問題，
+分成三類——**加新英文文案時照這三類自我檢查**：
+
+1. **固定 Row 裝不下**（最嚴重，會溢出）：前導頁性別列
+   `Male / Female / Prefer not to say`。改 `Wrap`，中文仍一行、版面不變。
+2. **等分欄位塞不下**：計時模式列的 `Metronome` 被 fade 成 `Metronom`。
+   加 `FittedBox(scaleDown)`，中文放得下不會被縮，只有英文等比縮。
+3. **英文長到被別的東西蓋住**：名片的 `View profile`、小孩卡副標被
+   `Parent settings` FAB 蓋掉。這種要**把英文改短**，不是動版面
+   （`Profile`、`Bit by bit`）。
+
+另外抓到一個非版面的 bug：使用者還沒取名時英文 UI 會冒出中文「兔咪」——
+`MascotName.fallback` 是 const，`load` 又在 `runApp` 之前跑拿不到 l10n。
+現在預設名由 `MaterialApp.builder` 套用 `l10n.mascotDefaultName`
+（見 `MascotName.applyDefaultName`，行為有單元測試守著）。
+
+**還沒實跑驗證的**：菜園小蛇、桌遊對局中與結算、進階設定／資料刪除頁、
+家長管理頁、積分紀錄有資料時的樣子。加新英文文案動到這些頁時順路補驗。
+
 ### 還沒處理的一項：英文的月份標籤
 
 回顧頁的月份標籤 `rvMonthLabel` 中文是「2026 年 7 月」，英文目前是 `7/2026`
