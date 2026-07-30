@@ -989,7 +989,11 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
               title: Text(habit.name, style: const TextStyle(fontSize: 14)),
               subtitle: Text(
                 '${_l10n.pmHabitPoints(habit.points)} · '
-                '${habit.frequency == 'weekly' ? _l10n.pmHabitWeeklyTimes(habit.weeklyTarget) : _l10n.pmHabitDaily}'
+                '${switch (habit.frequency) {
+                  HabitFrequency.weekly => _l10n.pmHabitWeeklyTimes(habit.weeklyTarget),
+                  HabitFrequency.repeatable => _l10n.pmHabitRepeatable,
+                  _ => _l10n.pmHabitDaily,
+                }}'
                 '${habit.minutes > 0 ? _l10n.pmHabitMinutesSuffix(habit.minutes) : ''}',
                 style: TextStyle(fontSize: 12, color: Colors.green.shade700),
               ),

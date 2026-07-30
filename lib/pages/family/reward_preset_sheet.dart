@@ -244,6 +244,9 @@ Future<Map<String, RewardPresetCfg>?> showRewardPresetSheet(
                                         content: TextField(
                                           controller: ctrl,
                                           keyboardType: TextInputType.number,
+                                          textInputAction: TextInputAction.done,
+                                          onSubmitted: (_) =>
+                                              dismissFamilyNumberKeyboard(),
                                           inputFormatters: [
                                             FilteringTextInputFormatter
                                                 .digitsOnly,
@@ -251,6 +254,8 @@ Future<Map<String, RewardPresetCfg>?> showRewardPresetSheet(
                                           ],
                                           decoration: InputDecoration(
                                             labelText: l10n.rsPointsCost,
+                                            suffixIcon:
+                                                const FamilyNumberKeyboardDoneButton(),
                                           ),
                                           autofocus: true,
                                         ),

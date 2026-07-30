@@ -6,6 +6,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/prefs_keys.dart';
 import 'family_models.dart';
 
+class PointRecordContext {
+  final String? id;
+  final String? kind;
+  final String? sourceId;
+  final String? reversesRecordId;
+
+  const PointRecordContext({
+    this.id,
+    this.kind,
+    this.sourceId,
+    this.reversesRecordId,
+  });
+}
+
 // 本週一到週日的日期字串集合
 Set<String> currentWeekDateSet() {
   final now = DateTime.now();
@@ -150,10 +164,12 @@ Future<int> applyPoints({
   required ChildData child,
   required int delta,
   required String reason,
+  PointRecordContext? recordContext,
 }) => applyPointsBatch(
   prefs: prefs,
   child: child,
   entries: [(delta: delta, reason: reason)],
+  recordContexts: [recordContext],
 );
 
 // 一次套用多筆積分異動（特殊積分多選用）。
@@ -163,7 +179,15 @@ Future<int> applyPointsBatch({
   required SharedPreferences prefs,
   required ChildData child,
   required List<({int delta, String reason})> entries,
+  List<PointRecordContext?>? recordContexts,
 }) async {
+  if (recordContexts != null && recordContexts.length != entries.length) {
+    throw ArgumentError.value(
+      recordContexts.length,
+      'recordContexts',
+      'must contain one entry for each points delta',
+    );
+  }
   if (entries.isEmpty) return child.points;
 
   // 讀取最新小孩清單
@@ -180,17 +204,22 @@ Future<int> applyPointsBatch({
 
   final records = await loadRecords(prefs);
   var points = children[idx].points;
-  for (final entry in entries) {
+  for (var i = 0; i < entries.length; i++) {
+    final entry = entries[i];
+    final recordContext = recordContexts?[i];
     points += entry.delta;
     records.insert(
       0,
       PointRecord(
-        id: genId(),
+        id: recordContext?.id ?? genId(),
         childId: child.id,
         time: nowStr(),
         reason: entry.reason,
         delta: entry.delta,
         total: points,
+        kind: recordContext?.kind,
+        sourceId: recordContext?.sourceId,
+        reversesRecordId: recordContext?.reversesRecordId,
       ),
     );
   }
@@ -204,4 +233,30 @@ Future<int> applyPointsBatch({
   await saveRecords(prefs, records);
 
   return points;
+}
+
+List<PointRecord> habitCompletionRecordsForDay({
+  required Iterable<PointRecord> records,
+  required String habitId,
+  required String date,
+}) {
+  return records
+      .where(
+        (record) =>
+            record.kind == PointRecordKind.habitCompletion &&
+            record.sourceId == habitId &&
+            record.time.split(' ').first == date,
+      )
+      .toList();
+}
+
+Map<String, PointRecord> habitReversalsByCompletionId(
+  Iterable<PointRecord> records,
+) {
+  return {
+    for (final record in records)
+      if (record.kind == PointRecordKind.habitReversal &&
+          record.reversesRecordId != null)
+        record.reversesRecordId!: record,
+  };
 }

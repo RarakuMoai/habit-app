@@ -111,5 +111,63 @@ void main() {
       expect(records[0].total, 10);
       expect(records[1].total, 15);
     });
+
+    test('可重複習慣以紀錄 ID 精確連結完成與撤銷', () async {
+      final (prefs, child) = await seed();
+      const completionId = 'habit-completion-1';
+
+      await applyPoints(
+        prefs: prefs,
+        child: child,
+        delta: 7,
+        reason: '完成習慣：做家事',
+        recordContext: const PointRecordContext(
+          id: completionId,
+          kind: PointRecordKind.habitCompletion,
+          sourceId: 'habit-1',
+        ),
+      );
+      await applyPoints(
+        prefs: prefs,
+        child: child,
+        delta: -7,
+        reason: '撤銷完成：做家事',
+        recordContext: const PointRecordContext(
+          kind: PointRecordKind.habitReversal,
+          sourceId: 'habit-1',
+          reversesRecordId: completionId,
+        ),
+      );
+
+      final records = await loadRecords(prefs);
+      final completions = habitCompletionRecordsForDay(
+        records: records,
+        habitId: 'habit-1',
+        date: todayStr(),
+      );
+      final reversals = habitReversalsByCompletionId(records);
+
+      expect(child.points, 10);
+      expect(completions, hasLength(1));
+      expect(completions.single.id, completionId);
+      expect(completions.single.delta, 7);
+      expect(reversals[completionId]?.delta, -7);
+      expect(reversals[completionId]?.sourceId, 'habit-1');
+    });
+
+    test('舊積分紀錄沒有來源欄位時仍可讀取', () {
+      final record = PointRecord.fromJson({
+        'id': 'legacy',
+        'child_id': 'c1',
+        'time': '2026-07-30 09:15',
+        'reason': '舊紀錄',
+        'delta': 5,
+        'total': 15,
+      });
+
+      expect(record.kind, isNull);
+      expect(record.sourceId, isNull);
+      expect(record.reversesRecordId, isNull);
+    });
   });
 }

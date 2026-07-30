@@ -3244,6 +3244,10 @@
   "@pmHabitDaily": {
     "description": "習慣頻率：每天。"
   },
+  "pmHabitRepeatable": "每日可多次",
+  "@pmHabitRepeatable": {
+    "description": "習慣記錄方式：同一天可以重複記錄。"
+  },
   "pmHabitWeeklyTimes": "每週 {n} 次",
   "@pmHabitWeeklyTimes": {
     "description": "習慣頻率：每週幾次。",
@@ -3409,6 +3413,10 @@
   "@htDailyHabits": {
     "description": "小孩習慣列表的區塊標題：每天要做的。"
   },
+  "htRepeatableHabits": "今日可記多次",
+  "@htRepeatableHabits": {
+    "description": "小孩習慣列表的區塊標題：同一天可以重複記錄的習慣。"
+  },
   "htWeeklyHabits": "每週習慣",
   "@htWeeklyHabits": {
     "description": "小孩習慣列表的區塊標題：每週幾次的。"
@@ -3427,6 +3435,71 @@
       "points": { "type": "int" },
       "minutes": { "type": "int" }
     }
+  },
+  "htLogOnce": "記一次",
+  "@htLogOnce": {
+    "description": "可重複習慣卡片上的新增一次紀錄按鈕。"
+  },
+  "htRepeatPerTime": "每次 +{points} 分",
+  "@htRepeatPerTime": {
+    "description": "可重複習慣每記錄一次會得到的積分。",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "htRepeatNoneToday": "今天還沒有紀錄",
+  "@htRepeatNoneToday": {
+    "description": "可重複習慣今天尚未記錄的提示。"
+  },
+  "htRepeatOnlyCancelledToday": "今天的紀錄都已取消",
+  "@htRepeatOnlyCancelledToday": {
+    "description": "可重複習慣今天曾記錄，但目前全部取消的提示。"
+  },
+  "htRepeatTodaySummary": "今天 {count} 次 · 最近 {time}",
+  "@htRepeatTodaySummary": {
+    "description": "可重複習慣卡片上的今日次數與最近操作時間。",
+    "placeholders": {
+      "count": { "type": "int" },
+      "time": { "type": "String" }
+    }
+  },
+  "htRepeatHistoryTitle": "今天的「{name}」",
+  "@htRepeatHistoryTitle": {
+    "description": "可重複習慣今日每次紀錄的明細標題。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "htRepeatSequence": "第 {sequence} 次",
+  "@htRepeatSequence": {
+    "description": "可重複習慣在當天的操作順序。",
+    "placeholders": {
+      "sequence": { "type": "int" }
+    }
+  },
+  "htRepeatCancelledAt": "已於 {time} 取消",
+  "@htRepeatCancelledAt": {
+    "description": "可重複習慣的某次紀錄已取消及取消時間。",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "htCancelRecord": "取消這次",
+  "@htCancelRecord": {
+    "description": "取消可重複習慣中指定一次紀錄的按鈕。"
+  },
+  "htRepeatLogged": "已記錄第 {sequence} 次 · {time} · +{points} 分",
+  "@htRepeatLogged": {
+    "description": "新增一次可重複習慣後的提示。",
+    "placeholders": {
+      "sequence": { "type": "int" },
+      "time": { "type": "String" },
+      "points": { "type": "int" }
+    }
+  },
+  "htUndoAction": "撤銷",
+  "@htUndoAction": {
+    "description": "剛完成可重複習慣後，立即撤銷該筆紀錄的 SnackBar 按鈕。"
   },
   "prtCustom": "自訂",
   "@prtCustom": {
@@ -3656,6 +3729,10 @@
   "@hpsFreqDaily": {
     "description": "常用習慣卡的頻率摘要：每天。開頭的間隔號要保留。"
   },
+  "hpsFreqRepeatable": "・每日可多次",
+  "@hpsFreqRepeatable": {
+    "description": "常用習慣卡的頻率摘要：同一天可以重複記錄。開頭的間隔號要保留。"
+  },
   "hsAddTitle": "新增習慣",
   "@hsAddTitle": {
     "description": "新增習慣面板的標題（家庭頁與首頁共用）。"
@@ -3698,6 +3775,14 @@
   "hsWeekly": "每週",
   "@hsWeekly": {
     "description": "習慣頻率選項：每週幾次（家庭頁與首頁共用）。"
+  },
+  "hsRepeatable": "每日可多次",
+  "@hsRepeatable": {
+    "description": "習慣記錄方式：同一天可以重複記錄，每次都會加分。"
+  },
+  "hsRepeatableHint": "同一天可重複記錄，每次都會加分",
+  "@hsRepeatableHint": {
+    "description": "選擇每日可多次後的簡短說明。"
   },
   "hsTimesSuffix": "  次",
   "@hsTimesSuffix": {

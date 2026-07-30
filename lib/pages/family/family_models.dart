@@ -30,6 +30,12 @@ class ChildData {
 }
 
 // 小孩習慣
+abstract final class HabitFrequency {
+  static const daily = 'daily';
+  static const repeatable = 'repeatable';
+  static const weekly = 'weekly';
+}
+
 class ChildHabit {
   final String id;
   final String childId;
@@ -47,7 +53,7 @@ class ChildHabit {
     required this.name,
     required this.points,
     this.completedDate = '',
-    this.frequency = 'daily',
+    this.frequency = HabitFrequency.daily,
     this.weeklyTarget = 3,
     List<String>? weeklyDates,
     this.minutes = 0,
@@ -186,6 +192,11 @@ class VoucherLog {
 }
 
 // 積分紀錄
+abstract final class PointRecordKind {
+  static const habitCompletion = 'habit_completion';
+  static const habitReversal = 'habit_reversal';
+}
+
 class PointRecord {
   final String id;
   final String childId;
@@ -193,6 +204,9 @@ class PointRecord {
   final String reason;
   final int delta; // 正數加分、負數扣分
   final int total; // 變動後累積總分
+  final String? kind;
+  final String? sourceId;
+  final String? reversesRecordId;
 
   PointRecord({
     required this.id,
@@ -201,6 +215,9 @@ class PointRecord {
     required this.reason,
     required this.delta,
     required this.total,
+    this.kind,
+    this.sourceId,
+    this.reversesRecordId,
   });
 
   factory PointRecord.fromJson(Map<String, dynamic> json) => PointRecord(
@@ -210,6 +227,9 @@ class PointRecord {
     reason: json['reason'] as String,
     delta: (json['delta'] as int?) ?? 0,
     total: (json['total'] as int?) ?? 0,
+    kind: json['kind'] as String?,
+    sourceId: json['source_id'] as String?,
+    reversesRecordId: json['reverses_record_id'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -219,5 +239,8 @@ class PointRecord {
     'reason': reason,
     'delta': delta,
     'total': total,
+    if (kind != null) 'kind': kind,
+    if (sourceId != null) 'source_id': sourceId,
+    if (reversesRecordId != null) 'reverses_record_id': reversesRecordId,
   };
 }

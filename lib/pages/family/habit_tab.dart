@@ -13,6 +13,7 @@ import 'family_auth.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
+import 'family_widgets.dart';
 import 'preset_pick_sheet.dart';
 
 // ── 習慣打卡 Tab ──
@@ -36,6 +37,9 @@ class _HabitTabState extends State<HabitTab> {
 
   List<ChildHabit> _habits = [];
   List<DeductionItem> _deductions = [];
+  List<PointRecord> _records = [];
+  final Set<String> _pendingHabitIds = {};
+  final Set<String> _pendingRecordIds = {};
   bool _loaded = false;
   SharedPreferences? _prefs;
 
@@ -50,26 +54,60 @@ class _HabitTabState extends State<HabitTab> {
     _prefs = await SharedPreferences.getInstance();
     final habits = await loadHabits(_prefs!);
     final deductions = await loadDeductions(_prefs!);
+    final records = await loadRecords(_prefs!);
+    if (!mounted) return;
     setState(() {
       // 只顯示此小孩的習慣與扣分項目
       _habits = habits.where((h) => h.childId == widget.child.id).toList();
       _deductions = deductions
           .where((d) => d.childId == widget.child.id)
           .toList();
+      _records = records
+          .where((record) => record.childId == widget.child.id)
+          .toList();
       _loaded = true;
     });
   }
 
   // 判斷習慣今日是否完成（每日：今日打卡；每週：本週次數達標）
-  bool _isDoneToday(ChildHabit habit) => habit.frequency == 'weekly'
-      ? weeklyCount(habit) >= habit.weeklyTarget
-      : habit.completedDate == todayStr();
+  bool _isDoneToday(ChildHabit habit) => switch (habit.frequency) {
+    HabitFrequency.weekly => weeklyCount(habit) >= habit.weeklyTarget,
+    HabitFrequency.repeatable => false,
+    _ => habit.completedDate == todayStr(),
+  };
+
+  List<PointRecord> _repeatableCompletionsToday(ChildHabit habit) {
+    return habitCompletionRecordsForDay(
+      records: _records,
+      habitId: habit.id,
+      date: todayStr(),
+    );
+  }
+
+  Map<String, PointRecord> get _reversalsByCompletionId =>
+      habitReversalsByCompletionId(_records);
+
+  List<PointRecord> _activeRepeatableCompletionsToday(ChildHabit habit) {
+    final reversals = _reversalsByCompletionId;
+    return _repeatableCompletionsToday(
+      habit,
+    ).where((record) => !reversals.containsKey(record.id)).toList();
+  }
+
+  String _recordTime(PointRecord record) {
+    final parts = record.time.split(' ');
+    return parts.length > 1 ? parts.last : record.time;
+  }
 
   // 打卡：增加積分、標記日期
   // 每日：今日已打卡則跳過；每週：允許一日多次（上限 20 次/週）
   Future<void> _checkIn(ChildHabit habit) async {
+    if (habit.frequency == HabitFrequency.repeatable) {
+      await _recordRepeatableCompletion(habit);
+      return;
+    }
     final today = todayStr();
-    if (habit.frequency == 'weekly') {
+    if (habit.frequency == HabitFrequency.weekly) {
       if (weeklyCount(habit) >= 20) return; // 上限
     } else {
       if (habit.completedDate == today) return;
@@ -86,7 +124,7 @@ class _HabitTabState extends State<HabitTab> {
     final allHabits = await loadHabits(prefs);
     final idx = allHabits.indexWhere((h) => h.id == habit.id);
     if (idx != -1) {
-      if (habit.frequency == 'weekly') {
+      if (habit.frequency == HabitFrequency.weekly) {
         allHabits[idx].weeklyDates.add(today);
         habit.weeklyDates.add(today);
       } else {
@@ -104,11 +142,269 @@ class _HabitTabState extends State<HabitTab> {
     widget.onPointsChanged();
   }
 
+  Future<void> _recordRepeatableCompletion(ChildHabit habit) async {
+    if (!mounted || _pendingHabitIds.contains(habit.id)) return;
+    setState(() => _pendingHabitIds.add(habit.id));
+
+    final recordId = genId();
+    try {
+      final newPoints = await applyPoints(
+        prefs: _prefs!,
+        child: widget.child,
+        delta: habit.points,
+        reason: _l10n.htReasonComplete(habit.name),
+        recordContext: PointRecordContext(
+          id: recordId,
+          kind: PointRecordKind.habitCompletion,
+          sourceId: habit.id,
+        ),
+      );
+      final allRecords = await loadRecords(_prefs!);
+      if (!mounted) return;
+      setState(() {
+        widget.child.points = newPoints;
+        _records = allRecords
+            .where((record) => record.childId == widget.child.id)
+            .toList();
+      });
+      widget.onPointsChanged();
+      playFeedback(SfxCue.tap);
+
+      PointRecord? completion;
+      for (final record in _records) {
+        if (record.id == recordId) {
+          completion = record;
+          break;
+        }
+      }
+      if (completion == null || !mounted) return;
+      final savedCompletion = completion;
+      final sequence = _repeatableCompletionsToday(habit).length;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            _l10n.htRepeatLogged(
+              sequence,
+              _recordTime(savedCompletion),
+              savedCompletion.delta,
+            ),
+          ),
+          action: SnackBarAction(
+            label: _l10n.htUndoAction,
+            onPressed: () =>
+                unawaited(_cancelRepeatableCompletion(habit, savedCompletion)),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _pendingHabitIds.remove(habit.id));
+      }
+    }
+  }
+
+  Future<void> _cancelRepeatableCompletion(
+    ChildHabit habit,
+    PointRecord completion,
+  ) async {
+    if (!mounted ||
+        _pendingRecordIds.contains(completion.id) ||
+        _reversalsByCompletionId.containsKey(completion.id)) {
+      return;
+    }
+    setState(() => _pendingRecordIds.add(completion.id));
+
+    try {
+      final newPoints = await applyPoints(
+        prefs: _prefs!,
+        child: widget.child,
+        delta: -completion.delta,
+        reason: _l10n.htReasonUndo(habit.name),
+        recordContext: PointRecordContext(
+          kind: PointRecordKind.habitReversal,
+          sourceId: habit.id,
+          reversesRecordId: completion.id,
+        ),
+      );
+      final allRecords = await loadRecords(_prefs!);
+      if (!mounted) return;
+      setState(() {
+        widget.child.points = newPoints;
+        _records = allRecords
+            .where((record) => record.childId == widget.child.id)
+            .toList();
+      });
+      widget.onPointsChanged();
+      playFeedback(SfxCue.cancel);
+    } finally {
+      if (mounted) {
+        setState(() => _pendingRecordIds.remove(completion.id));
+      }
+    }
+  }
+
+  Future<void> _showRepeatableHistory(ChildHabit habit) async {
+    if (_repeatableCompletionsToday(habit).isEmpty) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (_, setSheetState) {
+          final completions = _repeatableCompletionsToday(habit);
+          final reversals = _reversalsByCompletionId;
+          return SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppSurfaces.dragHandle,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _l10n.htRepeatHistoryTitle(habit.name),
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: AppInk.strong,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: _l10n.commonClose,
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppInk.iconFaint,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: completions.length,
+                        separatorBuilder: (_, _) =>
+                            const Divider(height: 1, thickness: 0.5),
+                        itemBuilder: (_, index) {
+                          final completion = completions[index];
+                          final reversal = reversals[completion.id];
+                          final cancelled = reversal != null;
+                          final sequence = completions.length - index;
+                          final pending = _pendingRecordIds.contains(
+                            completion.id,
+                          );
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 4,
+                            ),
+                            leading: Container(
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: cancelled
+                                    ? AppSurfaces.fill
+                                    : Colors.orange.shade50,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '$sequence',
+                                style: AppType.digits(
+                                  fontSize: 15,
+                                  color: cancelled
+                                      ? AppInk.faint
+                                      : Colors.orange.shade700,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              _l10n.htRepeatSequence(sequence),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: cancelled ? AppInk.faint : AppInk.strong,
+                                decoration: cancelled
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${_recordTime(completion)} · '
+                              '${_l10n.pmHabitPoints(completion.delta)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cancelled ? AppInk.faint : AppInk.soft,
+                              ),
+                            ),
+                            trailing: cancelled
+                                ? Text(
+                                    _l10n.htRepeatCancelledAt(
+                                      _recordTime(reversal),
+                                    ),
+                                    textAlign: TextAlign.end,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppInk.faint,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  )
+                                : TextButton(
+                                    onPressed: pending
+                                        ? null
+                                        : () async {
+                                            await _cancelRepeatableCompletion(
+                                              habit,
+                                              completion,
+                                            );
+                                            if (sheetContext.mounted) {
+                                              setSheetState(() {});
+                                            }
+                                          },
+                                    child: Text(_l10n.htCancelRecord),
+                                  ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // 撤銷打卡：扣回積分並清除日期（每週習慣移除最後一筆今日紀錄）
   Future<void> _undoCheckIn(ChildHabit habit) async {
     if (!mounted) return;
     final today = todayStr();
-    if (habit.frequency == 'weekly') {
+    if (habit.frequency == HabitFrequency.weekly) {
       if (!habit.weeklyDates.contains(today)) return;
     } else {
       if (habit.completedDate != today) return;
@@ -125,7 +421,7 @@ class _HabitTabState extends State<HabitTab> {
     final allHabits = await loadHabits(prefs);
     final idx = allHabits.indexWhere((h) => h.id == habit.id);
     if (idx != -1) {
-      if (habit.frequency == 'weekly') {
+      if (habit.frequency == HabitFrequency.weekly) {
         // 移除最後一筆今日紀錄（多次打卡只撤銷一次）
         final lastIdx = allHabits[idx].weeklyDates.lastIndexOf(today);
         if (lastIdx != -1) {
@@ -390,6 +686,8 @@ class _HabitTabState extends State<HabitTab> {
                       controller: pointCtrl,
                       onChanged: (_) => setS(() {}),
                       keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(4),
@@ -411,6 +709,7 @@ class _HabitTabState extends State<HabitTab> {
                           size: 18,
                           color: isAdd ? Colors.green : Colors.red,
                         ),
+                        suffixIcon: const FamilyNumberKeyboardDoneButton(),
                       ),
                     ),
                   ],
@@ -495,8 +794,15 @@ class _HabitTabState extends State<HabitTab> {
     }
 
     final today = todayStr();
-    final dailyHabits = _habits.where((h) => h.frequency == 'daily').toList();
-    final weeklyHabits = _habits.where((h) => h.frequency == 'weekly').toList();
+    final dailyHabits = _habits
+        .where((h) => h.frequency == HabitFrequency.daily)
+        .toList();
+    final repeatableHabits = _habits
+        .where((h) => h.frequency == HabitFrequency.repeatable)
+        .toList();
+    final weeklyHabits = _habits
+        .where((h) => h.frequency == HabitFrequency.weekly)
+        .toList();
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -516,7 +822,7 @@ class _HabitTabState extends State<HabitTab> {
                 done: dailyHabits.where(_isDoneToday).length,
                 total: dailyHabits.length,
               ),
-              _todayPointsHint(dailyHabits, isWeekly: false),
+              _todayPointsHint(dailyHabits),
               ...dailyHabits.map(
                 (habit) => _HabitItem(
                   habit: habit,
@@ -528,9 +834,40 @@ class _HabitTabState extends State<HabitTab> {
                 ),
               ),
             ],
+            if (repeatableHabits.isNotEmpty) ...[
+              if (dailyHabits.isNotEmpty) const SizedBox(height: 18),
+              HabitSectionHeader(
+                label: _l10n.htRepeatableHabits,
+                icon: Icons.repeat_rounded,
+                color: Colors.deepOrange,
+              ),
+              _todayPointsHint(repeatableHabits),
+              ...repeatableHabits.map((habit) {
+                final completions = _repeatableCompletionsToday(habit);
+                final activeCompletions = _activeRepeatableCompletionsToday(
+                  habit,
+                );
+                return _HabitItem(
+                  habit: habit,
+                  doneToday: false,
+                  weeklyCount: 0,
+                  todayCount: activeCompletions.length,
+                  historyCount: completions.length,
+                  latestTodayTime: activeCompletions.isEmpty
+                      ? null
+                      : _recordTime(activeCompletions.first),
+                  busy: _pendingHabitIds.contains(habit.id),
+                  onCheckIn: () => _checkIn(habit),
+                  onShowHistory: completions.isEmpty
+                      ? null
+                      : () => _showRepeatableHistory(habit),
+                );
+              }),
+            ],
             // 每週習慣
             if (weeklyHabits.isNotEmpty) ...[
-              if (dailyHabits.isNotEmpty) const SizedBox(height: 18),
+              if (dailyHabits.isNotEmpty || repeatableHabits.isNotEmpty)
+                const SizedBox(height: 18),
               HabitSectionHeader(
                 label: _l10n.htWeeklyHabits,
                 icon: Icons.calendar_view_week_rounded,
@@ -540,7 +877,7 @@ class _HabitTabState extends State<HabitTab> {
                     .length,
                 total: weeklyHabits.length,
               ),
-              _todayPointsHint(weeklyHabits, isWeekly: true),
+              _todayPointsHint(weeklyHabits),
               ...weeklyHabits.map(
                 (habit) => _HabitItem(
                   habit: habit,
@@ -576,20 +913,22 @@ class _HabitTabState extends State<HabitTab> {
   }
 
   // 今日已獲得分數提示（只在有得分時顯示）
-  Widget _todayPointsHint(List<ChildHabit> habits, {required bool isWeekly}) {
+  Widget _todayPointsHint(List<ChildHabit> habits) {
     final today = todayStr();
-    int todayPts;
-    if (isWeekly) {
-      // 每週習慣：每筆今日 weeklyDates 都計分（支援多次）
-      todayPts = habits.fold<int>(0, (sum, h) {
-        final todayCount = h.weeklyDates.where((d) => d == today).length;
-        return sum + todayCount * h.points;
-      });
-    } else {
-      todayPts = habits
-          .where((h) => h.completedDate == today)
-          .fold<int>(0, (sum, h) => sum + h.points);
-    }
+    final todayPts = habits.fold<int>(0, (sum, habit) {
+      return switch (habit.frequency) {
+        HabitFrequency.weekly =>
+          sum +
+              habit.weeklyDates.where((date) => date == today).length *
+                  habit.points,
+        HabitFrequency.repeatable =>
+          sum +
+              _activeRepeatableCompletionsToday(
+                habit,
+              ).fold<int>(0, (points, record) => points + record.delta),
+        _ => sum + (habit.completedDate == today ? habit.points : 0),
+      };
+    });
     if (todayPts <= 0) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(left: 2, bottom: 8),
@@ -622,16 +961,24 @@ class _HabitItem extends StatefulWidget {
   final bool doneToday;
   final int weeklyCount;
   final int todayCount;
+  final int historyCount;
+  final String? latestTodayTime;
+  final bool busy;
   final VoidCallback onCheckIn;
   final VoidCallback? onUndo;
+  final VoidCallback? onShowHistory;
 
   const _HabitItem({
     required this.habit,
     required this.doneToday,
     required this.weeklyCount,
     required this.todayCount,
+    this.historyCount = 0,
+    this.latestTodayTime,
+    this.busy = false,
     required this.onCheckIn,
     this.onUndo,
+    this.onShowHistory,
   });
 
   @override
@@ -676,8 +1023,174 @@ class _HabitItemState extends State<_HabitItem>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.habit.frequency == 'weekly') return _buildWeeklyCard();
+    if (widget.habit.frequency == HabitFrequency.repeatable) {
+      return _buildRepeatableCard();
+    }
+    if (widget.habit.frequency == HabitFrequency.weekly) {
+      return _buildWeeklyCard();
+    }
     return _buildDailyCard();
+  }
+
+  Widget _buildRepeatableCard() {
+    final habit = widget.habit;
+    final hasActiveRecords = widget.todayCount > 0;
+    final hasHistory = widget.historyCount > 0;
+    final summary = hasActiveRecords
+        ? _l10n.htRepeatTodaySummary(
+            widget.todayCount,
+            widget.latestTodayTime ?? '',
+          )
+        : hasHistory
+        ? _l10n.htRepeatOnlyCancelledToday
+        : _l10n.htRepeatNoneToday;
+
+    return Container(
+      key: ValueKey('repeatable-habit-${habit.id}'),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: AppCardStyle.hairline,
+        boxShadow: AppShadows.card,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListTile(
+                minTileHeight: 82,
+                onTap: widget.onShowHistory,
+                contentPadding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
+                leading: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: hasActiveRecords
+                        ? Colors.deepOrange.shade50
+                        : AppSurfaces.fill,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${widget.todayCount}',
+                    style: AppType.digits(
+                      fontSize: 18,
+                      color: hasActiveRecords
+                          ? Colors.deepOrange.shade700
+                          : AppInk.faint,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  habit.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppInk.strong,
+                  ),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _l10n.htRepeatPerTime(habit.points),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.deepOrange.shade700,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 12,
+                            color: hasHistory ? AppInk.soft : AppInk.faint,
+                          ),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              summary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: hasHistory ? AppInk.soft : AppInk.faint,
+                                fontWeight: hasHistory
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                          if (hasHistory) ...[
+                            const SizedBox(width: 1),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 14,
+                              color: AppInk.iconFaint,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                trailing: FilledButton.icon(
+                  key: ValueKey('repeatable-add-${habit.id}'),
+                  onPressed: widget.busy ? null : widget.onCheckIn,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    backgroundColor: Colors.deepOrange.shade50,
+                    foregroundColor: Colors.deepOrange.shade700,
+                    disabledBackgroundColor: AppSurfaces.fill,
+                    disabledForegroundColor: AppInk.faint,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: widget.busy
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_rounded, size: 18),
+                  label: Text(
+                    _l10n.htLogOnce,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDailyCard() {

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import 'family_presets.dart';
+import 'family_widgets.dart';
 
 // 常用選項子選單：可捲動清單，每項可個別調整數值
 Future<Map<String, int>?> showFamilyPresetSubSheet(
@@ -132,12 +133,17 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                   content: TextField(
                                     controller: ctrl,
                                     keyboardType: TextInputType.number,
+                                    textInputAction: TextInputAction.done,
+                                    onSubmitted: (_) =>
+                                        dismissFamilyNumberKeyboard(),
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
                                       LengthLimitingTextInputFormatter(4),
                                     ],
                                     decoration: InputDecoration(
                                       labelText: dialogLabel,
+                                      suffixIcon:
+                                          const FamilyNumberKeyboardDoneButton(),
                                     ),
                                     autofocus: true,
                                   ),

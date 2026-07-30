@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
+import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_widgets.dart';
 
@@ -88,25 +89,31 @@ Widget _buildFamilyPresetCustomization(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Divider(height: 1, color: Colors.orange.shade100),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               Icon(Icons.repeat, size: 15, color: Colors.orange.shade500),
-              const SizedBox(width: 10),
               FreqChip(
                 label: l10n.hsDaily,
-                selected: cfg.frequency == 'daily',
-                onTap: () => setS(() => cfg.frequency = 'daily'),
+                selected: cfg.frequency == HabitFrequency.daily,
+                onTap: () => setS(() => cfg.frequency = HabitFrequency.daily),
               ),
-              const SizedBox(width: 8),
+              FreqChip(
+                label: l10n.hsRepeatable,
+                selected: cfg.frequency == HabitFrequency.repeatable,
+                onTap: () =>
+                    setS(() => cfg.frequency = HabitFrequency.repeatable),
+              ),
               FreqChip(
                 label: l10n.hsWeekly,
-                selected: cfg.frequency == 'weekly',
-                onTap: () => setS(() => cfg.frequency = 'weekly'),
+                selected: cfg.frequency == HabitFrequency.weekly,
+                onTap: () => setS(() => cfg.frequency = HabitFrequency.weekly),
               ),
             ],
           ),
-          if (cfg.frequency == 'weekly')
+          if (cfg.frequency == HabitFrequency.weekly)
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Row(
@@ -303,7 +310,11 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                           ),
                                           child: Text(
                                             '${cfg.minutes > 0 ? l10n.hpsMinutesSet(cfg.minutes) : l10n.hpsNoDuration}'
-                                            '${cfg.frequency == "weekly" ? l10n.hpsFreqWeekly(cfg.weeklyTarget) : l10n.hpsFreqDaily}',
+                                            '${switch (cfg.frequency) {
+                                              HabitFrequency.weekly => l10n.hpsFreqWeekly(cfg.weeklyTarget),
+                                              HabitFrequency.repeatable => l10n.hpsFreqRepeatable,
+                                              _ => l10n.hpsFreqDaily,
+                                            }}',
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: Colors.orange.shade600,
@@ -338,6 +349,9 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                         content: TextField(
                                           controller: ctrl,
                                           keyboardType: TextInputType.number,
+                                          textInputAction: TextInputAction.done,
+                                          onSubmitted: (_) =>
+                                              dismissFamilyNumberKeyboard(),
                                           inputFormatters: [
                                             FilteringTextInputFormatter
                                                 .digitsOnly,
@@ -345,6 +359,8 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                           ],
                                           decoration: InputDecoration(
                                             labelText: l10n.ppsPointsOnDone,
+                                            suffixIcon:
+                                                const FamilyNumberKeyboardDoneButton(),
                                           ),
                                           autofocus: true,
                                         ),

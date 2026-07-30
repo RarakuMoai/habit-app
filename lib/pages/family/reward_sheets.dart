@@ -8,6 +8,7 @@ import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
+import 'family_widgets.dart';
 import 'reward_preset_sheet.dart';
 
 // ── 新增獎勵 ──
@@ -208,6 +209,8 @@ Future<void> showAddRewardSheet(
                     controller: pointCtrl,
                     onChanged: (_) => setS(() {}),
                     keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(4),
@@ -221,6 +224,7 @@ Future<void> showAddRewardSheet(
                         borderSide: BorderSide.none,
                       ),
                       prefixIcon: const Icon(Icons.stars_outlined, size: 18),
+                      suffixIcon: const FamilyNumberKeyboardDoneButton(),
                     ),
                   ),
                 ],
@@ -394,11 +398,13 @@ Future<void> showEditRewardSheet(
                 TextField(
                   controller: pointCtrl,
                   keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(4),
                   ],
                   onChanged: (_) => setS(() {}),
+                  onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                   decoration: InputDecoration(
                     labelText: l10n.rsPointsCost,
                     filled: true,
@@ -408,6 +414,7 @@ Future<void> showEditRewardSheet(
                       borderSide: BorderSide.none,
                     ),
                     prefixIcon: const Icon(Icons.stars_outlined, size: 18),
+                    suffixIcon: const FamilyNumberKeyboardDoneButton(),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,

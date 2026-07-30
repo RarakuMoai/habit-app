@@ -1,4 +1,5 @@
 // 育兒模式常用選項預設資料（習慣／扣分／獎勵）
+import 'family_models.dart';
 
 // ── 常用選項預設資料 ──
 
@@ -26,7 +27,7 @@ class HabitPresetCfg {
   HabitPresetCfg({
     required this.points,
     this.minutes = 0,
-    this.frequency = 'daily',
+    this.frequency = HabitFrequency.daily,
     this.weeklyTarget = 3,
   });
 }

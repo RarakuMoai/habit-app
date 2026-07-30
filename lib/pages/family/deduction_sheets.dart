@@ -8,6 +8,7 @@ import '../../utils/app_style.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
+import 'family_widgets.dart';
 import 'preset_pick_sheet.dart';
 
 int _deductionPresetPoints(String name) {
@@ -225,6 +226,8 @@ Future<void> showAddDeductionSheet(
                     controller: pointCtrl,
                     onChanged: (_) => setS(() {}),
                     keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(4),
@@ -241,6 +244,7 @@ Future<void> showAddDeductionSheet(
                         Icons.remove_circle_outline,
                         size: 18,
                       ),
+                      suffixIcon: const FamilyNumberKeyboardDoneButton(),
                     ),
                   ),
                 ],
@@ -384,11 +388,13 @@ Future<void> showEditDeductionSheet(
               TextField(
                 controller: pointCtrl,
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(4),
                 ],
                 onChanged: (_) => setS(() {}),
+                onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                 decoration: InputDecoration(
                   labelText: l10n.htDeductHowMany,
                   filled: true,
@@ -398,6 +404,7 @@ Future<void> showEditDeductionSheet(
                     borderSide: BorderSide.none,
                   ),
                   prefixIcon: const Icon(Icons.remove_circle_outline, size: 18),
+                  suffixIcon: const FamilyNumberKeyboardDoneButton(),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,

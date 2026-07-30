@@ -24,7 +24,7 @@ Future<void> showAddHabitSheet(
   final pointCtrl = TextEditingController(text: '10');
   final selectedIds = Set<String>.from(children.map((c) => c.id));
   final selectedPresetCfgs = <String, HabitPresetCfg>{};
-  var freq = 'daily';
+  var freq = HabitFrequency.daily;
   var weeklyTarget = 3;
   var minutes = 0;
   var customExpanded = false;
@@ -294,6 +294,8 @@ Future<void> showAddHabitSheet(
                           controller: pointCtrl,
                           onChanged: (_) => setS(() {}),
                           keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(4),
@@ -328,6 +330,7 @@ Future<void> showAddHabitSheet(
                               Icons.star_outline,
                               size: 18,
                             ),
+                            suffixIcon: const FamilyNumberKeyboardDoneButton(),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -340,50 +343,77 @@ Future<void> showAddHabitSheet(
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
                             FreqChip(
                               label: l10n.hsDaily,
-                              selected: freq == 'daily',
-                              onTap: () => setS(() => freq = 'daily'),
+                              selected: freq == HabitFrequency.daily,
+                              onTap: () =>
+                                  setS(() => freq = HabitFrequency.daily),
                             ),
-                            const SizedBox(width: 8),
+                            FreqChip(
+                              label: l10n.hsRepeatable,
+                              selected: freq == HabitFrequency.repeatable,
+                              onTap: () =>
+                                  setS(() => freq = HabitFrequency.repeatable),
+                            ),
                             FreqChip(
                               label: l10n.hsWeekly,
-                              selected: freq == 'weekly',
-                              onTap: () => setS(() => freq = 'weekly'),
+                              selected: freq == HabitFrequency.weekly,
+                              onTap: () =>
+                                  setS(() => freq = HabitFrequency.weekly),
                             ),
-                            if (freq == 'weekly') ...[
-                              const SizedBox(width: 16),
-                              AdjustBtn(
-                                icon: Icons.remove,
-                                enabled: weeklyTarget > 1,
-                                onTap: () => setS(() => weeklyTarget--),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '$weeklyTarget',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                l10n.hsTimesSuffix,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppInk.soft,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              AdjustBtn(
-                                icon: Icons.add,
-                                enabled: weeklyTarget < 7,
-                                onTap: () => setS(() => weeklyTarget++),
-                              ),
-                            ],
                           ],
                         ),
+                        if (freq == HabitFrequency.repeatable)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, left: 2),
+                            child: Text(
+                              l10n.hsRepeatableHint,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        if (freq == HabitFrequency.weekly)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AdjustBtn(
+                                  icon: Icons.remove,
+                                  enabled: weeklyTarget > 1,
+                                  onTap: () => setS(() => weeklyTarget--),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '$weeklyTarget',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  l10n.hsTimesSuffix,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppInk.soft,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                AdjustBtn(
+                                  icon: Icons.add,
+                                  enabled: weeklyTarget < 7,
+                                  onTap: () => setS(() => weeklyTarget++),
+                                ),
+                              ],
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         Text(
                           l10n.hsDurationOptional,
@@ -657,11 +687,13 @@ Future<void> showEditHabitSheet(
                 TextField(
                   controller: pointCtrl,
                   keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(4),
                   ],
                   onChanged: (_) => setS(() {}),
+                  onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                   decoration: InputDecoration(
                     labelText: l10n.hsPointsHint,
                     filled: true,
@@ -671,6 +703,7 @@ Future<void> showEditHabitSheet(
                       borderSide: BorderSide.none,
                     ),
                     prefixIcon: const Icon(Icons.stars_outlined, size: 18),
+                    suffixIcon: const FamilyNumberKeyboardDoneButton(),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,
@@ -687,47 +720,71 @@ Future<void> showEditHabitSheet(
                   ),
                 ),
                 const SizedBox(height: 6),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     FreqChip(
                       label: l10n.hsDaily,
-                      selected: freq == 'daily',
-                      onTap: () => setS(() => freq = 'daily'),
+                      selected: freq == HabitFrequency.daily,
+                      onTap: () => setS(() => freq = HabitFrequency.daily),
                     ),
-                    const SizedBox(width: 8),
+                    FreqChip(
+                      label: l10n.hsRepeatable,
+                      selected: freq == HabitFrequency.repeatable,
+                      onTap: () => setS(() => freq = HabitFrequency.repeatable),
+                    ),
                     FreqChip(
                       label: l10n.hsWeekly,
-                      selected: freq == 'weekly',
-                      onTap: () => setS(() => freq = 'weekly'),
+                      selected: freq == HabitFrequency.weekly,
+                      onTap: () => setS(() => freq = HabitFrequency.weekly),
                     ),
-                    if (freq == 'weekly') ...[
-                      const SizedBox(width: 16),
-                      AdjustBtn(
-                        icon: Icons.remove,
-                        enabled: weeklyTarget > 1,
-                        onTap: () => setS(() => weeklyTarget--),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '$weeklyTarget',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        l10n.hsTimesSuffix,
-                        style: TextStyle(fontSize: 13, color: AppInk.soft),
-                      ),
-                      const SizedBox(width: 8),
-                      AdjustBtn(
-                        icon: Icons.add,
-                        enabled: weeklyTarget < 7,
-                        onTap: () => setS(() => weeklyTarget++),
-                      ),
-                    ],
                   ],
                 ),
+                if (freq == HabitFrequency.repeatable)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 2),
+                    child: Text(
+                      l10n.hsRepeatableHint,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                if (freq == HabitFrequency.weekly)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AdjustBtn(
+                          icon: Icons.remove,
+                          enabled: weeklyTarget > 1,
+                          onTap: () => setS(() => weeklyTarget--),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$weeklyTarget',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          l10n.hsTimesSuffix,
+                          style: TextStyle(fontSize: 13, color: AppInk.soft),
+                        ),
+                        const SizedBox(width: 8),
+                        AdjustBtn(
+                          icon: Icons.add,
+                          enabled: weeklyTarget < 7,
+                          onTap: () => setS(() => weeklyTarget++),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 14),
                 Text(
                   l10n.hsDurationOptional,

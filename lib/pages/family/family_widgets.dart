@@ -9,6 +9,35 @@ import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/mascot.dart';
 
+const familyNumberKeyboardDoneButtonKey = ValueKey<String>(
+  'family-number-keyboard-done',
+);
+
+void dismissFamilyNumberKeyboard() {
+  FocusManager.instance.primaryFocus?.unfocus();
+}
+
+/// iOS 的純數字鍵盤沒有 Return／Done 鍵；家庭模式的數值欄位統一在欄位
+/// 尾端提供一個明確的「完成」按鈕，避免使用者只能靠點畫面空白處收鍵盤。
+class FamilyNumberKeyboardDoneButton extends StatelessWidget {
+  const FamilyNumberKeyboardDoneButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      key: familyNumberKeyboardDoneButtonKey,
+      onPressed: dismissFamilyNumberKeyboard,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(52, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+      child: Text(AppLocalizations.of(context).commonDone),
+    );
+  }
+}
+
 class FamilyEmptyInvite extends StatelessWidget {
   final Color accent;
   final VoidCallback onAdd;
@@ -170,6 +199,7 @@ Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {
       content: TextField(
         controller: ctrl,
         keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.done,
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,
           LengthLimitingTextInputFormatter(4),
@@ -177,6 +207,7 @@ Future<int?> showFamilyMinutesDialog(BuildContext context, int current) async {
         autofocus: true,
         decoration: InputDecoration(
           suffixText: AppLocalizations.of(ctx).fwMinutes,
+          suffixIcon: const FamilyNumberKeyboardDoneButton(),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,
