@@ -18,7 +18,10 @@ void dismissFamilyNumberKeyboard() {
 }
 
 /// iOS 的純數字鍵盤沒有 Return／Done 鍵；家庭模式的數值欄位統一在欄位
-/// 尾端提供一個明確的「完成」按鈕，避免使用者只能靠點畫面空白處收鍵盤。
+/// 尾端提供一個明確的收鍵盤按鈕，避免使用者只能靠點畫面空白處收鍵盤。
+///
+/// 文案用「收起」而不是「完成」：這些欄位所在的面板底部就有「儲存」，
+/// 兩顆都寫「完成／儲存」會被讀成同一件事，家長會以為按了就存檔。
 class FamilyNumberKeyboardDoneButton extends StatelessWidget {
   const FamilyNumberKeyboardDoneButton({super.key});
 
@@ -33,7 +36,7 @@ class FamilyNumberKeyboardDoneButton extends StatelessWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
       ),
-      child: Text(AppLocalizations.of(context).commonDone),
+      child: Text(AppLocalizations.of(context).famHideKeyboard),
     );
   }
 }

@@ -3413,7 +3413,11 @@
   "@htDailyHabits": {
     "description": "小孩習慣列表的區塊標題：每天要做的。"
   },
-  "htRepeatableHabits": "今日可記多次",
+  "famHideKeyboard": "收起",
+  "@famHideKeyboard": {
+    "description": "家庭模式數值欄位尾端的收鍵盤按鈕。iOS 的純數字鍵盤沒有 Return 鍵，要自己補一顆。不要用「完成」——面板底部有「儲存」，兩者會被誤讀成同一件事。"
+  },
+  "htRepeatableHabits": "每日可多次",
   "@htRepeatableHabits": {
     "description": "小孩習慣列表的區塊標題：同一天可以重複記錄的習慣。"
   },
