@@ -104,7 +104,7 @@
   "@settingsDayStartDescription": {
     "description": "換日時間卡片的說明。對象是晚睡族，語氣安撫（晚睡紀錄不會被算到隔天）。"
   },
-  "settingsDayStartCoinNote": "足跡幣每日獎勵不受影響，仍以午夜計算。",
+  "settingsDayStartCoinNote": "足跡幣每日獎勵與家庭模式的小孩習慣不受影響，仍以午夜計算。",
   "@settingsDayStartCoinNote": {
     "description": "換日時間卡片底部的小字補充。「足跡幣」是 app 內貨幣名稱。"
   },
@@ -3520,6 +3520,18 @@
   "prtEmptyRange": "此期間無積分紀錄",
   "@prtEmptyRange": {
     "description": "積分紀錄的空狀態：這個篩選區間內沒有。"
+  },
+  "prtFoldedTitle": "{reason} ×{count}",
+  "@prtFoldedTitle": {
+    "description": "積分紀錄摺疊列的標題：同一天同一個習慣記了幾次。reason 是原本那句理由（例如「完成習慣：做家事」）。",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "prtDelta": "{sign}{delta} 分",
   "@prtDelta": {

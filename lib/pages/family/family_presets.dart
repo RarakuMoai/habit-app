@@ -46,6 +46,9 @@ const List<Preset> kHabitPresets = [
   Preset('早起', 10, '🌅'),
   Preset('運動', 15, '🏃', 0, true),
   Preset('喝足夠的水', 5, '💧'),
+  Preset('做家事', 30, '🧺', 0, true),
+  Preset('今日多喝水', 30, '🥤', 0, true),
+  Preset('練習樂器', 10, '🎹', 30, true),
 ];
 
 const List<Preset> kDeductionPresets = [

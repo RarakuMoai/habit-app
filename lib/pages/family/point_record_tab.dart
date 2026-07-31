@@ -17,6 +17,19 @@ class PointRecordTab extends StatefulWidget {
   State<PointRecordTab> createState() => _PointRecordTabState();
 }
 
+/// 列表的一列。「每日可多次」的習慣一天會寫進好幾筆完成紀錄（做家事記 5 次
+/// 就是 5 筆），全部攤平會把這一頁洗掉，所以同一天同一個習慣的完成紀錄摺成
+/// 一列，點開才展開。撤銷與家長手動加減分**不摺**——那些是要一眼看到的事件。
+class _LogRow {
+  /// 新到舊；長度為 1 代表這列就是單筆，外觀與摺疊前完全一樣。
+  final List<PointRecord> group;
+  const _LogRow(this.group);
+
+  PointRecord get latest => group.first;
+  bool get folded => group.length > 1;
+  int get sumDelta => group.fold(0, (sum, r) => sum + r.delta);
+}
+
 class _PointRecordTabState extends State<PointRecordTab> {
   AppLocalizations get _l10n => AppLocalizations.of(context);
 
@@ -25,6 +38,8 @@ class _PointRecordTabState extends State<PointRecordTab> {
   // 'week' | 'month' | 'custom' | 'all'；預設本週
   String _filter = 'week';
   DateTimeRange? _customRange;
+  // 已展開的摺疊列（key 同 _rowsOf 的分組鍵）
+  final Set<String> _expanded = <String>{};
 
   @override
   void initState() {
@@ -39,6 +54,128 @@ class _PointRecordTabState extends State<PointRecordTab> {
       _records = all.where((r) => r.childId == widget.child.id).toList();
       _loaded = true;
     });
+  }
+
+  /// 分組鍵：同一天＋同一個習慣的完成紀錄共用一個 key，其餘每筆自成一列。
+  String _groupKey(PointRecord r) {
+    final sourceId = r.sourceId;
+    if (r.kind != PointRecordKind.habitCompletion || sourceId == null) {
+      return 'single|${r.id}';
+    }
+    return 'habit|${r.time.split(' ').first}|$sourceId';
+  }
+
+  /// 依 [_groupKey] 把紀錄摺成列。_records 是新到舊，群組位置由該群組最新的
+  /// 那一筆決定，所以摺疊後的排序跟摺疊前一致。
+  List<_LogRow> _rowsOf(List<PointRecord> records) {
+    final groups = <String, List<PointRecord>>{};
+    final order = <String>[];
+    for (final r in records) {
+      final key = _groupKey(r);
+      final existing = groups[key];
+      if (existing == null) {
+        groups[key] = [r];
+        order.add(key);
+      } else {
+        existing.add(r);
+      }
+    }
+    return [for (final key in order) _LogRow(groups[key]!)];
+  }
+
+  /// 一列：單筆維持原本外觀；摺疊列多一個展開箭頭，展開後在下面列出每一次。
+  Widget _rowTile(_LogRow row) {
+    final r = row.latest;
+    final key = _groupKey(r);
+    final expanded = _expanded.contains(key);
+    final delta = row.folded ? row.sumDelta : r.delta;
+    final isPlus = delta >= 0;
+
+    final tile = ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      onTap: row.folded
+          ? () => setState(
+              () => expanded ? _expanded.remove(key) : _expanded.add(key),
+            )
+          : null,
+      title: Text(
+        row.folded
+            ? _l10n.prtFoldedTitle(r.reason, row.group.length)
+            : r.reason,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        // 摺疊列的每一筆時間各自不同，只標日期；展開後才逐筆看時間
+        row.folded ? r.time.split(' ').first : r.time,
+        style: TextStyle(fontSize: 12, color: AppInk.soft),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _l10n.prtDelta(isPlus ? '+' : '', delta),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isPlus ? Colors.green : Colors.red,
+                ),
+              ),
+              Text(
+                // 摺疊時取最新那筆的累計，那才是這一天結束時的分數
+                _l10n.prtTotal(r.total),
+                style: TextStyle(fontSize: 11, color: AppInk.faint),
+              ),
+            ],
+          ),
+          if (row.folded)
+            Icon(
+              expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+              size: 20,
+              color: AppInk.iconFaint,
+            ),
+        ],
+      ),
+    );
+
+    if (!row.folded || !expanded) return tile;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        tile,
+        for (final item in row.group)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 4, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _recordTime(item),
+                  style: TextStyle(fontSize: 12, color: AppInk.soft),
+                ),
+                Text(
+                  _l10n.prtDelta(item.delta >= 0 ? '+' : '', item.delta),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: item.delta >= 0 ? Colors.green : Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 從 `yyyy-MM-dd HH:mm` 取 `HH:mm`
+  String _recordTime(PointRecord r) {
+    final parts = r.time.split(' ');
+    return parts.length > 1 ? parts.last : r.time;
   }
 
   List<PointRecord> get _filtered {
@@ -118,6 +255,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
     }
 
     final filtered = _filtered;
+    final rows = _rowsOf(filtered);
 
     return Column(
       children: [
@@ -162,48 +300,10 @@ class _PointRecordTabState extends State<PointRecordTab> {
               onRefresh: _load,
               child: ListView.separated(
                 padding: const EdgeInsets.all(16),
-                itemCount: filtered.length,
+                itemCount: rows.length,
                 separatorBuilder: (_, _) =>
                     const Divider(height: 1, thickness: 0.5),
-                itemBuilder: (_, i) {
-                  final r = filtered[i];
-                  final isPlus = r.delta >= 0;
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 4,
-                    ),
-                    title: Text(
-                      r.reason,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Text(
-                      r.time,
-                      style: TextStyle(fontSize: 12, color: AppInk.soft),
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          _l10n.prtDelta(isPlus ? '+' : '', r.delta),
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: isPlus ? Colors.green : Colors.red,
-                          ),
-                        ),
-                        Text(
-                          _l10n.prtTotal(r.total),
-                          style: TextStyle(fontSize: 11, color: AppInk.faint),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                itemBuilder: (_, i) => _rowTile(rows[i]),
               ),
             ),
           ),

@@ -36,7 +36,17 @@ int weeklyCount(ChildHabit habit) {
   return habit.weeklyDates.where(weekSet.contains).length;
 }
 
-// 今日日期字串（yyyy-MM-dd）
+// 今日日期字串（yyyy-MM-dd）。
+//
+// ⚠️ 家庭模式**刻意用真實日曆日**，不跟隨設定頁的換日時間（LogicalDate）。
+// 換日設定的用途是「大人夜貓族睡前補登自己的習慣」（見 logical_date.dart），
+// 小孩的家事、作業、刷牙不會在凌晨三點才記，日曆日對家長更直覺。
+//
+// 另一個不能單獨改的理由：積分紀錄的時間是 nowStr() 存的真實時間，查詢走
+// `record.time.split(' ').first == date` 比對日期前綴。只把這裡改成邏輯日，
+// 凌晨 0-4 點記錄後會查不到自己剛寫進去的那筆（卡片顯示「今天還沒有紀錄」，
+// 分數卻已經加了）。要改就得 todayStr / currentWeekDateSet / nowStr 成套改，
+// 且屬於資料語意變更。
 String todayStr() {
   final now = DateTime.now();
   return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
