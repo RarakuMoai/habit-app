@@ -88,9 +88,9 @@ Future<void> saveHabits(
 
 // 新增小孩時自動帶入的預設習慣（3 個最基本，讓使用者有起點，可再自行調整）
 List<ChildHabit> defaultHabitsForChild(String childId) => [
-  ChildHabit(id: genId(), childId: childId, name: '刷牙', points: 5),
-  ChildHabit(id: genId(), childId: childId, name: '寫作業', points: 10),
-  ChildHabit(id: genId(), childId: childId, name: '整理房間', points: 10),
+  ChildHabit(id: genId(), childId: childId, name: '刷牙', points: 10),
+  ChildHabit(id: genId(), childId: childId, name: '寫作業', points: 30),
+  ChildHabit(id: genId(), childId: childId, name: '整理房間', points: 20),
 ];
 
 Future<List<DeductionItem>> loadDeductions(SharedPreferences prefs) async {
