@@ -227,4 +227,79 @@ void main() {
 
     await tester.pumpAndSettle(); // 等愛心飄完、彈簧歸位、驅動器自停
   });
+
+  // ── 換立繪過場 × 分頁切換 ──
+  // 七個兔咪頁常駐 IndexedStack，沒被選到的由 TickerMode 靜音；靜音的 ticker
+  // 不推進動畫，換立繪的交叉淡入若照跑就會凍在「舊立繪不透明、新立繪全透明」，
+  // 切回那一頁的第一幀先閃出上一個動作（多半是預設站姿）。
+  Future<void> pumpTabbedStage(
+    WidgetTester tester, {
+    required bool visible,
+    required String asset,
+  }) {
+    return tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: TickerMode(
+              enabled: visible, // false = 這一頁被收在 IndexedStack 裡
+              child: MascotStage(
+                asset: asset,
+                accent: Colors.orange,
+                reactionTick: 0,
+                onTap: () {},
+                paused: true, // 凍結呼吸/眨眼，避免測試殘留 pending timer
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  final neutralAsset = MascotEmotion.neutralFront.assetPath;
+  final sleepAsset = MascotEmotion.sleep.assetPath;
+
+  testWidgets('在別的分頁時換立繪：切回來的第一幀就是新立繪', (tester) async {
+    await pumpTabbedStage(tester, visible: false, asset: neutralAsset);
+    await pumpTabbedStage(tester, visible: false, asset: sleepAsset);
+    await tester.pump();
+    expect(
+      find.image(AssetImage(neutralAsset)),
+      findsNothing,
+      reason: '靜音時換圖不該把舊立繪凍在樹上',
+    );
+
+    // 切回這一頁：第一幀（還沒 pump 動畫）就該是新立繪
+    await pumpTabbedStage(tester, visible: true, asset: sleepAsset);
+    expect(find.image(AssetImage(sleepAsset)), findsOneWidget);
+    expect(find.image(AssetImage(neutralAsset)), findsNothing);
+  });
+
+  testWidgets('過場跑到一半切走分頁：切回來不留舊立繪殘影', (tester) async {
+    await pumpTabbedStage(tester, visible: true, asset: neutralAsset);
+    await pumpTabbedStage(tester, visible: true, asset: sleepAsset);
+    await tester.pump(const Duration(milliseconds: 100)); // 交叉淡入跑到一半
+    expect(find.image(AssetImage(neutralAsset)), findsOneWidget);
+
+    await pumpTabbedStage(tester, visible: false, asset: sleepAsset); // 切走
+    await tester.pump();
+    await pumpTabbedStage(tester, visible: true, asset: sleepAsset); // 切回
+    expect(find.image(AssetImage(neutralAsset)), findsNothing);
+  });
+
+  testWidgets('分頁在前景時換立繪仍走交叉淡入', (tester) async {
+    await pumpTabbedStage(tester, visible: true, asset: neutralAsset);
+    await pumpTabbedStage(tester, visible: true, asset: sleepAsset);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.image(AssetImage(neutralAsset)),
+      findsOneWidget,
+      reason: '看得見的時候舊立繪要淡出，不是硬切',
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.image(AssetImage(neutralAsset)), findsNothing);
+    expect(find.image(AssetImage(sleepAsset)), findsOneWidget);
+  });
 }

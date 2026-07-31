@@ -563,6 +563,17 @@ class _MascotStageState extends State<MascotStage>
   Timer? _petBlissTimer;
   final List<_PetHeart> _hearts = [];
 
+  // ── 立繪換圖過場與「分頁被收起來」──
+  // 七個兔咪頁都常駐在 IndexedStack 裡，沒被選到的那幾頁由 main.dart 的
+  // TickerMode 靜音。靜音的 ticker 不會推進 AnimationController，換立繪的
+  // AnimatedSwitcher 就會凍在「舊立繪不透明、新立繪全透明」——切回那一頁時
+  // 第一幀先閃出上一個動作（多半是預設站姿），才補播 0.36 秒過場。
+  // 對策：靜音期間換圖不做過場（duration 0 不需要 tick 就落定），並在剛被
+  // 靜音時換掉 switcher 的 key，把離開前沒跑完的過場整組丟掉，免得舊立繪
+  // 半透明殘影一起凍在樹上。
+  bool _tickersEnabled = true;
+  int _poseSwitcherGeneration = 0;
+
   // 充電互動：長按蓄力（_chargeCtrl 0→1，蓄滿自動爆發）→ 放開時
   // 依蓄力量播爆發演出（_burstCtrl，跳高與星星量 ∝ _burstPower）。
   late final AnimationController _chargeCtrl;
@@ -680,6 +691,18 @@ class _MascotStageState extends State<MascotStage>
   void _cancelBlinkTimers() {
     _blinkTimer?.cancel();
     _blinkStepTimer?.cancel();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // valuesOf 會建立依賴：分頁切換造成的靜音／解除靜音都會回到這裡。
+    final enabled = TickerMode.valuesOf(context).enabled;
+    if (enabled == _tickersEnabled) return;
+    _tickersEnabled = enabled;
+    // 只在「被收起來」時換 key：重建發生在看不見的時候，切回來不會多一次
+    // 重建（也就不會有重解圖的空窗）。
+    if (!enabled) _poseSwitcherGeneration++;
   }
 
   @override
@@ -1153,7 +1176,11 @@ class _MascotStageState extends State<MascotStage>
             );
           },
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 360),
+            // 分頁被收起來時直接換圖、且丟掉沒跑完的過場（見 _tickersEnabled）。
+            key: ValueKey<int>(_poseSwitcherGeneration),
+            duration: _tickersEnabled
+                ? const Duration(milliseconds: 360)
+                : Duration.zero,
             switchInCurve: Curves.easeOutBack,
             switchOutCurve: Curves.easeIn,
             transitionBuilder: (child, anim) => FadeTransition(
