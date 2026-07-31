@@ -7,14 +7,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
+import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
 import '../../widgets/habit_ui.dart';
+import '../../widgets/water_bottle.dart';
 import 'family_auth.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
 import 'family_widgets.dart';
 import 'preset_pick_sheet.dart';
+
+/// 接喝水面板的習慣名稱。與首頁的 `waterHabitName` 一樣是用名稱當識別鍵
+/// （見 docs/i18n_migration.md「刻意不遷」第 1 節）——家長把習慣改成別的
+/// 名字就不再連動，這是目前 preset 沒有穩定 id 的已知限制。
+const String kFamilyWaterHabitName = '今日多喝水';
+
+/// 喝水面板的預設每日目標杯數。
+const int kFamilyWaterDefaultGoal = 8;
 
 // ── 習慣打卡 Tab ──
 
@@ -243,6 +253,267 @@ class _HabitTabState extends State<HabitTab> {
         setState(() => _pendingRecordIds.remove(completion.id));
       }
     }
+  }
+
+  /// 小孩的喝水面板。杯數不另外存——就是這個習慣今天未撤銷的完成紀錄筆數，
+  /// 跟「記一次」共用同一套 PointRecord，所以時間、撤銷、積分全部一致。
+  /// 只有「每日目標杯數」是這裡自己的設定（每個小孩一份）。
+  Future<void> _showWaterPanel(ChildHabit habit) async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final goalKey = PrefsKeys.familyWaterGoal(widget.child.id);
+    var goal = prefs.getInt(goalKey) ?? kFamilyWaterDefaultGoal;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (_, setSheetState) {
+          final cups = _activeRepeatableCompletionsToday(habit);
+          final completions = _repeatableCompletionsToday(habit);
+          final reversals = _reversalsByCompletionId;
+          final progress = goal <= 0 ? 0.0 : (cups.length / goal).clamp(0.0, 1.0);
+          final reached = cups.length >= goal;
+
+          Future<void> setGoal(int next) async {
+            final v = next.clamp(1, 20);
+            if (v == goal) return;
+            await prefs.setInt(goalKey, v);
+            setSheetState(() => goal = v);
+          }
+
+          return SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.86,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppSurfaces.dragHandle,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _l10n.htWaterPanelTitle,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: AppInk.strong,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: _l10n.commonClose,
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppInk.iconFaint,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(
+                      height: 180,
+                      child: WaterBottle(
+                        progress: progress,
+                        reached: reached,
+                        bumpKey: cups.length,
+                        panelOpenValue: 1,
+                        paused: false,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _l10n.htWaterCups(cups.length, goal),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: reached
+                            ? Colors.lightBlue.shade700
+                            : AppInk.strong,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        key: const ValueKey('family-water-drink'),
+                        onPressed: _pendingHabitIds.contains(habit.id)
+                            ? null
+                            : () async {
+                                await _recordRepeatableCompletion(habit);
+                                if (sheetContext.mounted) setSheetState(() {});
+                              },
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          backgroundColor: Colors.lightBlue.shade600,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(Icons.local_drink_rounded, size: 20),
+                        label: Text(
+                          _l10n.htWaterDrink,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // 每日目標（每個小孩自己一份）
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _l10n.htWaterGoalLabel,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppInk.strong,
+                            ),
+                          ),
+                        ),
+                        AdjustBtn(
+                          icon: Icons.remove,
+                          enabled: goal > 1,
+                          onTap: () => setGoal(goal - 1),
+                        ),
+                        SizedBox(
+                          width: 56,
+                          child: Text(
+                            '$goal ${_l10n.htWaterCupUnit}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        AdjustBtn(
+                          icon: Icons.add,
+                          enabled: goal < 20,
+                          onTap: () => setGoal(goal + 1),
+                        ),
+                      ],
+                    ),
+                    if (completions.isNotEmpty) ...[
+                      const Divider(height: 24),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _l10n.htWaterTodayList,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppInk.soft,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // 逐杯的時間與撤銷：家長怕重複點，看得到才安心
+                      for (var i = 0; i < completions.length; i++)
+                        _waterCupRow(
+                          habit: habit,
+                          completion: completions[i],
+                          sequence: completions.length - i,
+                          reversal: reversals[completions[i].id],
+                          onChanged: () {
+                            if (sheetContext.mounted) setSheetState(() {});
+                          },
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _waterCupRow({
+    required ChildHabit habit,
+    required PointRecord completion,
+    required int sequence,
+    required PointRecord? reversal,
+    required VoidCallback onChanged,
+  }) {
+    final cancelled = reversal != null;
+    final pending = _pendingRecordIds.contains(completion.id);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            '$sequence.',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: cancelled ? AppInk.faint : Colors.lightBlue.shade700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _recordTime(completion),
+              style: TextStyle(
+                fontSize: 13,
+                color: cancelled ? AppInk.faint : AppInk.strong,
+                decoration: cancelled
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
+              ),
+            ),
+          ),
+          if (cancelled)
+            Text(
+              _l10n.htRepeatCancelledAt(_recordTime(reversal)),
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppInk.faint,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else
+            TextButton(
+              onPressed: pending
+                  ? null
+                  : () async {
+                      await _cancelRepeatableCompletion(habit, completion);
+                      onChanged();
+                    },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                _l10n.htCancelRecord,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showRepeatableHistory(ChildHabit habit) async {
@@ -861,6 +1132,9 @@ class _HabitTabState extends State<HabitTab> {
                   onShowHistory: completions.isEmpty
                       ? null
                       : () => _showRepeatableHistory(habit),
+                  onOpenWater: habit.name == kFamilyWaterHabitName
+                      ? () => _showWaterPanel(habit)
+                      : null,
                 );
               }),
             ],
@@ -967,6 +1241,9 @@ class _HabitItem extends StatefulWidget {
   final VoidCallback onCheckIn;
   final VoidCallback? onUndo;
   final VoidCallback? onShowHistory;
+  /// 有值時，可多次習慣的主按鈕改成「喝水去」並打開喝水面板
+  /// （目前只有「今日多喝水」會帶）。
+  final VoidCallback? onOpenWater;
 
   const _HabitItem({
     required this.habit,
@@ -979,6 +1256,7 @@ class _HabitItem extends StatefulWidget {
     required this.onCheckIn,
     this.onUndo,
     this.onShowHistory,
+    this.onOpenWater,
   });
 
   @override
@@ -1156,13 +1434,23 @@ class _HabitItemState extends State<_HabitItem>
                   ),
                 ),
                 trailing: FilledButton.icon(
-                  key: ValueKey('repeatable-add-${habit.id}'),
-                  onPressed: widget.busy ? null : widget.onCheckIn,
+                  key: ValueKey(
+                    widget.onOpenWater != null
+                        ? 'repeatable-water-${habit.id}'
+                        : 'repeatable-add-${habit.id}',
+                  ),
+                  onPressed: widget.busy
+                      ? null
+                      : (widget.onOpenWater ?? widget.onCheckIn),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 40),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    backgroundColor: Colors.deepOrange.shade50,
-                    foregroundColor: Colors.deepOrange.shade700,
+                    backgroundColor: widget.onOpenWater != null
+                        ? Colors.lightBlue.shade50
+                        : Colors.deepOrange.shade50,
+                    foregroundColor: widget.onOpenWater != null
+                        ? Colors.lightBlue.shade700
+                        : Colors.deepOrange.shade700,
                     disabledBackgroundColor: AppSurfaces.fill,
                     disabledForegroundColor: AppInk.faint,
                     elevation: 0,
@@ -1176,9 +1464,16 @@ class _HabitItemState extends State<_HabitItem>
                           height: 14,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.add_rounded, size: 18),
+                      : Icon(
+                          widget.onOpenWater != null
+                              ? Icons.local_drink_rounded
+                              : Icons.add_rounded,
+                          size: 18,
+                        ),
                   label: Text(
-                    _l10n.htLogOnce,
+                    widget.onOpenWater != null
+                        ? _l10n.htWaterGo
+                        : _l10n.htLogOnce,
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,

@@ -3467,6 +3467,42 @@
       "time": { "type": "String" }
     }
   },
+  "htWaterGo": "喝水去",
+  "@htWaterGo": {
+    "description": "「今日多喝水」習慣卡片上的按鈕：打開喝水面板（取代一般可多次習慣的「記一次」）。要短。"
+  },
+  "htWaterPanelTitle": "今日補水",
+  "@htWaterPanelTitle": {
+    "description": "小孩喝水面板的標題。"
+  },
+  "htWaterCups": "{count} / {goal} 杯",
+  "@htWaterCups": {
+    "description": "小孩喝水面板：今天喝了幾杯 / 目標幾杯。",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "goal": {
+        "type": "int"
+      }
+    }
+  },
+  "htWaterDrink": "喝了一杯",
+  "@htWaterDrink": {
+    "description": "小孩喝水面板的主按鈕：記錄喝了一杯（等同可多次習慣的「記一次」，會加分）。"
+  },
+  "htWaterGoalLabel": "每日目標",
+  "@htWaterGoalLabel": {
+    "description": "小孩喝水面板的目標杯數調整列標籤。"
+  },
+  "htWaterCupUnit": "杯",
+  "@htWaterCupUnit": {
+    "description": "杯數單位，接在數字後面。"
+  },
+  "htWaterTodayList": "今天喝的",
+  "@htWaterTodayList": {
+    "description": "小孩喝水面板：今天每一杯的紀錄列表標題。"
+  },
   "htRepeatHistoryTitle": "今天的「{name}」",
   "@htRepeatHistoryTitle": {
     "description": "可重複習慣今日每次紀錄的明細標題。",
