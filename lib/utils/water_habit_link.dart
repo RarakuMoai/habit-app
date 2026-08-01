@@ -4,11 +4,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'habit_history.dart';
 import 'logical_date.dart';
+import 'preference_write_guard.dart';
 import 'prefs_keys.dart';
 
 const String waterHabitName = '喝足夠的水';
 
 abstract final class WaterHabitLink {
+  static Future<void> _writePreference(
+    SharedPreferences prefs,
+    Future<bool> Function() operation,
+    String key,
+  ) => PreferenceWriteGuard.write(prefs, operation, key);
+
   static List<Map<String, dynamic>> _loadHabits(SharedPreferences prefs) {
     final raw = prefs.getString(PrefsKeys.habits);
     if (raw == null || raw.isEmpty) return [];
@@ -29,6 +36,7 @@ abstract final class WaterHabitLink {
 
   /// 喝水頁開啟時，保證首頁也有對應的每日習慣。
   static Future<bool> ensureHabit(SharedPreferences prefs) async {
+    await PreferenceWriteGuard.ensureHealthy(prefs);
     final habits = _loadHabits(prefs);
     if (habits.any((habit) => habit['name'] == waterHabitName)) return false;
     final today = LogicalDate.stringFor(
@@ -44,12 +52,17 @@ abstract final class WaterHabitLink {
     };
     final weightIndex = habits.indexWhere((h) => h['name'] == '體重紀錄');
     habits.insert(weightIndex == 0 ? 1 : 0, habit);
-    await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+    await _writePreference(
+      prefs,
+      () => prefs.setString(PrefsKeys.habits, jsonEncode(habits)),
+      PrefsKeys.habits,
+    );
     return true;
   }
 
   /// 關閉喝水頁時一併移除連動習慣，並保留墓碑供過去七天補登。
   static Future<bool> removeHabit(SharedPreferences prefs) async {
+    await PreferenceWriteGuard.ensureHealthy(prefs);
     final habits = _loadHabits(prefs);
     final index = habits.indexWhere((habit) => habit['name'] == waterHabitName);
     if (index == -1) return false;
@@ -70,17 +83,26 @@ abstract final class WaterHabitLink {
       );
       await HabitHistory.setDoneOn(prefs, today, id, done: false);
     }
-    await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+    await _writePreference(
+      prefs,
+      () => prefs.setString(PrefsKeys.habits, jsonEncode(habits)),
+      PrefsKeys.habits,
+    );
     return true;
   }
 
   /// 升級舊資料時取並集：開過喝水頁或已有喝水習慣，就補齊另一邊。
   static Future<bool> reconcile(SharedPreferences prefs) async {
+    await PreferenceWriteGuard.ensureHealthy(prefs);
     final enabled = prefs.getBool(PrefsKeys.waterEnabled) ?? false;
     final hasWaterHabit = hasHabit(prefs);
     if (enabled && !hasWaterHabit) return ensureHabit(prefs);
     if (!enabled && hasWaterHabit) {
-      await prefs.setBool(PrefsKeys.waterEnabled, true);
+      await _writePreference(
+        prefs,
+        () => prefs.setBool(PrefsKeys.waterEnabled, true),
+        PrefsKeys.waterEnabled,
+      );
       return true;
     }
     return false;

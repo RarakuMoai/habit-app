@@ -28,9 +28,11 @@ import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
 import 'utils/feature_flags.dart';
 import 'utils/logical_date.dart';
+import 'utils/logical_day_coordinator.dart';
 import 'utils/mascot.dart';
 import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
+import 'utils/preference_write_guard.dart';
 import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
 import 'utils/story_catalog.dart';
@@ -62,6 +64,11 @@ Future<_StartupState> _loadStartupState() async {
   // 舊版明文 PIN 啟動時就地雜湊遷移（hasPin 內含遷移邏輯）
   await ParentPin.hasPin(prefs);
   final onboardingDone = prefs.getBool(PrefsKeys.onboardingDone) ?? false;
+  // 邏輯日必須在任何頁面開始初始化之前就確定：跨日結算（連勝、當日勾選重置、
+  // lastOpenDate 推進）全部由 coordinator 負責，首頁只讀結果。這裡 await 它，
+  // 首頁第一次載入拿到的就已經是新一天的狀態，不會出現「新一天的報到 + 昨天
+  // 的完成狀態」。驗證失敗會維持在啟動畫面，不得帶著未確認的舊日狀態進首頁。
+  await LogicalDayCoordinator.instance.start();
   // 玩家取的兔咪名字載進全域 notifier：系統文案用 {name} 佔位，
   // 靠 MascotName.fill 帶入，避免各處寫死「兔咪」（改名後會對不上）
   await MascotName.load(prefs);
@@ -113,6 +120,81 @@ Future<void> _startInitialAudio({required bool onboardingDone}) async {
 class _StartupState {
   final bool startAtHome;
   const _StartupState({required this.startAtHome});
+}
+
+/// 一個常駐頁面的 reload completion barrier。
+///
+/// failure 只存成狀態並喚醒 waiter，不直接 completeError；如此即使頁面比
+/// Main 的 await 更早失敗，也不會先形成未處理的 Future error。
+class _PageReloadBarrier {
+  _PageReloadBarrier(this.name);
+
+  final String name;
+  int? _expected;
+  int? _applied;
+  Object? _error;
+  StackTrace? _stackTrace;
+  Completer<void>? _completion;
+
+  void expect(int trigger) {
+    if (_applied == trigger) return;
+    if (_expected == trigger &&
+        (_error != null || !(_completion?.isCompleted ?? true))) {
+      return;
+    }
+    if (!(_completion?.isCompleted ?? true)) _completion!.complete();
+    _expected = trigger;
+    _error = null;
+    _stackTrace = null;
+    _completion = Completer<void>();
+  }
+
+  void succeed(int trigger) {
+    if (_expected != trigger) return;
+    _applied = trigger;
+    _error = null;
+    _stackTrace = null;
+    final completion = _completion;
+    if (completion != null && !completion.isCompleted) completion.complete();
+  }
+
+  void fail(int trigger, Object error, StackTrace stackTrace) {
+    if (_expected != trigger) return;
+    _error = error;
+    _stackTrace = stackTrace;
+    final completion = _completion;
+    if (completion != null && !completion.isCompleted) completion.complete();
+  }
+
+  bool failedFor(int trigger) => _expected == trigger && _error != null;
+
+  void deactivate() {
+    if (!(_completion?.isCompleted ?? true)) _completion!.complete();
+    _expected = null;
+    _applied = null;
+    _error = null;
+    _stackTrace = null;
+    _completion = null;
+  }
+
+  Future<void> wait(int trigger) async {
+    if (_applied == trigger) return;
+    expect(trigger);
+    final completion = _completion!;
+    await completion.future;
+    if (_expected != trigger) return;
+    final error = _error;
+    if (error != null) {
+      Error.throwWithStackTrace(error, _stackTrace ?? StackTrace.current);
+    }
+    if (_applied != trigger) {
+      throw StateError('$name reload did not apply trigger $trigger');
+    }
+  }
+
+  void dispose() {
+    deactivate();
+  }
 }
 
 /// 截圖／版面驗證用的語言覆寫：`--dart-define=APP_LOCALE=en`。
@@ -445,35 +527,102 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   bool _weightHabitAutoComplete = false;
   bool _loaded = false;
   int _waterReloadTrigger = 0;
+  int _dayReloadTrigger = 0;
+  // 目前邏輯日（唯一真相在 LogicalDayCoordinator）。收到新的 stamp 時一定要
+  // 先把下面兩個 auto-complete 旗標重算完，再連同 stamp 一次 setState 交給
+  // 下游；順序反過來的話，昨天的達標旗標會把新一天的連動習慣標成已完成。
+  LogicalDayStamp? _dayStamp;
   List<String> _tabOrder = const []; // 使用者自訂的底部分頁順序（TabIds 字串）
   bool _claimingDailyReward = false;
   bool _loginCelebrating = false; // 慶祝頁還在畫面上（揭曉佇列要等它）
   int? _rewardAmount;
   int? _rewardStartBalance;
   int? _rewardTargetBalance;
+  Future<void> _settingsTail = Future<void>.value();
+  Future<void>? _latestDayApply;
+  late final Future<void> _mainReady;
+  int? _mainAppliedRevision;
+  bool _presentationBarrierPassed = false;
+  final _homeReloadBarrier = _PageReloadBarrier('Home');
+  final _waterReloadBarrier = _PageReloadBarrier('Water');
+  final _weightReloadBarrier = _PageReloadBarrier('Weight');
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadSettings();
+    // 冷啟動的 barrier 在 _loadStartupState 就 await 過了，這裡是冪等的補強：
+    // 走 MyApp(startAtHome:) 的測試路徑不經過 startup，也要有邏輯日。
+    final coordinator = LogicalDayCoordinator.instance;
+    _dayStamp = coordinator.stamp.value;
+    coordinator.stamp.addListener(_onLogicalDayChanged);
+    final coordinatorReady = coordinator.start();
+    final settingsReady = _queueSettings(dayStamp: _dayStamp);
+    if (_dayStamp != null) _latestDayApply = settingsReady;
+    _mainReady = _initializeMain(coordinatorReady, settingsReady);
+    unawaited(_observeReadinessError(_mainReady));
     // 功能開關一改就即時重組頁籤（不必等退出設定頁）
     featureFlagsRevision.addListener(_loadSettings);
     // 特殊事件解鎖 → 佇列有東西就播全螢幕揭曉（story_reveal_page.dart）
     StoryStore.pendingReveal.addListener(_onPendingRevealChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _ensureMainBgm();
-      _claimDailyLoginReward();
-      _checkSeasonStories();
-      _maybeShowStoryReveal(); // 上次沒看完的揭曉（佇列有持久化）啟動補播
+      unawaited(_runInitialPresentation());
     });
+  }
+
+  Future<void> _initializeMain(
+    Future<void> coordinatorReady,
+    Future<void> settingsReady,
+  ) async {
+    try {
+      await Future.wait<void>([coordinatorReady, settingsReady]);
+    } catch (_) {
+      // Future.wait 已同步替兩條 Future 掛上 error handler。Coordinator 失敗
+      // 不能繼續；settings 的一次性失敗則由下方同 revision 重排。
+      final coordinatorError = LogicalDayCoordinator.instance.lastError;
+      if (coordinatorError != null) throw coordinatorError;
+    }
+    await _ensureCurrentDayApplied();
+    _prepareDependentReloads();
+    await _awaitDependentReloads();
+  }
+
+  Future<void> _observeReadinessError(Future<void> readiness) async {
+    try {
+      await readiness;
+    } catch (_) {
+      // 立即附著 observer，避免 post-frame callback 尚未開始前出現 unhandled
+      // Future error；真正的記錄與停止演出由 _runInitialPresentation 處理。
+    }
+  }
+
+  Future<void> _runInitialPresentation() async {
+    unawaited(_ensureMainBgm());
+    try {
+      await _mainReady;
+    } catch (e, st) {
+      debugPrint('Main readiness barrier failed: $e\n$st');
+      return;
+    }
+    if (!mounted) return;
+    _presentationBarrierPassed = true;
+    await _claimDailyLoginReward();
+    if (!mounted) return;
+    _checkSeasonStories();
+    unawaited(_maybeShowStoryReveal()); // 上次沒看完的揭曉（佇列有持久化）啟動補播
   }
 
   @override
   void dispose() {
     featureFlagsRevision.removeListener(_loadSettings);
     StoryStore.pendingReveal.removeListener(_onPendingRevealChanged);
+    // 只取消訂閱；coordinator 是全域單例，生命週期比 MainPage 長（RootRestart
+    // 會重建整棵樹），不能在這裡 dispose 掉。
+    LogicalDayCoordinator.instance.stamp.removeListener(_onLogicalDayChanged);
     WidgetsBinding.instance.removeObserver(this);
+    _homeReloadBarrier.dispose();
+    _waterReloadBarrier.dispose();
+    _weightReloadBarrier.dispose();
     CoinService.presentationBalance.value = null;
     CoinService.dailyRewardShowing.value = false;
     super.dispose();
@@ -487,12 +636,151 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         state == AppLifecycleState.hidden) {
       parentSession.value = false;
     }
-    // 跨日後從背景回來也能領當天的登入獎勵（已領過會直接 no-op）
     if (state == AppLifecycleState.resumed) {
-      _claimDailyLoginReward();
-      _checkSeasonStories();
+      unawaited(_handleResumed());
     }
   }
+
+  /// resume 的演出順序是有意義的，不能只靠資料冪等：一定要先讓 coordinator
+  /// 把跨日結算做完、首頁換成新一天，才輪到每日登入慶祝頁與節日事件。否則
+  /// 使用者會先看到「連續登入第 N 天」的新日報到，關掉之後首頁還停在昨天。
+  Future<void> _handleResumed() async {
+    try {
+      // 與 coordinator 自己的 resume 偵測合併成同一次（in-flight 合流）。
+      await LogicalDayCoordinator.instance.ensureCurrent(
+        trigger: LogicalDayTrigger.resume,
+      );
+      await _ensureCurrentDayApplied();
+      _retryFailedDependentReloads();
+      await _awaitDependentReloads();
+    } catch (e, st) {
+      debugPrint('Resume logical-day barrier failed: $e\n$st');
+      return;
+    }
+    if (!mounted) return;
+    _presentationBarrierPassed = true;
+    // 跨日後從背景回來也能領當天的登入獎勵（已領過會直接 no-op）
+    await _claimDailyLoginReward();
+    if (!mounted) return;
+    _checkSeasonStories();
+    unawaited(_maybeShowStoryReveal());
+  }
+
+  /// coordinator 廣播新的邏輯日：先重算依賴「今天」的自動完成旗標，再把新的
+  /// stamp 與 revision 一起交出去（同一個 setState，下游不會看到中間狀態）。
+  void _onLogicalDayChanged() {
+    _latestDayApply = _queueSettings(
+      dayStamp: LogicalDayCoordinator.instance.stamp.value,
+    );
+  }
+
+  Future<void> _ensureCurrentDayApplied() async {
+    while (mounted) {
+      final stamp = LogicalDayCoordinator.instance.stamp.value;
+      if (stamp == null || _mainAppliedRevision == stamp.revision) return;
+
+      final pending = _latestDayApply;
+      if (pending != null) {
+        try {
+          await pending;
+        } catch (_) {
+          // 同一 stamp 會在下方重排一次；若仍失敗則讓新 Future 往外拋。
+        }
+        if (!mounted) return;
+        final latestStamp = LogicalDayCoordinator.instance.stamp.value;
+        if (latestStamp?.revision != stamp.revision) continue;
+        if (_mainAppliedRevision == stamp.revision) return;
+      }
+
+      final retry = _queueSettings(dayStamp: stamp);
+      _latestDayApply = retry;
+      await retry;
+    }
+  }
+
+  void _prepareDependentReloads() {
+    _homeReloadBarrier.expect(_dayReloadTrigger);
+    if (_waterEnabled) {
+      _waterReloadBarrier.expect(_waterReloadTrigger);
+    } else {
+      _waterReloadBarrier.deactivate();
+    }
+    if (_weightTrackingEnabled) {
+      _weightReloadBarrier.expect(_dayReloadTrigger);
+    } else {
+      _weightReloadBarrier.deactivate();
+    }
+  }
+
+  /// 每次 Water trigger 前進都要同步 armed barrier。WaterPage 可能在下一個
+  /// build 立刻完成 reload；若 callback 先於 expect，成功會被當成 stale 丟掉，
+  /// 下一次 resume 就會永遠等一個已經消費過的 trigger。
+  void _advanceWaterReloadTrigger() {
+    _waterReloadTrigger++;
+    if (_waterEnabled) {
+      _waterReloadBarrier.expect(_waterReloadTrigger);
+    } else {
+      _waterReloadBarrier.deactivate();
+    }
+  }
+
+  void _retryFailedDependentReloads() {
+    final failed =
+        _homeReloadBarrier.failedFor(_dayReloadTrigger) ||
+        (_waterEnabled && _waterReloadBarrier.failedFor(_waterReloadTrigger)) ||
+        (_weightTrackingEnabled &&
+            _weightReloadBarrier.failedFor(_dayReloadTrigger));
+    if (!failed || !mounted) return;
+    setState(() {
+      _dayReloadTrigger++;
+      if (_waterEnabled) _advanceWaterReloadTrigger();
+    });
+    _prepareDependentReloads();
+  }
+
+  Future<void> _awaitDependentReloads() async {
+    while (mounted) {
+      final dayTrigger = _dayReloadTrigger;
+      final waterTrigger = _waterReloadTrigger;
+      final waitForWater = _waterEnabled;
+      final waitForWeight = _weightTrackingEnabled;
+      await Future.wait<void>([
+        _homeReloadBarrier.wait(dayTrigger),
+        if (waitForWater) _waterReloadBarrier.wait(waterTrigger),
+        if (waitForWeight) _weightReloadBarrier.wait(dayTrigger),
+      ]);
+      if (dayTrigger == _dayReloadTrigger &&
+          waterTrigger == _waterReloadTrigger &&
+          waitForWater == _waterEnabled &&
+          waitForWeight == _weightTrackingEnabled) {
+        return;
+      }
+    }
+  }
+
+  void _onHomeReloaded(int trigger) => _homeReloadBarrier.succeed(trigger);
+
+  void _onHomeReloadFailed(int trigger, Object error, StackTrace stackTrace) =>
+      _homeReloadBarrier.fail(trigger, error, stackTrace);
+
+  void _onWaterReloaded(int trigger) => _waterReloadBarrier.succeed(trigger);
+
+  void _onWaterReloadFailed(int trigger, Object error, StackTrace stackTrace) =>
+      _waterReloadBarrier.fail(trigger, error, stackTrace);
+
+  void _onWeightReloaded(int trigger) => _weightReloadBarrier.succeed(trigger);
+
+  void _onWeightReloadFailed(
+    int trigger,
+    Object error,
+    StackTrace stackTrace,
+  ) => _weightReloadBarrier.fail(trigger, error, stackTrace);
+
+  @visibleForTesting
+  Future<void> debugHandleResumed() => _handleResumed();
+
+  @visibleForTesting
+  Future<void> get debugMainReady => _mainReady;
 
   // 每日登入獎勵：先推全螢幕慶祝頁（兔咪＋連續天數舞台），看完 pop 回來
   // 才輪到金幣飛行吸入 AppBar ＋ 兔咪開心反應。文字只在慶祝頁講一次，
@@ -588,10 +876,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   // 佇列還有就接著播（同一時刻解鎖多個事件會排隊逐一亮相）。
   bool _storyRevealShowing = false;
 
-  void _onPendingRevealChanged() => _maybeShowStoryReveal();
+  void _onPendingRevealChanged() => unawaited(_maybeShowStoryReveal());
 
   Future<void> _maybeShowStoryReveal() async {
-    if (_storyRevealShowing || !mounted) return;
+    if (!_presentationBarrierPassed || _storyRevealShowing || !mounted) return;
     if (StoryStore.pendingReveal.value.isEmpty) return;
     _storyRevealShowing = true;
     try {
@@ -629,19 +917,54 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   // 「今天」一律走邏輯日（預設凌晨 4 點換日）：喝水/體重/習慣歷史的
   // 紀錄槽都是邏輯日，這裡若用日曆日，凌晨 0–4 點會寫錯天的 key，
   // 造成打勾被喝水頁的達標回報彈回（金幣判重在 CoinService 內走日曆日，不受影響）。
-  String _todayString(SharedPreferences prefs) => LogicalDate.today(prefs);
+  String _todayString(SharedPreferences prefs) =>
+      _dayStamp?.logicalDate ?? LogicalDate.today(prefs);
 
-  Future<void> _loadSettings() async {
+  /// 給 listener / callback 用的無參數版本（VoidCallback 相容）。
+  Future<void> _loadSettings() => _queueSettings();
+
+  Future<void> _queueSettings({LogicalDayStamp? dayStamp}) {
+    final operation = _settingsTail.then(
+      (_) => _applySettings(dayStamp: dayStamp),
+    );
+    // 後一輪一定排在前一輪之後；前一輪失敗不會永久毒死佇列，但它自己的
+    // caller 仍會收到錯誤，freshness barrier 因而能停止後續演出。
+    _settingsTail = operation.then<void>(
+      (_) {},
+      onError: (Object e, StackTrace st) {
+        debugPrint('Main settings apply failed: $e\n$st');
+      },
+    );
+    return operation;
+  }
+
+  Future<void> _applySettings({LogicalDayStamp? dayStamp}) async {
     final prefs = await SharedPreferences.getInstance();
-    await WaterHabitLink.reconcile(prefs);
-    final today = _todayString(prefs);
+    await LogicalDayCoordinator.instance.synchronizeStorage(
+      () => WaterHabitLink.reconcile(prefs),
+    );
+    // 帶了新 stamp 就用它算「今天」，這樣重算出來的旗標一定屬於新的一天。
+    final effectiveStamp = dayStamp ?? _dayStamp;
+    final today = effectiveStamp?.logicalDate ?? LogicalDate.today(prefs);
     final weightRecordedToday = await hasSavedWeightRecordForDate(prefs, today);
     // 開關/排序改變前先記住目前選的分頁 id，重組後盡量回到同一頁，
     // 避免重排後 _currentIndex 指向別的分頁（看起來像跳頁）。
     final prevId = (_loaded && _currentIndex < _tabs.length)
         ? _tabs[_currentIndex].id
         : null;
+    if (!mounted) return;
+    final stampChanged =
+        dayStamp != null && dayStamp.revision != _dayStamp?.revision;
     setState(() {
+      if (dayStamp != null) {
+        // stamp 與兩個 auto-complete 旗標在同一個 setState 落地，下游的
+        // didUpdateWidget 只會看到「全部都是新一天」的一致狀態。
+        _dayStamp = dayStamp;
+        if (stampChanged) {
+          // 三個常駐頁面各拿一個新 trigger；barrier 會等它們真正套用後才放行。
+          _dayReloadTrigger++;
+        }
+      }
       _waterEnabled = prefs.getBool(PrefsKeys.waterEnabled) ?? false;
       _timerEnabled = prefs.getBool(PrefsKeys.timerEnabled) ?? true;
       _weightTrackingEnabled =
@@ -650,6 +973,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       _tabOrder = prefs.getStringList(PrefsKeys.tabOrder) ?? const <String>[];
       _waterGoalReached = prefs.getString(PrefsKeys.waterGoalDate) == today;
       _weightHabitAutoComplete = weightRecordedToday;
+      if (stampChanged) _advanceWaterReloadTrigger();
       // 開發者工具：指定啟動分頁（kDevToolsEnabled 控制）
       if (kDevToolsEnabled) {
         final tab = prefs.getInt(PrefsKeys.debugStartTab);
@@ -657,6 +981,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       }
       _loaded = true;
     });
+    if (dayStamp != null) _mainAppliedRevision = dayStamp.revision;
+    _prepareDependentReloads();
     // 重組後把選中頁對回原本那一頁（首次載入 prevId 為 null，保留 dev 起始分頁）。
     if (prevId != null) {
       final idx = _tabs.indexWhere((t) => t.id == prevId);
@@ -671,14 +997,45 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _handleWaterGoal(bool reached) async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _handleWaterGoal(bool reached) {
+    final coordinator = LogicalDayCoordinator.instance;
+    final expectedRevision = _dayStamp?.revision;
+    final expectedLogicalDate = _dayStamp?.logicalDate;
+    final storageMutation = coordinator.synchronizeStorage<bool>(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await PreferenceWriteGuard.ensureHealthy(prefs);
+      if (expectedRevision != null &&
+          coordinator.stamp.value?.revision != expectedRevision) {
+        return false;
+      }
+      final today = expectedLogicalDate ?? LogicalDate.today(prefs);
+      await PreferenceWriteGuard.write(
+        prefs,
+        () => reached
+            ? prefs.setString(PrefsKeys.waterGoalDate, today)
+            : prefs.remove(PrefsKeys.waterGoalDate),
+        PrefsKeys.waterGoalDate,
+      );
+      return true;
+    });
+    return _finishWaterGoal(reached, expectedRevision, storageMutation);
+  }
+
+  Future<void> _finishWaterGoal(
+    bool reached,
+    int? expectedRevision,
+    Future<bool> storageMutation,
+  ) async {
+    if (!await storageMutation) return;
     if (reached) {
-      await prefs.setString(PrefsKeys.waterGoalDate, _todayString(prefs));
       // 當日喝水達標 +金幣（每日一次，service 內建防重複）
       await CoinService.award(CoinSource.waterGoal, note: '喝水達標');
-    } else {
-      await prefs.remove(PrefsKeys.waterGoalDate);
+    }
+    if (!mounted ||
+        (expectedRevision != null &&
+            LogicalDayCoordinator.instance.stamp.value?.revision !=
+                expectedRevision)) {
+      return;
     }
     setState(() => _waterGoalReached = reached);
   }
@@ -687,7 +1044,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     unawaited(_refreshWeightHabitAutoComplete());
     // 體重變動（含初次記錄）→ 喝水頁重新依最新體重估算建議水量。
     // 喝水頁常駐在 IndexedStack，不 bump 就不會重算建議卡。
-    setState(() => _waterReloadTrigger++);
+    setState(_advanceWaterReloadTrigger);
   }
 
   Future<void> _refreshWeightHabitAutoComplete() async {
@@ -747,78 +1104,194 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       0,
       (sum, entry) => sum + ((entry['ml'] as int?) ?? 0), // units-ok
     );
-    await prefs.setString(PrefsKeys.waterEntries(today), jsonEncode(entries));
-    await prefs.setInt(PrefsKeys.waterDay(today), cupCount);
-    await prefs.setInt(
-      PrefsKeys.waterExtra(today),
-      (totalMl - cupMlTotal).clamp(0, 12000).toInt(),
+    final entriesKey = PrefsKeys.waterEntries(today);
+    final cupsKey = PrefsKeys.waterDay(today);
+    final extraKey = PrefsKeys.waterExtra(today);
+    if (!prefs.containsKey(entriesKey)) {
+      final baseline = _waterEntriesFromLegacy(
+        cups: (prefs.getInt(cupsKey) ?? 0).clamp(0, 100),
+        cupMl: (prefs.getInt(PrefsKeys.waterCupMl) ?? 250).clamp(1, 12000),
+        extraMl: (prefs.getInt(extraKey) ?? 0).clamp(0, 12000),
+      );
+      // Establish an authoritative old value (including []) before mirrors.
+      // This prevents a failed final canonical write from being resurrected as
+      // legacy data on the next load.
+      await PreferenceWriteGuard.write(
+        prefs,
+        () => prefs.setString(entriesKey, jsonEncode(baseline)),
+        entriesKey,
+      );
+    }
+    // 舊 mirror 先寫、canonical entries 最後 commit；失敗重試不會重複套用。
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.setInt(cupsKey, cupCount),
+      cupsKey,
+    );
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.setInt(
+        extraKey,
+        (totalMl - cupMlTotal).clamp(0, 12000).toInt(),
+      ),
+      extraKey,
+    );
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.setString(entriesKey, jsonEncode(entries)),
+      entriesKey,
     );
   }
 
-  Future<void> _handleWaterHabitToggle(bool checked) async {
-    final prefs = await SharedPreferences.getInstance();
-    final cupMl = prefs.getInt(PrefsKeys.waterCupMl) ?? 250;
-    final goalMl = prefs.getInt(PrefsKeys.waterGoalMl) ?? 2000;
-    final waterGoal = (goalMl / cupMl).ceil();
-    final today = _todayString(prefs);
-    final todayKey = PrefsKeys.waterDay(today);
-    final savedKey = PrefsKeys.waterSaved(today);
-    final entriesKey = PrefsKeys.waterEntries(today);
-    final savedEntriesKey = PrefsKeys.waterEntriesSaved(today);
-    final extraKey = PrefsKeys.waterExtra(today);
+  Future<void> _handleWaterHabitToggle(bool checked) {
+    final coordinator = LogicalDayCoordinator.instance;
+    final expectedRevision = _dayStamp?.revision;
+    final expectedLogicalDate = _dayStamp?.logicalDate;
 
-    if (checked) {
-      final actual = prefs.getInt(todayKey) ?? 0;
-      final extraMl = prefs.getInt(extraKey) ?? 0;
-      final currentEntries = prefs.getString(entriesKey);
-      await prefs.setInt(savedKey, actual);
-      await prefs.setString(
-        savedEntriesKey,
-        currentEntries ??
-            jsonEncode(
-              _waterEntriesFromLegacy(
-                cups: actual,
-                cupMl: cupMl,
-                extraMl: extraMl,
-              ),
-            ),
-      );
-      await _writeWaterEntries(prefs, today, [
-        for (var i = 0; i < waterGoal; i++)
-          _waterEntryMap(
-            ml: cupMl,
-            kind: 'cup',
-            at: DateTime.now().add(Duration(seconds: i)),
+    // 呼叫當下就保留全域 FIFO slot；不能先 await prefs，否則緊接著開始的
+    // settlement 會超車，讓下面捕捉的舊日 key 和新日 goal marker 混在一起。
+    final storageMutation = coordinator.synchronizeStorage<bool?>(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await PreferenceWriteGuard.ensureHealthy(prefs);
+      if (expectedRevision != null &&
+          coordinator.stamp.value?.revision != expectedRevision) {
+        return null;
+      }
+
+      final today = expectedLogicalDate ?? LogicalDate.today(prefs);
+      final cupMl = prefs.getInt(PrefsKeys.waterCupMl) ?? 250;
+      final goalMl = prefs.getInt(PrefsKeys.waterGoalMl) ?? 2000;
+      final waterGoal = (goalMl / cupMl).ceil();
+      final todayKey = PrefsKeys.waterDay(today);
+      final savedKey = PrefsKeys.waterSaved(today);
+      final entriesKey = PrefsKeys.waterEntries(today);
+      final savedEntriesKey = PrefsKeys.waterEntriesSaved(today);
+      final extraKey = PrefsKeys.waterExtra(today);
+      late bool reached;
+
+      if (checked) {
+        final actual = prefs.getInt(todayKey) ?? 0;
+        final extraMl = prefs.getInt(extraKey) ?? 0;
+        final currentEntries = prefs.getString(entriesKey);
+        await PreferenceWriteGuard.write(
+          prefs,
+          () => prefs.setInt(savedKey, actual),
+          savedKey,
+        );
+        await PreferenceWriteGuard.write(
+          prefs,
+          () => prefs.setString(
+            savedEntriesKey,
+            currentEntries ??
+                jsonEncode(
+                  _waterEntriesFromLegacy(
+                    cups: actual,
+                    cupMl: cupMl,
+                    extraMl: extraMl,
+                  ),
+                ),
           ),
-      ]);
-      await _handleWaterGoal(true);
-    } else {
-      final saved = prefs.getInt(savedKey) ?? 0;
-      final savedEntries = prefs.getString(savedEntriesKey);
-      final entries = savedEntries == null
-          ? _waterEntriesFromLegacy(cups: saved, cupMl: cupMl, extraMl: 0)
-          : (jsonDecode(savedEntries) as List<dynamic>)
-                .whereType<Map<String, dynamic>>()
-                .map(
-                  (entry) => {
-                    'ml': ((entry['ml'] as num?) ?? cupMl).round(), // units-ok
-                    'kind': entry['kind'] == 'cup' ? 'cup' : 'custom',
-                    'at': entry['at'] is String
-                        ? entry['at'] as String
-                        : DateTime.now().toIso8601String(),
-                  },
-                )
-                .toList();
-      await _writeWaterEntries(prefs, today, entries);
-      await prefs.remove(savedKey);
-      await prefs.remove(savedEntriesKey);
-      final restoredTotal = entries.fold<int>(
-        0,
-        (sum, entry) => sum + ((entry['ml'] as int?) ?? 0), // units-ok
+          savedEntriesKey,
+        );
+        await _writeWaterEntries(prefs, today, [
+          for (var i = 0; i < waterGoal; i++)
+            _waterEntryMap(
+              ml: cupMl,
+              kind: 'cup',
+              at: DateTime.now().add(Duration(seconds: i)),
+            ),
+        ]);
+        reached = true;
+      } else {
+        final saved = prefs.getInt(savedKey) ?? 0;
+        final savedEntries = prefs.getString(savedEntriesKey);
+        final entries = savedEntries == null
+            ? _waterEntriesFromLegacy(cups: saved, cupMl: cupMl, extraMl: 0)
+            : (jsonDecode(savedEntries) as List<dynamic>)
+                  .whereType<Map<String, dynamic>>()
+                  .map(
+                    (entry) => {
+                      'ml': ((entry['ml'] as num?) ?? cupMl).round(),
+                      'kind': entry['kind'] == 'cup' ? 'cup' : 'custom',
+                      'at': entry['at'] is String
+                          ? entry['at'] as String
+                          : DateTime.now().toIso8601String(),
+                    },
+                  )
+                  .toList();
+        await _writeWaterEntries(prefs, today, entries);
+        await PreferenceWriteGuard.write(
+          prefs,
+          () => prefs.remove(savedKey),
+          savedKey,
+        );
+        await PreferenceWriteGuard.write(
+          prefs,
+          () => prefs.remove(savedEntriesKey),
+          savedEntriesKey,
+        );
+        final restoredTotal = entries.fold<int>(
+          0,
+          (sum, entry) => sum + ((entry['ml'] as int?) ?? 0),
+        );
+        reached = restoredTotal >= goalMl;
+      }
+
+      await PreferenceWriteGuard.write(
+        prefs,
+        () => reached
+            ? prefs.setString(PrefsKeys.waterGoalDate, today)
+            : prefs.remove(PrefsKeys.waterGoalDate),
+        PrefsKeys.waterGoalDate,
       );
-      await _handleWaterGoal(restoredTotal >= goalMl);
+      return reached;
+    });
+    return _finishWaterHabitToggle(
+      storageMutation,
+      expectedRevision,
+      expectedLogicalDate,
+    );
+  }
+
+  Future<void> _finishWaterHabitToggle(
+    Future<bool?> storageMutation,
+    int? expectedRevision,
+    String? expectedLogicalDate,
+  ) async {
+    try {
+      final reached = await storageMutation;
+      if (reached == null) return;
+      if (reached) {
+        await CoinService.award(CoinSource.waterGoal, note: '喝水達標');
+      }
+      final currentStamp = LogicalDayCoordinator.instance.stamp.value;
+      if (!mounted ||
+          (expectedRevision != null &&
+              (currentStamp?.revision != expectedRevision ||
+                  _dayStamp?.revision != expectedRevision)) ||
+          (expectedLogicalDate != null &&
+              (currentStamp?.logicalDate != expectedLogicalDate ||
+                  _dayStamp?.logicalDate != expectedLogicalDate))) {
+        return;
+      }
+      setState(() {
+        _waterGoalReached = reached;
+        _advanceWaterReloadTrigger();
+      });
+    } catch (error, stackTrace) {
+      // Home 的 callback 是 fire-and-forget；錯誤必須在這裡收口。Water reload
+      // 會從 canonical entries 重算並修復 goal flag / Main 狀態。
+      debugPrint('Water habit toggle sync failed: $error\n$stackTrace');
+      final currentStamp = LogicalDayCoordinator.instance.stamp.value;
+      final stillCurrent =
+          (expectedRevision == null ||
+              (currentStamp?.revision == expectedRevision &&
+                  _dayStamp?.revision == expectedRevision)) &&
+          (expectedLogicalDate == null ||
+              (currentStamp?.logicalDate == expectedLogicalDate &&
+                  _dayStamp?.logicalDate == expectedLogicalDate));
+      if (mounted && stillCurrent) setState(_advanceWaterReloadTrigger);
     }
-    setState(() => _waterReloadTrigger++);
   }
 
   // 依功能開關動態組裝頁籤（標籤走 tabLabel 取 l10n）
@@ -832,6 +1305,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           waterHabitAutoComplete: _waterGoalReached,
           weightHabitAutoComplete: _weightHabitAutoComplete,
           onWaterHabitToggled: _handleWaterHabitToggle,
+          onDayReloaded: _onHomeReloaded,
+          onDayReloadFailed: _onHomeReloadFailed,
+          reloadTrigger: _dayReloadTrigger,
+          dayStamp: _dayStamp,
         ),
         icon: Icons.home,
         label: tabLabel(context, TabIds.habit),
@@ -850,6 +1327,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         id: TabIds.water,
         page: WaterPage(
           onGoalStatusChanged: _handleWaterGoal,
+          onReloaded: _onWaterReloaded,
+          onReloadFailed: _onWaterReloadFailed,
           reloadTrigger: _waterReloadTrigger,
         ),
         icon: Icons.water_drop,
@@ -860,7 +1339,12 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     if (_weightTrackingEnabled) {
       enabled[TabIds.weight] = _TabItem(
         id: TabIds.weight,
-        page: WeightPage(onRecordsChanged: _handleWeightRecordsChanged),
+        page: WeightPage(
+          onRecordsChanged: _handleWeightRecordsChanged,
+          onReloaded: _onWeightReloaded,
+          onReloadFailed: _onWeightReloadFailed,
+          reloadTrigger: _dayReloadTrigger,
+        ),
         icon: Icons.monitor_weight,
         label: tabLabel(context, TabIds.weight),
       );

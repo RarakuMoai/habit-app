@@ -150,11 +150,12 @@ abstract final class ReviewStats {
   }
 
   static int _waterMlOn(SharedPreferences prefs, String date, int cupMl) {
+    final entriesKey = PrefsKeys.waterEntries(date);
     final entries = parseWaterEntries(
-      prefs.getString(PrefsKeys.waterEntries(date)),
+      prefs.getString(entriesKey),
       maxEntryMl: 12000,
     );
-    if (entries.isNotEmpty) {
+    if (prefs.containsKey(entriesKey)) {
       return entries.fold<int>(0, (sum, e) => sum + e.ml);
     }
     // 舊資料：杯數 × cupMl + 額外量

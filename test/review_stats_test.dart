@@ -68,6 +68,25 @@ void main() {
     expect(wr.avgMlOnDataDays, 1500); // (2000+1000)/2
   });
 
+  test('water：canonical 空陣列存在時不回退到 legacy mirror', () async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.waterEntries('2026-06-22'): '[]',
+      PrefsKeys.waterDay('2026-06-22'): 8,
+      PrefsKeys.waterExtra('2026-06-22'): 500,
+    });
+    final prefs = await SharedPreferences.getInstance();
+
+    final wr = ReviewStats.water(
+      prefs,
+      dates: const ['2026-06-22'],
+      goalMl: 2000,
+      cupMl: 250,
+    );
+    expect(wr.daysWithData, 0);
+    expect(wr.daysMetGoal, 0);
+    expect(wr.avgMlOnDataDays, 0);
+  });
+
   test('focus / exercise：加總 count 與 minutes 與活躍天數', () async {
     SharedPreferences.setMockInitialValues({
       PrefsKeys.timerTomatoes('2026-06-22'): 3,

@@ -17,7 +17,9 @@ import '../utils/coin_service.dart';
 import '../utils/habit_history.dart';
 import '../utils/input_formatters.dart';
 import '../utils/logical_date.dart';
+import '../utils/logical_day_coordinator.dart';
 import '../utils/mascot.dart';
+import '../utils/preference_write_guard.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/scene_time.dart';
 import '../utils/sfx_service.dart';
@@ -52,12 +54,25 @@ class HomePage extends StatefulWidget {
   final bool waterHabitAutoComplete;
   final bool weightHabitAutoComplete;
   final Future<void> Function(bool)? onWaterHabitToggled;
+  final ValueChanged<int>? onDayReloaded;
+  final void Function(int, Object, StackTrace)? onDayReloadFailed;
+  final int reloadTrigger;
+
+  /// 目前邏輯日（由 [LogicalDayCoordinator] 擁有，經 MainPage 傳下來）。
+  /// revision 一變就重新載入；首頁不再自己判斷跨日或推進 lastOpenDate。
+  /// null 只出現在「單獨掛載首頁」的測試路徑，此時退回自行計算今天。
+  final LogicalDayStamp? dayStamp;
+
   const HomePage({
     super.key,
     this.onSettingsChanged,
     this.waterHabitAutoComplete = false,
     this.weightHabitAutoComplete = false,
     this.onWaterHabitToggled,
+    this.onDayReloaded,
+    this.onDayReloadFailed,
+    this.reloadTrigger = 0,
+    this.dayStamp,
   });
 
   @override
@@ -98,6 +113,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // 抖動排序模式（像 iOS 主畫面長按 App）：全卡片抖動＋可拖，底部換成完成鈕。
   // 進入＝長按任一卡片或「⋯」選單的「移動」；退出＝點「完成」。
   bool _editMode = false;
+  int? _reorderGeneration;
 
   // ── 首頁裝飾動畫的閒置凍結（省電 / 降溫）─────────────────────
   // 背景 crossfade 不需逐幀動畫；塵埃／星光與兔咪呼吸仍會排幀。停在首頁
@@ -163,6 +179,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     SceneTimeController.instance.removeListener(_handleSceneTimeChanged);
     MascotPersona.current.removeListener(_handleMascotActivity);
     _sceneIdleTimer?.cancel();
+    _transientMascotTimer?.cancel();
+    _transientSpeechTimer?.cancel();
     _sceneClock.dispose();
     _celebCtrl.dispose();
     _glowCtrl.dispose();
@@ -171,6 +189,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _handleMascotActivity() {
+    if (_suppressSceneWake) return;
     _markSceneActive();
   }
 
@@ -178,45 +197,210 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (mounted) setState(() {});
   }
 
-  Future<void> loadHabits() async {
-    final prefs = await SharedPreferences.getInstance();
+  // ── 習慣載入（可安全重入的 reload）─────────────────────────
+  //
+  // 拆成兩段：[_readSnapshot] 只碰 storage（讀取、遷移、跨日結算、連動同步），
+  // 產出一份全新的 [_HomeSnapshot]；[_applySnapshot] 再用單一 setState 原子
+  // 替換畫面資料。舊版直接 `habits.addAll(...)` 進既有清單，呼叫第二次就會
+  // 讓每個習慣變兩份，所以那時的 loadHabits 只能在 initState 跑一次。
+  //
+  // 重入策略：同時只跑一輪；期間再被要求就記下來，跑完補跑最後一次。補跑會
+  // 重新讀 storage，拿到的一定是最新資料，不會重播舊參數。
+
+  /// 目前正在跑的那一輪；null 代表閒置。用 Future 而不是單純 boolean，
+  /// 呼叫端可以 await 同一輪，且 `whenComplete` 保證例外時也會釋放。
+  Future<void>? _loadInFlight;
+  bool _pendingReload = false;
+  int _reloadGeneration = 0;
+  int _debugReloadCount = 0;
+  Completer<void>? _mutationGate;
+  Future<void> _storageTail = Future<void>.value();
+
+  /// reload 進行中：畫面上還是上一份清單，這時落地的打勾會被接著替換的新
+  /// 快照蓋掉（等於使用者的操作被吃掉），所以一律擋下且不給成功回饋。
+  bool _reloading = false;
+
+  /// 已經播過問候的 transition id；同一次跨日重複 reload 不重播。
+  String? _greetedTransitionId;
+
+  /// 上一次套用的邏輯日；用來判斷這次 reload 是不是真的換了一天。
+  String? _appliedDate;
+  String? _handledTransitionId;
+
+  /// 跨日重置兔咪時暫時忽略「兔咪有動作」→ 喚醒場景的連動。
+  bool _suppressSceneWake = false;
+
+  /// 載入 / 重新載入習慣。重複呼叫安全：進行中會合併；同一個 Future 直到
+  /// 期間累積的最後一次補跑也完成才返回。
+  Future<void> loadHabits() {
+    _reloadGeneration++;
+    _cancelMovingForReload();
+    final inFlight = _loadInFlight;
+    if (inFlight != null) {
+      _pendingReload = true;
+      return inFlight;
+    }
+    final future = _drainLoads();
+    _loadInFlight = future;
+    return future;
+  }
+
+  Future<void> _drainLoads() async {
+    late _HomeLoadResult result;
+    _reloading = true;
+    try {
+      do {
+        _pendingReload = false;
+        result = await _runLoad();
+      } while (_pendingReload && mounted);
+    } finally {
+      // 整個 drain（含 catch-up）共用同一個 guard，中間不落下；同步清 pointer
+      // 也關掉最後一次 while 檢查後的 lost-wakeup window。
+      _reloading = false;
+      _loadInFlight = null;
+    }
+    if (!mounted) return;
+    final error = result.error;
+    final stackTrace = result.stackTrace;
+    if (error != null && stackTrace != null) {
+      widget.onDayReloadFailed?.call(result.trigger, error, stackTrace);
+    } else if (result.applied) {
+      widget.onDayReloaded?.call(result.trigger);
+    }
+  }
+
+  Future<_HomeLoadResult> _runLoad() async {
+    _debugReloadCount++;
+    final trigger = widget.reloadTrigger;
+    try {
+      final mutationGate = _mutationGate;
+      if (mutationGate != null) await mutationGate.future;
+      final expectedStamp = widget.dayStamp;
+      if (expectedStamp != null) {
+        // Coordinator 可能已開始寫 journal/reset，但尚未 publish 新 stamp。先等
+        // 同一個 drain 完整結束，再確認這個 widget 仍拿著最新 revision；否則
+        // 舊日 snapshot 會把已 reset 的 habits 寫回昨天的歷史。
+        await LogicalDayCoordinator.instance.ensureCurrent(
+          trigger: LogicalDayTrigger.manual,
+        );
+      }
+      return await LogicalDayCoordinator.instance.synchronizeStorage(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await PreferenceWriteGuard.ensureHealthy(prefs);
+        if (expectedStamp != null) {
+          final currentStamp = LogicalDayCoordinator.instance.stamp.value;
+          if (currentStamp?.revision != expectedStamp.revision) {
+            throw const _StaleHomeLoad();
+          }
+        }
+        final generation = _reloadGeneration;
+        if (!mounted) return _HomeLoadResult.cancelled(trigger);
+        _throwIfStale(generation);
+        final snapshot = await _readSnapshot(prefs, generation);
+        if (!mounted) return _HomeLoadResult.cancelled(trigger);
+        final firstApply = _appliedDate == null;
+        _applySnapshot(snapshot);
+        _afterApply(prefs, snapshot, firstApply);
+        return _HomeLoadResult.success(trigger);
+      });
+    } catch (e, st) {
+      if (e is _StaleHomeLoad) return _HomeLoadResult.cancelled(trigger);
+      // 讀寫失敗不清空畫面：維持上一份清單，等下一次觸發重試。
+      debugPrint('loadHabits failed: $e\n$st');
+      return _HomeLoadResult.failed(trigger, e, st);
+    }
+  }
+
+  @visibleForTesting
+  bool get debugReloading => _reloading;
+
+  @visibleForTesting
+  int get debugReloadCount => _debugReloadCount;
+
+  bool get _mutationsBlocked =>
+      _reloading ||
+      _mutationGate != null ||
+      LogicalDayCoordinator.instance.transitionInProgress ||
+      !_dayStampIsCurrent;
+
+  bool get _dayStampIsCurrent {
+    final current = LogicalDayCoordinator.instance.stamp.value;
+    final local = widget.dayStamp;
+    if (current == null || local == null) {
+      return current == null && local == null;
+    }
+    return current.revision == local.revision;
+  }
+
+  void _throwIfStale(int generation) {
+    if (generation != _reloadGeneration) throw const _StaleHomeLoad();
+  }
+
+  /// 只讀 storage 並把該落地的寫入做完，不碰任何 widget 狀態。
+  Future<_HomeSnapshot> _readSnapshot(
+    SharedPreferences prefs,
+    int generation,
+  ) async {
+    final l10n = _l10n;
     SceneTimeController.instance.loadFromPrefs(prefs); // 固定時段/預覽覆寫
-    _dayStartHour = LogicalDate.load(prefs); // 算「今天」前先讀換日設定
-    final today = todayString();
-    final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
-    streak = prefs.getInt(PrefsKeys.streak) ?? 0;
-    _nickname =
-        prefs.getString(PrefsKeys.userNickname) ?? _l10n.hpNicknameFallback;
-    mascotName0 = prefs.getString(PrefsKeys.mascotName) ?? MascotName.fallback;
-    userBirthday = DateTime.tryParse(
+    // 「今天」的單一真相來自 coordinator 的 stamp；首頁不再自己保留一份換日
+    // 設定。stamp 為 null 只出現在單獨掛載首頁的測試路徑，才退回自行計算。
+    final stamp = widget.dayStamp;
+    final waterHabitAutoComplete = widget.waterHabitAutoComplete;
+    final weightHabitAutoComplete = widget.weightHabitAutoComplete;
+    final dayStartHour = stamp?.dayStartHour ?? LogicalDate.load(prefs);
+    // 同一輪固定一個時間基準，避免 today 與 todayDay 落在不同天。
+    final now = DateTime.now();
+    final today =
+        stamp?.logicalDate ?? LogicalDate.stringFor(now, dayStartHour);
+    final streakValue = prefs.getInt(PrefsKeys.streak) ?? 0;
+    // 結算結果（含被結算掉那天的完成狀態與結算前的 lastOpenDate）從 journal
+    // 讀，因為 coordinator 已經把 lastOpenDate 推進到今天了。
+    final journal = LogicalDayJournal.read(prefs);
+    final settledToday = journal != null && journal.settledOn(today);
+    final previousOpen = settledToday
+        ? journal.previousOpenDate
+        : prefs.getString(PrefsKeys.lastOpenDate);
+    final nickname =
+        prefs.getString(PrefsKeys.userNickname) ?? l10n.hpNicknameFallback;
+    final mascotName =
+        prefs.getString(PrefsKeys.mascotName) ?? MascotName.fallback;
+    final birthday = DateTime.tryParse(
       prefs.getString(PrefsKeys.userBirthday) ?? '',
     );
 
+    DateTime? onboarding;
     final obDateStr = prefs.getString(PrefsKeys.onboardingDate);
     if (obDateStr != null) {
-      onboardingDate = DateTime.tryParse(obDateStr);
+      onboarding = DateTime.tryParse(obDateStr);
     } else {
-      onboardingDate = DateTime.now();
-      await prefs.setString(
+      onboarding = now;
+      _throwIfStale(generation);
+      await _checkedPreferenceWrite(
+        prefs,
+        () => prefs.setString(
+          PrefsKeys.onboardingDate,
+          onboarding!.toIso8601String(),
+        ),
         PrefsKeys.onboardingDate,
-        onboardingDate!.toIso8601String(),
       );
+      _throwIfStale(generation);
     }
 
+    // 每輪都建全新的 list，不再往既有的 habits 追加。
+    final next = <Map<String, dynamic>>[];
     final habitsJson = prefs.getString(PrefsKeys.habits);
     if (habitsJson != null) {
       final decoded = jsonDecode(habitsJson) as List<dynamic>;
-      habits.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
+      next.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
     }
 
     // 遷移：補上穩定 id 與建立日（補打勾 / 統計用）。舊習慣不知道真正的
     // 建立日，退而用 onboarding 日期（至少不會晚於實際），再不行才用今天。
     // 之後新增的習慣會在建立當下就帶 id/createdAt，不靠這裡。
     var habitsMigrated = false;
-    final fallbackCreated = onboardingDate != null
-        ? _fmtDate(onboardingDate!)
-        : today;
-    for (final habit in habits) {
+    final fallbackCreated = onboarding != null ? _fmtDate(onboarding) : today;
+    for (final habit in next) {
       if (habit['id'] is! String || (habit['id'] as String).isEmpty) {
         habit['id'] = HabitHistory.newId();
         habitsMigrated = true;
@@ -228,100 +412,171 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     }
     if (habitsMigrated) {
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+      _throwIfStale(generation);
+      await _checkedPreferenceWrite(
+        prefs,
+        () => prefs.setString(PrefsKeys.habits, jsonEncode(next)),
+        PrefsKeys.habits,
+      );
+      _throwIfStale(generation);
     }
 
-    // 跨日結算只在「邏輯日真的往前走」時做（結算昨天連勝 + 重置今天勾選）。
-    // 換日時間往後調（夜貓把午夜往後挪）會讓「今天」字串往回跳，那不是真的
-    // 新的一天——舊版只比 lastOpen != today，使用者凌晨反覆調換日時間就會反覆
-    // 觸發結算，把連勝歸零、勾選清空。改用日期方向判斷，往回跳一律略過。
-    // （金幣防重複另走真實日曆日 key，見 CoinService，本來就不受換日設定影響。）
-    final lastOpenDay = lastOpen == null ? null : DateTime.tryParse(lastOpen);
-    final todayDay = LogicalDate.dayOf(DateTime.now(), _dayStartHour);
-    final crossedToNewDay =
-        lastOpenDay != null && todayDay.isAfter(lastOpenDay);
-    if (crossedToNewDay) {
-      final dailyHabits = habits
-          .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
-          .toList();
-      final allDailyDone =
-          dailyHabits.isNotEmpty && dailyHabits.every((h) => h['done'] == true);
-      yesterdayAllDone = allDailyDone;
-      if (dailyHabits.isNotEmpty) {
-        if (allDailyDone) {
-          // 連勝里程碑金幣已改綁「連續登入」（見 CoinService.claimDailyLogin），
-          // 這裡只維持習慣連勝天數本身供顯示用，不再發幣。
-          streak++;
-        } else {
-          streak = 0;
-        }
-        await prefs.setInt(PrefsKeys.streak, streak);
-      }
-      for (final habit in habits) {
-        if ((habit['frequency'] ?? 'daily') != 'weekly') {
-          habit['done'] = false;
-        }
-      }
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
-    }
+    // 跨日結算（連勝、當日勾選重置、lastOpenDate 推進）已交給
+    // [LogicalDayCoordinator]：它是唯一擁有邏輯日生命週期的元件，冷啟動、
+    // resume、前景邊界計時器與換日設定變更都由它偵測，並保證同一個邏輯日只
+    // 結算一次。首頁到這裡只是把結果讀出來顯示。
+    final yesterdayDone = settledToday && journal.yesterdayAllDone;
 
     // 連勝里程碑 → 解鎖回憶事件（冪等：已解鎖會 no-op；既有高連勝用戶下次開啟補發）
-    unawaited(StoryEvents.onHabitStreak(streak));
+    unawaited(StoryEvents.onHabitStreak(streakValue));
     // 第一個習慣：新增當下也會觸發（_showAddHabitSheet），這裡是補發——
     // 涵蓋 onboarding 建的習慣與既有資料，冪等所以重複呼叫沒關係。
-    if (habits.isNotEmpty) unawaited(StoryEvents.onFirstHabitCreated());
-    // 久違回來：要在 lastOpen 被覆寫成今天之前算天數（與問候語同一把尺）。
-    final daysAwayForStory = _daysSinceDateString(lastOpen, todayDay);
+    if (next.isNotEmpty) unawaited(StoryEvents.onFirstHabitCreated());
+    // 久違回來：用 journal 記下的「結算前 lastOpenDate」算天數（與問候語同一
+    // 把尺）；marker 已被 coordinator 推進，不能再直接讀它。
+    final daysAwayForStory = _daysSinceDateString(
+      previousOpen,
+      LogicalDate.dayOf(now, dayStartHour),
+    );
     if (daysAwayForStory != null) {
       unawaited(StoryEvents.onComeback(daysAwayForStory));
     }
 
     // Always recompute done for weekly habits from weeklyDates
-    for (final habit in habits) {
+    final weekSet = _weekStringsFor(now, dayStartHour).toSet();
+    for (final habit in next) {
       if ((habit['frequency'] ?? 'daily') == 'weekly') {
         final target = (habit['weeklyTarget'] as int?) ?? 3;
-        habit['done'] = _weeklyCount(habit) >= target;
+        final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
+        habit['done'] = dates.where(weekSet.contains).length >= target;
       }
     }
 
     // 跨頁籤切換時首頁會整頁重建，didUpdateWidget 不會觸發，
     // 因此在這裡依喝水頁達標狀態同步「喝足夠的水」習慣的勾選狀態
-    final waterIdx = habits.indexWhere(
+    final waterIdx = next.indexWhere(
       (h) => h['name'] == _kWaterHabitPresetName,
     );
-    if (waterIdx != -1 &&
-        habits[waterIdx]['done'] != widget.waterHabitAutoComplete) {
-      habits[waterIdx]['done'] = widget.waterHabitAutoComplete;
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+    if (waterIdx != -1 && next[waterIdx]['done'] != waterHabitAutoComplete) {
+      next[waterIdx]['done'] = waterHabitAutoComplete;
+      _throwIfStale(generation);
+      await _checkedPreferenceWrite(
+        prefs,
+        () => prefs.setString(PrefsKeys.habits, jsonEncode(next)),
+        PrefsKeys.habits,
+      );
+      _throwIfStale(generation);
     }
-    final weightIdx = habits.indexWhere(
+    final weightIdx = next.indexWhere(
       (h) =>
           (h['frequency'] ?? 'daily') != 'weekly' &&
           isWeightHabitName(h['name'] as String?),
     );
-    if (weightIdx != -1 &&
-        habits[weightIdx]['done'] != widget.weightHabitAutoComplete) {
-      habits[weightIdx]['done'] = widget.weightHabitAutoComplete;
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+    if (weightIdx != -1 && next[weightIdx]['done'] != weightHabitAutoComplete) {
+      next[weightIdx]['done'] = weightHabitAutoComplete;
+      _throwIfStale(generation);
+      await _checkedPreferenceWrite(
+        prefs,
+        () => prefs.setString(PrefsKeys.habits, jsonEncode(next)),
+        PrefsKeys.habits,
+      );
+      _throwIfStale(generation);
     }
 
-    // 把今天每日習慣的完成狀態寫進歷史（跨日 reset 後是空集合＝今天重新開始；
-    // 同日重開則與當下勾選一致）。歷史只增不洗掉過去的日期。
-    await _syncTodayHistory(prefs);
-
-    final isFirstOpenToday = crossedToNewDay || lastOpenDay == null;
-    // lastOpen 只往前推進，不因換日設定往回調而回退（否則調回來再開又重觸發結算）。
-    if (lastOpenDay == null || todayDay.isAfter(lastOpenDay)) {
-      await prefs.setString(PrefsKeys.lastOpenDate, today);
+    // 換日時間往後調時，logical date 可能暫時倒退，而 lastOpen marker 仍在較晚
+    // 的日期。這時只顯示回退後的日期，不得用目前 habits 覆寫那個歷史日。
+    // 正常同日／向前跨日則 marker 與 today 相同，可以安全同步。
+    if (prefs.getString(PrefsKeys.lastOpenDate) == today) {
+      _throwIfStale(generation);
+      await _writeTodayHistory(prefs, next, today);
+      _throwIfStale(generation);
     }
-    setState(() => isLoading = false);
-    _markSceneActive(); // 內容出現後開始計閒置
 
-    if (isFirstOpenToday && mounted) {
-      Future.delayed(const Duration(milliseconds: 400), () {
-        if (mounted) showGreeting(prefs, lastOpen);
-      });
+    return _HomeSnapshot(
+      dayStartHour: dayStartHour,
+      logicalDate: today,
+      habits: next,
+      streak: streakValue,
+      nickname: nickname,
+      mascotName: mascotName,
+      userBirthday: birthday,
+      onboardingDate: onboarding,
+      yesterdayAllDone: yesterdayDone,
+      transitionId: stamp?.transitionId,
+      previousOpenDate: previousOpen,
+    );
+  }
+
+  /// 單一 setState 原子替換：替換前不動 [habits]，所以 reload 期間畫面
+  /// 一直是上一份完整清單，不會閃出空列表或錯誤進度。
+  void _applySnapshot(_HomeSnapshot s) {
+    final firstApply = _appliedDate == null;
+    // 除了日期真的向前，還必須是尚未處理過的新 settlement。換日設定先回退再
+    // 復原會讓日期 08-01→07-31→08-01，但 journal/transition 身分沒變；那不
+    // 是第二個新日，不能再次清掉 MI 或重播卡片。
+    final newTransition =
+        s.transitionId != null && s.transitionId != _handledTransitionId;
+    final dayChanged =
+        !firstApply &&
+        newTransition &&
+        s.logicalDate.compareTo(_appliedDate!) > 0;
+    if (dayChanged) {
+      _transientMascotTimer?.cancel();
+      _transientMascotTimer = null;
+      _transientSpeechTimer?.cancel();
+      _transientSpeechTimer = null;
     }
+    setState(() {
+      _dayStartHour = s.dayStartHour;
+      habits
+        ..clear()
+        ..addAll(s.habits);
+      streak = s.streak;
+      _nickname = s.nickname;
+      mascotName0 = s.mascotName;
+      userBirthday = s.userBirthday;
+      onboardingDate = s.onboardingDate;
+      yesterdayAllDone = s.yesterdayAllDone;
+      if (dayChanged) {
+        _transientMascot = null;
+        _transientSpeech = null;
+      }
+      // 新的一天讓卡片重播一次進場；同一天的 reload 保持原樣，否則每次
+      // resume 整列卡片都會重新淡入。
+      if (dayChanged) _animatedIn.clear();
+      isLoading = false;
+    });
+    _appliedDate = s.logicalDate;
+    if (s.transitionId != null) _handledTransitionId = s.transitionId;
+    if (dayChanged) {
+      // 新的一天：兔咪要從昨天的情緒（例如全完成的開心臉）回到中性待機，
+      // 否則 MI 的基準會和歸零後的進度對不上。同日 reload 不動，免得打斷
+      // 使用者剛剛的互動演出。
+      //
+      // resetToIdle 會改全域 notifier，而首頁監聽它會順手喚醒場景時鐘；
+      // 自動跨日沒有使用者互動（可能是凌晨四點），不該把畫面叫醒。
+      _suppressSceneWake = true;
+      try {
+        MascotPersona.resetToIdle();
+      } finally {
+        _suppressSceneWake = false;
+      }
+    }
+  }
+
+  void _afterApply(SharedPreferences prefs, _HomeSnapshot s, bool firstApply) {
+    // 只有第一次把內容放上畫面才開始計閒置。之後的 reload 都是 coordinator
+    // 驅動的（跨日 / resume），沒有使用者互動，不該喚醒已凍結的場景。
+    if (firstApply) _markSceneActive();
+    // 問候綁在 transition identity 上：同一次跨日只播一次，RootRestart 或
+    // 重新訂閱都不會重播（待消費的 token 存在 coordinator 單例）。
+    final id = s.transitionId;
+    if (id == null || _greetedTransitionId == id) return;
+    if (!LogicalDayCoordinator.instance.consumeGreeting(id)) return;
+    _greetedTransitionId = id;
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) showGreeting(prefs, s.previousOpenDate);
+    });
   }
 
   void showGreeting(SharedPreferences prefs, String? lastOpen) {
@@ -425,14 +680,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   // 換日線往後挪時，睡前完成的習慣仍算前一天（與喝水/體重一致）。
-  String todayString() => LogicalDate.stringFor(DateTime.now(), _dayStartHour);
+  // 互動日期要和畫面已套用的 stamp 綁在一起。邊界到了但 coordinator 尚未
+  // settlement 的短窗口內，畫面仍是舊日；此時接受的操作也必須完整排在舊日，
+  // 不能讓 habits 寫舊日、history 卻用 wall clock 提前寫進新日。
+  String todayString() =>
+      widget.dayStamp?.logicalDate ??
+      _appliedDate ??
+      LogicalDate.stringFor(DateTime.now(), _dayStartHour);
 
-  List<String> _currentWeekStrings() {
+  /// 純函式版：載入流程用它，才不必依賴還沒套用的 [_dayStartHour] 欄位。
+  List<String> _weekStringsFor(DateTime at, int dayStartHour) {
     // 用邏輯日的今天決定本週，weeklyDates 也是用 todayString() 存的。
-    final today = LogicalDate.dayOf(DateTime.now(), _dayStartHour);
+    final today = LogicalDate.dayOf(at, dayStartHour);
     final monday = today.subtract(Duration(days: today.weekday - 1));
     return List.generate(7, (i) => _fmtDate(monday.add(Duration(days: i))));
   }
+
+  List<String> _currentWeekStrings() =>
+      _weekStringsFor(DateTime.now(), _dayStartHour);
 
   int _weeklyCount(Map<String, dynamic> habit) {
     final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
@@ -440,30 +705,84 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return dates.where(weekSet.contains).length;
   }
 
-  Future<void> saveHabits() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+  Future<void> _checkedPreferenceWrite(
+    SharedPreferences prefs,
+    Future<bool> Function() operation,
+    String key,
+  ) => PreferenceWriteGuard.write(prefs, operation, key);
+
+  Future<void> _queueStorageWrite(Future<void> Function() write) {
+    // 立刻向全域 FIFO 保留位置，再在自己的 slot 裡等前一筆 Home 寫入。
+    // 若先用 `_storageTail.then` 延後登記，緊接著開始的跨日結算會超車，讓舊日
+    // snapshot 在 reset 之後才覆寫回 storage。
+    final previous = _storageTail;
+    final operation = LogicalDayCoordinator.instance.synchronizeStorage(
+      () async {
+        await previous;
+        await write();
+      },
+    );
+    final guarded = operation.catchError((Object error, StackTrace stackTrace) {
+      debugPrint('Home storage write failed: $error\n$stackTrace');
+    });
+    _storageTail = guarded;
+    return guarded;
   }
 
-  // 把「今天已完成的每日習慣 id」覆寫進歷史。每日習慣以 done 為準（set 語意）；
-  // 每週習慣的逐日紀錄另存在 weeklyDates，不在這裡。
-  Future<void> _syncTodayHistory(SharedPreferences prefs) async {
-    final ids = _dailyHabits
+  Future<void> saveHabits() {
+    // 呼叫當下就序列化，後續 UI mutation 不會改到排隊中的寫入內容。
+    final encoded = jsonEncode(habits);
+    return _queueStorageWrite(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await _checkedPreferenceWrite(
+        prefs,
+        () => prefs.setString(PrefsKeys.habits, encoded),
+        PrefsKeys.habits,
+      );
+    });
+  }
+
+  /// 明確帶入來源清單與日期的版本：載入流程用它，避免依賴還沒替換上去的
+  /// [habits] 欄位與還沒套用的 [_dayStartHour]。
+  Future<void> _writeTodayHistory(
+    SharedPreferences prefs,
+    List<Map<String, dynamic>> source,
+    String date,
+  ) async {
+    final ids = source
+        .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
         .where((h) => h['done'] == true)
         .map((h) => h['id'])
         .whereType<String>()
         .toList();
-    await HabitHistory.setDoneIdsOn(prefs, todayString(), ids);
+    final key = PrefsKeys.habitDoneDay(date);
+    final values = ids.toSet().toList();
+    await _checkedPreferenceWrite(
+      prefs,
+      () => values.isEmpty
+          ? prefs.remove(key)
+          : prefs.setString(key, jsonEncode(values)),
+      key,
+    );
   }
 
-  // 互動後 fire-and-forget 更新今天的歷史（取自家的 prefs 實例）。
-  Future<void> _recordTodayHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    await _syncTodayHistory(prefs);
+  // 互動後 fire-and-forget 更新今天的歷史；日期與完成集合都在呼叫當下固定，
+  // 並與 habits 寫入共用一條 tail，避免快速操作時舊 Future 最後才覆蓋新狀態。
+  Future<void> _recordTodayHistory() {
+    final date = todayString();
+    final snapshot = habits.map(Map<String, dynamic>.from).toList();
+    return _queueStorageWrite(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await _writeTodayHistory(prefs, snapshot, date);
+    });
   }
 
-  void _startMovingHabits() {
-    if (_editMode) return;
+  void _startMovingHabits({int? expectedGeneration}) {
+    final generation = expectedGeneration ?? _reloadGeneration;
+    if (_mutationsBlocked || _editMode || generation != _reloadGeneration) {
+      return;
+    }
+    _reorderGeneration = generation;
     setState(() => _editMode = true);
     _jiggleCtrl.repeat();
     playFeedback(SfxCue.tap);
@@ -472,10 +791,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _finishMovingHabits() {
     if (!_editMode) return;
     setState(() => _editMode = false);
+    _reorderGeneration = null;
     _jiggleCtrl
       ..stop()
       ..value = 0;
     playFeedback(SfxCue.tap);
+  }
+
+  void _cancelMovingForReload() {
+    if (!_editMode) return;
+    setState(() {
+      _editMode = false;
+      _reorderGeneration = null;
+    });
+    _jiggleCtrl
+      ..stop()
+      ..value = 0;
   }
 
   void _reorderHabitSection({
@@ -483,6 +814,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required int oldIndex,
     required int newIndex,
   }) {
+    if (_mutationsBlocked || _reorderGeneration != _reloadGeneration) return;
     if (newIndex > oldIndex) newIndex -= 1;
     final sectionHabits = habits
         .where((h) => ((h['frequency'] ?? 'daily') == 'weekly') == weekly)
@@ -513,6 +845,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 邏輯日換了就整份重載。MainPage 保證這一幀裡的 auto-complete 旗標已經
+    // 是新一天的值，所以重載讀到的連動狀態不會是昨天的殘留；也因此這時不必
+    // 再單獨跑下面兩個 sync（重載的快照已經把它們算進去了）。
+    if (oldWidget.dayStamp?.revision != widget.dayStamp?.revision ||
+        oldWidget.reloadTrigger != widget.reloadTrigger) {
+      unawaited(loadHabits());
+      return;
+    }
     if (oldWidget.waterHabitAutoComplete != widget.waterHabitAutoComplete) {
       _syncWaterHabit(widget.waterHabitAutoComplete);
     }
@@ -522,6 +862,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _syncWaterHabit(bool done) {
+    if (_mutationsBlocked) {
+      unawaited(loadHabits());
+      return;
+    }
     final idx = habits.indexWhere((h) => h['name'] == _kWaterHabitPresetName);
     if (idx == -1 || habits[idx]['done'] == done) return;
     setState(() => habits[idx]['done'] = done);
@@ -530,6 +874,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _syncWeightHabit(bool done) {
+    if (_mutationsBlocked) {
+      unawaited(loadHabits());
+      return;
+    }
     final idx = habits.indexWhere(
       (h) =>
           (h['frequency'] ?? 'daily') != 'weekly' &&
@@ -572,6 +920,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String? _transientMascot;
   // 對話泡泡內的文字（點兔咪時暫時覆蓋）
   String? _transientSpeech;
+  Timer? _transientMascotTimer;
+  Timer? _transientSpeechTimer;
   int _mascotReactionTick = 0;
 
   void _showTransientMascot(
@@ -581,33 +931,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 注意：這裡不加 _mascotReactionTick——彈跳是「正向」動作語彙，
     // 這條路目前只給撤銷打卡的 sad 用，難過還跳起來會很突兀；
     // 換圖動畫＋汗滴泡泡＋語音已足夠承載這個時刻。
+    _transientMascotTimer?.cancel();
     setState(() {
       _transientMascot = name;
     });
     _syncMascotToPersona();
-    Future.delayed(duration, () {
+    _transientMascotTimer = Timer(duration, () {
       if (mounted) {
         setState(() => _transientMascot = null);
         _syncMascotToPersona();
       }
+      _transientMascotTimer = null;
     });
   }
 
   /// 讓兔咪講一句話，幾秒後回到安靜待機（與點擊回應共用同一條路）。
   void _showTransientSpeech(String speech) {
+    _transientSpeechTimer?.cancel();
     setState(() {
       _transientSpeech = speech;
       _mascotReactionTick++;
     });
-    if (!_syncMascotToPersona()) return;
-    Future.delayed(const Duration(seconds: 3), () {
+    if (!_syncMascotToPersona()) {
+      setState(() => _transientSpeech = null);
+      return;
+    }
+    _transientSpeechTimer = Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
       setState(() => _transientSpeech = null);
       _syncMascotToPersona();
+      _transientSpeechTimer = null;
     });
   }
 
   void _onMascotTap() {
+    _transientSpeechTimer?.cancel();
     _celebCtrl.forward(from: 0);
     final ctx = _mascotContext;
     // 進度中的情境改用帶件數的具體回應：使用者主動點兔咪等於在問
@@ -623,14 +981,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
     final accepted = _syncMascotToPersona();
     if (accepted) {
-      Future.delayed(const Duration(seconds: 3), () {
+      _transientSpeechTimer = Timer(const Duration(seconds: 3), () {
         if (mounted) {
           setState(() => _transientSpeech = null);
           _syncMascotToPersona();
         }
+        _transientSpeechTimer = null;
       });
     } else {
       setState(() => _transientSpeech = null);
+      _transientSpeechTimer = null;
     }
   }
 
@@ -688,6 +1048,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void toggleHabit(int index) {
+    // reload 進行中：畫面上還是上一份清單，index 可能已經對不上，落地也會被
+    // 接著替換的新快照蓋掉。一律擋下且不給成功回饋（給了會讓使用者以為打成功）。
+    if (_mutationsBlocked || index >= habits.length) return;
     final wasAllDone = allDone0;
     final habit = habits[index];
     final wasHabitDone = habit['done'] == true;
@@ -772,6 +1135,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void decrementWeeklyHabit(int index) {
+    if (_mutationsBlocked || index >= habits.length) return;
     final habit = habits[index];
     final today = todayString();
     final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
@@ -792,6 +1156,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void deleteHabit(int index) {
+    if (_mutationsBlocked || index >= habits.length) return;
     final habit = habits[index];
     final name = habit['name'] as String;
     final id = habit['id'] as String?;
@@ -799,36 +1164,57 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final frequency = (habit['frequency'] ?? 'daily') as String;
     _animatedIn.remove(name);
     setState(() => habits.removeAt(index));
-    saveHabits();
+    final date = todayString();
+    final remaining = habits.map(Map<String, dynamic>.from).toList();
+    unawaited(saveHabits());
     // 留一筆墓碑：補打勾仍能顯示「當時存在、後來刪掉」的條目。
     // 同時刷新今天的歷史（刪掉的習慣不該再算在今天的完成集合裡）。
     if (id != null) {
-      SharedPreferences.getInstance().then((prefs) async {
-        await HabitHistory.addTombstone(
-          prefs,
-          id: id,
-          name: name,
-          frequency: frequency,
-          createdAt: createdAt ?? todayString(),
-          deletedAt: todayString(),
-        );
-        await _syncTodayHistory(prefs);
-      });
+      unawaited(
+        _queueStorageWrite(() async {
+          final prefs = await SharedPreferences.getInstance();
+          await HabitHistory.addTombstone(
+            prefs,
+            id: id,
+            name: name,
+            frequency: frequency,
+            createdAt: createdAt ?? date,
+            deletedAt: date,
+          );
+          await _writeTodayHistory(prefs, remaining, date);
+        }),
+      );
     }
     if (name == _kWaterHabitPresetName) {
-      SharedPreferences.getInstance().then((prefs) async {
-        await prefs.setBool(PrefsKeys.waterEnabled, false);
-        widget.onSettingsChanged?.call();
-      });
+      unawaited(
+        _queueStorageWrite(() async {
+          final prefs = await SharedPreferences.getInstance();
+          await _checkedPreferenceWrite(
+            prefs,
+            () => prefs.setBool(PrefsKeys.waterEnabled, false),
+            PrefsKeys.waterEnabled,
+          );
+          if (mounted) widget.onSettingsChanged?.call();
+        }),
+      );
     } else if (isWeightHabitName(name)) {
-      SharedPreferences.getInstance().then((prefs) async {
-        await prefs.setBool(PrefsKeys.weightTrackingEnabled, false);
-        widget.onSettingsChanged?.call();
-      });
+      unawaited(
+        _queueStorageWrite(() async {
+          final prefs = await SharedPreferences.getInstance();
+          await _checkedPreferenceWrite(
+            prefs,
+            () => prefs.setBool(PrefsKeys.weightTrackingEnabled, false),
+            PrefsKeys.weightTrackingEnabled,
+          );
+          if (mounted) widget.onSettingsChanged?.call();
+        }),
+      );
     }
   }
 
   Future<void> renameHabit(int index) async {
+    if (_mutationsBlocked || index >= habits.length) return;
+    final generation = _reloadGeneration;
     final ctrl = TextEditingController(text: habits[index]['name'] as String);
     final result = await showDialog<bool>(
       context: context,
@@ -849,14 +1235,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ],
       ),
     );
-    if (result != true) return;
-    final name = clampHabitName(ctrl.text);
+    final rawName = ctrl.text;
+    ctrl.dispose();
+    if (result != true ||
+        !mounted ||
+        _mutationsBlocked ||
+        generation != _reloadGeneration ||
+        index >= habits.length) {
+      return;
+    }
+    final name = clampHabitName(rawName);
     if (name.isEmpty) return;
     setState(() => habits[index]['name'] = name);
     unawaited(saveHabits());
   }
 
   Future<void> _confirmDeleteHabit(int index) async {
+    if (_mutationsBlocked || index >= habits.length) return;
+    final generation = _reloadGeneration;
     final name = habits[index]['name'] as String;
     final confirm = await showAppConfirmDialog(
       context,
@@ -865,14 +1261,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       confirmLabel: _l10n.commonDelete,
       danger: true,
     );
-    if (confirm) deleteHabit(index);
+    if (confirm &&
+        mounted &&
+        !_mutationsBlocked &&
+        generation == _reloadGeneration &&
+        index < habits.length) {
+      deleteHabit(index);
+    }
   }
 
   Future<void> _editHabitSheet(int index) async {
+    if (_mutationsBlocked || index >= habits.length) return;
+    final generation = _reloadGeneration;
     await showEditHabitSheet(
       context,
       habit: habits[index],
       onSave: (newName, freq, weeklyTarget) {
+        if (!mounted ||
+            _mutationsBlocked ||
+            generation != _reloadGeneration ||
+            index >= habits.length) {
+          return;
+        }
         setState(() {
           habits[index]['name'] = newName;
           habits[index]['frequency'] = freq;
@@ -892,6 +1302,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _showAddHabitSheet() async {
+    if (_mutationsBlocked) return;
+    final generation = _reloadGeneration;
     final existing = habits.map((h) => h['name'] as String).toSet();
     final available = kHomePresets.where((p) {
       if (p.defaultMinutes != null) {
@@ -904,66 +1316,120 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       available: available,
       onConfirm:
           (customName, customMinutes, freq, weeklyTarget, selected) async {
-            var settingsChanged = false;
-            final prefs = await SharedPreferences.getInstance();
-            for (final name in selected.keys) {
+            if (!mounted ||
+                _mutationsBlocked ||
+                generation != _reloadGeneration) {
+              return;
+            }
+            if (_mutationGate != null) {
+              return;
+            }
+
+            // onConfirm 進入同步區段時立刻關上 mutation gate。整輪 reload 都會
+            // 維持 _reloading=true，所以上面的 guard 已排除舊 load；新 load 與
+            // 其他 mutator 則會被 gate 擋住。先等既有 storage tail 落地，再以
+            // durable 狀態為基礎 commit。
+            final gate = Completer<void>();
+            _mutationGate = gate;
+            _reloadGeneration++;
+            _cancelMovingForReload();
+            final expectedDayRevision = widget.dayStamp?.revision;
+            var habitsCommitted = false;
+            final shouldReconcileSettings = selected.keys.any((name) {
               final idx = available.indexWhere((p) => p.name == name);
-              if (idx != -1 && available[idx].linkedSetting != null) {
-                final already =
-                    prefs.getBool(available[idx].linkedSetting!) ?? false;
-                if (!already) {
-                  await prefs.setBool(available[idx].linkedSetting!, true);
-                  settingsChanged = true;
-                }
-              }
-            }
-            if (settingsChanged) {
-              widget.onSettingsChanged?.call();
-            }
-            setState(() {
-              if (customName.isNotEmpty) {
-                final fullName = customMinutes > 0
-                    ? _l10n.habitNameMinutes(customName, customMinutes)
-                    : customName;
-                final map = <String, dynamic>{
-                  'id': HabitHistory.newId(),
-                  'name': fullName,
-                  'createdAt': todayString(),
-                  'done':
-                      isWeightHabitName(fullName) &&
-                      widget.weightHabitAutoComplete,
-                  'frequency': freq,
-                };
-                if (freq == 'weekly') {
-                  map['weeklyTarget'] = weeklyTarget;
-                  map['weeklyDates'] = <String>[];
-                }
-                habits.add(map);
-              }
-              for (final entry in selected.entries) {
-                final p = available.firstWhere((p) => p.name == entry.key);
-                final cfg = entry.value;
-                final habitName = (p.defaultMinutes != null && cfg.minutes > 0)
-                    ? _l10n.habitNameMinutes(p.name, cfg.minutes)
-                    : p.name;
-                final map = <String, dynamic>{
-                  'id': HabitHistory.newId(),
-                  'name': habitName,
-                  'createdAt': todayString(),
-                  'done':
-                      isWeightHabitName(habitName) &&
-                      widget.weightHabitAutoComplete,
-                  'frequency': cfg.frequency,
-                };
-                if (cfg.frequency == 'weekly') {
-                  map['weeklyTarget'] = cfg.weeklyTarget;
-                  map['weeklyDates'] = <String>[];
-                }
-                habits.add(map);
-              }
+              return idx != -1 && available[idx].linkedSetting != null;
             });
-            unawaited(saveHabits());
-            unawaited(_recordTodayHistory());
+            try {
+              await _storageTail;
+              if (!mounted) return;
+              await LogicalDayCoordinator.instance.synchronizeStorage(() async {
+                if (expectedDayRevision != null &&
+                    LogicalDayCoordinator.instance.stamp.value?.revision !=
+                        expectedDayRevision) {
+                  return;
+                }
+                final prefs = await SharedPreferences.getInstance();
+                if (!mounted) return;
+
+                final today = todayString();
+                final next = habits.map(Map<String, dynamic>.from).toList();
+                if (customName.isNotEmpty) {
+                  final fullName = customMinutes > 0
+                      ? _l10n.habitNameMinutes(customName, customMinutes)
+                      : customName;
+                  final map = <String, dynamic>{
+                    'id': HabitHistory.newId(),
+                    'name': fullName,
+                    'createdAt': today,
+                    'done':
+                        isWeightHabitName(fullName) &&
+                        widget.weightHabitAutoComplete,
+                    'frequency': freq,
+                  };
+                  if (freq == 'weekly') {
+                    map['weeklyTarget'] = weeklyTarget;
+                    map['weeklyDates'] = <String>[];
+                  }
+                  next.add(map);
+                }
+                for (final entry in selected.entries) {
+                  final p = available.firstWhere((p) => p.name == entry.key);
+                  final cfg = entry.value;
+                  final habitName =
+                      (p.defaultMinutes != null && cfg.minutes > 0)
+                      ? _l10n.habitNameMinutes(p.name, cfg.minutes)
+                      : p.name;
+                  final map = <String, dynamic>{
+                    'id': HabitHistory.newId(),
+                    'name': habitName,
+                    'createdAt': today,
+                    'done':
+                        isWeightHabitName(habitName) &&
+                        widget.weightHabitAutoComplete,
+                    'frequency': cfg.frequency,
+                  };
+                  if (cfg.frequency == 'weekly') {
+                    map['weeklyTarget'] = cfg.weeklyTarget;
+                    map['weeklyDates'] = <String>[];
+                  }
+                  next.add(map);
+                }
+
+                await _checkedPreferenceWrite(
+                  prefs,
+                  () => prefs.setString(PrefsKeys.habits, jsonEncode(next)),
+                  PrefsKeys.habits,
+                );
+                habitsCommitted = true;
+
+                for (final name in selected.keys) {
+                  final idx = available.indexWhere((p) => p.name == name);
+                  if (idx == -1 || available[idx].linkedSetting == null) {
+                    continue;
+                  }
+                  final key = available[idx].linkedSetting!;
+                  if (prefs.getBool(key) ?? false) continue;
+                  await _checkedPreferenceWrite(
+                    prefs,
+                    () => prefs.setBool(key, true),
+                    key,
+                  );
+                }
+                await _writeTodayHistory(prefs, next, today);
+              });
+            } catch (e, st) {
+              // Sheet 已經關閉，async callback 的錯誤不能變成 unhandled Future。
+              // 保留既有畫面；下次 reload 會從 durable storage 收斂。
+              debugPrint('Add habit commit failed: $e\n$st');
+            } finally {
+              if (identical(_mutationGate, gate)) _mutationGate = null;
+              if (!gate.isCompleted) gate.complete();
+            }
+
+            if (!habitsCommitted || !mounted) return;
+            await loadHabits();
+            if (!mounted) return;
+            if (shouldReconcileSettings) widget.onSettingsChanged?.call();
             // 第一個習慣誕生的當下就觸發回憶事件（冪等，之後再加都是 no-op）
             if (habits.isNotEmpty) {
               unawaited(StoryEvents.onFirstHabitCreated());
@@ -1441,12 +1907,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         itemCount: entries.length,
         proxyDecorator: proxyDecorator,
         onReorderStart: (_) {
+          if (_mutationsBlocked) return;
+          final dragGeneration = _reloadGeneration;
           if (_editMode) {
-            playFeedback(SfxCue.tap);
+            if (_reorderGeneration == _reloadGeneration) {
+              playFeedback(SfxCue.tap);
+            }
           } else {
             // 首次長按拖曳：本幀後再翻成編輯模式，避免拖曳啟動當下重建清單
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _startMovingHabits();
+              if (mounted) {
+                _startMovingHabits(expectedGeneration: dragGeneration);
+              }
             });
           }
         },
@@ -1579,6 +2051,74 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+/// 一輪載入讀出來的完整結果。`_readSnapshot` 產生、`_applySnapshot` 消費，
+/// 中間不碰任何 widget 狀態——這是「reload 期間畫面維持上一份清單」的前提。
+class _HomeSnapshot {
+  final int dayStartHour;
+
+  /// 這份快照對應的邏輯日（yyyy-MM-dd）。
+  final String logicalDate;
+  final List<Map<String, dynamic>> habits;
+  final int streak;
+  final String nickname;
+  final String mascotName;
+  final DateTime? userBirthday;
+  final DateTime? onboardingDate;
+  final bool yesterdayAllDone;
+
+  /// 這輪對應的跨日 transition id；null = 這次沒有跨日，不問候。
+  final String? transitionId;
+
+  /// 覆寫 lastOpenDate 之前的舊值；問候語要靠它算久違天數。
+  final String? previousOpenDate;
+
+  const _HomeSnapshot({
+    required this.dayStartHour,
+    required this.logicalDate,
+    required this.habits,
+    required this.streak,
+    required this.nickname,
+    required this.mascotName,
+    required this.userBirthday,
+    required this.onboardingDate,
+    required this.yesterdayAllDone,
+    required this.transitionId,
+    required this.previousOpenDate,
+  });
+}
+
+class _HomeLoadResult {
+  final int trigger;
+  final bool applied;
+  final Object? error;
+  final StackTrace? stackTrace;
+
+  const _HomeLoadResult._({
+    required this.trigger,
+    required this.applied,
+    this.error,
+    this.stackTrace,
+  });
+
+  const _HomeLoadResult.success(int trigger)
+    : this._(trigger: trigger, applied: true);
+
+  const _HomeLoadResult.cancelled(int trigger)
+    : this._(trigger: trigger, applied: false);
+
+  const _HomeLoadResult.failed(int trigger, Object error, StackTrace stackTrace)
+    : this._(
+        trigger: trigger,
+        applied: false,
+        error: error,
+        stackTrace: stackTrace,
+      );
+}
+
+class _StaleHomeLoad implements Exception {
+  const _StaleHomeLoad();
 }
 
 // 編輯模式下每張卡片的「Q 版抖動」：監聽 _HomePageState 共用的 _jiggleCtrl
