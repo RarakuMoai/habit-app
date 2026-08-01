@@ -40,6 +40,7 @@ import 'home/greeting_banner.dart';
 import 'home/habit_card.dart';
 import 'home/habit_sheets.dart';
 import 'home/home_presets.dart';
+import 'home/home_speech_owner.dart';
 import 'home/room_metrics.dart';
 import 'home/room_scene_painters.dart';
 
@@ -534,11 +535,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         !firstApply &&
         newTransition &&
         s.logicalDate.compareTo(_appliedDate!) > 0;
+    // 換上新快照＝舊那一代的演出全部過期。跨日尤其嚴重：舊 callback 會把
+    // 昨天的音效、姿勢、台詞與進度按壓帶進新的一天。
+    // 同日 reload 也一樣作廢——畫面上的 habits 已經被整份換掉了。
+    _invalidateCompletionPresentation();
     if (dayChanged) {
+      _transientMascotSeq++;
       _transientMascotTimer?.cancel();
       _transientMascotTimer = null;
       _transientSpeechTimer?.cancel();
       _transientSpeechTimer = null;
+      _speechOwner = null;
     }
     setState(() {
       _dayStartHour = s.dayStartHour;
@@ -932,11 +939,53 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // 兔咪短暫情緒：撤銷打卡後 2 秒顯示 sad
   String? _transientMascot;
-  // 對話泡泡內的文字（點兔咪時暫時覆蓋）
+  // 對話泡泡內的文字（點兔咪／打卡時暫時覆蓋）
   String? _transientSpeech;
   Timer? _transientMascotTimer;
   Timer? _transientSpeechTimer;
   int _mascotReactionTick = 0;
+
+  // ── 擁有權（誰有資格清掉現在這句話／這個 transient）──
+  // 每一種來源各自排延後清除，沒有身分就會互相清掉對方。
+  HomeSpeechToken? _speechOwner;
+  int _presentationGeneration = 0;
+  int _tapSeq = 0;
+  int _undoSeq = 0;
+  int _milestoneSeq = 0;
+
+  /// sad transient 的擁有者；被新事件取代後舊 timer 就不再作數。
+  int _transientMascotSeq = 0;
+
+  /// 只有在「現在這句還是我的」時才清除。
+  /// 回傳有沒有真的清掉，讓呼叫端決定要不要再做收尾。
+  bool _releaseSpeechIfOwned(HomeSpeechToken token) {
+    if (_speechOwner != token) return false;
+    setState(() {
+      _transientSpeech = null;
+      _speechOwner = null;
+    });
+    return true;
+  }
+
+  /// 高優先事件（撤銷、里程碑、全完成）接手時，先把舊台詞的擁有權收掉，
+  /// 免得它被當成「兔咪原本正在說的話」帶進新情境。
+  void _takeOverSpeech() {
+    if (_transientSpeech == null && _speechOwner == null) return;
+    setState(() {
+      _transientSpeech = null;
+      _speechOwner = null;
+    });
+  }
+
+  /// 取代正在顯示的 sad transient（新的正向事件、里程碑、全完成都要呼叫）。
+  void _supersedeTransientMascot() {
+    _transientMascotSeq++;
+    _transientMascotTimer?.cancel();
+    _transientMascotTimer = null;
+    if (_transientMascot != null) {
+      setState(() => _transientMascot = null);
+    }
+  }
 
   void _showTransientMascot(
     String name, {
@@ -946,17 +995,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 這條路目前只給撤銷打卡的 sad 用，難過還跳起來會很突兀；
     // 換圖動畫＋汗滴泡泡＋語音已足夠承載這個時刻。
     _transientMascotTimer?.cancel();
+    final seq = ++_transientMascotSeq;
     setState(() {
       _transientMascot = name;
     });
     _applyPersona(_baselineMascotContext);
+    _speechOwner = MascotPersona.current.value.speech == null
+        ? null
+        : HomeSpeechToken(
+            HomeSpeechSource.undo,
+            _presentationGeneration,
+            ++_undoSeq,
+          );
     _transientMascotTimer = Timer(duration, () {
-      if (mounted) {
-        setState(() => _transientMascot = null);
-        // 回 baseline 是「收拾」不是新事件：不能再冒一次泡泡或再叫一聲。
-        _applyPersona(_baselineMascotContext, silent: true, force: true);
-      }
       _transientMascotTimer = null;
+      // 過期只在「這個 transient 還是我的」時才收拾。中間若已經 redo、
+      // 過半或全完成，這個 timer 就什麼都不做——不能用 force 蓋掉新狀態。
+      if (!mounted || seq != _transientMascotSeq) return;
+      setState(() => _transientMascot = null);
+      // 回 baseline 是「收拾」不是新事件：不能再冒一次泡泡或再叫一聲。
+      _applyPersona(_baselineMascotContext, silent: true, force: true);
     });
   }
 
@@ -971,22 +1029,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         (ctx == MascotContext.completedOne || ctx == MascotContext.halfDone)
         ? MascotLines.doneCountLine(done)
         : MascotLines.randomHomeTapLineFor(ctx);
+    final token = HomeSpeechToken(
+      HomeSpeechSource.tap,
+      _presentationGeneration,
+      ++_tapSeq,
+    );
+    final previousSpeech = _transientSpeech;
+    final previousOwner = _speechOwner;
     setState(() {
       _transientSpeech = speech;
+      _speechOwner = token;
       _mascotReactionTick++;
     });
     // 點兔咪本身才是 tapReaction（問號泡泡＋疑問聲）；打卡不走這條。
     final accepted = _applyPersona(MascotContext.tapReaction);
     if (accepted) {
       _transientSpeechTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() => _transientSpeech = null);
-          _applyPersona(_baselineMascotContext, silent: true, force: true);
-        }
         _transientSpeechTimer = null;
+        // 只清自己這一句。中間若有打卡、撤銷或里程碑接手，這裡什麼都不做。
+        if (!mounted || !_releaseSpeechIfOwned(token)) return;
+        _applyPersona(_baselineMascotContext, silent: true, force: true);
       });
     } else {
-      setState(() => _transientSpeech = null);
+      // 被優先度擋下來 → 這次點擊沒有發生，也就不該取得台詞擁有權。
+      setState(() {
+        _transientSpeech = previousSpeech;
+        _speechOwner = previousOwner;
+      });
       _transientSpeechTimer = null;
     }
   }
@@ -1097,8 +1166,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       });
       if (wasDone) {
         // 撤銷要能中斷還沒播完的正向尾韻：過時的跳躍／星星／泡泡／語音
-        // 一律不再發生（已經提交的資料照既有規則撤銷，不受影響）。
-        _cancelCompletionPresentation();
+        // 一律不再發生。但只作廢**這一件**——同一串連打裡其他仍然有效的
+        // 完成，資料與那一次 success 回饋都要留著。
+        _cancelCompletionForHabit(habit);
+        _takeOverSpeech();
         _showTransientMascot('sad');
       }
       // 打卡 +金幣／取消打卡對稱扣回
@@ -1116,8 +1187,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 每日習慣的完成集合進歷史；每週走 weeklyDates，不在此記。
     if (!isWeekly) unawaited(_recordTodayHistory());
     if (!wasAllDone && allDone0) {
-      // 跨進全完成：普通完成的演出立刻讓位，不能兩套 MI 反應疊著播。
-      _cancelCompletionPresentation();
+      // 跨進全完成：普通完成的演出整代作廢，不能兩套 MI 反應疊著播。
+      // cancelMotion: false ——取消的是「舊那一代」的反應，而全完成的新反應
+      // 就在下面同一個 rebuild 裡開始；用 cancelUpTo 分代（見 MascotStage），
+      // 順序誰先誰後都不會誤殺新反應。
+      _invalidateCompletionPresentation(cancelMotion: false);
+      _supersedeTransientMascot();
+      _takeOverSpeech();
+      setState(() => _mascotReactionCancelUpTo = _mascotReactionTick);
       // 當日全完成加碼（每日一次，service 內建防重複）
       CoinService.award(
         CoinSource.allHabitsDone,
@@ -1132,10 +1209,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // 第一次全完成 → 回憶事件（冪等；揭曉由 MainPage 佇列稍後接手播）
       unawaited(StoryEvents.onFirstAllDone());
       _applyPersona(_baselineMascotContext);
+      _speechOwner = MascotPersona.current.value.speech == null
+          ? null
+          : HomeSpeechToken(
+              HomeSpeechSource.milestone,
+              _presentationGeneration,
+              ++_milestoneSeq,
+            );
     } else if (!isWeekly && !wasHabitDone && habits[index]['done'] == true) {
       // ★ 本次里程碑的主角：一件普通每日習慣完成，今天還沒做完。
       // 資料已經在上面提交，這裡只排「演出」的時間線。
-      _startCompletionPresentation(progressBefore: progressBefore);
+      //
+      // 剛好跨過一半 → 整條弧線升級成 halfDone：由里程碑發出唯一那次
+      // 泡泡／語音，而不是先完整演一次普通完成再靜靜換成 half baseline。
+      final crossedHalf = progressBefore < 0.5 && _displayProgress >= 0.5;
+      // 里程碑接手：普通完成的台詞不能被帶進 halfDone。
+      if (crossedHalf) _takeOverSpeech();
+      _startCompletionPresentation(
+        progressBefore: progressBefore,
+        habit: habits[index],
+        kind: crossedHalf ? CompletionKind.half : CompletionKind.ordinary,
+      );
     } else if (habits[index]['done'] == true) {
       // 每週習慣剛好達標：交給既有的即時回饋，不走打卡編排。
       playFeedback(wasHabitDone ? SfxCue.tap : SfxCue.success);
@@ -1170,11 +1264,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   static const double _kCompletionReactionStrength = 0.62;
 
   late final CompletionPresentationController _completion =
-      CompletionPresentationController(onPhase: _onCompletionPhase);
+      CompletionPresentationController(
+        onPhase: _onCompletionPhase,
+        isStillValid: _completionStillValid,
+      );
 
   int _mascotNoticeTick = 0;
-  int _mascotReactionCancelTick = 0;
+
+  /// 「收束 reactionTick <= 這個值的那次反應」。用 tick 而不是單純 +1，
+  /// 才不會在同一個 rebuild 裡把剛開始的全完成反應一起殺掉。
+  int _mascotReactionCancelUpTo = -1;
   double _completionReactionStrength = 1.0;
+
+  /// 每個習慣目前有效的完成事件 id；撤銷時只作廢那一件。
+  final Map<String, int> _liveEventByHabit = {};
 
   /// 進度條在衝擊點之前先按住的值；null = 直接跟著真實進度。
   /// **只影響動畫值**，「3 / 5」那個數字一律即時更新（那是事實不是演出）。
@@ -1184,9 +1287,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @visibleForTesting
   int get debugCompletionEventId => _completion.lastEventId;
 
-  /// 目前有沒有一條 MI 動作弧線在跑（連打時應該共用同一條）。
+  /// 連打合併視窗還開著。
   @visibleForTesting
   bool get debugCompletionArcActive => _completion.arcActive;
+
+  /// 還有任何一拍沒播完（含 follower impact／recover／quiet）。
+  @visibleForTesting
+  bool get debugPresentationActive => _completion.presentationActive;
+
+  /// 首頁實際發出去的語意事件（非 silent 的 persona apply）順序。
+  /// 給測試直接觀察「這一次到底是 completedOne 還是 halfDone」。
+  final List<MascotContext> _semanticEvents = [];
+
+  @visibleForTesting
+  List<MascotContext> get debugSemanticEvents =>
+      List<MascotContext>.unmodifiable(_semanticEvents);
+
+  @visibleForTesting
+  void debugClearSemanticEvents() => _semanticEvents.clear();
+
+  @visibleForTesting
+  HomeSpeechSource? get debugSpeechOwnerSource => _speechOwner?.source;
 
   double get _displayProgress {
     final daily = _dailyHabits;
@@ -1201,30 +1322,85 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return mq?.disableAnimations == true || mq?.accessibleNavigation == true;
   }
 
-  void _startCompletionPresentation({required double progressBefore}) {
-    final doneNow = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
-    final reduceMotion = _reduceMotion;
-    if (!reduceMotion) setState(() => _progressHold = progressBefore);
-    _completion.start(
-      isFirstOfDay: doneNow == 1,
-      doneCount: doneNow,
-      reduceMotion: reduceMotion,
-    );
+  int? get _dayRevision => widget.dayStamp?.revision;
+
+  static String _habitKeyOf(Map<String, dynamic> habit) =>
+      (habit['id'] as String?) ?? (habit['name'] as String? ?? '');
+
+  /// 延後的 phase 要不要真的播。看不到、跨了日、被換掉快照就一律不播。
+  bool _completionStillValid(HomeCompletionEvent event) {
+    if (!mounted) return false;
+    if (!_wasVisible) return false; // 分頁被收起來：不出聲、不震動、不冒泡泡
+    if (event.dayRevision != _dayRevision) return false;
+    return true;
   }
 
-  /// 丟掉還沒播的正向裝飾，並讓已經在跑的動作收束。
-  /// 已提交的習慣資料不受影響——撤銷是使用者的事，不是演出的事。
-  void _cancelCompletionPresentation() {
-    _completion.cancel();
+  void _startCompletionPresentation({
+    required double progressBefore,
+    required Map<String, dynamic> habit,
+    required CompletionKind kind,
+  }) {
+    final doneNow = _dailyHabits.isNotEmpty ? dailyDoneCount : weeklyMetCount;
+    final reduceMotion = _reduceMotion;
+    // 新的正向事件明確取代舊的撤銷 transient：redo 之後兩秒，舊 sad 的
+    // expiry 不該再把兔咪拉回難過的臉。
+    _supersedeTransientMascot();
+    // 一定要 setState：poseTransition 由 presentationActive 推導，
+    // Reduce Motion 沒有進度按壓也必須讓首頁重建一次，否則衝擊點那一刻
+    // 還停在交叉淡入模式。
+    setState(() => _progressHold = reduceMotion ? null : progressBefore);
+    final key = _habitKeyOf(habit);
+    final event = _completion.start(
+      habitKey: key,
+      dayRevision: _dayRevision,
+      doneCount: doneNow,
+      reduceMotion: reduceMotion,
+      kind: kind,
+    );
+    _liveEventByHabit[key] = event.id;
+  }
+
+  /// 撤銷單一件：只作廢那一件的演出。同一串連打裡其他仍然有效的完成
+  /// （資料、勾勾、那一次 success 回饋）都要留著。
+  void _cancelCompletionForHabit(Map<String, dynamic> habit) {
+    final key = _habitKeyOf(habit);
+    final id = _liveEventByHabit.remove(key);
+    if (id != null) {
+      _completion.cancelEvent(id);
+      _releaseSpeechIfOwned(
+        HomeSpeechToken(HomeSpeechSource.completion, _presentationGeneration, id),
+      );
+    }
     if (!mounted) return;
     setState(() {
       _progressHold = null;
-      _mascotReactionCancelTick++;
+      _mascotReactionCancelUpTo = _mascotReactionTick;
+    });
+  }
+
+  /// 整個 generation 作廢：離開首頁、跨日換快照、dispose、交棒給全完成。
+  void _invalidateCompletionPresentation({bool cancelMotion = true}) {
+    _completion.invalidate();
+    _liveEventByHabit.clear();
+    _presentationGeneration++;
+    if (!mounted) return;
+    setState(() {
+      _progressHold = null;
+      if (cancelMotion) _mascotReactionCancelUpTo = _mascotReactionTick;
     });
   }
 
   void _onCompletionPhase(CompletionPhase phase, HomeCompletionEvent event) {
     if (!mounted) return;
+    final milestone = _completion.arcKind == CompletionKind.half;
+    final semanticContext = milestone
+        ? MascotContext.halfDone
+        : MascotContext.completedOne;
+    final token = HomeSpeechToken(
+      HomeSpeechSource.completion,
+      event.generation,
+      event.id,
+    );
     switch (phase) {
       case CompletionPhase.confirm:
         // 資料已提交、卡片自己會開始描勾。這一拍刻意什麼都不做：
@@ -1241,36 +1417,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         // 勾勾筆尖落點：全場唯一的觸覺與音效，換 pose，放開進度條。
         playFeedback(SfxCue.success, haptic: HapticLevel.light);
         if (_progressHold != null) setState(() => _progressHold = null);
-        _applyPersona(
-          MascotContext.completedOne,
-          keepSpeech: true,
-          silent: true,
-          force: true,
-        );
+        _applyPersona(semanticContext, silentBeatFor: token, force: true);
       case CompletionPhase.speak:
-        // MI 已經動起來了才開口。當天第一件才有台詞與語音。
-        if (event.isFirstOfDay) {
-          setState(
-            () => _transientSpeech = MascotLines.doneCountLine(event.doneCount),
-          );
+        // 整條弧線唯一一次語意事件。台詞在**這一刻**重算，不用建立當下的
+        // 快照——撤銷過、或這已經是第二條弧線時，就不會再冒出「今天第一件。」
+        final doneNow = _dailyHabits.isNotEmpty
+            ? dailyDoneCount
+            : weeklyMetCount;
+        final line = (!milestone && doneNow == 1)
+            ? MascotLines.doneCountLine(doneNow)
+            : null;
+        if (line != null) {
+          setState(() {
+            _transientSpeech = line;
+            _speechOwner = token;
+          });
         }
         _applyPersona(
-          MascotContext.completedOne,
-          withVoice: event.isFirstOfDay,
+          semanticContext,
+          // 沒有自己的台詞時沿用 silent beat 的規則：留自己的、留開場問候，
+          // 收掉別人的（免得把點擊台詞帶進打卡泡泡）。
+          speech: line ?? _speechForSilentBeat(token),
+          withVoice: milestone || line != null,
           force: true,
         );
       case CompletionPhase.recover:
-        // 落地：回到「目前進度」推導的 baseline（可能已經是 halfDone），
-        // 但不再演一次——里程碑的完整反應要留給既有的高層級事件。
+        // 落地：回到「目前進度」推導的 baseline。不再演一次——里程碑的
+        // 完整反應已經在 speak 那一拍發過了。
         _applyPersona(
           _baselineMascotContext,
-          keepSpeech: true,
-          silent: true,
+          silentBeatFor: token,
           force: true,
         );
       case CompletionPhase.quiet:
-        if (_transientSpeech == null) return;
-        setState(() => _transientSpeech = null);
+        // 只收自己那一段台詞；別人的（點擊、撤銷、里程碑）不歸這裡管。
+        if (!_releaseSpeechIfOwned(token)) return;
         _applyPersona(_baselineMascotContext, silent: true, force: true);
     }
   }
@@ -1293,7 +1474,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     CoinService.revoke(CoinSource.habitDone, note: habit['name'] as String?);
     saveHabits();
     playFeedback(SfxCue.cancel);
-    _cancelCompletionPresentation();
+    _invalidateCompletionPresentation();
+    _takeOverSpeech();
     _showTransientMascot('sad');
   }
 
@@ -1599,9 +1781,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     // 切走分頁：還沒播的打卡演出直接作廢。看不到兔咪卻聽到牠出聲、或切回來
     // 才補播一次舊的完成反應，都是錯的。
-    if (!visible && _wasVisible && _completion.arcActive) {
+    if (!visible && _wasVisible && _completion.presentationActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _cancelCompletionPresentation();
+        if (mounted) _invalidateCompletionPresentation();
       });
     }
     _wasVisible = visible;
@@ -1704,7 +1886,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           reactionTick: _mascotReactionTick,
           noticeTick: _mascotNoticeTick,
           reactionStrength: _completionReactionStrength,
-          reactionCancelTick: _mascotReactionCancelTick,
+          reactionCancelUpTo: _mascotReactionCancelUpTo,
+          // 打卡演出期間換立繪走離散換圖：兩張完整立繪半透明疊在一起
+          // 才是衝擊點看到的雙影。其他互動維持全 app 既有的交叉淡入。
+          poseTransition: _completion.presentationActive
+              ? MascotPoseTransition.cut
+              : MascotPoseTransition.crossFade,
           // 打卡台詞是短尾韻，自己淡出後才被清掉（不是硬切）。
           speechVisibleDuration: const Duration(milliseconds: 2200),
           onTap: _onMascotTap,
@@ -1729,28 +1916,49 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ///
   /// **情境由呼叫端負責**：同一個畫面狀態可能是「剛完成一件」也可能是
   /// 「使用者點了兔咪」，語意不該從 transient 欄位反推。
-  /// [silent] 用在同一個事件的中間拍與收尾拍（換姿勢但不再演一次）。
-  /// [keepSpeech] 讓那些中間拍不要把兔咪**原本正在說的話**砍掉——打卡不該
-  /// 讓一句還沒講完的開場問候憑空消失，再空兩百毫秒才冒出新的一句。
+  ///
+  /// [silent] = 只換姿勢，不冒泡泡、不出聲、也不補台詞。
+  /// [silentBeatFor] = 同一個事件的中間拍（impact／recover）：一樣 silent，
+  /// 但台詞的處理多一層規則，見 [_speechForSilentBeat]。
   bool _applyPersona(
     MascotContext ctx, {
     String? speech,
-    bool keepSpeech = false,
+    HomeSpeechToken? silentBeatFor,
     bool silent = false,
     bool withVoice = true,
     bool force = false,
   }) {
-    return MascotPersona.setForContext(
+    final quiet = silent || silentBeatFor != null;
+    final resolved = silentBeatFor != null
+        ? _speechForSilentBeat(silentBeatFor)
+        : (speech ?? _transientSpeech);
+    final applied = MascotPersona.setForContext(
       _mascotAsset,
       ctx,
-      speech:
-          speech ??
-          _transientSpeech ??
-          (keepSpeech ? MascotPersona.current.value.speech : null),
-      silent: silent,
+      speech: resolved,
+      silent: quiet,
       withVoice: withVoice,
       force: force,
     );
+    // 被 priority 擋下來的事件什麼都沒發生，不該登記成語意事件，
+    // 呼叫端也不該因此取得台詞擁有權。
+    if (applied && !quiet) _semanticEvents.add(ctx);
+    return applied;
+  }
+
+  /// 中間拍要不要保留現在畫面上那句話。
+  ///
+  /// - 是自己這個事件的台詞 → 留著（換姿勢不該把自己的話砍掉）。
+  /// - 沒有人主張擁有 → 那是開場問候／跨日 baseline 這類外來台詞，允許保留。
+  /// - 屬於別人（點兔咪、撤銷、里程碑）→ 收掉，並把擁有權一起清乾淨，
+  ///   免得對方的 timer 之後又來清一次新的台詞。
+  String? _speechForSilentBeat(HomeSpeechToken self) {
+    final owner = _speechOwner;
+    if (owner == self) return _transientSpeech;
+    if (owner == null) return MascotPersona.current.value.speech;
+    _transientSpeech = null;
+    _speechOwner = null;
+    return null;
   }
 
   Widget _habitCardContent({

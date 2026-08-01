@@ -8,25 +8,29 @@ import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
 
 const String _asset = 'assets/mascot/core/tumi_neutral_front.png';
+const String _asset2 = 'assets/mascot/core/tumi_expect.png';
 
 Future<void> _pumpStage(
   WidgetTester tester, {
+  String asset = _asset,
   int reactionTick = 0,
   int noticeTick = 0,
   double reactionStrength = 1.0,
-  int reactionCancelTick = 0,
+  int reactionCancelUpTo = -1,
+  MascotPoseTransition poseTransition = MascotPoseTransition.crossFade,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: Center(
           child: MascotStage(
-            asset: _asset,
+            asset: asset,
+            poseTransition: poseTransition,
             accent: Colors.orange,
             reactionTick: reactionTick,
             noticeTick: noticeTick,
             reactionStrength: reactionStrength,
-            reactionCancelTick: reactionCancelTick,
+            reactionCancelUpTo: reactionCancelUpTo,
             onTap: () {},
             // 凍結呼吸/眨眼：留下來的縱向位移就只會來自打卡演出本身。
             paused: true,
@@ -38,8 +42,37 @@ Future<void> _pumpStage(
 }
 
 /// 兔咪本體目前在畫面上的縱向位置（越小＝越高）。
-double _bodyTop(WidgetTester tester) =>
-    tester.getTopLeft(find.byKey(const ValueKey(_asset))).dy;
+double _bodyTop(WidgetTester tester, [String asset = _asset]) =>
+    tester.getTopLeft(find.byKey(ValueKey(asset))).dy;
+
+
+/// 沒有任何一張立繪處於半透明（會透出背景＝雙影）。
+void _expectNoTranslucentPose(WidgetTester tester) {
+  final opacities = <double>[];
+  for (final el in find
+      .descendant(
+        of: find.byType(MascotStage),
+        matching: find.byType(Padding),
+      )
+      .evaluate()) {
+    if ((el.widget as Padding).key is! ValueKey<String>) continue;
+    var opacity = 1.0;
+    el.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if (widget is FadeTransition) {
+        opacity = widget.opacity.value;
+        return false;
+      }
+      return widget is! MascotStage;
+    });
+    opacities.add(opacity);
+  }
+  expect(
+    opacities.where((o) => o > 0.05 && o < 0.95),
+    isEmpty,
+    reason: '不得出現半透明立繪（實際：$opacities）',
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -114,7 +147,7 @@ void main() {
       tester,
       reactionTick: 1,
       reactionStrength: 0.62,
-      reactionCancelTick: 1,
+      reactionCancelUpTo: 1,
     );
     await tester.pump(const Duration(milliseconds: 200));
     expect(
@@ -179,5 +212,90 @@ void main() {
     );
     expect(MascotPersona.current.value.speech, isNull);
     expect(MascotPersona.current.value.bubble, isNull);
+  });
+
+  // ── Blocker 6：換立繪的過場 ─────────────────────────────────
+
+  group('打卡換立繪', () {
+    testWidgets('cut 模式不會讓兩張完整立繪同時存在', (tester) async {
+      await _pumpStage(tester, poseTransition: MascotPoseTransition.cut);
+      expect(find.byKey(const ValueKey(_asset)), findsOneWidget);
+
+      await _pumpStage(
+        tester,
+        asset: _asset2,
+        poseTransition: MascotPoseTransition.cut,
+      );
+      expect(find.byKey(const ValueKey(_asset2)), findsOneWidget);
+      // 第一幀允許舊立繪還在（完全不透明，用來蓋住新圖尚未解圖的那一格），
+      // 但不能是半透明——半透明疊在一起才會透出背景變成鬼影。
+      _expectNoTranslucentPose(tester);
+
+      // 下一幀起就只剩一張，整段沉降期間都不再有第二張
+      await tester.pump(const Duration(milliseconds: 20));
+      for (final ms in [20, 60, 120, 200]) {
+        expect(
+          find.byKey(const ValueKey(_asset)),
+          findsNothing,
+          reason: '$ms ms 時仍不得有第二張',
+        );
+        _expectNoTranslucentPose(tester);
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+    });
+
+    testWidgets('對照組：交叉淡入模式中段確實兩張並存', (tester) async {
+      await _pumpStage(tester);
+      await _pumpStage(tester, asset: _asset2);
+      await tester.pump(const Duration(milliseconds: 120));
+
+      expect(
+        find.byKey(const ValueKey(_asset)),
+        findsOneWidget,
+        reason: '這就是原本會出現雙影的預設行為（其他頁面維持不變）',
+      );
+      expect(find.byKey(const ValueKey(_asset2)), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('cut 的沉降不 overshoot，腳也不跳位', (tester) async {
+      await _pumpStage(tester, poseTransition: MascotPoseTransition.cut);
+      final rest = _bodyTop(tester);
+
+      await _pumpStage(
+        tester,
+        asset: _asset2,
+        poseTransition: MascotPoseTransition.cut,
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+      final compressed = _bodyTop(tester, _asset2);
+      expect(
+        compressed,
+        greaterThan(rest),
+        reason: '沉降是往下壓一點點，不是彈起來',
+      );
+      expect(compressed - rest, lessThan(6.0), reason: '幅度必須很小');
+
+      // 全程不得超過原位（沒有 back curve、沒有 overshoot）
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(
+          _bodyTop(tester, _asset2),
+          greaterThanOrEqualTo(rest - 0.5),
+          reason: 'Reduce Motion 也走這條，不允許 overshoot',
+        );
+      }
+      expect(_bodyTop(tester, _asset2), closeTo(rest, 0.5));
+    });
+
+    test('沉降長度非零且不使用 back 曲線的 overshoot 範圍', () {
+      expect(kMascotPoseCutSettle, greaterThan(Duration.zero));
+      expect(kMascotPoseCutSettleScale, lessThan(1.0));
+      expect(
+        kMascotPoseCutSettleScale,
+        greaterThan(0.95),
+        reason: '只是很小的沉降，不是縮成一點',
+      );
+    });
   });
 }
