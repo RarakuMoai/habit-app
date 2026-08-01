@@ -57,6 +57,9 @@ class _RoomSceneEffectsState extends State<RoomSceneEffects>
 }
 
 class RoomSceneEffectsPainter extends CustomPainter {
+  @visibleForTesting
+  static const completionAuraStops = <double>[0.0, 0.5, 1.0];
+
   final Color accent;
   final double progress;
 
@@ -97,7 +100,7 @@ class RoomSceneEffectsPainter extends CustomPainter {
           accent.withValues(alpha: 0.06),
           const Color(0xFFFFF1A8).withValues(alpha: 0.035),
           Colors.transparent,
-        ]),
+        ], completionAuraStops),
     );
   }
 
