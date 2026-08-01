@@ -178,45 +178,114 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (mounted) setState(() {});
   }
 
-  Future<void> loadHabits() async {
-    final prefs = await SharedPreferences.getInstance();
+  // ── 習慣載入（可安全重入的 reload）─────────────────────────
+  //
+  // 拆成兩段：[_readSnapshot] 只碰 storage（讀取、遷移、跨日結算、連動同步），
+  // 產出一份全新的 [_HomeSnapshot]；[_applySnapshot] 再用單一 setState 原子
+  // 替換畫面資料。舊版直接 `habits.addAll(...)` 進既有清單，呼叫第二次就會
+  // 讓每個習慣變兩份，所以那時的 loadHabits 只能在 initState 跑一次。
+  //
+  // 重入策略：同時只跑一輪；期間再被要求就記下來，跑完補跑最後一次。補跑會
+  // 重新讀 storage，拿到的一定是最新資料，不會重播舊參數。
+
+  /// 目前正在跑的那一輪；null 代表閒置。用 Future 而不是單純 boolean，
+  /// 呼叫端可以 await 同一輪，且 `whenComplete` 保證例外時也會釋放。
+  Future<void>? _loadInFlight;
+  bool _pendingReload = false;
+
+  /// reload 進行中：畫面上還是上一份清單，這時落地的打勾會被接著替換的新
+  /// 快照蓋掉（等於使用者的操作被吃掉），所以一律擋下且不給成功回饋。
+  bool _reloading = false;
+
+  /// 已經播過問候的邏輯日；同一天重複 reload 不重播。
+  String? _greetedDate;
+
+  /// 上一次套用的邏輯日；用來判斷這次 reload 是不是真的換了一天。
+  String? _appliedDate;
+
+  /// 載入 / 重新載入習慣。重複呼叫安全：進行中會合併，結束後補跑最後一次。
+  Future<void> loadHabits() {
+    final inFlight = _loadInFlight;
+    if (inFlight != null) {
+      _pendingReload = true;
+      return inFlight;
+    }
+    late Future<void> future;
+    future = _runLoad().whenComplete(() {
+      if (identical(_loadInFlight, future)) _loadInFlight = null;
+      if (_pendingReload) {
+        _pendingReload = false;
+        if (mounted) unawaited(loadHabits());
+      }
+    });
+    _loadInFlight = future;
+    return future;
+  }
+
+  Future<void> _runLoad() async {
+    _reloading = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      final snapshot = await _readSnapshot(prefs);
+      if (!mounted) return;
+      _applySnapshot(snapshot);
+      _afterApply(prefs, snapshot);
+    } catch (e, st) {
+      // 讀寫失敗不清空畫面：維持上一份清單，等下一次觸發重試。
+      debugPrint('loadHabits failed: $e\n$st');
+    } finally {
+      _reloading = false;
+    }
+  }
+
+  /// 只讀 storage 並把該落地的寫入做完，不碰任何 widget 狀態。
+  Future<_HomeSnapshot> _readSnapshot(SharedPreferences prefs) async {
+    final l10n = _l10n;
     SceneTimeController.instance.loadFromPrefs(prefs); // 固定時段/預覽覆寫
-    _dayStartHour = LogicalDate.load(prefs); // 算「今天」前先讀換日設定
-    final today = todayString();
+    final dayStartHour = LogicalDate.load(prefs); // 算「今天」前先讀換日設定
+    // 同一輪固定一個時間基準，避免 today 與 todayDay 落在不同天。
+    final now = DateTime.now();
+    final today = LogicalDate.stringFor(now, dayStartHour);
+    final todayDay = LogicalDate.dayOf(now, dayStartHour);
     final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
-    streak = prefs.getInt(PrefsKeys.streak) ?? 0;
-    _nickname =
-        prefs.getString(PrefsKeys.userNickname) ?? _l10n.hpNicknameFallback;
-    mascotName0 = prefs.getString(PrefsKeys.mascotName) ?? MascotName.fallback;
-    userBirthday = DateTime.tryParse(
+    var streakValue = prefs.getInt(PrefsKeys.streak) ?? 0;
+    final nickname =
+        prefs.getString(PrefsKeys.userNickname) ?? l10n.hpNicknameFallback;
+    final mascotName =
+        prefs.getString(PrefsKeys.mascotName) ?? MascotName.fallback;
+    final birthday = DateTime.tryParse(
       prefs.getString(PrefsKeys.userBirthday) ?? '',
     );
 
+    DateTime? onboarding;
     final obDateStr = prefs.getString(PrefsKeys.onboardingDate);
     if (obDateStr != null) {
-      onboardingDate = DateTime.tryParse(obDateStr);
+      onboarding = DateTime.tryParse(obDateStr);
     } else {
-      onboardingDate = DateTime.now();
+      onboarding = now;
       await prefs.setString(
         PrefsKeys.onboardingDate,
-        onboardingDate!.toIso8601String(),
+        onboarding.toIso8601String(),
       );
     }
 
+    // 每輪都建全新的 list，不再往既有的 habits 追加。
+    final next = <Map<String, dynamic>>[];
     final habitsJson = prefs.getString(PrefsKeys.habits);
     if (habitsJson != null) {
       final decoded = jsonDecode(habitsJson) as List<dynamic>;
-      habits.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
+      next.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
     }
 
     // 遷移：補上穩定 id 與建立日（補打勾 / 統計用）。舊習慣不知道真正的
     // 建立日，退而用 onboarding 日期（至少不會晚於實際），再不行才用今天。
     // 之後新增的習慣會在建立當下就帶 id/createdAt，不靠這裡。
     var habitsMigrated = false;
-    final fallbackCreated = onboardingDate != null
-        ? _fmtDate(onboardingDate!)
+    final fallbackCreated = onboarding != null
+        ? _fmtDate(onboarding)
         : today;
-    for (final habit in habits) {
+    for (final habit in next) {
       if (habit['id'] is! String || (habit['id'] as String).isEmpty) {
         habit['id'] = HabitHistory.newId();
         habitsMigrated = true;
@@ -228,7 +297,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     }
     if (habitsMigrated) {
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+      await prefs.setString(PrefsKeys.habits, jsonEncode(next));
     }
 
     // 跨日結算只在「邏輯日真的往前走」時做（結算昨天連勝 + 重置今天勾選）。
@@ -237,39 +306,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 觸發結算，把連勝歸零、勾選清空。改用日期方向判斷，往回跳一律略過。
     // （金幣防重複另走真實日曆日 key，見 CoinService，本來就不受換日設定影響。）
     final lastOpenDay = lastOpen == null ? null : DateTime.tryParse(lastOpen);
-    final todayDay = LogicalDate.dayOf(DateTime.now(), _dayStartHour);
     final crossedToNewDay =
         lastOpenDay != null && todayDay.isAfter(lastOpenDay);
+    var yesterdayDone = false;
     if (crossedToNewDay) {
-      final dailyHabits = habits
+      final dailyHabits = next
           .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
           .toList();
       final allDailyDone =
           dailyHabits.isNotEmpty && dailyHabits.every((h) => h['done'] == true);
-      yesterdayAllDone = allDailyDone;
+      yesterdayDone = allDailyDone;
       if (dailyHabits.isNotEmpty) {
         if (allDailyDone) {
           // 連勝里程碑金幣已改綁「連續登入」（見 CoinService.claimDailyLogin），
           // 這裡只維持習慣連勝天數本身供顯示用，不再發幣。
-          streak++;
+          streakValue++;
         } else {
-          streak = 0;
+          streakValue = 0;
         }
-        await prefs.setInt(PrefsKeys.streak, streak);
+        await prefs.setInt(PrefsKeys.streak, streakValue);
       }
-      for (final habit in habits) {
+      for (final habit in next) {
         if ((habit['frequency'] ?? 'daily') != 'weekly') {
           habit['done'] = false;
         }
       }
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+      await prefs.setString(PrefsKeys.habits, jsonEncode(next));
     }
 
     // 連勝里程碑 → 解鎖回憶事件（冪等：已解鎖會 no-op；既有高連勝用戶下次開啟補發）
-    unawaited(StoryEvents.onHabitStreak(streak));
+    unawaited(StoryEvents.onHabitStreak(streakValue));
     // 第一個習慣：新增當下也會觸發（_showAddHabitSheet），這裡是補發——
     // 涵蓋 onboarding 建的習慣與既有資料，冪等所以重複呼叫沒關係。
-    if (habits.isNotEmpty) unawaited(StoryEvents.onFirstHabitCreated());
+    if (next.isNotEmpty) unawaited(StoryEvents.onFirstHabitCreated());
     // 久違回來：要在 lastOpen 被覆寫成今天之前算天數（與問候語同一把尺）。
     final daysAwayForStory = _daysSinceDateString(lastOpen, todayDay);
     if (daysAwayForStory != null) {
@@ -277,49 +346,88 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     // Always recompute done for weekly habits from weeklyDates
-    for (final habit in habits) {
+    final weekSet = _weekStringsFor(now, dayStartHour).toSet();
+    for (final habit in next) {
       if ((habit['frequency'] ?? 'daily') == 'weekly') {
         final target = (habit['weeklyTarget'] as int?) ?? 3;
-        habit['done'] = _weeklyCount(habit) >= target;
+        final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
+        habit['done'] = dates.where(weekSet.contains).length >= target;
       }
     }
 
     // 跨頁籤切換時首頁會整頁重建，didUpdateWidget 不會觸發，
     // 因此在這裡依喝水頁達標狀態同步「喝足夠的水」習慣的勾選狀態
-    final waterIdx = habits.indexWhere(
-      (h) => h['name'] == _kWaterHabitPresetName,
-    );
+    final waterIdx = next.indexWhere((h) => h['name'] == _kWaterHabitPresetName);
     if (waterIdx != -1 &&
-        habits[waterIdx]['done'] != widget.waterHabitAutoComplete) {
-      habits[waterIdx]['done'] = widget.waterHabitAutoComplete;
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+        next[waterIdx]['done'] != widget.waterHabitAutoComplete) {
+      next[waterIdx]['done'] = widget.waterHabitAutoComplete;
+      await prefs.setString(PrefsKeys.habits, jsonEncode(next));
     }
-    final weightIdx = habits.indexWhere(
+    final weightIdx = next.indexWhere(
       (h) =>
           (h['frequency'] ?? 'daily') != 'weekly' &&
           isWeightHabitName(h['name'] as String?),
     );
     if (weightIdx != -1 &&
-        habits[weightIdx]['done'] != widget.weightHabitAutoComplete) {
-      habits[weightIdx]['done'] = widget.weightHabitAutoComplete;
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+        next[weightIdx]['done'] != widget.weightHabitAutoComplete) {
+      next[weightIdx]['done'] = widget.weightHabitAutoComplete;
+      await prefs.setString(PrefsKeys.habits, jsonEncode(next));
     }
 
     // 把今天每日習慣的完成狀態寫進歷史（跨日 reset 後是空集合＝今天重新開始；
     // 同日重開則與當下勾選一致）。歷史只增不洗掉過去的日期。
-    await _syncTodayHistory(prefs);
+    await _writeTodayHistory(prefs, next, today);
 
     final isFirstOpenToday = crossedToNewDay || lastOpenDay == null;
     // lastOpen 只往前推進，不因換日設定往回調而回退（否則調回來再開又重觸發結算）。
     if (lastOpenDay == null || todayDay.isAfter(lastOpenDay)) {
       await prefs.setString(PrefsKeys.lastOpenDate, today);
     }
-    setState(() => isLoading = false);
-    _markSceneActive(); // 內容出現後開始計閒置
 
-    if (isFirstOpenToday && mounted) {
+    return _HomeSnapshot(
+      dayStartHour: dayStartHour,
+      logicalDate: today,
+      habits: next,
+      streak: streakValue,
+      nickname: nickname,
+      mascotName: mascotName,
+      userBirthday: birthday,
+      onboardingDate: onboarding,
+      yesterdayAllDone: yesterdayDone,
+      firstOpenToday: isFirstOpenToday,
+      previousOpenDate: lastOpen,
+    );
+  }
+
+  /// 單一 setState 原子替換：替換前不動 [habits]，所以 reload 期間畫面
+  /// 一直是上一份完整清單，不會閃出空列表或錯誤進度。
+  void _applySnapshot(_HomeSnapshot s) {
+    final dayChanged = _appliedDate != null && _appliedDate != s.logicalDate;
+    setState(() {
+      _dayStartHour = s.dayStartHour;
+      habits
+        ..clear()
+        ..addAll(s.habits);
+      streak = s.streak;
+      _nickname = s.nickname;
+      mascotName0 = s.mascotName;
+      userBirthday = s.userBirthday;
+      onboardingDate = s.onboardingDate;
+      yesterdayAllDone = s.yesterdayAllDone;
+      // 新的一天讓卡片重播一次進場；同一天的 reload 保持原樣，否則每次
+      // resume 整列卡片都會重新淡入。
+      if (dayChanged) _animatedIn.clear();
+      isLoading = false;
+    });
+    _appliedDate = s.logicalDate;
+  }
+
+  void _afterApply(SharedPreferences prefs, _HomeSnapshot s) {
+    _markSceneActive(); // 內容出現後開始計閒置
+    if (s.firstOpenToday && _greetedDate != s.logicalDate) {
+      _greetedDate = s.logicalDate;
       Future.delayed(const Duration(milliseconds: 400), () {
-        if (mounted) showGreeting(prefs, lastOpen);
+        if (mounted) showGreeting(prefs, s.previousOpenDate);
       });
     }
   }
@@ -427,12 +535,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // 換日線往後挪時，睡前完成的習慣仍算前一天（與喝水/體重一致）。
   String todayString() => LogicalDate.stringFor(DateTime.now(), _dayStartHour);
 
-  List<String> _currentWeekStrings() {
+  /// 純函式版：載入流程用它，才不必依賴還沒套用的 [_dayStartHour] 欄位。
+  List<String> _weekStringsFor(DateTime at, int dayStartHour) {
     // 用邏輯日的今天決定本週，weeklyDates 也是用 todayString() 存的。
-    final today = LogicalDate.dayOf(DateTime.now(), _dayStartHour);
+    final today = LogicalDate.dayOf(at, dayStartHour);
     final monday = today.subtract(Duration(days: today.weekday - 1));
     return List.generate(7, (i) => _fmtDate(monday.add(Duration(days: i))));
   }
+
+  List<String> _currentWeekStrings() =>
+      _weekStringsFor(DateTime.now(), _dayStartHour);
 
   int _weeklyCount(Map<String, dynamic> habit) {
     final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
@@ -447,13 +559,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // 把「今天已完成的每日習慣 id」覆寫進歷史。每日習慣以 done 為準（set 語意）；
   // 每週習慣的逐日紀錄另存在 weeklyDates，不在這裡。
-  Future<void> _syncTodayHistory(SharedPreferences prefs) async {
-    final ids = _dailyHabits
+  Future<void> _syncTodayHistory(SharedPreferences prefs) =>
+      _writeTodayHistory(prefs, habits, todayString());
+
+  /// 明確帶入來源清單與日期的版本：載入流程用它，避免依賴還沒替換上去的
+  /// [habits] 欄位與還沒套用的 [_dayStartHour]。
+  Future<void> _writeTodayHistory(
+    SharedPreferences prefs,
+    List<Map<String, dynamic>> source,
+    String date,
+  ) async {
+    final ids = source
+        .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
         .where((h) => h['done'] == true)
         .map((h) => h['id'])
         .whereType<String>()
         .toList();
-    await HabitHistory.setDoneIdsOn(prefs, todayString(), ids);
+    await HabitHistory.setDoneIdsOn(prefs, date, ids);
   }
 
   // 互動後 fire-and-forget 更新今天的歷史（取自家的 prefs 實例）。
@@ -483,6 +605,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required int oldIndex,
     required int newIndex,
   }) {
+    if (_reloading) return;
     if (newIndex > oldIndex) newIndex -= 1;
     final sectionHabits = habits
         .where((h) => ((h['frequency'] ?? 'daily') == 'weekly') == weekly)
@@ -688,6 +811,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void toggleHabit(int index) {
+    // reload 進行中：畫面上還是上一份清單，index 可能已經對不上，落地也會被
+    // 接著替換的新快照蓋掉。一律擋下且不給成功回饋（給了會讓使用者以為打成功）。
+    if (_reloading || index >= habits.length) return;
     final wasAllDone = allDone0;
     final habit = habits[index];
     final wasHabitDone = habit['done'] == true;
@@ -772,6 +898,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void decrementWeeklyHabit(int index) {
+    if (_reloading || index >= habits.length) return;
     final habit = habits[index];
     final today = todayString();
     final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
@@ -792,6 +919,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void deleteHabit(int index) {
+    if (_reloading || index >= habits.length) return;
     final habit = habits[index];
     final name = habit['name'] as String;
     final id = habit['id'] as String?;
@@ -829,6 +957,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> renameHabit(int index) async {
+    if (_reloading || index >= habits.length) return;
     final ctrl = TextEditingController(text: habits[index]['name'] as String);
     final result = await showDialog<bool>(
       context: context,
@@ -857,6 +986,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _confirmDeleteHabit(int index) async {
+    if (_reloading || index >= habits.length) return;
     final name = habits[index]['name'] as String;
     final confirm = await showAppConfirmDialog(
       context,
@@ -869,6 +999,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _editHabitSheet(int index) async {
+    if (_reloading || index >= habits.length) return;
     await showEditHabitSheet(
       context,
       habit: habits[index],
@@ -892,6 +1023,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _showAddHabitSheet() async {
+    if (_reloading) return;
     final existing = habits.map((h) => h['name'] as String).toSet();
     final available = kHomePresets.where((p) {
       if (p.defaultMinutes != null) {
@@ -1579,6 +1711,42 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+/// 一輪載入讀出來的完整結果。`_readSnapshot` 產生、`_applySnapshot` 消費，
+/// 中間不碰任何 widget 狀態——這是「reload 期間畫面維持上一份清單」的前提。
+class _HomeSnapshot {
+  final int dayStartHour;
+
+  /// 這份快照對應的邏輯日（yyyy-MM-dd）。
+  final String logicalDate;
+  final List<Map<String, dynamic>> habits;
+  final int streak;
+  final String nickname;
+  final String mascotName;
+  final DateTime? userBirthday;
+  final DateTime? onboardingDate;
+  final bool yesterdayAllDone;
+
+  /// 這輪是不是「當天第一次打開」（跨日或第一次啟動）；決定要不要問候。
+  final bool firstOpenToday;
+
+  /// 覆寫 lastOpenDate 之前的舊值；問候語要靠它算久違天數。
+  final String? previousOpenDate;
+
+  const _HomeSnapshot({
+    required this.dayStartHour,
+    required this.logicalDate,
+    required this.habits,
+    required this.streak,
+    required this.nickname,
+    required this.mascotName,
+    required this.userBirthday,
+    required this.onboardingDate,
+    required this.yesterdayAllDone,
+    required this.firstOpenToday,
+    required this.previousOpenDate,
+  });
 }
 
 // 編輯模式下每張卡片的「Q 版抖動」：監聽 _HomePageState 共用的 _jiggleCtrl
