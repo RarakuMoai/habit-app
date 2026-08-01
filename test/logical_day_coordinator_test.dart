@@ -6,8 +6,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/logical_day_coordinator.dart';
+import 'package:habit_app/utils/preference_write_guard.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'shared_preferences_failure_test_helper.dart';
 
 /// 可推進的假時鐘。
 class _FakeClock {
@@ -49,15 +52,13 @@ void main() {
 
   tearDown(() {
     LogicalDayCoordinator.debugInstance = null;
+    PreferenceWriteGuard.debugReset();
     LogicalDate.notifier.value = LogicalDate.defaultHour;
   });
 
   // ── 8.1 純結算 ───────────────────────────────────────────
   group('settleLogicalDay（純函式）', () {
-    final daily = [
-      _habit('喝水', id: 'h1'),
-      _habit('走路', id: 'h2'),
-    ];
+    final daily = [_habit('喝水', id: 'h1'), _habit('走路', id: 'h2')];
 
     test('昨日全部完成 → 連勝 +1', () {
       final r = settleLogicalDay(
@@ -180,9 +181,8 @@ void main() {
 
       expect(prefs.getInt(PrefsKeys.streak), 5);
       expect(prefs.getString(PrefsKeys.lastOpenDate), '2026-08-01');
-      final habits =
-          (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
-              .cast<Map<String, dynamic>>();
+      final habits = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
       expect(habits.every((h) => h['done'] == false), isTrue);
       expect(habits.length, 2, reason: '不得出現重複習慣');
       expect(
@@ -222,9 +222,8 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
 
       expect(prefs.getInt(PrefsKeys.streak), 4);
-      final habits =
-          (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
-              .cast<Map<String, dynamic>>();
+      final habits = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
       expect(habits[0]['done'], isTrue, reason: '同日不得清掉今天的勾選');
       expect(coordinator.stamp.value!.transitionId, isNull);
       expect(coordinator.consumeGreeting('day:2026-08-01'), isFalse);
@@ -242,8 +241,16 @@ void main() {
         await seedYesterdayAllDone();
         final (coordinator, _) = await _startCoordinator(at);
         final prefs = await SharedPreferences.getInstance();
-        expect(coordinator.stamp.value!.logicalDate, expectedDate, reason: '$at');
-        expect(prefs.getInt(PrefsKeys.streak), shouldSettle ? 5 : 4, reason: '$at');
+        expect(
+          coordinator.stamp.value!.logicalDate,
+          expectedDate,
+          reason: '$at',
+        );
+        expect(
+          prefs.getInt(PrefsKeys.streak),
+          shouldSettle ? 5 : 4,
+          reason: '$at',
+        );
         LogicalDayCoordinator.debugInstance = null;
       }
     });
@@ -265,17 +272,91 @@ void main() {
       expect(prefs.getInt(PrefsKeys.streak), 5);
     });
 
-    test('第一次啟動（沒有 lastOpenDate）：寫 marker 並給問候 token，但不動連勝', () async {
+    test('第一次啟動：寫 marker 與問候，但不清既有完成狀態或連勝', () async {
       SharedPreferences.setMockInitialValues({
         PrefsKeys.streak: 3,
-        PrefsKeys.habits: _habitsJson([_habit('喝水', id: 'h1')]),
+        PrefsKeys.habits: _habitsJson([
+          _habit('喝水', id: 'h1', done: true),
+          _habit('運動', id: 'h2', done: true, frequency: 'weekly'),
+        ]),
       });
       final (coordinator, _) = await _startCoordinator(DateTime(2026, 8, 1, 9));
       final prefs = await SharedPreferences.getInstance();
 
       expect(prefs.getString(PrefsKeys.lastOpenDate), '2026-08-01');
       expect(prefs.getInt(PrefsKeys.streak), 3, reason: '沒有前一天可結算');
+      final habits = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
+      expect(habits.every((habit) => habit['done'] == true), isTrue);
       expect(coordinator.consumeGreeting('day:2026-08-01'), isTrue);
+    });
+
+    test('損壞的 lastOpenDate 會 fail closed，不修改 storage 或 stamp', () async {
+      final rawHabits = _habitsJson([_habit('喝水', id: 'h1', done: true)]);
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: 'not-a-date',
+        PrefsKeys.streak: 3,
+        PrefsKeys.habits: rawHabits,
+      });
+      final coordinator = LogicalDayCoordinator(
+        clock: () => DateTime(2026, 8, 1, 9),
+      );
+      LogicalDayCoordinator.debugInstance = coordinator;
+
+      await expectLater(coordinator.start(), throwsA(isA<FormatException>()));
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(PrefsKeys.lastOpenDate), 'not-a-date');
+      expect(prefs.getInt(PrefsKeys.streak), 3);
+      expect(prefs.getString(PrefsKeys.habits), rawHabits);
+      expect(prefs.getString(PrefsKeys.logicalDayJournal), isNull);
+      expect(coordinator.stamp.value, isNull);
+      expect(coordinator.lastError, isA<FormatException>());
+    });
+
+    test('habits 寫入失敗會還原 cache，下一次重試完整收斂', () async {
+      final rawHabits = _habitsJson([
+        _habit('喝水', id: 'h1', done: true),
+        _habit('走路', id: 'h2', done: true),
+      ]);
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: '2026-07-31',
+        PrefsKeys.streak: 4,
+        PrefsKeys.habitDoneDay('2026-07-31'): jsonEncode(['h1', 'h2']),
+        PrefsKeys.habits: rawHabits,
+      });
+      final failingStore = installFailFirstWriteStore(
+        'flutter.${PrefsKeys.habits}',
+        throwSynchronously: true,
+      );
+
+      final coordinator = LogicalDayCoordinator(
+        clock: () => DateTime(2026, 8, 1, 9),
+      );
+      LogicalDayCoordinator.debugInstance = coordinator;
+
+      await expectLater(coordinator.start(), throwsA(isA<StateError>()));
+      expect(failingStore.didFail, isTrue);
+
+      var prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString(PrefsKeys.habits),
+        rawHabits,
+        reason: 'helper 必須在回拋同步例外前主動還原 legacy cache',
+      );
+      expect(prefs.getString(PrefsKeys.lastOpenDate), '2026-07-31');
+      expect(coordinator.stamp.value, isNull);
+
+      await coordinator.ensureCurrent(trigger: LogicalDayTrigger.resume);
+      prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final stored = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
+      expect(stored.every((habit) => habit['done'] == false), isTrue);
+      expect(prefs.getInt(PrefsKeys.streak), 5);
+      expect(prefs.getString(PrefsKeys.lastOpenDate), '2026-08-01');
+      expect(coordinator.stamp.value!.logicalDate, '2026-08-01');
+      expect(coordinator.lastError, isNull);
     });
   });
 
@@ -306,9 +387,7 @@ void main() {
 
       // 邊界計時器醒來（以實際時鐘重新驗證）
       clock.now = DateTime(2026, 8, 1, 4, 0, 1);
-      await coordinator.ensureCurrent(
-        trigger: LogicalDayTrigger.boundaryTimer,
-      );
+      await coordinator.ensureCurrent(trigger: LogicalDayTrigger.boundaryTimer);
 
       expect(coordinator.stamp.value!.logicalDate, '2026-08-01');
       expect(prefs.getInt(PrefsKeys.streak), 5);
@@ -322,9 +401,7 @@ void main() {
       );
       final revision = coordinator.stamp.value!.revision;
       clock.now = DateTime(2026, 8, 1, 3, 30);
-      await coordinator.ensureCurrent(
-        trigger: LogicalDayTrigger.boundaryTimer,
-      );
+      await coordinator.ensureCurrent(trigger: LogicalDayTrigger.boundaryTimer);
       expect(coordinator.stamp.value!.revision, revision);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt(PrefsKeys.streak), 4);
@@ -379,37 +456,43 @@ void main() {
       expect(identical(a, b), isTrue);
       expect(identical(a, c), isTrue);
       await Future.wait([a, b, c]);
-      // 合併後還會補跑一次最後檢查，等它做完
-      await coordinator.ensureCurrent(trigger: LogicalDayTrigger.manual);
-
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt(PrefsKeys.streak), 5);
     });
 
-    test('transition 進行中再次跨日：補跑的最後檢查會用最新時鐘', () async {
+    test('transition publish 中再次跨日：同一個 Future 會等補跑到最新日', () async {
       await seed();
       final (coordinator, clock) = await _startCoordinator(
-        DateTime(2026, 8, 1, 9),
+        DateTime(2026, 7, 31, 21),
       );
-      expect(coordinator.stamp.value!.logicalDate, '2026-08-01');
+      expect(coordinator.stamp.value!.logicalDate, '2026-07-31');
+
+      Future<void>? merged;
+      void requestNextDayDuringPublish() {
+        if (coordinator.stamp.value?.logicalDate != '2026-08-01' ||
+            merged != null) {
+          return;
+        }
+        clock.now = DateTime(2026, 8, 2, 9);
+        merged = coordinator.ensureCurrent(trigger: LogicalDayTrigger.resume);
+      }
+
+      coordinator.stamp.addListener(requestNextDayDuringPublish);
+      clock.now = DateTime(2026, 8, 1, 9);
 
       final inFlight = coordinator.ensureCurrent(
         trigger: LogicalDayTrigger.manual,
       );
-      // 還在跑的時候時鐘又跨了一天，並補一個 trigger
-      clock.now = DateTime(2026, 8, 2, 9);
-      final merged = coordinator.ensureCurrent(
-        trigger: LogicalDayTrigger.resume,
-      );
-      expect(identical(inFlight, merged), isTrue);
-      await merged;
-      await coordinator.ensureCurrent(trigger: LogicalDayTrigger.manual);
+      await inFlight;
 
+      expect(merged, isNotNull);
+      expect(identical(inFlight, merged), isTrue);
       expect(
         coordinator.stamp.value!.logicalDate,
         '2026-08-02',
-        reason: '被合併的那次不能被吞掉',
+        reason: 'await 合併 Future 返回時，期間新增的補查也必須完成',
       );
+      coordinator.stamp.removeListener(requestNextDayDuringPublish);
     });
 
     test('dayStartHour 往後調（邏輯日往回跳）：重新廣播但不結算', () async {
@@ -433,9 +516,8 @@ void main() {
       expect(coordinator.stamp.value!.logicalDate, '2026-07-31');
       expect(prefs.getInt(PrefsKeys.streak), 4, reason: '往回跳不是新的一天');
       expect(prefs.getString(PrefsKeys.lastOpenDate), '2026-08-01');
-      final habits =
-          (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
-              .cast<Map<String, dynamic>>();
+      final habits = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
       expect(habits[0]['done'], isTrue, reason: '往回跳不得清掉勾選');
     });
 
@@ -549,9 +631,8 @@ void main() {
       final journal = LogicalDayJournal.read(prefs)!;
       expect(journal.settledDay, '2026-08-01');
       expect(journal.streakAfter, 5);
-      final habits =
-          (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
-              .cast<Map<String, dynamic>>();
+      final habits = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
       expect(habits.length, 2, reason: '不得出現重複習慣');
       expect(habits.every((h) => h['done'] == false), isTrue);
       expect(
@@ -563,11 +644,7 @@ void main() {
 
     test('狀態 0：什麼都還沒寫（完整跑一次）', () async {
       SharedPreferences.setMockInitialValues(
-        partialState(
-          habitsReset: false,
-          streak: 4,
-          lastOpenDate: '2026-07-31',
-        ),
+        partialState(habitsReset: false, streak: 4, lastOpenDate: '2026-07-31'),
       );
       await _startCoordinator(DateTime(2026, 8, 1, 9));
       await expectSettled(await SharedPreferences.getInstance());
@@ -632,11 +709,7 @@ void main() {
     test('四種中間狀態重跑都收斂到同一結果', () async {
       final results = <int>[];
       for (final state in <Map<String, Object>>[
-        partialState(
-          habitsReset: false,
-          streak: 4,
-          lastOpenDate: '2026-07-31',
-        ),
+        partialState(habitsReset: false, streak: 4, lastOpenDate: '2026-07-31'),
         partialState(
           habitsReset: false,
           streak: 4,
@@ -699,11 +772,7 @@ void main() {
       // 這是唯一無法完全還原的窗口：streak 是沒有日期標記的計數器，在沒有
       // journal 的情況下無法分辨 5 是不是已經含了昨天。取「不歸零」這一側。
       SharedPreferences.setMockInitialValues(
-        partialState(
-          habitsReset: true,
-          streak: 5,
-          lastOpenDate: '2026-07-31',
-        ),
+        partialState(habitsReset: true, streak: 5, lastOpenDate: '2026-07-31'),
       );
       await _startCoordinator(DateTime(2026, 8, 1, 9));
       final prefs = await SharedPreferences.getInstance();
@@ -784,9 +853,8 @@ void main() {
       await _startCoordinator(DateTime(2026, 8, 1, 9));
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt(PrefsKeys.streak), 5);
-      final habits =
-          (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
-              .cast<Map<String, dynamic>>();
+      final habits = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
       expect(habits[0]['done'], isFalse);
       expect(habits[1]['done'], isTrue, reason: '每週習慣走 weeklyDates，不在這裡重置');
     });

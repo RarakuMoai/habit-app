@@ -11,7 +11,9 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/input_formatters.dart';
 import '../utils/logical_date.dart';
+import '../utils/logical_day_coordinator.dart';
 import '../utils/mascot.dart';
+import '../utils/preference_write_guard.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
@@ -27,6 +29,8 @@ import 'home/room_metrics.dart';
 
 class WeightPage extends StatefulWidget {
   final VoidCallback? onRecordsChanged;
+  final ValueChanged<int>? onReloaded;
+  final void Function(int, Object, StackTrace)? onReloadFailed;
 
   /// 由 MainPage 依 [LogicalDayCoordinator] 的 revision 傳下來；一變就重讀。
   /// 體重頁常駐在 IndexedStack，跨日與換日設定變更都靠它刷新，本頁不自己掛
@@ -36,6 +40,8 @@ class WeightPage extends StatefulWidget {
   const WeightPage({
     super.key,
     this.onRecordsChanged,
+    this.onReloaded,
+    this.onReloadFailed,
     this.reloadTrigger = 0,
   });
 
@@ -80,6 +86,26 @@ class _WeightPageState extends State<WeightPage> {
   // 換日線（一天從幾點開始）；_loadData 會從 prefs 重讀並同步。
   int _dayStartHour = LogicalDate.defaultHour;
   bool _loaded = false;
+  Future<void>? _loadInFlight;
+  bool _pendingLoad = false;
+  Future<bool>? _mutationInFlight;
+  int? _appliedReloadTrigger;
+  String? _appliedLogicalDate;
+  int _debugReloadCount = 0;
+
+  @visibleForTesting
+  int get debugReloadCount => _debugReloadCount;
+
+  @visibleForTesting
+  Future<bool> debugUpsertRecord(Map<String, dynamic> record) =>
+      _upsertRecord(Map<String, dynamic>.from(record));
+
+  @visibleForTesting
+  Future<bool> debugDeleteRecord(Map<String, dynamic> record) =>
+      _deleteRecord(Map<String, dynamic>.from(record));
+
+  @visibleForTesting
+  int get debugRecordCount => _records.length;
 
   // 公制→當下單位的顯示值（kg → kg 或 lb）
   double _wDisp(double kg) =>
@@ -124,43 +150,183 @@ class _WeightPageState extends State<WeightPage> {
     setState(() => _unit = UnitSystem.notifier.value);
   }
 
-  Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final json = prefs.getString(PrefsKeys.weightRecords);
-    final bday = prefs.getString(PrefsKeys.userBirthday);
-
-    var records = <Map<String, dynamic>>[];
-    if (json != null) {
-      final decoded = jsonDecode(json) as List<dynamic>;
-      records = decoded
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+  Future<void> _loadData() {
+    final inFlight = _loadInFlight;
+    if (inFlight != null) {
+      _pendingLoad = true;
+      return inFlight;
     }
-    // 按日期降序排列（最新在上）
-    records.sort(
-      (a, b) => (b['date'] as String).compareTo(a['date'] as String),
-    );
+    final future = _drainDataLoads();
+    _loadInFlight = future;
+    return future;
+  }
 
-    setState(() {
-      _records = records;
-      _userHeight = prefs.getDouble(PrefsKeys.userHeight);
-      _gender = prefs.getString(PrefsKeys.userGender) ?? '';
-      _activityLevel = prefs.getString(PrefsKeys.userActivityLevel) ?? '';
-      if (bday != null) _birthday = DateTime.tryParse(bday);
-      _weightTrackingEnabled =
-          prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
-      _targetWeight = prefs.getDouble(PrefsKeys.targetWeight);
-      _unit = UnitSystem.load(prefs);
-      _dayStartHour = LogicalDate.load(prefs);
-      _loaded = true;
+  Future<void> _drainDataLoads() async {
+    late _WeightLoadResult result;
+    do {
+      _pendingLoad = false;
+      result = await _runDataLoad();
+    } while (_pendingLoad && mounted);
+    _loadInFlight = null;
+    if (!mounted) return;
+    final error = result.error;
+    final stackTrace = result.stackTrace;
+    if (error != null && stackTrace != null) {
+      widget.onReloadFailed?.call(result.trigger, error, stackTrace);
+    } else if (result.applied) {
+      widget.onReloaded?.call(result.trigger);
+    }
+  }
+
+  Future<_WeightLoadResult> _runDataLoad() async {
+    final trigger = widget.reloadTrigger;
+    try {
+      final applied = await LogicalDayCoordinator.instance.synchronizeStorage(
+        () async {
+          final prefs = await SharedPreferences.getInstance();
+          await PreferenceWriteGuard.ensureHealthy(prefs);
+          final json = prefs.getString(PrefsKeys.weightRecords);
+          final bday = prefs.getString(PrefsKeys.userBirthday);
+
+          var records = <Map<String, dynamic>>[];
+          if (json != null) {
+            final decoded = jsonDecode(json) as List<dynamic>;
+            records = decoded
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+          }
+          // 按日期降序排列（最新在上）
+          records.sort(
+            (a, b) => (b['date'] as String).compareTo(a['date'] as String),
+          );
+          final dayStartHour = LogicalDate.load(prefs);
+          final logicalDate = LogicalDate.stringFor(
+            DateTime.now(),
+            dayStartHour,
+          );
+
+          if (!mounted || widget.reloadTrigger != trigger) return false;
+          setState(() {
+            _records = records;
+            _userHeight = prefs.getDouble(PrefsKeys.userHeight);
+            _gender = prefs.getString(PrefsKeys.userGender) ?? '';
+            _activityLevel = prefs.getString(PrefsKeys.userActivityLevel) ?? '';
+            _birthday = bday == null ? null : DateTime.tryParse(bday);
+            _weightTrackingEnabled =
+                prefs.getBool(PrefsKeys.weightTrackingEnabled) ?? false;
+            _targetWeight = prefs.getDouble(PrefsKeys.targetWeight);
+            _unit = UnitSystem.load(prefs);
+            _dayStartHour = dayStartHour;
+            _loaded = true;
+            _appliedReloadTrigger = trigger;
+            _appliedLogicalDate = logicalDate;
+            _debugReloadCount++;
+          });
+          return true;
+        },
+      );
+      return applied
+          ? _WeightLoadResult.success(trigger)
+          : _WeightLoadResult.cancelled(trigger);
+    } catch (e, st) {
+      debugPrint('Weight reload failed: $e\n$st');
+      return _WeightLoadResult.failed(trigger, e, st);
+    }
+  }
+
+  bool get _weightMutationBlocked {
+    final coordinator = LogicalDayCoordinator.instance;
+    final currentDay = coordinator.stamp.value?.logicalDate;
+    return _loadInFlight != null ||
+        _mutationInFlight != null ||
+        coordinator.transitionInProgress ||
+        _appliedReloadTrigger != widget.reloadTrigger ||
+        _appliedLogicalDate == null ||
+        (currentDay != null && currentDay != _appliedLogicalDate);
+  }
+
+  Future<bool> _saveRecords(
+    bool Function(List<Map<String, dynamic>> records) mutate,
+  ) {
+    final coordinator = LogicalDayCoordinator.instance;
+    if (_weightMutationBlocked) return Future<bool>.value(false);
+
+    final expectedTrigger = widget.reloadTrigger;
+    final expectedLogicalDate = _appliedLogicalDate!;
+    late final Future<bool> tracked;
+    final storageMutation = coordinator.synchronizeStorage(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await PreferenceWriteGuard.ensureHealthy(prefs);
+      if (widget.reloadTrigger != expectedTrigger ||
+          _appliedReloadTrigger != expectedTrigger ||
+          _appliedLogicalDate != expectedLogicalDate) {
+        return false;
+      }
+      final records = parseWeightRecords(
+        prefs.getString(PrefsKeys.weightRecords),
+      );
+      final recordsChanged = mutate(records);
+      records.sort(
+        (a, b) => (b['date'] as String).compareTo(a['date'] as String),
+      );
+      if (recordsChanged) {
+        await PreferenceWriteGuard.write(
+          prefs,
+          () => prefs.setString(PrefsKeys.weightRecords, jsonEncode(records)),
+          PrefsKeys.weightRecords,
+        );
+      }
+      // 和 records 寫入維持同一個 coordinator slot；否則 settlement reset
+      // 可能夾在 read 與 habits write 之間，隨後又被舊日判斷覆蓋。
+      // 即使 records 已在前一輪成功落地，也要重跑 derived habit sync：這讓
+      // 「records 成功、habits 失敗」的中間狀態能在 retry 完整收斂。
+      final habitChanged = await _syncWeightHabitForDateChecked(
+        prefs,
+        expectedLogicalDate,
+      );
+      if (!recordsChanged && !habitChanged) return false;
+      if (!mounted || widget.reloadTrigger != expectedTrigger) return true;
+      setState(() => _records = records);
+      return true;
+    });
+    tracked = storageMutation.whenComplete(() {
+      if (identical(_mutationInFlight, tracked)) _mutationInFlight = null;
+    });
+    _mutationInFlight = tracked;
+    return tracked.then((saved) {
+      if (saved) widget.onRecordsChanged?.call();
+      return saved;
     });
   }
 
-  Future<void> _saveRecords() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(PrefsKeys.weightRecords, jsonEncode(_records));
-    await syncWeightHabitForDate(prefs);
-    widget.onRecordsChanged?.call();
+  Future<bool> _syncWeightHabitForDateChecked(
+    SharedPreferences prefs,
+    String targetDate,
+  ) async {
+    final records = parseWeightRecords(
+      prefs.getString(PrefsKeys.weightRecords),
+    );
+    final done = hasWeightRecordForDate(records, targetDate);
+    final rawHabits = prefs.getString(PrefsKeys.habits);
+    if (rawHabits == null || rawHabits.trim().isEmpty) return false;
+    final decoded = jsonDecode(rawHabits);
+    if (decoded is! List) return false;
+    final habits = decoded
+        .whereType<Map<dynamic, dynamic>>()
+        .map(Map<String, dynamic>.from)
+        .toList();
+    final index = habits.indexWhere((habit) {
+      final isDaily = (habit['frequency'] ?? 'daily') != 'weekly';
+      return isDaily && isWeightHabitName(habit['name'] as String?);
+    });
+    if (index < 0 || habits[index]['done'] == done) return false;
+    habits[index]['done'] = done;
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.setString(PrefsKeys.habits, jsonEncode(habits)),
+      PrefsKeys.habits,
+    );
+    return true;
   }
 
   // 今天日期字串（yyyy-MM-dd）；換日線往後挪時，睡前的記錄仍算前一天。
@@ -306,26 +472,45 @@ class _WeightPageState extends State<WeightPage> {
   }
 
   // 新增或覆蓋同日紀錄（同一天只保留一筆）
-  void _upsertRecord(Map<String, dynamic> record) {
-    setState(() {
-      _records.removeWhere((r) => r['date'] == record['date']);
-      _records.add(record);
-      _records.sort(
-        (a, b) => (b['date'] as String).compareTo(a['date'] as String),
-      );
-    });
-    _saveRecords();
+  Future<bool> _upsertRecord(Map<String, dynamic> record) async {
+    final snapshot = Map<String, dynamic>.from(record);
+    bool saved;
+    try {
+      saved = await _saveRecords((records) {
+        records
+          ..removeWhere((item) => item['date'] == snapshot['date'])
+          ..add(snapshot);
+        return true;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Weight record save failed: $error\n$stackTrace');
+      if (mounted) playHaptic(HapticLevel.light);
+      return false;
+    }
+    if (!saved) return false;
     MascotPersona.interact(MascotContext.completedOne);
     playFeedback(SfxCue.success, haptic: HapticLevel.medium);
+    return true;
   }
 
   // 刪除指定日期的紀錄
-  void _deleteRecord(Map<String, dynamic> rec) {
-    setState(() {
-      _records.removeWhere((r) => r['date'] == rec['date']);
-    });
-    _saveRecords();
+  Future<bool> _deleteRecord(Map<String, dynamic> rec) async {
+    final targetDate = rec['date'];
+    bool saved;
+    try {
+      saved = await _saveRecords((records) {
+        final before = records.length;
+        records.removeWhere((item) => item['date'] == targetDate);
+        return records.length != before;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Weight record delete failed: $error\n$stackTrace');
+      if (mounted) playHaptic(HapticLevel.light);
+      return false;
+    }
+    if (!saved) return false;
     playFeedback(SfxCue.cancel, haptic: HapticLevel.light);
+    return true;
   }
 
   // 格式化數字（整數不顯示小數點，否則保留指定位數）
@@ -666,15 +851,19 @@ class _WeightPageState extends State<WeightPage> {
               playHaptic(HapticLevel.selection);
             }
 
-            void submit() {
+            Future<void> submit() async {
               final rawText = _weightCtrl.text.trim();
               // 體重清空＝把這天的紀錄刪掉（當作今天沒量）；
               // _deleteRecord → _saveRecords 會同步取消體重習慣的勾選。
               if (rawText.isEmpty) {
                 final dateStr = _dateStr(selectedDate);
                 final idx = _records.indexWhere((r) => r['date'] == dateStr);
-                if (idx >= 0) _deleteRecord(_records[idx]);
-                Navigator.pop(ctx);
+                if (idx < 0) {
+                  Navigator.pop(ctx);
+                  return;
+                }
+                final saved = await _deleteRecord(_records[idx]);
+                if (saved && ctx.mounted) Navigator.pop(ctx);
                 return;
               }
               final wErr = UserValidators.weightIn(
@@ -715,8 +904,8 @@ class _WeightPageState extends State<WeightPage> {
                 'weight': weightKg,
               };
               if (fat != null) record['body_fat'] = fat;
-              _upsertRecord(record);
-              Navigator.pop(ctx);
+              final saved = await _upsertRecord(record);
+              if (saved && ctx.mounted) Navigator.pop(ctx);
             }
 
             final latestForSheet = existing != null
@@ -1031,9 +1220,9 @@ class _WeightPageState extends State<WeightPage> {
             child: Text(_l10n.commonCancel),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _deleteRecord(rec);
+            onPressed: () async {
+              final saved = await _deleteRecord(rec);
+              if (saved && ctx.mounted) Navigator.pop(ctx);
             },
             style: TextButton.styleFrom(foregroundColor: AppInk.danger),
             child: Text(_l10n.commonDelete),
@@ -2625,6 +2814,37 @@ class _TodayActionButton extends StatelessWidget {
 }
 
 // 圖表資料封裝（各範圍的資料點與 X 軸標籤邏輯）
+class _WeightLoadResult {
+  final int trigger;
+  final bool applied;
+  final Object? error;
+  final StackTrace? stackTrace;
+
+  const _WeightLoadResult._({
+    required this.trigger,
+    required this.applied,
+    this.error,
+    this.stackTrace,
+  });
+
+  const _WeightLoadResult.success(int trigger)
+    : this._(trigger: trigger, applied: true);
+
+  const _WeightLoadResult.cancelled(int trigger)
+    : this._(trigger: trigger, applied: false);
+
+  const _WeightLoadResult.failed(
+    int trigger,
+    Object error,
+    StackTrace stackTrace,
+  ) : this._(
+        trigger: trigger,
+        applied: false,
+        error: error,
+        stackTrace: stackTrace,
+      );
+}
+
 class _ChartData {
   final List<FlSpot> spots;
   final double minX;

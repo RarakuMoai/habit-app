@@ -8,7 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/logical_date.dart';
+import '../utils/logical_day_coordinator.dart';
 import '../utils/mascot.dart';
+import '../utils/preference_write_guard.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/units.dart';
@@ -38,11 +40,15 @@ SfxCue waterAddFeedbackCue({
 }) => !wasReached && isReached ? SfxCue.waterGoal : SfxCue.waterAdd;
 
 class WaterPage extends StatefulWidget {
-  final void Function(bool)? onGoalStatusChanged;
+  final Future<void> Function(bool)? onGoalStatusChanged;
+  final ValueChanged<int>? onReloaded;
+  final void Function(int, Object, StackTrace)? onReloadFailed;
   final int reloadTrigger;
   const WaterPage({
     super.key,
     this.onGoalStatusChanged,
+    this.onReloaded,
+    this.onReloadFailed,
     this.reloadTrigger = 0,
   });
 
@@ -98,18 +104,35 @@ class _WaterPageState extends State<WaterPage> {
   int _goalMl = _defaultGoalMl;
   String _todayKey = '';
   bool _lastReportedReached = false;
+  Future<void> _goalStatusTail = Future<void>.value();
   DateTime? _lastMaxCupHint;
   // 本次 session 是否已跳過「跨越過量警告線」提示。
   // 跨界只提醒一次，避免每加一杯就跳，惹人厭
   bool _shownOverhydrationToast = false;
   UnitSystem _unit = UnitSystem.metric;
-  // 換日線（一天從幾點開始）；_loadWater 會從 prefs 重讀並同步。
-  int _dayStartHour = LogicalDate.defaultHour;
   _WaterGoalSuggestion? _goalSuggestion;
   bool _goalSuggestionDismissed = false;
   static const Duration _visualIdleDelay = Duration(seconds: 20);
   Timer? _visualIdleTimer;
   bool _visualIdle = false;
+  Future<void>? _loadInFlight;
+  bool _pendingLoad = false;
+  Future<_WaterMutationResult>? _mutationInFlight;
+  Future<bool>? _settingsMutationInFlight;
+  int? _appliedReloadTrigger;
+  int _debugReloadCount = 0;
+
+  @visibleForTesting
+  int get debugReloadCount => _debugReloadCount;
+
+  @visibleForTesting
+  int get debugTotalMl => _totalMl;
+
+  @visibleForTesting
+  Future<bool> debugAddCup() => _addCup();
+
+  @visibleForTesting
+  Future<bool> debugRemoveCup() => _removeCup();
 
   // 顯示用：把公制 ml 轉成目前單位（imperial 顯示 fl oz）
   String _volStr(int ml) => UnitFormat.volume(ml, _unit);
@@ -175,12 +198,20 @@ class _WaterPageState extends State<WaterPage> {
     }
   }
 
-  String _todayString() => LogicalDate.stringFor(DateTime.now(), _dayStartHour);
-
-  void _notifyGoalStatus({bool force = false}) {
-    if (!force && _lastReportedReached == _goalReached) return;
-    _lastReportedReached = _goalReached;
-    widget.onGoalStatusChanged?.call(_goalReached);
+  Future<void> _notifyGoalStatus({bool force = false}) async {
+    final reached = _goalReached;
+    final operation = _goalStatusTail.then((_) async {
+      if (!force && _lastReportedReached == reached) return;
+      await widget.onGoalStatusChanged?.call(reached);
+      // callback 真正成功後才 commit；失敗時下一次同狀態仍會重試。
+      _lastReportedReached = reached;
+    });
+    // caller 仍會收到 operation 的錯誤；tail 自己恢復，後續狀態不被永久毒死。
+    _goalStatusTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace stackTrace) {},
+    );
+    await operation;
   }
 
   Future<void> _cleanupOldKeys(SharedPreferences prefs) async {
@@ -204,7 +235,7 @@ class _WaterPageState extends State<WaterPage> {
       if (datePart == null) continue;
       final parsed = DateTime.tryParse(datePart);
       if (parsed != null && parsed.isBefore(cutoff)) {
-        await prefs.remove(key);
+        await PreferenceWriteGuard.write(prefs, () => prefs.remove(key), key);
       }
     }
   }
@@ -216,45 +247,251 @@ class _WaterPageState extends State<WaterPage> {
       ? _defaultGoalMl
       : raw;
 
-  Future<void> _loadWater() async {
-    final prefs = await SharedPreferences.getInstance();
-    await _cleanupOldKeys(prefs);
-    _dayStartHour = LogicalDate.load(prefs); // 算「今天」前先讀換日設定
-    final today = _todayString();
-    final todayKey = '$_keyPrefix$today';
-    final entriesKey = '$_entryKeyPrefix$today';
-    final cupMl = _sanitizeCupMl(prefs.getInt(PrefsKeys.waterCupMl));
-    final goalMl = _sanitizeGoalMl(prefs.getInt(PrefsKeys.waterGoalMl));
-    final suggestionDismissed =
-        prefs.getBool(PrefsKeys.waterGoalSuggestionDismissed) ?? false;
-    // legacy cup 數舊鍵：只用來把舊資料 migrate 進 entries，clamp 寬鬆即可
-    final cups = (prefs.getInt(todayKey) ?? 0).clamp(0, 100);
-    final extra = (prefs.getInt('$_extraKeyPrefix$today') ?? 0).clamp(
-      0,
-      _maxGoalMl * 2,
-    );
-    var entries = parseWaterEntries(
-      prefs.getString(entriesKey),
-      maxEntryMl: _maxGoalMl * 2,
-    );
-    if (entries.isEmpty && !prefs.containsKey(entriesKey)) {
-      entries = legacyWaterEntries(cups: cups, extraMl: extra, cupMl: cupMl);
-      if (entries.isNotEmpty) {
-        await prefs.setString(entriesKey, encodeWaterEntries(entries));
-      }
+  Future<void> _loadWater() {
+    final inFlight = _loadInFlight;
+    if (inFlight != null) {
+      _pendingLoad = true;
+      return inFlight;
     }
-    final unit = UnitSystem.load(prefs);
+    final future = _drainWaterLoads();
+    _loadInFlight = future;
+    return future;
+  }
+
+  Future<void> _drainWaterLoads() async {
+    late _WaterLoadResult result;
+    do {
+      _pendingLoad = false;
+      result = await _runWaterLoad();
+    } while (_pendingLoad && mounted);
+    _loadInFlight = null;
     if (!mounted) return;
-    setState(() {
-      _todayKey = entriesKey;
-      _cupMl = cupMl;
-      _goalMl = goalMl;
-      _entries = entries;
-      _unit = unit;
-      _goalSuggestionDismissed = suggestionDismissed;
+    final error = result.error;
+    final stackTrace = result.stackTrace;
+    if (error != null && stackTrace != null) {
+      widget.onReloadFailed?.call(result.trigger, error, stackTrace);
+    } else if (result.applied) {
+      widget.onReloaded?.call(result.trigger);
+    }
+  }
+
+  Future<_WaterLoadResult> _runWaterLoad() async {
+    final trigger = widget.reloadTrigger;
+    try {
+      final applied = await LogicalDayCoordinator.instance.synchronizeStorage(
+        () async {
+          final prefs = await SharedPreferences.getInstance();
+          await PreferenceWriteGuard.ensureHealthy(prefs);
+          await _cleanupOldKeys(prefs);
+          final dayStartHour = LogicalDate.load(prefs);
+          final today = LogicalDate.stringFor(DateTime.now(), dayStartHour);
+          final todayKey = '$_keyPrefix$today';
+          final entriesKey = '$_entryKeyPrefix$today';
+          final cupMl = _sanitizeCupMl(prefs.getInt(PrefsKeys.waterCupMl));
+          final goalMl = _sanitizeGoalMl(prefs.getInt(PrefsKeys.waterGoalMl));
+          final suggestionDismissed =
+              prefs.getBool(PrefsKeys.waterGoalSuggestionDismissed) ?? false;
+          // legacy cup 數舊鍵：只用來把舊資料 migrate 進 entries，clamp 寬鬆即可
+          final cups = (prefs.getInt(todayKey) ?? 0).clamp(0, 100);
+          final extra = (prefs.getInt('$_extraKeyPrefix$today') ?? 0).clamp(
+            0,
+            _maxGoalMl * 2,
+          );
+          var entries = parseWaterEntries(
+            prefs.getString(entriesKey),
+            maxEntryMl: _maxGoalMl * 2,
+          );
+          if (!prefs.containsKey(entriesKey)) {
+            entries = legacyWaterEntries(
+              cups: cups,
+              extraMl: extra,
+              cupMl: cupMl,
+            );
+            // Key presence is the authority boundary. Persist an empty baseline
+            // too, otherwise a later mirror-only partial write can be mistaken
+            // for valid legacy data and resurrect a mutation that reported failure.
+            await PreferenceWriteGuard.write(
+              prefs,
+              () => prefs.setString(entriesKey, encodeWaterEntries(entries)),
+              entriesKey,
+            );
+          }
+          final unit = UnitSystem.load(prefs);
+          if (!mounted || widget.reloadTrigger != trigger) return false;
+          setState(() {
+            _todayKey = entriesKey;
+            _cupMl = cupMl;
+            _goalMl = goalMl;
+            _entries = entries;
+            _unit = unit;
+            _goalSuggestionDismissed = suggestionDismissed;
+            _appliedReloadTrigger = trigger;
+            _debugReloadCount++;
+          });
+          return true;
+        },
+      );
+      if (!applied) {
+        return _WaterLoadResult.cancelled(trigger);
+      }
+      // Main 的達標同步未必永遠使用同一種 storage 實作；留在 gate 外可避免
+      // 未來改成 synchronizeStorage 後形成不可重入的巢狀鎖。
+      await _notifyGoalStatus(force: true);
+      await _refreshGoalSuggestion();
+      return _WaterLoadResult.success(trigger);
+    } catch (e, st) {
+      debugPrint('Water reload failed: $e\n$st');
+      return _WaterLoadResult.failed(trigger, e, st);
+    }
+  }
+
+  bool get _waterMutationBlocked {
+    final coordinator = LogicalDayCoordinator.instance;
+    return _loadInFlight != null ||
+        _mutationInFlight != null ||
+        _settingsMutationInFlight != null ||
+        coordinator.transitionInProgress ||
+        _appliedReloadTrigger != widget.reloadTrigger ||
+        _todayKey.isEmpty;
+  }
+
+  Future<_WaterMutationResult> _mutateEntries(
+    _WaterMutationDecision Function(List<WaterEntry> entries) decide,
+  ) {
+    final coordinator = LogicalDayCoordinator.instance;
+    if (_waterMutationBlocked) {
+      return Future<_WaterMutationResult>.value(
+        const _WaterMutationResult.blocked(),
+      );
+    }
+
+    // 這些值在任何 await 前固定；後續不再從可被 reload 改寫的 State 取快照。
+    final expectedTrigger = widget.reloadTrigger;
+    final expectedKey = _todayKey;
+    final goalMl = _goalMl;
+    late final Future<_WaterMutationResult> tracked;
+    final storageMutation = coordinator.synchronizeStorage(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await PreferenceWriteGuard.ensureHealthy(prefs);
+      final dayStartHour = LogicalDate.load(prefs);
+      final today = LogicalDate.stringFor(DateTime.now(), dayStartHour);
+      final currentKey = '$_entryKeyPrefix$today';
+      if (currentKey != expectedKey ||
+          widget.reloadTrigger != expectedTrigger ||
+          _appliedReloadTrigger != expectedTrigger) {
+        return const _WaterMutationResult.stale();
+      }
+
+      // 以 gate 內的 durable 最新值為基礎，避免另一個已排隊操作加入的紀錄
+      // 被這次舊 UI snapshot 整包覆蓋。
+      late final List<WaterEntry> current;
+      if (prefs.containsKey(currentKey)) {
+        current = parseWaterEntries(
+          prefs.getString(currentKey),
+          maxEntryMl: _maxGoalMl * 2,
+        );
+      } else {
+        final cups = (prefs.getInt('$_keyPrefix$today') ?? 0).clamp(0, 100);
+        final extra = (prefs.getInt('$_extraKeyPrefix$today') ?? 0).clamp(
+          0,
+          _maxGoalMl * 2,
+        );
+        current = legacyWaterEntries(
+          cups: cups,
+          extraMl: extra,
+          cupMl: _sanitizeCupMl(prefs.getInt(PrefsKeys.waterCupMl)),
+        );
+        // Establish the authoritative old value before touching either mirror.
+        await PreferenceWriteGuard.write(
+          prefs,
+          () => prefs.setString(currentKey, encodeWaterEntries(current)),
+          currentKey,
+        );
+      }
+      final beforeTotal = current.fold<int>(0, (sum, entry) => sum + entry.ml);
+      final decision = decide(List<WaterEntry>.from(current));
+      final next = decision.entries;
+      if (next == null) {
+        return _WaterMutationResult.notApplied(
+          decision.status,
+          beforeTotal: beforeTotal,
+          goalMl: goalMl,
+        );
+      }
+
+      // legacy mirrors 先寫，canonical entries 最後寫並充當 commit marker。
+      // mirror 中途失敗時 retry 仍從舊 canonical 重算，不會把同一杯加兩次。
+      await _syncLegacyWaterKeys(prefs, today: today, entries: next);
+      await PreferenceWriteGuard.write(
+        prefs,
+        () => prefs.setString(currentKey, encodeWaterEntries(next)),
+        currentKey,
+      );
+      final afterTotal = next.fold<int>(0, (sum, entry) => sum + entry.ml);
+      if (!mounted ||
+          widget.reloadTrigger != expectedTrigger ||
+          _todayKey != expectedKey) {
+        return _WaterMutationResult.superseded(
+          beforeTotal: beforeTotal,
+          afterTotal: afterTotal,
+          goalMl: goalMl,
+        );
+      }
+      setState(() {
+        _entries = List<WaterEntry>.from(next);
+      });
+      return _WaterMutationResult.applied(
+        beforeTotal: beforeTotal,
+        afterTotal: afterTotal,
+        goalMl: goalMl,
+      );
     });
-    _notifyGoalStatus(force: true);
-    unawaited(_refreshGoalSuggestion());
+    final guarded = storageMutation.then<_WaterMutationResult>(
+      (result) => result,
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('Water mutation failed: $error\n$stackTrace');
+        if (mounted) playHaptic(HapticLevel.light);
+        return const _WaterMutationResult.failed();
+      },
+    );
+    tracked = guarded.whenComplete(() {
+      if (identical(_mutationInFlight, tracked)) _mutationInFlight = null;
+    });
+    _mutationInFlight = tracked;
+    return tracked;
+  }
+
+  Future<bool> _finishWaterMutation(_WaterMutationResult result) async {
+    if (result.status == _WaterMutationStatus.stale ||
+        result.status == _WaterMutationStatus.superseded) {
+      // 日期已移動但 Main 的 revision 尚未落到本頁時，主動補一次 freshness；
+      // 真正的 reload 仍會由 Main trigger 合併，不會寫入舊畫面的 snapshot。
+      try {
+        await LogicalDayCoordinator.instance.ensureCurrent(
+          trigger: LogicalDayTrigger.manual,
+        );
+      } catch (_) {
+        return false;
+      }
+      if (mounted) await _loadWater();
+      return false;
+    }
+    if (result.status != _WaterMutationStatus.applied) return false;
+    if (LogicalDayCoordinator.instance.transitionInProgress || !mounted) {
+      return true;
+    }
+    try {
+      await _notifyGoalStatus();
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Water goal sync failed: $error\n$stackTrace');
+      if (mounted) playHaptic(HapticLevel.light);
+      // The canonical mutation and UI state are already committed. Force one
+      // reload so the derived goal callback is retried against durable state;
+      // persistent failures are surfaced through the reload failure callback.
+      if (mounted) await _loadWater();
+      return true;
+    }
   }
 
   Future<void> _refreshGoalSuggestion() async {
@@ -288,88 +525,123 @@ class _WaterPageState extends State<WaterPage> {
     setState(() => _goalSuggestion = suggestion);
   }
 
-  // Re-anchor to today's key in case the app crossed midnight while open.
-  String _ensureTodayKey() {
-    final fresh = '$_entryKeyPrefix${_todayString()}';
-    if (fresh != _todayKey) _todayKey = fresh;
-    return _todayKey;
-  }
-
-  Future<void> _saveEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_ensureTodayKey(), encodeWaterEntries(_entries));
-    await _syncLegacyWaterKeys(prefs);
-  }
-
-  Future<void> _syncLegacyWaterKeys(SharedPreferences prefs) async {
-    final today = _todayString();
-    final cupCount = _cups;
-    final cupMlTotal = _entries
+  Future<void> _syncLegacyWaterKeys(
+    SharedPreferences prefs, {
+    required String today,
+    required List<WaterEntry> entries,
+  }) async {
+    final cupCount = entries.where((entry) => entry.kind == 'cup').length;
+    final cupMlTotal = entries
         .where((entry) => entry.kind == 'cup')
         .fold(0, (sum, entry) => sum + entry.ml);
-    final customMl = math.max(0, _totalMl - cupMlTotal);
-    await prefs.setInt('$_keyPrefix$today', cupCount);
-    await prefs.setInt('$_extraKeyPrefix$today', customMl);
+    final totalMl = entries.fold<int>(0, (sum, entry) => sum + entry.ml);
+    final customMl = math.max(0, totalMl - cupMlTotal);
+    final cupsKey = '$_keyPrefix$today';
+    final extraKey = '$_extraKeyPrefix$today';
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.setInt(cupsKey, cupCount),
+      cupsKey,
+    );
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.setInt(extraKey, customMl),
+      extraKey,
+    );
   }
 
-  Future<void> _addCup() async {
-    if (_totalMl + _cupMl > _maxTotalMl) return;
-    final wasReached = _goalReached;
-    final wasUnderWarn = _totalMl < _warnTotalMl;
-    setState(() => _entries = [..._entries, WaterEntry.cup(_cupMl)]);
-    await _saveEntries();
-    _notifyGoalStatus();
+  Future<bool> _addCup() async {
+    final cupMl = _cupMl;
+    final result = await _mutateEntries((entries) {
+      final total = entries.fold<int>(0, (sum, entry) => sum + entry.ml);
+      if (total + cupMl > _maxTotalMl) {
+        return const _WaterMutationDecision.overLimit();
+      }
+      return _WaterMutationDecision.apply([...entries, WaterEntry.cup(cupMl)]);
+    });
+    if (result.status == _WaterMutationStatus.overLimit) {
+      if (mounted) _showOverLimitHint();
+      return false;
+    }
+    if (!await _finishWaterMutation(result)) return false;
     unawaited(UsageStats.bump(UsageEvents.waterAdd));
     playFeedback(
-      waterAddFeedbackCue(wasReached: wasReached, isReached: _goalReached),
+      waterAddFeedbackCue(
+        wasReached: result.wasReached,
+        isReached: result.isReached,
+      ),
     );
     MascotPersona.interact(_mascotCtx);
-    _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
+    _maybeShowOverhydrationToast(
+      wasUnderWarn: result.beforeTotal < _warnTotalMl,
+    );
+    return true;
   }
 
-  Future<void> _removeCup() async {
-    if (_entries.isEmpty) return;
-    setState(() => _entries = _entries.sublist(0, _entries.length - 1));
-    await _saveEntries();
-    _notifyGoalStatus();
-    unawaited(SfxService.instance.stop(SfxCue.waterGoal));
-    playFeedback(SfxCue.cancel);
-    MascotPersona.interact(_mascotCtx);
-  }
-
-  Future<void> _deleteEntryAt(int index) async {
-    if (index < 0 || index >= _entries.length) return;
-    setState(() {
-      final next = List<WaterEntry>.from(_entries)..removeAt(index);
-      _entries = next;
+  Future<bool> _removeCup() async {
+    final result = await _mutateEntries((entries) {
+      if (entries.isEmpty) return const _WaterMutationDecision.unchanged();
+      return _WaterMutationDecision.apply(
+        entries.sublist(0, entries.length - 1),
+      );
     });
-    await _saveEntries();
-    _notifyGoalStatus();
+    if (!await _finishWaterMutation(result)) return false;
     unawaited(SfxService.instance.stop(SfxCue.waterGoal));
     playFeedback(SfxCue.cancel);
     MascotPersona.interact(_mascotCtx);
+    return true;
+  }
+
+  Future<bool> _deleteEntry(WaterEntry target) async {
+    final result = await _mutateEntries((entries) {
+      final index = entries.indexWhere(
+        (entry) =>
+            entry.ml == target.ml &&
+            entry.kind == target.kind &&
+            entry.at == target.at,
+      );
+      if (index < 0) return const _WaterMutationDecision.unchanged();
+      final next = List<WaterEntry>.from(entries)..removeAt(index);
+      return _WaterMutationDecision.apply(next);
+    });
+    if (!await _finishWaterMutation(result)) return false;
+    unawaited(SfxService.instance.stop(SfxCue.waterGoal));
+    playFeedback(SfxCue.cancel);
+    MascotPersona.interact(_mascotCtx);
+    return true;
   }
 
   // 加入一個自訂量，作為一筆可被「減少」撤銷的喝水紀錄。
-  Future<void> _addCustomMl(int ml) async {
-    if (ml <= 0) return;
+  Future<bool> _addCustomMl(int ml) async {
+    if (ml <= 0) return false;
     final clamped = ml.clamp(1, _maxSingleAddMl);
-    // 超出每日總攝取上限就擋下來（提示 + 不存進去）
-    if (_totalMl + clamped > _maxTotalMl) {
-      _showOverLimitHint();
-      return;
+    final result = await _mutateEntries((entries) {
+      final total = entries.fold<int>(0, (sum, entry) => sum + entry.ml);
+      if (total + clamped > _maxTotalMl) {
+        return const _WaterMutationDecision.overLimit();
+      }
+      return _WaterMutationDecision.apply([
+        ...entries,
+        WaterEntry.custom(clamped),
+      ]);
+    });
+    if (result.status == _WaterMutationStatus.overLimit) {
+      if (mounted) _showOverLimitHint();
+      return false;
     }
-    final wasReached = _goalReached;
-    final wasUnderWarn = _totalMl < _warnTotalMl;
-    setState(() => _entries = [..._entries, WaterEntry.custom(clamped)]);
-    await _saveEntries();
-    _notifyGoalStatus();
+    if (!await _finishWaterMutation(result)) return false;
     unawaited(UsageStats.bump(UsageEvents.waterAdd));
     playFeedback(
-      waterAddFeedbackCue(wasReached: wasReached, isReached: _goalReached),
+      waterAddFeedbackCue(
+        wasReached: result.wasReached,
+        isReached: result.isReached,
+      ),
     );
     MascotPersona.interact(_mascotCtx);
-    _maybeShowOverhydrationToast(wasUnderWarn: wasUnderWarn);
+    _maybeShowOverhydrationToast(
+      wasUnderWarn: result.beforeTotal < _warnTotalMl,
+    );
+    return true;
   }
 
   // 跨越過量警告線時跳 snackbar 一次（同 session 內不重複）。
@@ -417,7 +689,7 @@ class _WaterPageState extends State<WaterPage> {
         unit: _unit,
         maxMl: _maxSingleAddMl,
         entries: _entries,
-        onDeleteEntry: _deleteEntryAt,
+        onDeleteEntry: _deleteEntry,
       ),
     );
     if (result == null) return;
@@ -431,15 +703,62 @@ class _WaterPageState extends State<WaterPage> {
     required int cupMl,
     required int goalMl,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(PrefsKeys.waterCupMl, cupMl);
-    await prefs.setInt(PrefsKeys.waterGoalMl, goalMl);
-    if (!mounted) return;
-    setState(() {
-      _cupMl = cupMl;
-      _goalMl = goalMl;
+    if (_waterMutationBlocked) return;
+    final coordinator = LogicalDayCoordinator.instance;
+    final expectedTrigger = widget.reloadTrigger;
+    final expectedKey = _todayKey;
+    late final Future<bool> tracked;
+    final storageMutation = coordinator.synchronizeStorage(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await PreferenceWriteGuard.ensureHealthy(prefs);
+      final dayStartHour = LogicalDate.load(prefs);
+      final currentKey =
+          '$_entryKeyPrefix${LogicalDate.stringFor(DateTime.now(), dayStartHour)}';
+      if (currentKey != expectedKey ||
+          widget.reloadTrigger != expectedTrigger ||
+          _appliedReloadTrigger != expectedTrigger) {
+        return false;
+      }
+      await PreferenceWriteGuard.write(
+        prefs,
+        () => prefs.setInt(PrefsKeys.waterCupMl, cupMl),
+        PrefsKeys.waterCupMl,
+      );
+      await PreferenceWriteGuard.write(
+        prefs,
+        () => prefs.setInt(PrefsKeys.waterGoalMl, goalMl),
+        PrefsKeys.waterGoalMl,
+      );
+      if (!mounted || widget.reloadTrigger != expectedTrigger) return true;
+      setState(() {
+        _cupMl = cupMl;
+        _goalMl = goalMl;
+      });
+      return true;
     });
-    _notifyGoalStatus();
+    tracked = storageMutation.whenComplete(() {
+      if (identical(_settingsMutationInFlight, tracked)) {
+        _settingsMutationInFlight = null;
+      }
+    });
+    _settingsMutationInFlight = tracked;
+    bool saved;
+    try {
+      saved = await tracked;
+    } catch (error, stackTrace) {
+      debugPrint('Water settings save failed: $error\n$stackTrace');
+      if (mounted) playHaptic(HapticLevel.light);
+      return;
+    }
+    if (!saved || !mounted || coordinator.transitionInProgress) return;
+    try {
+      await _notifyGoalStatus();
+    } catch (error, stackTrace) {
+      debugPrint('Water settings goal sync failed: $error\n$stackTrace');
+      if (mounted) playHaptic(HapticLevel.light);
+      if (mounted) await _loadWater();
+      return;
+    }
     unawaited(_refreshGoalSuggestion());
   }
 
@@ -1767,7 +2086,7 @@ class _CustomCupSheet extends StatefulWidget {
   final List<WaterEntry> entries;
   // 刪除一筆紀錄。sheet 不會 pop，自己 setState 更新內部列表；
   // 這個 callback 負責 parent 那邊持久化（_deleteEntryAt）
-  final Future<void> Function(int index) onDeleteEntry;
+  final Future<bool> Function(WaterEntry entry) onDeleteEntry;
 
   const _CustomCupSheet({
     required this.unit,
@@ -1862,8 +2181,15 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
     await Future<void>.delayed(_deleteAnimDuration);
     if (!mounted) return;
 
-    // 第 2 階段：動畫結束後才真正從 local list 移除 + 通知 parent 持久化
-    // 用 indexOf 重抓位置，避免動畫期間若有外部變動造成索引錯位
+    // 第 2 階段：先讓 parent 以 entry 身分在 durable 最新列表中刪除。若此刻
+    // 正在跨日／reload，parent 會拒絕，sheet 也保留原列，不製造假刪除。
+    final removed = await widget.onDeleteEntry(entry);
+    if (!mounted) return;
+    if (!removed) {
+      setState(() => _entryBeingRemoved = null);
+      return;
+    }
+    // 用 indexOf 重抓位置，避免動畫期間若有外部變動造成索引錯位。
     final currentIndex = _localEntries.indexOf(entry);
     if (currentIndex < 0) {
       setState(() => _entryBeingRemoved = null);
@@ -1873,7 +2199,6 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
       _localEntries.removeAt(currentIndex);
       _entryBeingRemoved = null;
     });
-    await widget.onDeleteEntry(currentIndex);
   }
 
   String _formatEntryTime(DateTime at) {
@@ -2374,4 +2699,135 @@ class _PresetChip extends StatelessWidget {
       ),
     );
   }
+}
+
+enum _WaterMutationStatus {
+  applied,
+  blocked,
+  failed,
+  stale,
+  superseded,
+  unchanged,
+  overLimit,
+}
+
+class _WaterMutationDecision {
+  final _WaterMutationStatus status;
+  final List<WaterEntry>? entries;
+
+  const _WaterMutationDecision._(this.status, this.entries);
+
+  const _WaterMutationDecision.apply(List<WaterEntry> entries)
+    : this._(_WaterMutationStatus.applied, entries);
+
+  const _WaterMutationDecision.unchanged()
+    : this._(_WaterMutationStatus.unchanged, null);
+
+  const _WaterMutationDecision.overLimit()
+    : this._(_WaterMutationStatus.overLimit, null);
+}
+
+class _WaterMutationResult {
+  final _WaterMutationStatus status;
+  final int beforeTotal;
+  final int afterTotal;
+  final int goalMl;
+
+  const _WaterMutationResult._({
+    required this.status,
+    required this.beforeTotal,
+    required this.afterTotal,
+    required this.goalMl,
+  });
+
+  const _WaterMutationResult.applied({
+    required int beforeTotal,
+    required int afterTotal,
+    required int goalMl,
+  }) : this._(
+         status: _WaterMutationStatus.applied,
+         beforeTotal: beforeTotal,
+         afterTotal: afterTotal,
+         goalMl: goalMl,
+       );
+
+  const _WaterMutationResult.notApplied(
+    _WaterMutationStatus status, {
+    required int beforeTotal,
+    required int goalMl,
+  }) : this._(
+         status: status,
+         beforeTotal: beforeTotal,
+         afterTotal: beforeTotal,
+         goalMl: goalMl,
+       );
+
+  const _WaterMutationResult.blocked()
+    : this._(
+        status: _WaterMutationStatus.blocked,
+        beforeTotal: 0,
+        afterTotal: 0,
+        goalMl: 1,
+      );
+
+  const _WaterMutationResult.failed()
+    : this._(
+        status: _WaterMutationStatus.failed,
+        beforeTotal: 0,
+        afterTotal: 0,
+        goalMl: 1,
+      );
+
+  const _WaterMutationResult.stale()
+    : this._(
+        status: _WaterMutationStatus.stale,
+        beforeTotal: 0,
+        afterTotal: 0,
+        goalMl: 1,
+      );
+
+  const _WaterMutationResult.superseded({
+    required int beforeTotal,
+    required int afterTotal,
+    required int goalMl,
+  }) : this._(
+         status: _WaterMutationStatus.superseded,
+         beforeTotal: beforeTotal,
+         afterTotal: afterTotal,
+         goalMl: goalMl,
+       );
+
+  bool get wasReached => beforeTotal >= goalMl;
+  bool get isReached => afterTotal >= goalMl;
+}
+
+class _WaterLoadResult {
+  final int trigger;
+  final bool applied;
+  final Object? error;
+  final StackTrace? stackTrace;
+
+  const _WaterLoadResult._({
+    required this.trigger,
+    required this.applied,
+    this.error,
+    this.stackTrace,
+  });
+
+  const _WaterLoadResult.success(int trigger)
+    : this._(trigger: trigger, applied: true);
+
+  const _WaterLoadResult.cancelled(int trigger)
+    : this._(trigger: trigger, applied: false);
+
+  const _WaterLoadResult.failed(
+    int trigger,
+    Object error,
+    StackTrace stackTrace,
+  ) : this._(
+        trigger: trigger,
+        applied: false,
+        error: error,
+        stackTrace: stackTrace,
+      );
 }

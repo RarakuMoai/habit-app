@@ -3,6 +3,7 @@
 //
 // 這裡釘住的是「使用者看得到的」那一層：畫面換成新一天、昨天的達標不會污染
 // 今天、問候只出現一次、兔咪回到中性。
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -11,14 +12,17 @@ import 'package:habit_app/main.dart';
 import 'package:habit_app/pages/home/greeting_banner.dart';
 import 'package:habit_app/pages/home_page.dart';
 import 'package:habit_app/pages/water_page.dart';
+import 'package:habit_app/pages/weight_page.dart';
 import 'package:habit_app/utils/coin_service.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/logical_day_coordinator.dart';
 import 'package:habit_app/utils/mascot.dart';
+import 'package:habit_app/utils/preference_write_guard.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'l10n_test_app.dart';
+import 'shared_preferences_failure_test_helper.dart';
 
 class _FakeClock {
   DateTime now;
@@ -55,11 +59,7 @@ Map<String, Object> _yesterdayPartlyDone({List<Map<String, dynamic>>? habits}) {
     PrefsKeys.streak: 4,
     PrefsKeys.habitDoneDay('2026-07-31'): jsonEncode(['h1']),
     PrefsKeys.habits: jsonEncode(
-      habits ??
-          [
-            _habit('走路', id: 'h1', done: true),
-            _habit('閱讀', id: 'h2'),
-          ],
+      habits ?? [_habit('走路', id: 'h1', done: true), _habit('閱讀', id: 'h2')],
     ),
     // 每日登入獎勵走真實日曆日；先標成今天已領，讓慶祝頁不要插進來。
     PrefsKeys.coinLastLoginDate: _calendarToday(),
@@ -102,6 +102,30 @@ Future<void> _teardownTree(WidgetTester tester) async {
   await tester.pump(const Duration(seconds: 12));
 }
 
+/// 驅動需要 widget rebuild 才能完成的 barrier，並回傳 Future 的錯誤（若有）。
+Future<Object?> _pumpUntilSettled(
+  WidgetTester tester,
+  Future<void> future, {
+  required String reason,
+}) async {
+  var done = false;
+  Object? error;
+  unawaited(
+    future.then<void>(
+      (_) => done = true,
+      onError: (Object e, StackTrace _) {
+        error = e;
+        done = true;
+      },
+    ),
+  );
+  for (var i = 0; i < 30 && !done; i++) {
+    await tester.pump();
+  }
+  expect(done, isTrue, reason: reason);
+  return error;
+}
+
 List<Map<String, dynamic>> _storedHabits(SharedPreferences prefs) {
   return (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
       .map((e) => Map<String, dynamic>.from(e as Map))
@@ -121,6 +145,7 @@ void main() {
 
   tearDown(() {
     LogicalDayCoordinator.debugInstance = null;
+    PreferenceWriteGuard.debugReset();
     LogicalDate.notifier.value = LogicalDate.defaultHour;
     CoinService.dailyRewardShowing.value = false;
   });
@@ -147,6 +172,284 @@ void main() {
     await _teardownTree(tester);
   });
 
+  testWidgets('coordinator 結算窗口內的舊日打勾會被拒絕，不寫進新日', (tester) async {
+    SharedPreferences.setMockInitialValues(_yesterdayPartlyDone());
+    await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+    expect((_homeState(tester).habits as List)[1]['done'], isFalse);
+
+    _clock.now = DateTime(2026, 8, 1, 4, 0, 1);
+    final pending = LogicalDayCoordinator.instance.ensureCurrent(
+      trigger: LogicalDayTrigger.boundaryTimer,
+    );
+    _homeState(tester).toggleHabit(1);
+    await pending;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(_homeWidget(tester).dayStamp!.logicalDate, '2026-08-01');
+    expect((_homeState(tester).habits as List)[1]['done'], isFalse);
+    expect(
+      _storedHabits(prefs).every((habit) => habit['done'] == false),
+      isTrue,
+    );
+    expect(prefs.getString(PrefsKeys.habitDoneDay('2026-08-01')), isNull);
+
+    await _teardownTree(tester);
+  });
+
+  testWidgets('先接受的舊日寫入會排在跨日結算前，不會在 reset 後覆寫回來', (tester) async {
+    SharedPreferences.setMockInitialValues(
+      _yesterdayPartlyDone(
+        habits: [
+          _habit('走路', id: 'h1', done: true),
+          _habit('閱讀', id: 'h2'),
+          _habit('伸展', id: 'h3'),
+        ],
+      ),
+    );
+    await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+
+    // 同一個 synchronous stack：先接受打勾並排 storage write，完全不 pump，
+    // 緊接著開始 settlement。全域 FIFO 的位置必須在呼叫當下就保留。
+    _homeState(tester).toggleHabit(1);
+    expect((_homeState(tester).habits as List)[1]['done'], isTrue);
+    _clock.now = DateTime(2026, 8, 1, 4, 0, 1);
+    await LogicalDayCoordinator.instance.ensureCurrent(
+      trigger: LogicalDayTrigger.boundaryTimer,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    expect(
+      _storedHabits(prefs).every((habit) => habit['done'] == false),
+      isTrue,
+      reason: '舊日 snapshot 必須先落地，再由 settlement reset；不能反向超車',
+    );
+    expect(prefs.getString(PrefsKeys.lastOpenDate), '2026-08-01');
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    expect((_homeState(tester).habits as List)[1]['done'], isFalse);
+    await _teardownTree(tester);
+  });
+
+  testWidgets('coordinator 發布後但子頁尚未 rebuild，舊 Home 的 tap 仍被拒絕', (tester) async {
+    SharedPreferences.setMockInitialValues(
+      _yesterdayPartlyDone(
+        habits: [
+          _habit('走路', id: 'h1', done: true),
+          _habit('閱讀', id: 'h2'),
+          _habit('伸展', id: 'h3'),
+        ],
+      ),
+    );
+    await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+    final staleHomeState = _homeState(tester);
+
+    _clock.now = DateTime(2026, 8, 1, 4, 0, 1);
+    await LogicalDayCoordinator.instance.ensureCurrent(
+      trigger: LogicalDayTrigger.boundaryTimer,
+    );
+    // 刻意不 pump：Coordinator 已發布新 revision，但 Home widget 還持有舊 stamp。
+    staleHomeState.toggleHabit(1);
+    expect((staleHomeState.habits as List)[1]['done'], isFalse);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    expect(
+      _storedHabits(prefs).every((habit) => habit['done'] == false),
+      isTrue,
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    expect((_homeState(tester).habits as List)[1]['done'], isFalse);
+    await _teardownTree(tester);
+  });
+
+  testWidgets('resume barrier 返回時，Main flags 與 Home 都已套用新 revision', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(_yesterdayPartlyDone());
+    await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+    expect(_homeState(tester).dailyDoneCount, 1);
+
+    _clock.now = DateTime(2026, 8, 1, 4, 0, 1);
+    final mainState = tester.state(find.byType(MainPage)) as dynamic;
+    final resumed = mainState.debugHandleResumed() as Future<void>;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    await resumed;
+
+    expect(_homeWidget(tester).dayStamp!.logicalDate, '2026-08-01');
+    expect(_homeState(tester).dailyDoneCount, 0);
+    expect(_homeState(tester).debugReloading, isFalse);
+
+    await _teardownTree(tester);
+  });
+
+  testWidgets('Home 一次載入失敗會喚醒 barrier，修復後 resume 可重試成功', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.lastOpenDate: '2026-08-01',
+      PrefsKeys.onboardingDate: '2026-01-01T00:00:00.000',
+      PrefsKeys.habits: '{',
+      PrefsKeys.coinLastLoginDate: _calendarToday(),
+    });
+    await _pumpMain(tester, DateTime(2026, 8, 1, 9));
+    final mainState = tester.state(find.byType(MainPage)) as dynamic;
+    final readinessError = await _pumpUntilSettled(
+      tester,
+      mainState.debugMainReady as Future<void>,
+      reason: 'Home decode 失敗必須回報 Main，不得讓 startup barrier 永久等待',
+    );
+    expect(readinessError, isA<FormatException>());
+    expect(tester.takeException(), isNull, reason: '失敗由 readiness barrier 接住');
+    expect(_homeState(tester).isLoading, isTrue);
+    expect(_homeState(tester).debugReloading, isFalse);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      PrefsKeys.habits,
+      jsonEncode([_habit('修復後習慣', id: 'repaired')]),
+    );
+    final triggerBefore = _homeWidget(tester).reloadTrigger;
+    final resumeError = await _pumpUntilSettled(
+      tester,
+      mainState.debugHandleResumed() as Future<void>,
+      reason: 'storage 修復後，同一 logical day 的 resume 必須能重試 Home',
+    );
+    expect(resumeError, isNull);
+    expect(_homeWidget(tester).reloadTrigger, triggerBefore + 1);
+    expect(_homeState(tester).isLoading, isFalse);
+    expect(_homeState(tester).debugReloading, isFalse);
+    expect((_homeState(tester).habits as List).single['id'], 'repaired');
+
+    await _teardownTree(tester);
+  });
+
+  testWidgets('損壞 marker 直接掛 MainPage 不會形成未處理 Future error', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.lastOpenDate: 'not-a-date',
+      PrefsKeys.habits: jsonEncode([_habit('走路', id: 'h1')]),
+      PrefsKeys.coinLastLoginDate: _calendarToday(),
+    });
+    _clock = _FakeClock(DateTime(2026, 8, 1, 9));
+    LogicalDayCoordinator.debugInstance = LogicalDayCoordinator(
+      clock: _clock.call,
+    );
+
+    await tester.pumpWidget(l10nTestApp(home: const MainPage()));
+    await tester.pump();
+    final mainState = tester.state(find.byType(MainPage)) as dynamic;
+    final readinessError = await _pumpUntilSettled(
+      tester,
+      mainState.debugMainReady as Future<void>,
+      reason: 'malformed marker 的 startup Future 必須有明確完成/失敗',
+    );
+
+    expect(readinessError, isA<FormatException>());
+    expect(tester.takeException(), isNull);
+    expect(CoinService.dailyRewardShowing.value, isFalse);
+
+    await _teardownTree(tester);
+  });
+
+  testWidgets('settings 一次寫入失敗後，同 revision 會自動重排並完成', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.waterEnabled: true,
+      PrefsKeys.lastOpenDate: '2026-08-01',
+      PrefsKeys.habits: jsonEncode([_habit('走路', id: 'walk')]),
+      PrefsKeys.coinLastLoginDate: _calendarToday(),
+    });
+    final failingStore = installFailFirstWriteStore(
+      'flutter.${PrefsKeys.habits}',
+      throwSynchronously: true,
+      failFirstRecoveryReload: true,
+    );
+
+    await _pumpMain(tester, DateTime(2026, 8, 1, 9));
+    final mainState = tester.state(find.byType(MainPage)) as dynamic;
+    final readinessError = await _pumpUntilSettled(
+      tester,
+      mainState.debugMainReady as Future<void>,
+      reason: 'settings one-shot failure 後必須在同 revision 自動重試',
+    );
+
+    expect(readinessError, isNull);
+    expect(failingStore.didFail, isTrue);
+    expect(failingStore.didRecoveryReloadFail, isTrue);
+    expect(find.byType(WaterPage, skipOffstage: false), findsOneWidget);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    expect(
+      _storedHabits(prefs).any((habit) => habit['name'] == '喝足夠的水'),
+      isTrue,
+      reason: 'readiness 完成時第二次寫入必須已經落到 durable store，不只留在 cache',
+    );
+    expect(tester.takeException(), isNull);
+
+    await _teardownTree(tester);
+  });
+
+  testWidgets('Water 非跨日刷新完成後，同日 resume 不會等待已消費的 trigger', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.waterEnabled: true,
+      PrefsKeys.weightTrackingEnabled: true,
+      PrefsKeys.lastOpenDate: '2026-08-01',
+      PrefsKeys.habits: jsonEncode([
+        _habit('喝足夠的水', id: 'water'),
+        _habit('體重紀錄', id: 'weight'),
+      ]),
+      PrefsKeys.weightRecords: jsonEncode([]),
+      PrefsKeys.coinLastLoginDate: _calendarToday(),
+    });
+    await _pumpMain(tester, DateTime(2026, 8, 1, 9));
+    final mainState = tester.state(find.byType(MainPage)) as dynamic;
+    expect(
+      await _pumpUntilSettled(
+        tester,
+        mainState.debugMainReady as Future<void>,
+        reason: '初始 dependent reload 必須完成',
+      ),
+      isNull,
+    );
+
+    final waterFinder = find.byType(WaterPage, skipOffstage: false);
+    final weightFinder = find.byType(WeightPage, skipOffstage: false);
+    final waterState = tester.state(waterFinder) as dynamic;
+    final reloadsBefore = waterState.debugReloadCount as int;
+
+    // 體重資料變動只需要 Water 重算建議，不是 logical-day 變更。
+    tester.widget<WeightPage>(weightFinder).onRecordsChanged!.call();
+    for (
+      var i = 0;
+      i < 30 && waterState.debugReloadCount == reloadsBefore;
+      i++
+    ) {
+      await tester.pump();
+    }
+    expect(waterState.debugReloadCount, reloadsBefore + 1);
+    final incidentalTrigger = tester
+        .widget<WaterPage>(waterFinder)
+        .reloadTrigger;
+
+    final resumeError = await _pumpUntilSettled(
+      tester,
+      mainState.debugHandleResumed() as Future<void>,
+      reason: '同日 resume 不得等待已完成卻未記錄的 Water trigger',
+    );
+    expect(resumeError, isNull);
+    expect(
+      tester.widget<WaterPage>(waterFinder).reloadTrigger,
+      incidentalTrigger,
+      reason: '同日 resume 不應製造另一輪 reload 來解開 barrier',
+    );
+    expect(waterState.debugReloadCount, reloadsBefore + 1);
+
+    await _teardownTree(tester);
+  });
+
   testWidgets('前景跨日：今天的歷史清空、昨天的歷史原封不動', (tester) async {
     SharedPreferences.setMockInitialValues(_yesterdayPartlyDone());
     await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
@@ -163,6 +466,72 @@ void main() {
       isNull,
       reason: '新的一天沒有完成，空集合不留空殼 key',
     );
+
+    await _teardownTree(tester);
+  });
+
+  testWidgets('dayStartHour 讓日期回退時，不用目前 habits 覆寫過去歷史', (tester) async {
+    const oldHistory = '["past-b","past-a"]';
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.dayStartHour: 0,
+      PrefsKeys.lastOpenDate: '2026-08-01',
+      PrefsKeys.habitDoneDay('2026-07-31'): oldHistory,
+      PrefsKeys.habits: jsonEncode([
+        _habit('現在已完成', id: 'current', done: true),
+        _habit('尚未完成', id: 'pending'),
+      ]),
+      PrefsKeys.coinLastLoginDate: _calendarToday(),
+    });
+    await _pumpMain(tester, DateTime(2026, 8, 1, 1));
+    final mainState = tester.state(find.byType(MainPage)) as dynamic;
+    expect(
+      await _pumpUntilSettled(
+        tester,
+        mainState.debugMainReady as Future<void>,
+        reason: 'rollback 測試的初始 Main barrier 必須完成',
+      ),
+      isNull,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    final augustHistoryBefore = prefs.getString(
+      PrefsKeys.habitDoneDay('2026-08-01'),
+    );
+    expect(augustHistoryBefore, jsonEncode(['current']));
+    MascotPersona.setForContext(
+      MascotEmotion.happy.assetPath,
+      MascotContext.tapReaction,
+      speech: '這是同一天的互動狀態。',
+      force: true,
+    );
+    await tester.pump();
+
+    await LogicalDate.save(prefs, 4);
+    final resumeError = await _pumpUntilSettled(
+      tester,
+      mainState.debugHandleResumed() as Future<void>,
+      reason: 'dayStart rollback 的 dependent-page barrier 不得卡住',
+    );
+
+    expect(resumeError, isNull);
+    expect(_homeWidget(tester).dayStamp!.logicalDate, '2026-07-31');
+    expect(prefs.getString(PrefsKeys.lastOpenDate), '2026-08-01');
+    expect(prefs.getString(PrefsKeys.habitDoneDay('2026-07-31')), oldHistory);
+    expect(
+      prefs.getString(PrefsKeys.habitDoneDay('2026-08-01')),
+      augustHistoryBefore,
+    );
+
+    // 把設定改回午夜只是同一個 logical day 的 rollback round-trip，不能被誤認
+    // 為第二次新日 transition 而清掉兔咪狀態。
+    await LogicalDate.save(prefs, 0);
+    final restoreError = await _pumpUntilSettled(
+      tester,
+      mainState.debugHandleResumed() as Future<void>,
+      reason: 'dayStart restore 的 dependent-page barrier 不得卡住',
+    );
+    expect(restoreError, isNull);
+    expect(_homeWidget(tester).dayStamp!.logicalDate, '2026-08-01');
+    expect(MascotPersona.current.value.speech, '這是同一天的互動狀態。');
 
     await _teardownTree(tester);
   });
@@ -187,7 +556,8 @@ void main() {
     expect(
       _homeWidget(tester).waterHabitAutoComplete,
       isFalse,
-      reason: 'MainPage 必須先用新的一天重算旗標，才輪到 Home 重載；'
+      reason:
+          'MainPage 必須先用新的一天重算旗標，才輪到 Home 重載；'
           '順序錯的話昨天的達標會被寫成今天已完成',
     );
 
@@ -213,9 +583,7 @@ void main() {
 
     expect(_homeWidget(tester).weightHabitAutoComplete, isFalse);
     final prefs = await SharedPreferences.getInstance();
-    final weight = _storedHabits(
-      prefs,
-    ).firstWhere((h) => h['name'] == '體重紀錄');
+    final weight = _storedHabits(prefs).firstWhere((h) => h['name'] == '體重紀錄');
     expect(weight['done'], isFalse);
 
     await _teardownTree(tester);
@@ -261,6 +629,10 @@ void main() {
     SharedPreferences.setMockInitialValues(_yesterdayPartlyDone());
     await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
 
+    // 留下一個屬於昨天、兩秒後會回寫 Persona 的本地 transient timer。
+    _homeState(tester).toggleHabit(0);
+    await tester.pump();
+
     // 模擬昨天全完成留下的兔咪狀態
     MascotPersona.setForContext(
       MascotEmotion.happy.assetPath,
@@ -279,6 +651,14 @@ void main() {
       reason: '新的一天 MI baseline 要回中性，否則會和歸零的進度對不上',
     );
     expect(MascotPersona.current.value.bubble, isNull);
+
+    // 昨日的 timer 到期後也不能把新日 neutral baseline 改成 notStarted/sleep。
+    await tester.pump(const Duration(seconds: 3));
+    expect(
+      MascotPersona.current.value.assetPath,
+      MascotEmotion.neutralFront.assetPath,
+    );
+    expect(MascotPersona.current.value.speech, isNull);
 
     await _teardownTree(tester);
   });
@@ -308,42 +688,70 @@ void main() {
     SharedPreferences.setMockInitialValues({
       PrefsKeys.dayStartHour: 4,
       PrefsKeys.waterEnabled: true,
+      PrefsKeys.weightTrackingEnabled: true,
       PrefsKeys.lastOpenDate: '2026-07-31',
       PrefsKeys.streak: 4,
-      PrefsKeys.habitDoneDay('2026-07-31'): jsonEncode(['h1']),
-      PrefsKeys.habits: jsonEncode([_habit('走路', id: 'h1', done: true)]),
+      PrefsKeys.habitDoneDay('2026-07-31'): jsonEncode(['walk']),
+      PrefsKeys.habits: jsonEncode([
+        _habit('喝足夠的水', id: 'water'),
+        _habit('體重紀錄', id: 'weight'),
+        _habit('走路', id: 'walk', done: true),
+      ]),
+      PrefsKeys.weightRecords: jsonEncode([]),
       PrefsKeys.coinLastLoginDate: _calendarToday(),
     });
     // 凌晨 1 點、換日 4 點 → 今天還是 07-31
     await _pumpMain(tester, DateTime(2026, 8, 1, 1));
+    final mainState = tester.state(find.byType(MainPage)) as dynamic;
+    expect(
+      await _pumpUntilSettled(
+        tester,
+        mainState.debugMainReady as Future<void>,
+        reason: '初始 Home/Water/Weight barrier 必須完成',
+      ),
+      isNull,
+    );
     expect(_homeWidget(tester).dayStamp!.logicalDate, '2026-07-31');
+    final homeReloadsBefore = _homeState(tester).debugReloadCount as int;
+    final waterFinder = find.byType(WaterPage, skipOffstage: false);
+    final weightFinder = find.byType(WeightPage, skipOffstage: false);
     final waterTriggerBefore = tester
-        .widget<WaterPage>(find.byType(WaterPage, skipOffstage: false))
+        .widget<WaterPage>(waterFinder)
         .reloadTrigger;
+    final weightTriggerBefore = tester
+        .widget<WeightPage>(weightFinder)
+        .reloadTrigger;
+    final waterState = tester.state(waterFinder) as dynamic;
+    final weightState = tester.state(weightFinder) as dynamic;
+    final waterReloadsBefore = waterState.debugReloadCount as int;
+    final weightReloadsBefore = weightState.debugReloadCount as int;
     final revisionBefore = _homeWidget(tester).dayStamp!.revision;
 
     // 使用者把換日改成午夜 → 今天變成 08-01
     final prefs = await SharedPreferences.getInstance();
     await LogicalDate.save(prefs, 0); // notifier 只通知 coordinator
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 120));
+    final resumeError = await _pumpUntilSettled(
+      tester,
+      mainState.debugHandleResumed() as Future<void>,
+      reason: 'resume 必須等 Home/Water/Weight 都套用新 trigger',
+    );
+    expect(resumeError, isNull);
 
     final home = _homeWidget(tester);
-    final water = tester.widget<WaterPage>(
-      find.byType(WaterPage, skipOffstage: false),
-    );
+    final water = tester.widget<WaterPage>(waterFinder);
+    final weight = tester.widget<WeightPage>(weightFinder);
     expect(home.dayStamp!.logicalDate, '2026-08-01');
     expect(home.dayStamp!.dayStartHour, 0);
-    expect(
-      home.dayStamp!.revision,
-      revisionBefore + 1,
-      reason: '同一次變更只該廣播一次',
-    );
+    expect(home.dayStamp!.revision, revisionBefore + 1, reason: '同一次變更只該廣播一次');
+    expect(_homeState(tester).debugReloadCount, homeReloadsBefore + 1);
     expect(
       water.reloadTrigger,
       waterTriggerBefore + 1,
       reason: '兩條通知路徑並存的話，喝水頁會連續載入兩次',
     );
+    expect(weight.reloadTrigger, weightTriggerBefore + 1);
+    expect(waterState.debugReloadCount, waterReloadsBefore + 1);
+    expect(weightState.debugReloadCount, weightReloadsBefore + 1);
 
     await _teardownTree(tester);
   });

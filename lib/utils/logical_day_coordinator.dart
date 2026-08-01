@@ -24,6 +24,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'habit_history.dart';
 import 'logical_date.dart';
+import 'preference_write_guard.dart';
 import 'prefs_keys.dart';
 
 /// 邊界計時器的看門狗上限。
@@ -34,8 +35,20 @@ import 'prefs_keys.dart';
 /// SceneTimeController 既有的每分鐘 tick。
 const Duration kLogicalDayWatchdogInterval = Duration(hours: 1);
 
+Future<void> _writePreference(
+  SharedPreferences prefs,
+  Future<bool> Function() operation,
+  String key,
+) => PreferenceWriteGuard.write(prefs, operation, key);
+
 /// 觸發來源；只影響 log 與測試可讀性，不影響結算結果。
-enum LogicalDayTrigger { cold, resume, boundaryTimer, dayStartHourChanged, manual }
+enum LogicalDayTrigger {
+  cold,
+  resume,
+  boundaryTimer,
+  dayStartHourChanged,
+  manual,
+}
 
 /// 目前邏輯日的快照。MainPage 訂閱它，並把 revision 往下傳。
 @immutable
@@ -138,17 +151,21 @@ class LogicalDayJournal {
     }
   }
 
-  Future<void> write(SharedPreferences prefs) {
+  Future<void> write(SharedPreferences prefs) async {
     // 單次 setString：journal 本身不會出現「寫了一半」的狀態。
-    return prefs.setString(
+    await _writePreference(
+      prefs,
+      () => prefs.setString(
+        PrefsKeys.logicalDayJournal,
+        jsonEncode({
+          'kind': kind.name,
+          'settledDay': settledDay,
+          'streakAfter': streakAfter,
+          'yesterdayAllDone': yesterdayAllDone,
+          'previousOpenDate': previousOpenDate,
+        }),
+      ),
       PrefsKeys.logicalDayJournal,
-      jsonEncode({
-        'kind': kind.name,
-        'settledDay': settledDay,
-        'streakAfter': streakAfter,
-        'yesterdayAllDone': yesterdayAllDone,
-        'previousOpenDate': previousOpenDate,
-      }),
     );
   }
 }
@@ -213,7 +230,8 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
     ..onListenersChanged = _scheduleBoundary;
   ValueListenable<LogicalDayStamp?> get stamp => _stamp;
 
-  /// 最近一次失敗（測試/診斷用）。失敗不會往外拋，避免擋住啟動流程。
+  /// 最近一次失敗（測試/診斷用）。顯式 freshness barrier 也會把失敗往外拋，
+  /// 讓冷啟動 / resume 不會誤把舊日狀態當成已完成驗證。
   Object? lastError;
 
   bool _started = false;
@@ -224,6 +242,11 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
 
   Future<void>? _inFlight;
   bool _pendingRecheck = false;
+  Future<void>? _storageTail;
+
+  /// true 代表 coordinator 已取得這次 logical-day freshness 的 ownership。
+  /// 同步 UI mutator 用它拒絕邊界窗口內的操作，避免把舊日畫面寫進新日 storage。
+  bool get transitionInProgress => _inFlight != null;
 
   /// 還沒被消費的問候 transition。只有「這一次呼叫真的跨過去了」才會擺上，
   /// 所以 RootRestart 或重新訂閱 notifier 都不會重播舊問候。
@@ -262,7 +285,7 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _foreground = true;
       // MainPage 也會 await 同一個 ensureCurrent，兩邊會合併成一次。
-      unawaited(ensureCurrent(trigger: LogicalDayTrigger.resume));
+      _requestInBackground(LogicalDayTrigger.resume);
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
@@ -274,13 +297,27 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
   }
 
   void _onDayStartHourChanged() {
-    unawaited(ensureCurrent(trigger: LogicalDayTrigger.dayStartHourChanged));
+    _requestInBackground(LogicalDayTrigger.dayStartHourChanged);
+  }
+
+  void _requestInBackground(LogicalDayTrigger trigger) {
+    unawaited(_ignoreBackgroundFailure(trigger));
+  }
+
+  Future<void> _ignoreBackgroundFailure(LogicalDayTrigger trigger) async {
+    try {
+      await ensureCurrent(trigger: trigger);
+    } catch (_) {
+      // _run 已記錄 lastError 與 stack trace。Observer / timer 沒有可 await 的
+      // caller；真正的 MainPage barrier 會獨立 await 同一輪並停止後續演出。
+    }
   }
 
   // ── 主流程 ───────────────────────────────────────────────
 
   /// 驗證目前邏輯日，必要時結算並廣播。重複呼叫安全：
-  /// 進行中的呼叫會被合併成同一個 Future，且結束後補跑一次最後檢查。
+  /// 進行中的呼叫會被合併成同一個 drain Future；該 Future 直到期間累積的
+  /// 最後一次補查也完成才結束，因此 `await` 是真正的 freshness barrier。
   Future<void> ensureCurrent({required LogicalDayTrigger trigger}) {
     if (_disposed) return Future<void>.value();
     final inFlight = _inFlight;
@@ -288,21 +325,56 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
       _pendingRecheck = true;
       return inFlight;
     }
-    late Future<void> future;
-    future = _run(trigger).whenComplete(() {
-      if (identical(_inFlight, future)) _inFlight = null;
-      if (_pendingRecheck) {
-        _pendingRecheck = false;
-        unawaited(ensureCurrent(trigger: LogicalDayTrigger.manual));
-      }
-    });
+    final future = _drain(trigger);
     _inFlight = future;
     return future;
   }
 
-  Future<void> _run(LogicalDayTrigger trigger) async {
+  Future<void> _drain(LogicalDayTrigger trigger) async {
+    try {
+      var nextTrigger = trigger;
+      do {
+        _pendingRecheck = false;
+        await _run(nextTrigger);
+        nextTrigger = LogicalDayTrigger.manual;
+      } while (_pendingRecheck && !_disposed);
+    } finally {
+      // 在 Future 完成/丟錯前同步釋放 ownership，避免最後一次 while 檢查後
+      // 才來的 caller 只設 pending 卻沒有下一個 drainer。
+      _inFlight = null;
+    }
+  }
+
+  /// 將 coordinator 的 settlement 與依賴頁面的 storage snapshot 排成同一條序列。
+  ///
+  /// SharedPreferences 沒有 transaction；若首頁恰在 journal/reset 與 stamp publish
+  /// 之間讀取，就可能把新日資料寫回舊日歷史。所有會讀後再寫 logical-day 相關
+  /// key 的流程都必須走這個 gate，讓一次 snapshot 看見完整的前或後狀態。
+  Future<T> synchronizeStorage<T>(Future<T> Function() operation) {
+    final previous = _storageTail;
+    final result = previous == null
+        ? Future<T>.sync(operation)
+        : previous.then((_) => operation());
+    final release = result.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    _storageTail = release;
+    unawaited(
+      release.whenComplete(() {
+        if (identical(_storageTail, release)) _storageTail = null;
+      }),
+    );
+    return result;
+  }
+
+  Future<void> _run(LogicalDayTrigger trigger) =>
+      synchronizeStorage(() => _runLocked(trigger));
+
+  Future<void> _runLocked(LogicalDayTrigger trigger) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await PreferenceWriteGuard.ensureHealthy(prefs);
       // 用 load 而不是 hourOf：順便讓全域 notifier 與 prefs 對齊。值沒變就
       // 不會再廣播，所以不會和自己的 listener 互相觸發成迴圈。
       final hour = LogicalDate.load(prefs);
@@ -312,11 +384,13 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
 
       final lastOpen = prefs.getString(PrefsKeys.lastOpenDate);
       final lastOpenDay = lastOpen == null ? null : DateTime.tryParse(lastOpen);
+      if (lastOpen != null && lastOpenDay == null) {
+        throw FormatException('Invalid ${PrefsKeys.lastOpenDate}: $lastOpen');
+      }
 
       // 只有「邏輯日真的往前走」才算跨日。換日時間往後調會讓今天的字串往回
       // 跳，那不是新的一天——往回跳只重新廣播，不結算（既有規則）。
-      final crossedForward =
-          lastOpenDay != null && nowDay.isAfter(lastOpenDay);
+      final crossedForward = lastOpenDay != null && nowDay.isAfter(lastOpenDay);
       final firstEver = lastOpenDay == null;
 
       var journal = LogicalDayJournal.read(prefs);
@@ -334,9 +408,18 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
         // journal 是 commit marker，寫在所有 mutation 之前；下面每一步都是
         // 冪等覆寫，而且答案全部從 journal 讀，所以 process 在任何一步被殺，
         // 下次啟動重跑都會補完剩下的，而且不會再算一次連勝。
-        await prefs.setInt(PrefsKeys.streak, journal!.streakAfter);
-        await _resetDailyDone(prefs);
-        await prefs.setString(PrefsKeys.lastOpenDate, nowDate);
+        await _writePreference(
+          prefs,
+          () => prefs.setInt(PrefsKeys.streak, journal!.streakAfter),
+          PrefsKeys.streak,
+        );
+        // 首次初始化沒有「上一日」可結算，不能清掉裝置上既有的完成狀態。
+        if (crossedForward) await _resetDailyDone(prefs);
+        await _writePreference(
+          prefs,
+          () => prefs.setString(PrefsKeys.lastOpenDate, nowDate),
+          PrefsKeys.lastOpenDate,
+        );
         _pendingGreetingId = 'day:$nowDate';
       } else if (journal == null && lastOpen != null) {
         // 升級用戶第一次在本版本開啟、而且今天還沒跨日：先立一個基準點，
@@ -364,10 +447,11 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
       );
       lastError = null;
     } catch (e, st) {
-      // 失敗不往外拋：啟動流程與 resume 演出都不該被邏輯日檢查擋住。
-      // 什麼都不推進，下一次 resume / 邊界計時器會再試一次。
+      // 什麼都不廣播；下一次 resume / 邊界計時器仍可重試。顯式 caller 會
+      // 收到同一個錯誤，才能停止登入獎勵等依賴「新日已就緒」的演出。
       lastError = e;
       debugPrint('LogicalDayCoordinator failed ($trigger): $e\n$st');
+      Error.throwWithStackTrace(e, st);
     } finally {
       _scheduleBoundary();
     }
@@ -396,9 +480,9 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
     );
 
     if (settleStreak && previousOpenDate != null) {
-      final dailyHabits = _readHabits(prefs)
-          .where((h) => (h['frequency'] ?? 'daily') != 'weekly')
-          .toList();
+      final dailyHabits = _readHabits(
+        prefs,
+      ).where((h) => (h['frequency'] ?? 'daily') != 'weekly').toList();
       result = settleLogicalDay(
         dailyHabits: dailyHabits,
         historyDoneIds: _historyDoneIds(prefs, previousOpenDate, dailyHabits),
@@ -453,7 +537,11 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
       }
     }
     if (changed) {
-      await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
+      await _writePreference(
+        prefs,
+        () => prefs.setString(PrefsKeys.habits, jsonEncode(habits)),
+        PrefsKeys.habits,
+      );
     }
   }
 
@@ -520,7 +608,7 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
     }
     _timer = Timer(delay, () {
       // 醒來一律以實際時鐘重新驗證，不假設一定已經跨日（看門狗就是這樣運作的）。
-      unawaited(ensureCurrent(trigger: LogicalDayTrigger.boundaryTimer));
+      _requestInBackground(LogicalDayTrigger.boundaryTimer);
     });
   }
 

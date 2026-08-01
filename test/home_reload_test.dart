@@ -3,12 +3,14 @@
 // 舊版 loadHabits 直接 addAll 進既有清單，只能在 initState 跑一次；跨日刷新
 // 需要它能被重複呼叫。這份測試釘住重入後的不變量：不重複、不閃空、不吃掉
 // 使用者操作、dispose 後不 setState。
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/home_page.dart';
 import 'package:habit_app/utils/logical_date.dart';
+import 'package:habit_app/utils/logical_day_coordinator.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -46,10 +48,12 @@ Future<dynamic> _pumpHome(
       ),
     ),
   );
-  // 第一輪載入是 async；多 pump 幾次讓 prefs 的 microtask 跑完。
+  // 第一輪載入是 async；主動合併並 await 同一個 drain，避免用固定延遲猜測。
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 50));
-  return tester.state(find.byType(HomePage)) as dynamic;
+  final state = tester.state(find.byType(HomePage)) as dynamic;
+  await state.loadHabits();
+  await tester.pump();
+  return state;
 }
 
 /// 收掉整棵樹，讓 ticker / timer 不留到下一個測試。
@@ -68,6 +72,14 @@ List<Map<String, dynamic>> _storedHabits(SharedPreferences prefs) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    LogicalDayCoordinator.debugInstance = LogicalDayCoordinator();
+  });
+
+  tearDown(() {
+    LogicalDayCoordinator.debugInstance = null;
+  });
 
   testWidgets('重複 reload 不會讓習慣變兩份（記憶體與 storage 都是）', (tester) async {
     SharedPreferences.setMockInitialValues({
@@ -93,6 +105,74 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(_storedHabits(prefs).length, 2, reason: 'storage 也不得被寫成兩份');
 
+    await _tearDownHome(tester);
+  });
+
+  testWidgets('併發 reload 的 await 會等補跑完成才返回', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.lastOpenDate: _todayString(),
+      PrefsKeys.habits: jsonEncode([
+        _habit('喝水', id: 'h1', createdAt: '2026-01-01'),
+      ]),
+    });
+
+    final state = await _pumpHome(tester);
+    final reloadsBefore = state.debugReloadCount as int;
+    final release = Completer<void>();
+    final heldLock = LogicalDayCoordinator.instance.synchronizeStorage(
+      () => release.future,
+    );
+    final first = state.loadHabits() as Future<void>;
+    final merged = state.loadHabits() as Future<void>;
+    expect(identical(first, merged), isTrue);
+
+    release.complete();
+    await heldLock;
+    await merged;
+
+    expect(state.debugReloading, isFalse, reason: '返回時不能還有 unawaited 補跑');
+    expect(
+      state.debugReloadCount,
+      reloadsBefore + 2,
+      reason: '第二個 request 必須真的補跑一輪，不只共用第一輪 Future',
+    );
+    await _tearDownHome(tester);
+  });
+
+  testWidgets('重新命名 dialog 跨過 reload 後，不會用舊 index 改到新快照', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.lastOpenDate: _todayString(),
+      PrefsKeys.habits: jsonEncode([
+        _habit('舊習慣 A', id: 'old-a', createdAt: '2026-01-01'),
+        _habit('舊習慣 B', id: 'old-b', createdAt: '2026-01-01'),
+      ]),
+    });
+
+    final state = await _pumpHome(tester);
+    final rename = state.renameHabit(0) as Future<void>;
+    await tester.pump();
+    expect(find.byType(AlertDialog), findsOneWidget);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      PrefsKeys.habits,
+      jsonEncode([
+        _habit('新快照 C', id: 'new-c', createdAt: '2026-02-01'),
+        _habit('新快照 D', id: 'new-d', createdAt: '2026-02-01'),
+      ]),
+    );
+    await state.loadHabits();
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), '不該套用的名稱');
+    await tester.tap(find.widgetWithText(TextButton, '儲存'));
+    await tester.pump();
+    await rename;
+
+    expect(_storedHabits(prefs).map((habit) => habit['name']), [
+      '新快照 C',
+      '新快照 D',
+    ]);
     await _tearDownHome(tester);
   });
 
@@ -138,9 +218,7 @@ void main() {
     await tester.pump(); // reload 後的第一幀
 
     final opacity = tester.widget<Opacity>(
-      find
-          .ancestor(of: find.text('喝水'), matching: find.byType(Opacity))
-          .first,
+      find.ancestor(of: find.text('喝水'), matching: find.byType(Opacity)).first,
     );
     expect(
       opacity.opacity,
