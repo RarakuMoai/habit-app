@@ -233,44 +233,37 @@ void main() {
     await _tearDownHome(tester);
   });
 
-  testWidgets('跨日結果不變：連勝結算、勾選重置、歷史保留昨天', (tester) async {
+  testWidgets('今天的歷史與畫面一致，且不動昨天的歷史', (tester) async {
     final today = _todayString();
     final yesterday = LogicalDate.stringFor(
       DateTime.now().subtract(const Duration(days: 1)),
       LogicalDate.defaultHour,
     );
     SharedPreferences.setMockInitialValues({
-      PrefsKeys.lastOpenDate: yesterday,
-      PrefsKeys.streak: 4,
+      PrefsKeys.lastOpenDate: today,
       PrefsKeys.habitDoneDay(yesterday): jsonEncode(['h1', 'h2']),
       PrefsKeys.habits: jsonEncode([
         _habit('喝水', done: true, id: 'h1', createdAt: '2026-01-01'),
-        _habit('走路', done: true, id: 'h2', createdAt: '2026-01-01'),
+        _habit('走路', id: 'h2', createdAt: '2026-01-01'),
       ]),
     });
 
     final state = await _pumpHome(tester);
-
-    expect(state.streak, 5, reason: '昨天全完成 → 連勝 +1（既有行為）');
-    final habits = state.habits as List;
-    expect(habits.length, 2);
-    expect(habits.every((h) => h['done'] == false), isTrue);
+    await state.loadHabits();
+    await tester.pump();
 
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getInt(PrefsKeys.streak), 5);
-    expect(prefs.getString(PrefsKeys.lastOpenDate), today);
+    expect(
+      prefs.getString(PrefsKeys.habitDoneDay(today)),
+      jsonEncode(['h1']),
+      reason: '今天的歷史要跟畫面上的勾選一致',
+    );
     expect(
       prefs.getString(PrefsKeys.habitDoneDay(yesterday)),
       jsonEncode(['h1', 'h2']),
-      reason: '昨天的歷史不得被跨日重置洗掉',
-    );
-    expect(
-      prefs.getString(PrefsKeys.habitDoneDay(today)),
-      isNull,
-      reason: '新的一天沒有任何完成，空集合不留空殼 key',
+      reason: '載入只覆寫今天，不得動到過去的日期',
     );
 
-    await tester.pump(const Duration(seconds: 6)); // 讓問候橫幅的計時器跑完
     await _tearDownHome(tester);
   });
 }

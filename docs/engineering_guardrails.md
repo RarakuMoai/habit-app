@@ -19,6 +19,20 @@
 - 日期型 key 使用既有 helper / prefix；新增 key 時放進對應區塊。
 - 習慣、喝水、體重等每日資料使用 `LogicalDate` 的邏輯日，不自行以日曆日組 key。
 
+## 邏輯日
+
+- 邏輯日生命週期的唯一擁有者是 `lib/utils/logical_day_coordinator.dart`：冷啟動、
+  resume、前景邊界計時器、換日設定變更都由它偵測，跨日結算也只有它做。
+- 新頁面不得自己加換日計時器或 lifecycle observer，也不要另外監聽
+  `LogicalDate.notifier`；改成收 `MainPage` 傳下來的 revision。兩條路並存會讓
+  同一次變更載入兩次。
+- `MainPage` 收到新的 stamp 後，必須**先**重算依賴「今天」的自動完成旗標
+  （喝水達標、體重已記錄），才能把 revision 傳給首頁。順序反過來，昨天的旗標
+  會把新一天的連動習慣直接標成已完成並寫進 storage。
+- `PrefsKeys.logicalDayJournal` 是冪等的 commit marker，不是跨多個
+  SharedPreferences key 的 transaction。它擋住連勝這種累加運算；其餘步驟都要寫成
+  可重跑的冪等覆寫。
+
 ## 音訊
 
 `lib/utils/bgm_service.dart` 的救援流程是 release 實機問題的必要處理，不可為了簡化而移除：

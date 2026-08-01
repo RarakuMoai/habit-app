@@ -27,7 +27,17 @@ import 'home/room_metrics.dart';
 
 class WeightPage extends StatefulWidget {
   final VoidCallback? onRecordsChanged;
-  const WeightPage({super.key, this.onRecordsChanged});
+
+  /// 由 MainPage 依 [LogicalDayCoordinator] 的 revision 傳下來；一變就重讀。
+  /// 體重頁常駐在 IndexedStack，跨日與換日設定變更都靠它刷新，本頁不自己掛
+  /// lifecycle observer 或監聽 LogicalDate.notifier（避免同一次變更載入兩次）。
+  final int reloadTrigger;
+
+  const WeightPage({
+    super.key,
+    this.onRecordsChanged,
+    this.reloadTrigger = 0,
+  });
 
   @override
   State<WeightPage> createState() => _WeightPageState();
@@ -88,14 +98,21 @@ class _WeightPageState extends State<WeightPage> {
   void initState() {
     super.initState();
     UnitSystem.notifier.addListener(_onUnitChanged);
-    LogicalDate.notifier.addListener(_onDayStartChanged);
     _loadData();
+  }
+
+  @override
+  void didUpdateWidget(WeightPage old) {
+    super.didUpdateWidget(old);
+    // 邏輯日換了（或換日設定被改）→ 重讀資料，「今天」的紀錄槽可能換成另一天。
+    if (old.reloadTrigger != widget.reloadTrigger) {
+      _loadData();
+    }
   }
 
   @override
   void dispose() {
     UnitSystem.notifier.removeListener(_onUnitChanged);
-    LogicalDate.notifier.removeListener(_onDayStartChanged);
     _weightCtrl.dispose();
     _fatCtrl.dispose();
     super.dispose();
@@ -105,13 +122,6 @@ class _WeightPageState extends State<WeightPage> {
   void _onUnitChanged() {
     if (!mounted) return;
     setState(() => _unit = UnitSystem.notifier.value);
-  }
-
-  // 設定頁改換日時間 → 重讀資料（「今天」的紀錄槽可能換成另一天）。
-  void _onDayStartChanged() {
-    if (!mounted) return;
-    _dayStartHour = LogicalDate.notifier.value;
-    _loadData();
   }
 
   Future<void> _loadData() async {

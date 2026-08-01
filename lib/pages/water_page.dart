@@ -58,7 +58,10 @@ class _WaterSheetResult {
 
 typedef _WaterGoalSuggestion = ({int ml, String reason, bool needsActivity});
 
-class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
+// 跨日與換日設定變更一律靠 MainPage 傳下來的 [WaterPage.reloadTrigger]
+// （來源是 LogicalDayCoordinator 的 revision）。本頁刻意不掛 lifecycle
+// observer、也不監聽 LogicalDate.notifier：兩條路並存會讓同一次變更載入兩次。
+class _WaterPageState extends State<WaterPage> {
   AppLocalizations get _l10n => AppLocalizations.of(context);
 
   static const int _defaultCupMl = 250;
@@ -130,9 +133,7 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     UnitSystem.notifier.addListener(_onUnitChanged);
-    LogicalDate.notifier.addListener(_onDayStartChanged);
     _loadWater();
     _markVisualActive();
   }
@@ -141,8 +142,6 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
   void dispose() {
     _visualIdleTimer?.cancel();
     UnitSystem.notifier.removeListener(_onUnitChanged);
-    LogicalDate.notifier.removeListener(_onDayStartChanged);
-    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -167,26 +166,12 @@ class _WaterPageState extends State<WaterPage> with WidgetsBindingObserver {
     setState(() => _visualIdle = true);
   }
 
-  // 設定頁改換日時間 → 重讀「今天」並載入對應紀錄（可能換成新的一天）。
-  void _onDayStartChanged() {
-    if (!mounted) return;
-    _dayStartHour = LogicalDate.notifier.value;
-    _loadWater();
-  }
-
   @override
   void didUpdateWidget(WaterPage old) {
     super.didUpdateWidget(old);
+    // 跨日、換日設定變更、體重更新都走這一條（MainPage 統一 bump）。
     if (old.reloadTrigger != widget.reloadTrigger) {
       _loadWater();
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      final newKey = '$_entryKeyPrefix${_todayString()}';
-      if (newKey != _todayKey) _loadWater();
     }
   }
 

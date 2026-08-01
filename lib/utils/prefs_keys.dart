@@ -148,6 +148,11 @@ abstract final class PrefsKeys {
   // 讓歷史/補打勾仍能顯示「某天當時存在、後來刪掉」的條目。
   static const habitTombstones = 'habit_tombstones';
 
+  // 跨日結算的日誌（JSON：{settledDay,streakAfter,yesterdayAllDone,
+  // previousOpenDate}）。是冪等的 commit marker，不是跨 key 的 transaction；
+  // 詳見 lib/utils/logical_day_coordinator.dart。
+  static const logicalDayJournal = 'logical_day_journal';
+
   // ── 喝水 ─────────────────────────────────────────────────
   static const waterCupMl = 'water_cup_ml';
   static const waterGoalMl = 'water_goal_ml';
