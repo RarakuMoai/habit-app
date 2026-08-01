@@ -204,6 +204,9 @@ class PersonaScene extends StatelessWidget {
   /// 見 [MascotStage.poseTransition]。
   final MascotPoseTransition poseTransition;
 
+  /// 見 [MascotStage.reduceMotion]。
+  final bool reduceMotion;
+
   /// 台詞停留多久後開始淡出；null = 用 [MascotSpeechBubble] 的預設值。
   final Duration? speechVisibleDuration;
 
@@ -234,6 +237,7 @@ class PersonaScene extends StatelessWidget {
     this.reactionStrength = 1.0,
     this.reactionCancelUpTo = -1,
     this.poseTransition = MascotPoseTransition.crossFade,
+    this.reduceMotion = false,
     this.speechVisibleDuration,
     this.onTap,
     this.onHeadPet,
@@ -311,6 +315,7 @@ class PersonaScene extends StatelessWidget {
           reactionStrength: reactionStrength,
           reactionCancelUpTo: reactionCancelUpTo,
           poseTransition: poseTransition,
+          reduceMotion: reduceMotion,
           speechVisibleDuration: speechVisibleDuration,
           onTap: handleTap,
           onHeadPet: handleHeadPet,
@@ -355,6 +360,9 @@ class MascotScene extends StatelessWidget {
   /// 見 [MascotStage.poseTransition]。
   final MascotPoseTransition poseTransition;
 
+  /// 見 [MascotStage.reduceMotion]。
+  final bool reduceMotion;
+
   /// 台詞停留多久後開始淡出；null = 用 [MascotSpeechBubble] 的預設值。
   final Duration? speechVisibleDuration;
 
@@ -385,6 +393,7 @@ class MascotScene extends StatelessWidget {
     this.reactionStrength = 1.0,
     this.reactionCancelUpTo = -1,
     this.poseTransition = MascotPoseTransition.crossFade,
+    this.reduceMotion = false,
     this.speechVisibleDuration,
     this.onTap,
     this.onHeadPet,
@@ -436,6 +445,7 @@ class MascotScene extends StatelessWidget {
                   reactionStrength: reactionStrength,
                   reactionCancelUpTo: reactionCancelUpTo,
                   poseTransition: poseTransition,
+                  reduceMotion: reduceMotion,
                   onTap: onTap ?? () {},
                   onHeadPet: onHeadPet,
                   onEnergize: onEnergize,
@@ -592,6 +602,10 @@ class MascotStage extends StatefulWidget {
   /// 換立繪的過場方式。預設交叉淡入（其他頁面維持原本行為）；
   /// 首頁打卡演出改用 [MascotPoseTransition.cut]，見該項說明。
   final MascotPoseTransition poseTransition;
+
+  /// 系統開了 Reduce Motion：離散換圖照舊（那是可讀性不是動態），但
+  /// 換圖後的沉降完全不跑——body scale、sink、位移一律為零。
+  final bool reduceMotion;
   final VoidCallback onTap;
   final VoidCallback? onHeadPet;
 
@@ -615,6 +629,7 @@ class MascotStage extends StatefulWidget {
     this.reactionStrength = 1.0,
     this.reactionCancelUpTo = -1,
     this.poseTransition = MascotPoseTransition.crossFade,
+    this.reduceMotion = false,
     required this.onTap,
     this.onHeadPet,
     this.onEnergize,
@@ -841,6 +856,10 @@ class _MascotStageState extends State<MascotStage>
     }
     if (oldWidget.asset != widget.asset &&
         widget.poseTransition == MascotPoseTransition.cut) {
+      if (widget.reduceMotion) {
+        // Reduce Motion：換圖是離散的，但不做任何沉降／縮放／位移。
+        _poseSettleCtrl.value = 0;
+      }
       // 新姿勢在第一幀就完全不透明、而且疊在上層，所以那一幀看到的只有它；
       // 下一幀再把退場那張整個移出版面，避免它從新姿勢的透明區域露出來。
       // （不能直接第一幀就拿掉：新立繪的 Image element 是全新的，
@@ -851,7 +870,7 @@ class _MascotStageState extends State<MascotStage>
           setState(() => _dropOutgoingPose = true);
         }
       });
-      _poseSettleCtrl.forward(from: 0);
+      if (!widget.reduceMotion) _poseSettleCtrl.forward(from: 0);
     }
     // 情緒事件帶了泡泡，且（事件序號、泡泡或立繪改變）就重冒一次。
     // 同情境連點會被 MascotPersona 的 holdDuration 擋掉，不會狂閃。

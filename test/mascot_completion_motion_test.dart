@@ -4,6 +4,8 @@
 // 「送出去之後兔咪真的動了、而且動的幅度是克制的、撤銷得掉」。
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/pages/home/completion_presentation_controller.dart';
+import 'package:habit_app/pages/home/completion_timing.dart';
 import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
 
@@ -18,6 +20,7 @@ Future<void> _pumpStage(
   double reactionStrength = 1.0,
   int reactionCancelUpTo = -1,
   MascotPoseTransition poseTransition = MascotPoseTransition.crossFade,
+  bool reduceMotion = false,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -26,6 +29,7 @@ Future<void> _pumpStage(
           child: MascotStage(
             asset: asset,
             poseTransition: poseTransition,
+            reduceMotion: reduceMotion,
             accent: Colors.orange,
             reactionTick: reactionTick,
             noticeTick: noticeTick,
@@ -45,16 +49,16 @@ Future<void> _pumpStage(
 double _bodyTop(WidgetTester tester, [String asset = _asset]) =>
     tester.getTopLeft(find.byKey(ValueKey(asset))).dy;
 
-
 /// 沒有任何一張立繪處於半透明（會透出背景＝雙影）。
 void _expectNoTranslucentPose(WidgetTester tester) {
   final opacities = <double>[];
-  for (final el in find
-      .descendant(
-        of: find.byType(MascotStage),
-        matching: find.byType(Padding),
-      )
-      .evaluate()) {
+  for (final el
+      in find
+          .descendant(
+            of: find.byType(MascotStage),
+            matching: find.byType(Padding),
+          )
+          .evaluate()) {
     if ((el.widget as Padding).key is! ValueKey<String>) continue;
     var opacity = 1.0;
     el.visitAncestorElements((ancestor) {
@@ -86,11 +90,7 @@ void main() {
     final sunk = _bodyTop(tester);
 
     expect(sunk, greaterThan(rest), reason: '察覺是「沉一下」不是彈起來');
-    expect(
-      sunk - rest,
-      lessThan(4.0),
-      reason: '只允許 2–3px 級別；再大就變成預備動作了',
-    );
+    expect(sunk - rest, lessThan(4.0), reason: '只允許 2–3px 級別；再大就變成預備動作了');
 
     await tester.pump(const Duration(milliseconds: 200));
     expect(_bodyTop(tester), closeTo(rest, 0.5), reason: '察覺跑完要回正');
@@ -112,11 +112,7 @@ void main() {
 
     expect(fullLift, greaterThan(0), reason: '完整幅度真的會離地');
     expect(mutedLift, greaterThan(0), reason: '打卡仍然看得出動作');
-    expect(
-      mutedLift,
-      lessThan(fullLift),
-      reason: '普通完成不該跟直接互動一樣大聲',
-    );
+    expect(mutedLift, lessThan(fullLift), reason: '普通完成不該跟直接互動一樣大聲');
   });
 
   testWidgets('幅度在觸發那一刻定住，中途改參數不會讓動作瞬間變大', (tester) async {
@@ -150,11 +146,7 @@ void main() {
       reactionCancelUpTo: 1,
     );
     await tester.pump(const Duration(milliseconds: 200));
-    expect(
-      _bodyTop(tester),
-      closeTo(rest, 0.5),
-      reason: '撤銷後不該繼續完成過時的跳躍',
-    );
+    expect(_bodyTop(tester), closeTo(rest, 0.5), reason: '撤銷後不該繼續完成過時的跳躍');
   });
 
   test('局部粒子維持個位數，打卡版本更少', () {
@@ -269,11 +261,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 20));
       final compressed = _bodyTop(tester, _asset2);
-      expect(
-        compressed,
-        greaterThan(rest),
-        reason: '沉降是往下壓一點點，不是彈起來',
-      );
+      expect(compressed, greaterThan(rest), reason: '沉降是往下壓一點點，不是彈起來');
       expect(compressed - rest, lessThan(6.0), reason: '幅度必須很小');
 
       // 全程不得超過原位（沒有 back curve、沒有 overshoot）
@@ -286,6 +274,42 @@ void main() {
         );
       }
       expect(_bodyTop(tester, _asset2), closeTo(rest, 0.5));
+    });
+
+    testWidgets('Reduce Motion：換圖仍是離散的，但完全不沉降', (tester) async {
+      await _pumpStage(
+        tester,
+        poseTransition: MascotPoseTransition.cut,
+        reduceMotion: true,
+      );
+      final rest = _bodyTop(tester);
+
+      await _pumpStage(
+        tester,
+        asset: _asset2,
+        poseTransition: MascotPoseTransition.cut,
+        reduceMotion: true,
+      );
+      expect(find.byKey(const ValueKey(_asset2)), findsOneWidget);
+      _expectNoTranslucentPose(tester);
+
+      // 整段期間縱向位置完全不動：沒有 scale、沒有 sink、沒有位移。
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(
+          _bodyTop(tester, _asset2),
+          closeTo(rest, 0.01),
+          reason: 'Reduce Motion 下 completion 的 body 位移必須為零',
+        );
+      }
+    });
+
+    test('Reduce Motion 的衝擊點與縮短後的勾勾終點是同一個時間', () {
+      expect(
+        CompletionPresentationController.kReducedImpactDelay,
+        kCheckDrawDurationReduced,
+      );
+      expect(CompletionPresentationController.kImpactDelay, kCheckDrawDuration);
     });
 
     test('沉降長度非零且不使用 back 曲線的 overshoot 範圍', () {

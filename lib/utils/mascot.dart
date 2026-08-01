@@ -524,6 +524,45 @@ class MascotState {
   int get hashCode => Object.hash(assetPath, speech, bubble, bubbleTick);
 }
 
+/// 目前這個兔咪狀態是誰寫的。
+///
+/// 延後的 callback 需要分辨三件事，才可能安全地「只收拾自己留下來的東西」：
+/// 開場問候／待機這種系統寫入、首頁演出寫入、其他分頁（喝水、衣櫃、計時…）
+/// 寫入。舊版是用「首頁沒有主張擁有權」反推現在是開場問候——只要有第三方
+/// 寫過就會判斷錯。
+enum MascotStateOrigin {
+  /// 冷啟動問候、跨日回中性、互動過期回神：系統層的待機狀態。
+  opening,
+
+  /// 首頁的打卡／點擊／撤銷／里程碑演出。
+  home,
+
+  /// 其他任何呼叫端（喝水、衣櫃、計時、小遊戲…）。
+  other,
+}
+
+/// 一次成功寫入的收據。相等 = 這中間沒有別人寫過。
+@immutable
+class MascotClaim {
+  final int revision;
+  final MascotStateOrigin origin;
+
+  const MascotClaim(this.revision, this.origin);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MascotClaim &&
+          revision == other.revision &&
+          origin == other.origin;
+
+  @override
+  int get hashCode => Object.hash(revision, origin);
+
+  @override
+  String toString() => 'MascotClaim(#$revision, ${origin.name})';
+}
+
 class MascotPersona {
   static final Random _voiceRandom = Random();
 
@@ -540,10 +579,29 @@ class MascotPersona {
   static int _activePriority = 0;
   static int _bubbleSeq = 0;
 
+  // ── 全域擁有權（誰寫下了目前這個狀態、之後有沒有被別人蓋掉）──
+  //
+  // 只有 revision 不夠：延後的 callback 需要知道「現在這個狀態還是不是我
+  // 那一次寫進去的」。所以每次**真的被接受**的寫入都會遞增 revision，並記下
+  // 來源；呼叫端拿著收據（[MascotClaim]）就能做 compare-and-clear，
+  // 不必用 force 去蓋掉喝水頁、衣櫃或更新的事件所建立的狀態。
+  static int _revision = 0;
+  static MascotStateOrigin _origin = MascotStateOrigin.opening;
+
+  /// 目前狀態的收據。與手上那張比對相等 = 這中間沒有人寫過。
+  static MascotClaim get claim => MascotClaim(_revision, _origin);
+
+  /// 目前狀態是誰寫的。
+  static MascotStateOrigin get origin => _origin;
+
   /// 互動：根據情境換情緒 + 隨機抽一句台詞。10 秒後自動回神。
   ///
   /// 回傳 false 代表兔咪目前正在停留一個狀態，這次普通互動被忽略。
-  static bool interact(MascotContext ctx, {bool force = false}) {
+  static bool interact(
+    MascotContext ctx, {
+    bool force = false,
+    MascotStateOrigin origin = MascotStateOrigin.other,
+  }) {
     if (!_canApply(ctx, force: force)) return false;
     _apply(
       MascotState(
@@ -552,6 +610,7 @@ class MascotPersona {
         bubble: EmotionBubble.forContext(ctx),
       ),
       ctx,
+      origin: origin,
     );
     return true;
   }
@@ -573,6 +632,9 @@ class MascotPersona {
   /// 「先動起來 → 才開口 → 最後靜靜回到 baseline」——中間那幾拍不能各自
   /// 再演一次。[withVoice] 則讓「冒泡泡但這次不出聲」成立（同一天第二件
   /// 之後的打卡）。**兩者預設 = 原本行為**，其他呼叫端不受影響。
+  /// [origin] 標記這次是誰寫的（預設 [MascotStateOrigin.other]，其他分頁不必改）。
+  /// [holds] = false 代表「這只是收拾，不是新的互動」：不重新起算停留時間，
+  /// 也不重排回神計時器，免得每次清理都把兔咪的待機時鐘往後推。
   static bool setForContext(
     String assetPath,
     MascotContext ctx, {
@@ -580,6 +642,8 @@ class MascotPersona {
     bool force = false,
     bool silent = false,
     bool withVoice = true,
+    MascotStateOrigin origin = MascotStateOrigin.other,
+    bool holds = true,
   }) {
     if (!_canApply(ctx, force: force)) return false;
     // 呼叫端明確帶了 speech 就照顯示；沒帶才看情境要不要講話（[MascotLines.speaksFor]）。
@@ -594,6 +658,8 @@ class MascotPersona {
       ),
       ctx,
       withVoice: withVoice && !silent,
+      origin: origin,
+      holds: holds,
     );
     return true;
   }
@@ -619,7 +685,11 @@ class MascotPersona {
     MascotState state,
     MascotContext ctx, {
     bool withVoice = true,
+    MascotStateOrigin origin = MascotStateOrigin.other,
+    bool holds = true,
   }) {
+    _revision++;
+    _origin = origin;
     current.value = MascotState(
       state.assetPath,
       state.speech,
@@ -632,6 +702,7 @@ class MascotPersona {
       _playVoice(cue);
       _markVoicePlayed(ctx, now);
     }
+    if (!holds) return;
     _holdUntil = DateTime.now().add(_holdDuration);
     _activePriority = _priorityOf(ctx);
     _scheduleRevert();
@@ -788,6 +859,8 @@ class MascotPersona {
     _revertTimer?.cancel();
     _holdUntil = null;
     _activePriority = 0;
+    _revision++;
+    _origin = MascotStateOrigin.opening;
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       MascotLines.randomLineFor(MascotContext.openApp),
@@ -800,6 +873,8 @@ class MascotPersona {
     _revertTimer?.cancel();
     _holdUntil = null;
     _activePriority = 0;
+    _revision++;
+    _origin = MascotStateOrigin.opening;
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       null,
@@ -830,6 +905,8 @@ class MascotPersona {
     _revertTimer = Timer(_revertAfter, () {
       _holdUntil = null;
       _activePriority = 0;
+      _revision++;
+      _origin = MascotStateOrigin.opening;
       current.value = _idleState();
     });
   }

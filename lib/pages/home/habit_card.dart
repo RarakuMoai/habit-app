@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/weight_records.dart';
 import '../../widgets/habit_ui.dart';
+import 'completion_timing.dart';
 
 // 長按進排序的延遲。每週卡「按住綠波紋」的填滿時間與它對齊：波紋填滿整框那
 // 一刻剛好進拖曳模式（home_page 的 _HabitDragListener 也用這個常數當 delay）。
@@ -15,12 +16,12 @@ const Duration kHabitDragHoldDelay = Duration(seconds: 1);
 // 按住要超過這個門檻才開始長出波紋；比這短的純單點完全不出特效。
 const Duration _kHoldFillStartDelay = Duration(milliseconds: 130);
 
-/// 勾勾描完的時間＝主衝擊點。與 `CompletionPresentationController.kImpactDelay`
-/// 對齊：觸覺與音效必須落在筆尖抵達的那一刻，不是更早。
-const Duration kHabitCheckDrawDuration = Duration(milliseconds: 300);
+/// 勾勾描完的時間＝主衝擊點。**唯一真相在 `completion_timing.dart`**：
+/// 觸覺與音效必須落在筆尖抵達的那一刻，兩邊不能各寫一個數字。
+const Duration kHabitCheckDrawDuration = kCheckDrawDuration;
 
 /// Reduce Motion：仍然把勾畫出來（語意不能只剩顏色變化），但不拖長。
-const Duration kHabitCheckDrawDurationReduced = Duration(milliseconds: 140);
+const Duration kHabitCheckDrawDurationReduced = kCheckDrawDurationReduced;
 
 /// 圓圈按壓回彈的長度；Reduce Motion 下完全不播。
 const Duration kHabitCheckPressDuration = Duration(milliseconds: 340);
@@ -90,7 +91,10 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     );
     // 打卡圓圈：克制的按壓＋回彈。舊版 0.78→1.18 是 UI 等比彈跳的語彙，
     // 幅度大到會把注意力從勾勾本身搶走；改成「按下去有回應」的量級即可。
-    _ctrl = AnimationController(vsync: this, duration: kHabitCheckPressDuration);
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: kHabitCheckPressDuration,
+    );
     _scale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.92), weight: 22),
       TweenSequenceItem(tween: Tween(begin: 0.92, end: 1.06), weight: 44),

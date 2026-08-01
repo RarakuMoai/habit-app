@@ -149,17 +149,17 @@ CustomPainter? _checkPainter(WidgetTester tester) {
   return null;
 }
 
-
 /// 目前畫面上每一張兔咪立繪的實際不透明度。
 /// 「衝擊點不得有雙影」＝這裡最多只有一個明顯可見的值。
 List<double> _poseOpacities(WidgetTester tester) {
   final result = <double>[];
-  for (final el in find
-      .descendant(
-        of: find.byType(MascotStage),
-        matching: find.byType(Padding),
-      )
-      .evaluate()) {
+  for (final el
+      in find
+          .descendant(
+            of: find.byType(MascotStage),
+            matching: find.byType(Padding),
+          )
+          .evaluate()) {
     if ((el.widget as Padding).key is! ValueKey<String>) continue;
     var opacity = 1.0;
     el.visitAncestorElements((ancestor) {
@@ -174,7 +174,6 @@ List<double> _poseOpacities(WidgetTester tester) {
   }
   return result;
 }
-
 
 /// 沒有雙影＝沒有任何一張立繪處於半透明。
 ///
@@ -252,11 +251,7 @@ void main() {
 
       // 跑完整條時間線（含清台詞的 quiet）
       await tester.pump(CompletionPresentationController.kQuietDelay);
-      expect(
-        home.debugCompletionEventId,
-        1,
-        reason: '過期／收尾都不是新的完成事件',
-      );
+      expect(home.debugCompletionEventId, 1, reason: '過期／收尾都不是新的完成事件');
       expect(MascotPersona.current.value.speech, isNull);
 
       await _tearDownHome(tester);
@@ -333,11 +328,7 @@ void main() {
       await tester.pump(CompletionPresentationController.kSpeakDelay);
 
       expect(log.voices, isEmpty, reason: '非首件保持安靜，只留符號＋音效');
-      expect(
-        MascotPersona.current.value.speech,
-        isNull,
-        reason: '非首件不冒文字',
-      );
+      expect(MascotPersona.current.value.speech, isNull, reason: '非首件不冒文字');
       expect(MascotPersona.current.value.bubble, EmotionBubble.note);
 
       await _tearDownHome(tester);
@@ -347,11 +338,13 @@ void main() {
       _seed(4);
       await _pumpHome(tester);
       // 兔咪剛講了一句（例如開場問候）還沒講完
+      // 正式的冷啟動問候會標記來源；silent 中間拍只保留這一種。
       MascotPersona.setForContext(
         MascotEmotion.neutralFront.assetPath,
         MascotContext.openApp,
         speech: '嗯...你來了。',
         force: true,
+        origin: MascotStateOrigin.opening,
       );
       await tester.pump();
 
@@ -399,11 +392,7 @@ void main() {
 
       expect((home.habits as List)[0]['done'], isTrue);
       expect(home.dailyDoneCount, 1);
-      expect(
-        log.cues,
-        isEmpty,
-        reason: '按下去的第一拍只該有 ink 與勾，不該同拍就發聲',
-      );
+      expect(log.cues, isEmpty, reason: '按下去的第一拍只該有 ink 與勾，不該同拍就發聲');
       expect(log.haptics, isEmpty);
       expect(
         MascotPersona.current.value.bubble,
@@ -436,11 +425,7 @@ void main() {
       expect(_persona(tester).reactionTick, reactionBefore);
 
       await tester.pump(CompletionPresentationController.kNoticeDelay);
-      expect(
-        _persona(tester).noticeTick,
-        noticeBefore + 1,
-        reason: '察覺要早於蹲跳',
-      );
+      expect(_persona(tester).noticeTick, noticeBefore + 1, reason: '察覺要早於蹲跳');
       expect(_persona(tester).reactionTick, reactionBefore);
 
       await tester.pump(
@@ -507,11 +492,7 @@ void main() {
       final builder = tester.widget<TweenAnimationBuilder<double>>(
         find.byType(TweenAnimationBuilder<double>).first,
       );
-      expect(
-        builder.tween.end,
-        0.0,
-        reason: '進度條在衝擊點之前維持舊值',
-      );
+      expect(builder.tween.end, 0.0, reason: '進度條在衝擊點之前維持舊值');
 
       await tester.pump(CompletionPresentationController.kImpactDelay);
       final released = tester.widget<TweenAnimationBuilder<double>>(
@@ -521,7 +502,6 @@ void main() {
 
       await _tearDownHome(tester);
     });
-
 
     testWidgets('一般模式的衝擊點也只有一張立繪', (tester) async {
       _seed(3);
@@ -571,11 +551,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 4));
 
-      expect(
-        log.cues,
-        isEmpty,
-        reason: '看不到兔咪就不該聽到打卡演出繼續播完',
-      );
+      expect(log.cues, isEmpty, reason: '看不到兔咪就不該聽到打卡演出繼續播完');
       expect(log.voices, isEmpty);
       expect(home.debugCompletionArcActive, isFalse);
       expect(
@@ -688,9 +664,8 @@ void main() {
       expect(find.byType(RoomSceneEffects), findsNothing);
 
       final prefs = await SharedPreferences.getInstance();
-      final stored =
-          (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
-              .cast<Map<String, dynamic>>();
+      final stored = (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List)
+          .cast<Map<String, dynamic>>();
       expect(stored.where((h) => h['done'] == true).length, 5);
       expect(
         prefs.getString(PrefsKeys.habitDoneDay(_todayString())),
@@ -710,11 +685,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
       }
       await tester.pump(CompletionPresentationController.kSpeakDelay);
-      expect(
-        log.bubbles,
-        [EmotionBubble.note],
-        reason: '連打四件只該冒一顆泡泡，不是疊四層',
-      );
+      expect(log.bubbles, [EmotionBubble.note], reason: '連打四件只該冒一顆泡泡，不是疊四層');
 
       await tester.pump(const Duration(seconds: 3));
       expect(log.bubbles.length, 1, reason: '尾韻不得再補冒泡泡');
@@ -735,11 +706,9 @@ void main() {
       }
       await tester.pump(const Duration(seconds: 4));
 
-      expect(
-        home.debugSemanticEvents,
-        [MascotContext.halfDone],
-        reason: '連打穿越門檻時，普通完成必須整條交棒，不能兩套都播',
-      );
+      expect(home.debugSemanticEvents, [
+        MascotContext.halfDone,
+      ], reason: '連打穿越門檻時，普通完成必須整條交棒，不能兩套都播');
       expect(log.bubbles, hasLength(1));
       expect(log.voices.length, lessThanOrEqualTo(1));
       expect(
@@ -773,11 +742,7 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
 
       expect((home.habits as List)[0]['done'], isFalse);
-      expect(
-        log.cues,
-        [SfxCue.cancel],
-        reason: '過時的成功音不得補播',
-      );
+      expect(log.cues, [SfxCue.cancel], reason: '過時的成功音不得補播');
       expect(
         log.voices,
         isNot(contains(SfxCue.tumiConfirm)),
@@ -798,7 +763,10 @@ void main() {
       // sad 停留 2 秒後收
       await tester.pump(const Duration(milliseconds: 2500));
 
-      expect(home.debugBaselineMascotContext, isNot(MascotContext.completedOne));
+      expect(
+        home.debugBaselineMascotContext,
+        isNot(MascotContext.completedOne),
+      );
       expect(
         MascotPersona.current.value.assetPath,
         isNot(MascotEmotion.expect.assetPath),
@@ -874,7 +842,6 @@ void main() {
       await _tearDownHome(tester);
     });
 
-
     testWidgets('Reduce Motion 下的換立繪一樣走安全的離散模式', (tester) async {
       _seed(3);
       await _pumpHome(tester, reduceMotion: true);
@@ -889,11 +856,7 @@ void main() {
       await tester.pump(CompletionPresentationController.kReducedImpactDelay);
       _expectNoGhostPose(tester);
       await tester.pump(const Duration(milliseconds: 40));
-      expect(
-        _poseOpacities(tester),
-        hasLength(1),
-        reason: '換圖的下一幀就只剩一張立繪',
-      );
+      expect(_poseOpacities(tester), hasLength(1), reason: '換圖的下一幀就只剩一張立繪');
 
       await _tearDownHome(tester);
     });
@@ -913,7 +876,6 @@ void main() {
       );
     });
   });
-
 
   // ── Blocker 1：台詞擁有權 ────────────────────────────────────
 
@@ -1043,11 +1005,13 @@ void main() {
     testWidgets('開場問候可以撐過 silent 中間拍，且只由自己收掉', (tester) async {
       _seed(3);
       await _pumpHome(tester);
+      // 正式的冷啟動問候會標記來源；silent 中間拍只保留這一種。
       MascotPersona.setForContext(
         MascotEmotion.neutralFront.assetPath,
         MascotContext.openApp,
         speech: '嗯...你來了。',
         force: true,
+        origin: MascotStateOrigin.opening,
       );
       await tester.pump();
 
@@ -1139,11 +1103,7 @@ void main() {
       expect(log.haptics, isEmpty);
       expect(log.voices, isEmpty);
       expect(log.bubbles, isEmpty);
-      expect(
-        (home.habits as List)[0]['done'],
-        isTrue,
-        reason: '取消演出不得回滾資料',
-      );
+      expect((home.habits as List)[0]['done'], isTrue, reason: '取消演出不得回滾資料');
 
       await _tearDownHome(tester);
     });
@@ -1182,9 +1142,7 @@ void main() {
       expect(log.cues, contains(SfxCue.cancel));
 
       final prefs = await SharedPreferences.getInstance();
-      final history = prefs.getString(
-        PrefsKeys.habitDoneDay(_todayString()),
-      );
+      final history = prefs.getString(PrefsKeys.habitDoneDay(_todayString()));
       expect(history, contains('id_習慣2'));
       expect(history, isNot(contains('id_習慣1')));
 
@@ -1309,6 +1267,439 @@ void main() {
       );
       expect(home.dailyDoneCount, 2);
       expect(home.debugBaselineMascotContext, MascotContext.halfDone);
+
+      await _tearDownHome(tester);
+    });
+  });
+
+  // ── 弧線語意身分（late half handoff／降級）────────────────────
+
+  group('弧線語意身分', () {
+    testWidgets('沒有 follower 時只交付 completedOne', (tester) async {
+      _seed(4);
+      final home = await _pumpHome(tester);
+      home.debugClearSemanticEvents();
+      log.clear();
+
+      await _tapHabit(tester, '習慣1'); // 1/4，不過半
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(home.debugSemanticEvents, [MascotContext.completedOne]);
+      expect(log.bubbles, [EmotionBubble.note]);
+
+      await _tearDownHome(tester);
+    });
+
+    for (final followerAt in [500, 650]) {
+      testWidgets('過半的後續成員在 ${followerAt}ms 到達仍交付 halfDone 一次', (tester) async {
+        _seed(4);
+        final home = await _pumpHome(tester);
+        home.debugClearSemanticEvents();
+        log.clear();
+
+        await _tapHabit(tester, '習慣1'); // 弧線由普通完成開頭
+        await tester.pump(Duration(milliseconds: followerAt));
+        expect(home.debugSemanticEvents, [
+          MascotContext.completedOne,
+        ], reason: 'speak 在 470ms，這時普通完成的語意已經送出去了');
+        final reactionBefore = _persona(tester).reactionTick;
+        final noticeBefore = _persona(tester).noticeTick;
+
+        await _tapHabit(tester, '習慣2'); // 2/4 = 跨過一半，仍在合併視窗內
+        await tester.pump(const Duration(seconds: 4));
+
+        expect(
+          home.debugSemanticEvents
+              .where((MascotContext c) => c == MascotContext.halfDone)
+              .length,
+          1,
+          reason: 'halfDone 必須恰好交付一次（實際：${home.debugSemanticEvents}）',
+        );
+        expect(
+          _persona(tester).reactionTick,
+          reactionBefore,
+          reason: '補送里程碑不得重啟蹲跳',
+        );
+        expect(
+          _persona(tester).noticeTick,
+          noticeBefore,
+          reason: '補送里程碑不得重跑察覺',
+        );
+        expect(home.debugBaselineMascotContext, MascotContext.halfDone);
+
+        await _tearDownHome(tester);
+      });
+    }
+
+    testWidgets('Reduce Motion：過半成員在 speak 之後、視窗關閉前到達', (tester) async {
+      _seed(4);
+      final home = await _pumpHome(tester, reduceMotion: true);
+      home.debugClearSemanticEvents();
+
+      await _tapHabit(tester, '習慣1');
+      // Reduce Motion 的 speak 在 200ms；300ms 已經過了它，但還在 700ms 視窗內
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(home.debugSemanticEvents, [MascotContext.completedOne]);
+
+      await _tapHabit(tester, '習慣2');
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(
+        home.debugSemanticEvents
+            .where((MascotContext c) => c == MascotContext.halfDone)
+            .length,
+        1,
+      );
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('過半成員在語意交付前被撤銷：弧線降回 ordinary', (tester) async {
+      _seed(4);
+      final home = await _pumpHome(tester);
+      home.debugClearSemanticEvents();
+
+      await _tapHabit(tester, '習慣1'); // 1/4
+      await tester.pump(const Duration(milliseconds: 60));
+      await _tapHabit(tester, '習慣2'); // 2/4 跨過一半（speak 還沒到）
+      await tester.pump(const Duration(milliseconds: 60));
+      await _tapHabit(tester, '習慣2'); // 撤銷那一件
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(
+        home.debugSemanticEvents,
+        isNot(contains(MascotContext.halfDone)),
+        reason: '半程成員沒了就該降回普通完成（實際：${home.debugSemanticEvents}）',
+      );
+      expect(home.dailyDoneCount, 1);
+
+      await _tearDownHome(tester);
+    });
+  });
+
+  // ── 多事件撤銷：只取消那一件 ─────────────────────────────────
+
+  group('多事件撤銷', () {
+    for (final undoAt in [
+      ('蹲跳前後', CompletionPresentationController.kAnticipateDelay),
+      ('衝擊點附近', CompletionPresentationController.kImpactDelay),
+    ]) {
+      testWidgets('A、B 連打後在${undoAt.$1}撤銷 A：B 完整保留', (tester) async {
+        _seed(5);
+        final home = await _pumpHome(tester);
+        log.clear();
+
+        await _tapHabit(tester, '習慣1'); // A
+        await tester.pump(const Duration(milliseconds: 40));
+        await _tapHabit(tester, '習慣2'); // B（共用同一條弧線）
+        final reactionAfterArc = _persona(tester).reactionTick;
+        await tester.pump(undoAt.$2);
+
+        final cancelBefore = _persona(tester).reactionCancelUpTo;
+        await _tapHabit(tester, '習慣1'); // 撤銷 A
+        await tester.pump();
+
+        expect(
+          _persona(tester).reactionCancelUpTo,
+          cancelBefore,
+          reason: 'B 還活著，共用的那段動作不得被 A 的撤銷收掉',
+        );
+
+        await tester.pump(const Duration(seconds: 4));
+
+        expect((home.habits as List)[0]['done'], isFalse);
+        expect((home.habits as List)[1]['done'], isTrue);
+        expect(
+          _persona(tester).reactionTick,
+          greaterThanOrEqualTo(reactionAfterArc),
+        );
+        expect(
+          log.cues.where((c) => c == SfxCue.success).length,
+          lessThanOrEqualTo(2),
+        );
+        expect(log.cues, contains(SfxCue.cancel), reason: '撤銷本身仍要有回饋');
+        // B 的姿勢不得借用 A 撤銷留下的 sad
+        expect(
+          MascotPersona.current.value.assetPath,
+          isNot(MascotEmotion.sad.assetPath),
+        );
+
+        final prefs = await SharedPreferences.getInstance();
+        final history = prefs.getString(PrefsKeys.habitDoneDay(_todayString()));
+        expect(history, contains('id_習慣2'));
+        expect(history, isNot(contains('id_習慣1')));
+
+        await _tearDownHome(tester);
+      });
+    }
+
+    testWidgets('存活弧線的收尾不清掉較新的撤銷台詞', (tester) async {
+      _seed(5);
+      await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1'); // A
+      await tester.pump(const Duration(milliseconds: 40));
+      await _tapHabit(tester, '習慣2'); // B
+      await tester.pump(const Duration(milliseconds: 600));
+
+      await _tapHabit(tester, '習慣1'); // 撤銷 A → 撤銷台詞
+      await tester.pump();
+      final undoSpeech = MascotPersona.current.value.speech;
+      expect(undoSpeech, isNotNull);
+
+      // 讓存活弧線的 recover / quiet 都跑過去
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        MascotPersona.current.value.speech,
+        undoSpeech,
+        reason: 'recover 不得清掉比自己更新的撤銷台詞',
+      );
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('存活弧線的收尾不清掉其他分頁建立的高優先狀態', (tester) async {
+      _seed(5);
+      await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(milliseconds: 40));
+      await _tapHabit(tester, '習慣2');
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // 喝水頁的實際呼叫路徑：優先度 40，會蓋過首頁
+      MascotPersona.interact(MascotContext.overhydration);
+      final waterSpeech = MascotPersona.current.value.speech;
+      final waterClaim = MascotPersona.claim;
+      expect(waterSpeech, isNotNull);
+
+      await tester.pump(const Duration(seconds: 4));
+      expect(MascotPersona.claim, waterClaim, reason: '首頁的收尾不得再寫一次');
+      expect(MascotPersona.current.value.speech, waterSpeech);
+
+      await _tearDownHome(tester);
+    });
+  });
+
+  // ── 全域擁有權：其他分頁接手之後 ────────────────────────────
+
+  group('全域擁有權', () {
+    testWidgets('點兔咪後切到喝水頁建立過量提醒：首頁的過期不得覆寫', (tester) async {
+      _seed(3);
+      await _pumpHome(tester);
+
+      await tester.tap(find.byType(MascotStage));
+      await tester.pump();
+      expect(MascotPersona.current.value.speech, isNotNull);
+
+      // 其他分頁寫入更高優先的狀態
+      MascotPersona.interact(MascotContext.overhydration);
+      final waterClaim = MascotPersona.claim;
+      final waterSpeech = MascotPersona.current.value.speech;
+
+      // 跨過首頁點擊的三秒過期
+      await tester.pump(const Duration(seconds: 4));
+      expect(MascotPersona.claim, waterClaim, reason: '首頁的舊 timer 不得覆寫其他分頁的狀態');
+      expect(MascotPersona.current.value.speech, waterSpeech);
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('連續點擊被優先度擋下：保留原台詞與原本剩餘的過期時間', (tester) async {
+      _seed(3);
+      await _pumpHome(tester);
+
+      await tester.tap(find.byType(MascotStage));
+      await tester.pump();
+      final firstSpeech = MascotPersona.current.value.speech;
+      expect(firstSpeech, isNotNull);
+
+      // 停留期內再點一次 → tapReaction 優先度相同，會被擋下
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.byType(MascotStage));
+      await tester.pump();
+      expect(
+        MascotPersona.current.value.speech,
+        firstSpeech,
+        reason: '被擋下的點擊不得換掉台詞',
+      );
+
+      // 原本那條 expiry 仍然照原訂時間收掉（不是被第二次點擊延長或取消）
+      await tester.pump(const Duration(milliseconds: 2400));
+      expect(MascotPersona.current.value.speech, firstSpeech);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        MascotPersona.current.value.speech,
+        isNull,
+        reason: '舊 expiry 不得被第二次點擊弄丟',
+      );
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('speak 之後切走分頁：只收自己的狀態，不動其他分頁的', (tester) async {
+      _seed(3);
+      final visible = ValueNotifier<bool>(true);
+      _setSurface(tester);
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: ValueListenableBuilder<bool>(
+            valueListenable: visible,
+            builder: (_, v, _) =>
+                TickerMode(enabled: v, child: const HomePage()),
+          ),
+        ),
+      );
+      await tester.pump();
+      final home = tester.state(find.byType(HomePage)) as dynamic;
+      await home.loadHabits();
+      await tester.pump();
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(MascotPersona.current.value.speech, '今天第一件。');
+
+      visible.value = false;
+      await tester.pump();
+      await tester.pump();
+      expect(
+        MascotPersona.current.value.speech,
+        isNull,
+        reason: '切走時要收掉自己還擁有的台詞',
+      );
+
+      // 換成其他分頁的狀態後再讓舊 timer 全部跑完
+      MascotPersona.interact(MascotContext.overhydration);
+      final waterClaim = MascotPersona.claim;
+      await tester.pump(const Duration(seconds: 5));
+      expect(MascotPersona.claim, waterClaim);
+
+      visible.dispose();
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('同日換快照：只收舊 generation 還擁有的狀態', (tester) async {
+      _seed(3);
+      final home = await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(MascotPersona.current.value.speech, '今天第一件。');
+
+      await home.loadHabits();
+      await tester.pump();
+      expect(
+        MascotPersona.current.value.speech,
+        isNull,
+        reason: '換快照要收掉舊 generation 擁有的台詞',
+      );
+
+      MascotPersona.interact(MascotContext.overhydration);
+      final waterClaim = MascotPersona.claim;
+      await home.loadHabits();
+      await tester.pump();
+      expect(MascotPersona.claim, waterClaim, reason: '已經被其他分頁接手時，作廢必須 no-op');
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('dispose 收掉首頁 callback，且不清掉較新的外部狀態', (tester) async {
+      _seed(3);
+      await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(milliseconds: 100));
+
+      MascotPersona.interact(MascotContext.overhydration);
+      final waterClaim = MascotPersona.claim;
+      log.clear();
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 6));
+
+      expect(tester.takeException(), isNull);
+      expect(log.cues, isEmpty, reason: 'dispose 後不得再發回饋');
+      expect(MascotPersona.claim, waterClaim, reason: 'dispose 不得清掉較新的外部狀態');
+      // 排掉 MascotPersona 自己的十秒回神計時（那是全域的，不是首頁的）
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('重載等待期間不得發出舊的 impact 與回饋', (tester) async {
+      _seed(3);
+      final home = await _pumpHome(tester);
+      log.clear();
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(milliseconds: 60));
+
+      // 不 await：重載進行中（storage 還在等），刻意讓時間跨過 impact
+      final pending = home.loadHabits() as Future<void>;
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(log.cues, isEmpty, reason: '重載等待期間不得播出舊的 impact 音效');
+      expect(log.haptics, isEmpty);
+      expect(log.voices, isEmpty);
+      expect(log.bubbles, isEmpty);
+
+      await pending;
+      await tester.pump(const Duration(seconds: 3));
+      expect(log.cues, isEmpty, reason: '重載結束後也不補播');
+      expect((home.habits as List)[0]['done'], isTrue, reason: '取消演出不得回滾資料');
+
+      await _tearDownHome(tester);
+    });
+  });
+
+  // ── Reduce Motion：位移一律為零 ─────────────────────────────
+
+  group('Reduce Motion 位移', () {
+    testWidgets('completion 期間兔咪完全不位移、不縮放、不冒粒子', (tester) async {
+      _seed(3);
+      await _pumpHome(tester, reduceMotion: true);
+      final before = _persona(tester);
+      final baseTop = tester.getTopLeft(find.byType(MascotStage)).dy;
+
+      await _tapHabit(tester, '習慣1');
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        final p = _persona(tester);
+        expect(
+          p.reactionTick,
+          before.reactionTick,
+          reason: 'Reduce Motion 不得蹲跳（粒子與它同一個控制器）',
+        );
+        expect(p.noticeTick, before.noticeTick);
+        expect(p.reduceMotion, isTrue);
+      }
+      expect(
+        tester.getTopLeft(find.byType(MascotStage)).dy,
+        closeTo(baseTop, 0.01),
+        reason: 'stage 本身不得被位移',
+      );
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('衝擊點、音效、觸覺與勾勾終點共用同一個時間', (tester) async {
+      expect(
+        CompletionPresentationController.kReducedImpactDelay,
+        kHabitCheckDrawDurationReduced,
+        reason: '兩邊不能各寫一個數字',
+      );
+
+      _seed(3);
+      await _pumpHome(tester, reduceMotion: true);
+      log.clear();
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(
+        kHabitCheckDrawDurationReduced - const Duration(milliseconds: 20),
+      );
+      expect(log.cues, isEmpty, reason: '筆尖還沒到就不該有聲音');
+      expect(log.haptics, isEmpty);
+
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(log.cues, [SfxCue.success]);
+      expect(log.haptics, [HapticLevel.light]);
 
       await _tearDownHome(tester);
     });
