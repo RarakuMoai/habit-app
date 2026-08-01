@@ -1241,7 +1241,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         // 勾勾筆尖落點：全場唯一的觸覺與音效，換 pose，放開進度條。
         playFeedback(SfxCue.success, haptic: HapticLevel.light);
         if (_progressHold != null) setState(() => _progressHold = null);
-        _applyPersona(MascotContext.completedOne, silent: true, force: true);
+        _applyPersona(
+          MascotContext.completedOne,
+          keepSpeech: true,
+          silent: true,
+          force: true,
+        );
       case CompletionPhase.speak:
         // MI 已經動起來了才開口。當天第一件才有台詞與語音。
         if (event.isFirstOfDay) {
@@ -1257,7 +1262,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       case CompletionPhase.recover:
         // 落地：回到「目前進度」推導的 baseline（可能已經是 halfDone），
         // 但不再演一次——里程碑的完整反應要留給既有的高層級事件。
-        _applyPersona(_baselineMascotContext, silent: true, force: true);
+        _applyPersona(
+          _baselineMascotContext,
+          keepSpeech: true,
+          silent: true,
+          force: true,
+        );
       case CompletionPhase.quiet:
         if (_transientSpeech == null) return;
         setState(() => _transientSpeech = null);
@@ -1720,9 +1730,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// **情境由呼叫端負責**：同一個畫面狀態可能是「剛完成一件」也可能是
   /// 「使用者點了兔咪」，語意不該從 transient 欄位反推。
   /// [silent] 用在同一個事件的中間拍與收尾拍（換姿勢但不再演一次）。
+  /// [keepSpeech] 讓那些中間拍不要把兔咪**原本正在說的話**砍掉——打卡不該
+  /// 讓一句還沒講完的開場問候憑空消失，再空兩百毫秒才冒出新的一句。
   bool _applyPersona(
     MascotContext ctx, {
     String? speech,
+    bool keepSpeech = false,
     bool silent = false,
     bool withVoice = true,
     bool force = false,
@@ -1730,7 +1743,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return MascotPersona.setForContext(
       _mascotAsset,
       ctx,
-      speech: speech ?? _transientSpeech,
+      speech:
+          speech ??
+          _transientSpeech ??
+          (keepSpeech ? MascotPersona.current.value.speech : null),
       silent: silent,
       withVoice: withVoice,
       force: force,

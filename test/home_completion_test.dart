@@ -301,6 +301,35 @@ void main() {
       await _tearDownHome(tester);
     });
 
+    testWidgets('打卡不會把兔咪原本正在說的話砍掉', (tester) async {
+      _seed(4);
+      await _pumpHome(tester);
+      // 兔咪剛講了一句（例如開場問候）還沒講完
+      MascotPersona.setForContext(
+        MascotEmotion.neutralFront.assetPath,
+        MascotContext.openApp,
+        speech: '嗯...你來了。',
+        force: true,
+      );
+      await tester.pump();
+
+      await _tapHabit(tester, '習慣2'); // 非首件語意（第一件仍是這件，改用首件也一樣）
+      await tester.pump(CompletionPresentationController.kImpactDelay);
+      expect(
+        MascotPersona.current.value.speech,
+        '嗯...你來了。',
+        reason: '換姿勢那一拍不該讓還在講的話憑空消失',
+      );
+
+      await tester.pump(
+        CompletionPresentationController.kSpeakDelay -
+            CompletionPresentationController.kImpactDelay,
+      );
+      expect(MascotPersona.current.value.speech, '今天第一件。');
+
+      await _tearDownHome(tester);
+    });
+
     testWidgets('一次完成只有一次觸覺與一次音效', (tester) async {
       _seed(3);
       await _pumpHome(tester);
