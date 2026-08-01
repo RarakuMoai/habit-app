@@ -14,6 +14,16 @@ const Duration kHabitDragHoldDelay = Duration(seconds: 1);
 
 // 按住要超過這個門檻才開始長出波紋；比這短的純單點完全不出特效。
 const Duration _kHoldFillStartDelay = Duration(milliseconds: 130);
+
+/// 勾勾描完的時間＝主衝擊點。與 `CompletionPresentationController.kImpactDelay`
+/// 對齊：觸覺與音效必須落在筆尖抵達的那一刻，不是更早。
+const Duration kHabitCheckDrawDuration = Duration(milliseconds: 300);
+
+/// Reduce Motion：仍然把勾畫出來（語意不能只剩顏色變化），但不拖長。
+const Duration kHabitCheckDrawDurationReduced = Duration(milliseconds: 140);
+
+/// 圓圈按壓回彈的長度；Reduce Motion 下完全不播。
+const Duration kHabitCheckPressDuration = Duration(milliseconds: 340);
 const Color _kWaterLinkedAccent = Color(0xFF42A5F5);
 const Color _kWeightLinkedAccent = Color(0xFF7E57C2);
 
@@ -78,23 +88,25 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
       vsync: this,
       duration: kHabitDragHoldDelay - _kHoldFillStartDelay,
     );
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 380),
-    );
+    // 打卡圓圈：克制的按壓＋回彈。舊版 0.78→1.18 是 UI 等比彈跳的語彙，
+    // 幅度大到會把注意力從勾勾本身搶走；改成「按下去有回應」的量級即可。
+    _ctrl = AnimationController(vsync: this, duration: kHabitCheckPressDuration);
     _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.78), weight: 25),
-      TweenSequenceItem(tween: Tween(begin: 0.78, end: 1.18), weight: 45),
-      TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.92), weight: 22),
+      TweenSequenceItem(tween: Tween(begin: 0.92, end: 1.06), weight: 44),
+      TweenSequenceItem(tween: Tween(begin: 1.06, end: 1.0), weight: 34),
     ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
+    // 勾勾描繪：筆尖落點就是整段演出的主衝擊，時間對齊
+    // CompletionPresentationController.kImpactDelay。easeOutCubic 太前傾，
+    // 會讓勾在 40ms 就幾乎畫完、觸覺與音效反而變成「後補」。
     _checkCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 320),
+      duration: kHabitCheckDrawDuration,
     );
     _checkAnim = CurvedAnimation(
       parent: _checkCtrl,
-      curve: Curves.easeOutCubic,
+      curve: Curves.easeInOutCubic,
     );
     // 列表載入時已完成的卡直接顯示完整勾，不重播描繪
     _wasDone = widget.habit['done'] == true;
@@ -157,12 +169,22 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     );
   }
 
+  /// 系統的 Reduce Motion／Disable Animations。取消位移類演出，但保留
+  /// 「已完成」的所有語意（勾、顏色、狀態）。
+  bool get _reduceMotion {
+    final mq = MediaQuery.maybeOf(context);
+    return mq?.disableAnimations == true || mq?.accessibleNavigation == true;
+  }
+
   /// habit map 是同一個實例被原地修改，didUpdateWidget 比不出新舊值，
   /// 改在 build 時偵測 done 變化來觸發描繪動畫。
   void _syncCheckAnim(bool done) {
     if (done == _wasDone) return;
     _wasDone = done;
     if (done) {
+      _checkCtrl.duration = _reduceMotion
+          ? kHabitCheckDrawDurationReduced
+          : kHabitCheckDrawDuration;
       _checkCtrl.forward(from: 0);
     } else {
       _checkCtrl.value = 0;
@@ -170,7 +192,8 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
   }
 
   void _handleTap() {
-    _ctrl.forward(from: 0);
+    // Reduce Motion：圓圈不彈跳（勾＋底色已經把「完成」講清楚了）。
+    if (!_reduceMotion) _ctrl.forward(from: 0);
     widget.onToggle();
   }
 

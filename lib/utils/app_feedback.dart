@@ -3,6 +3,7 @@
 // 未來在設定頁加「觸覺回饋開關」時只需要在這裡把關。
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'sfx_service.dart';
@@ -52,14 +53,30 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
   SfxCue.gameDice => HapticLevel.light, // 碰撞聲基準；重擊處另升級
 };
 
+/// 測試用：接住實際發出去的回饋（cue 為 null = 只有觸覺）。
+/// 設了就只記錄不真的發聲／震動，讓時序測試能數「各發生幾次、在第幾毫秒」。
+@visibleForTesting
+void Function(SfxCue? cue, HapticLevel haptic)? debugFeedbackSink;
+
 // 播音效並配對觸覺回饋
 void playFeedback(SfxCue cue, {HapticLevel? haptic}) {
+  final level = haptic ?? _defaultHaptic(cue);
+  final sink = debugFeedbackSink;
+  if (sink != null) {
+    sink(cue, level);
+    return;
+  }
   unawaited(SfxService.instance.play(cue));
-  playHaptic(haptic ?? _defaultHaptic(cue));
+  playHaptic(level);
 }
 
 // 只發觸覺（無音效的輕互動：chip 選取、開關切換等）
 void playHaptic(HapticLevel level) {
+  final sink = debugFeedbackSink;
+  if (sink != null) {
+    sink(null, level);
+    return;
+  }
   switch (level) {
     case HapticLevel.none:
       break;

@@ -567,11 +567,19 @@ class MascotPersona {
   }
 
   /// 用指定情境設定自訂 asset。台詞可交給情境台詞池抽，並套用同一套停留規則。
+  ///
+  /// [silent] = 只換姿勢，不冒泡泡、不出聲、也不從台詞池補台詞（只保留呼叫端
+  /// 明確帶的 [speech]）。一個語意事件常常要分成好幾拍套用——首頁打卡是
+  /// 「先動起來 → 才開口 → 最後靜靜回到 baseline」——中間那幾拍不能各自
+  /// 再演一次。[withVoice] 則讓「冒泡泡但這次不出聲」成立（同一天第二件
+  /// 之後的打卡）。**兩者預設 = 原本行為**，其他呼叫端不受影響。
   static bool setForContext(
     String assetPath,
     MascotContext ctx, {
     String? speech,
     bool force = false,
+    bool silent = false,
+    bool withVoice = true,
   }) {
     if (!_canApply(ctx, force: force)) return false;
     // 呼叫端明確帶了 speech 就照顯示；沒帶才看情境要不要講話（[MascotLines.speaksFor]）。
@@ -579,12 +587,13 @@ class MascotPersona {
       MascotState(
         assetPath,
         speech ??
-            (MascotLines.speaksFor(ctx)
+            (!silent && MascotLines.speaksFor(ctx)
                 ? MascotLines.randomLineFor(ctx)
                 : null),
-        bubble: EmotionBubble.forContext(ctx),
+        bubble: silent ? null : EmotionBubble.forContext(ctx),
       ),
       ctx,
+      withVoice: withVoice && !silent,
     );
     return true;
   }
@@ -593,17 +602,34 @@ class MascotPersona {
   /// 避免「看不到兔咪卻聽到牠的聲音」的突兀感。
   static bool voiceMuted = false;
 
-  static void _apply(MascotState state, MascotContext ctx) {
+  /// 測試用：接住實際播出去的語音。設了就只記錄不真的發聲。
+  @visibleForTesting
+  static void Function(SfxCue cue)? debugVoiceSink;
+
+  static void _playVoice(SfxCue cue) {
+    final sink = debugVoiceSink;
+    if (sink != null) {
+      sink(cue);
+      return;
+    }
+    unawaited(SfxService.instance.play(cue));
+  }
+
+  static void _apply(
+    MascotState state,
+    MascotContext ctx, {
+    bool withVoice = true,
+  }) {
     current.value = MascotState(
       state.assetPath,
       state.speech,
       bubble: state.bubble,
       bubbleTick: state.bubble == null ? 0 : ++_bubbleSeq,
     );
-    final cue = _voiceCueFor(ctx);
+    final cue = withVoice ? _voiceCueFor(ctx) : null;
     final now = DateTime.now();
     if (cue != null && !voiceMuted && _voiceAllowed(ctx, now: now)) {
-      unawaited(SfxService.instance.play(cue));
+      _playVoice(cue);
       _markVoicePlayed(ctx, now);
     }
     _holdUntil = DateTime.now().add(_holdDuration);
@@ -780,6 +806,21 @@ class MascotPersona {
     );
   }
 
+  /// 互動演出過期後要回到的待機狀態；null = 回中性（原本行為）。
+  ///
+  /// 首頁在 mount 期間掛上「由今天進度推導」的 baseline：打卡十秒後兔咪應該
+  /// 停在符合進度的表情，而不是突然變回剛開 app 的中性臉。回 null 代表這一刻
+  /// 算不出 baseline（例如頁面正在載入），照舊走中性。
+  static MascotState? Function()? idleBaseline;
+
+  static MascotState _idleState() {
+    return idleBaseline?.call() ??
+        MascotState(
+          MascotLines.emotionFor(MascotContext.openApp).assetPath,
+          null,
+        );
+  }
+
   /// 安排 N 秒後回到安靜待機。新互動會 reset 計時。
   ///
   /// 不能在這裡重抽 openApp 問候：否則任何打卡、摸頭或計時事件結束後，
@@ -789,10 +830,7 @@ class MascotPersona {
     _revertTimer = Timer(_revertAfter, () {
       _holdUntil = null;
       _activePriority = 0;
-      current.value = MascotState(
-        MascotLines.emotionFor(MascotContext.openApp).assetPath,
-        null,
-      );
+      current.value = _idleState();
     });
   }
 }

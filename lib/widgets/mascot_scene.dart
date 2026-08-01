@@ -185,6 +185,18 @@ class PersonaScene extends StatelessWidget {
   final Color accent;
   final int reactionTick;
 
+  /// 見 [MascotStage.noticeTick]。
+  final int noticeTick;
+
+  /// 見 [MascotStage.reactionStrength]。
+  final double reactionStrength;
+
+  /// 見 [MascotStage.reactionCancelTick]。
+  final int reactionCancelTick;
+
+  /// 台詞停留多久後開始淡出；null = 用 [MascotSpeechBubble] 的預設值。
+  final Duration? speechVisibleDuration;
+
   /// 點擊兔咪的自訂行為；未提供時走共用的 [MascotContext.tapReaction]。
   final VoidCallback? onTap;
   final VoidCallback? onHeadPet;
@@ -208,6 +220,10 @@ class PersonaScene extends StatelessWidget {
     super.key,
     required this.accent,
     this.reactionTick = 0,
+    this.noticeTick = 0,
+    this.reactionStrength = 1.0,
+    this.reactionCancelTick = 0,
+    this.speechVisibleDuration,
     this.onTap,
     this.onHeadPet,
     this.onEnergize,
@@ -280,6 +296,10 @@ class PersonaScene extends StatelessWidget {
           bubble: state.bubble,
           bubbleTick: state.bubbleTick,
           reactionTick: reactionTick,
+          noticeTick: noticeTick,
+          reactionStrength: reactionStrength,
+          reactionCancelTick: reactionCancelTick,
+          speechVisibleDuration: speechVisibleDuration,
           onTap: handleTap,
           onHeadPet: handleHeadPet,
           onEnergize: handleEnergize,
@@ -311,6 +331,18 @@ class MascotScene extends StatelessWidget {
   /// 不需要的話傳 0 即可。
   final int reactionTick;
 
+  /// 見 [MascotStage.noticeTick]。
+  final int noticeTick;
+
+  /// 見 [MascotStage.reactionStrength]。
+  final double reactionStrength;
+
+  /// 見 [MascotStage.reactionCancelTick]。
+  final int reactionCancelTick;
+
+  /// 台詞停留多久後開始淡出；null = 用 [MascotSpeechBubble] 的預設值。
+  final Duration? speechVisibleDuration;
+
   /// 點擊兔咪的 callback；不需互動可省略。
   final VoidCallback? onTap;
 
@@ -334,6 +366,10 @@ class MascotScene extends StatelessWidget {
     this.bubble,
     this.bubbleTick = 0,
     this.reactionTick = 0,
+    this.noticeTick = 0,
+    this.reactionStrength = 1.0,
+    this.reactionCancelTick = 0,
+    this.speechVisibleDuration,
     this.onTap,
     this.onHeadPet,
     this.onEnergize,
@@ -351,7 +387,12 @@ class MascotScene extends StatelessWidget {
             top: 50,
             left: 28,
             right: 28,
-            child: MascotSpeechBubble(text: speech!, accent: accent),
+            child: MascotSpeechBubble(
+              text: speech!,
+              accent: accent,
+              visibleDuration:
+                  speechVisibleDuration ?? const Duration(seconds: 7),
+            ),
           ),
         Align(
           alignment: const Alignment(0, 0.92),
@@ -375,6 +416,9 @@ class MascotScene extends StatelessWidget {
                   bubble: bubble,
                   bubbleTick: bubbleTick,
                   reactionTick: reactionTick,
+                  noticeTick: noticeTick,
+                  reactionStrength: reactionStrength,
+                  reactionCancelTick: reactionCancelTick,
                   onTap: onTap ?? () {},
                   onHeadPet: onHeadPet,
                   onEnergize: onEnergize,
@@ -496,6 +540,17 @@ class MascotStage extends StatefulWidget {
   final EmotionBubble? bubble;
   final int bubbleTick;
   final int reactionTick;
+
+  /// 每次 +1 播一次「察覺」：2–3px 級別的前傾下沉，比 [reactionTick] 的
+  /// 小跳早一拍，用來表達「MI 注意到你剛做了什麼」而不是直接慶祝。
+  final int noticeTick;
+
+  /// [reactionTick] 那次小跳的幅度（0–1）。打卡是高頻動作，用比直接點擊
+  /// 更克制的值；預設 1 = 原本的點擊反應。變更只影響**下一次**觸發。
+  final double reactionStrength;
+
+  /// 每次 +1 立刻收束正在跑的小跳（撤銷時用）：滑回落地而不是硬切回原位。
+  final int reactionCancelTick;
   final VoidCallback onTap;
   final VoidCallback? onHeadPet;
 
@@ -515,6 +570,9 @@ class MascotStage extends StatefulWidget {
     this.bubble,
     this.bubbleTick = 0,
     required this.reactionTick,
+    this.noticeTick = 0,
+    this.reactionStrength = 1.0,
+    this.reactionCancelTick = 0,
     required this.onTap,
     this.onHeadPet,
     this.onEnergize,
@@ -529,6 +587,7 @@ class MascotStage extends StatefulWidget {
 class _MascotStageState extends State<MascotStage>
     with TickerProviderStateMixin {
   late final AnimationController _reactionCtrl;
+  late final AnimationController _noticeCtrl;
   late final AnimationController _petCtrl;
   late final AnimationController _breathCtrl;
   late final Animation<double> _breath;
@@ -591,6 +650,12 @@ class _MascotStageState extends State<MascotStage>
     _reactionCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 640),
+    );
+
+    // 察覺：只有一次極小幅的前傾下沉，跑完就停（不常駐排幀）。
+    _noticeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
     );
 
     // 摸頭逐幀驅動器：只負責讓畫面每幀重建＋收斂彈簧與愛心壽命，
@@ -709,7 +774,15 @@ class _MascotStageState extends State<MascotStage>
   void didUpdateWidget(covariant MascotStage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.reactionTick != widget.reactionTick) {
+      // 幅度在觸發那一刻定住：中途改參數不該讓正在跑的動作瞬間變大小。
+      _activeReactionStrength = widget.reactionStrength.clamp(0.0, 1.0);
       _reactionCtrl.forward(from: 0);
+    }
+    if (oldWidget.noticeTick != widget.noticeTick) {
+      _noticeCtrl.forward(from: 0);
+    }
+    if (oldWidget.reactionCancelTick != widget.reactionCancelTick) {
+      _cancelReaction();
     }
     // 情緒事件帶了泡泡，且（事件序號、泡泡或立繪改變）就重冒一次。
     // 同情境連點會被 MascotPersona 的 holdDuration 擋掉，不會狂閃。
@@ -743,6 +816,7 @@ class _MascotStageState extends State<MascotStage>
     _petCtrl.dispose();
     _breathCtrl.dispose();
     _reactionCtrl.dispose();
+    _noticeCtrl.dispose();
     _bubbleCtrl.dispose();
     _chargeCtrl.dispose();
     _burstCtrl.dispose();
@@ -772,9 +846,24 @@ class _MascotStageState extends State<MascotStage>
   double _headDragAmount(Offset position) =>
       ((position.dx - 126) / 94).clamp(-1.0, 1.0).toDouble();
 
+  // 目前這次小跳的幅度；由觸發當下的 [MascotStage.reactionStrength] 定住。
+  double _activeReactionStrength = 1.0;
+
   void _triggerTapReaction() {
+    // 直接點兔咪永遠是完整幅度：reactionStrength 只用來收斂「打卡」那條路。
+    _activeReactionStrength = 1.0;
     _reactionCtrl.forward(from: 0);
     widget.onTap();
+  }
+
+  /// 收束正在跑的小跳：滑到終點（終點是原位）而不是硬切，星星也跟著收掉。
+  void _cancelReaction() {
+    if (!_reactionCtrl.isAnimating && _reactionCtrl.value == 0) return;
+    _reactionCtrl.animateTo(
+      1.0,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+    );
   }
 
   // ── 摸頭 ──
@@ -980,6 +1069,7 @@ class _MascotStageState extends State<MascotStage>
         child: AnimatedBuilder(
           animation: Listenable.merge([
             _reactionCtrl,
+            _noticeCtrl,
             _petCtrl,
             _bubbleCtrl,
             _chargeCtrl,
@@ -998,28 +1088,36 @@ class _MascotStageState extends State<MascotStage>
             // 點擊反應：迷你版充電爆發——快速小蹲 → 小跳 → 落地回彈。
             // 錨定「有重量的身體」而不是 UI 等比縮放。
             final r = _reactionCtrl.value;
+            final rs = _activeReactionStrength;
             double tapLift = 0, tapSink = 0, tapSy = 1, tapSx = 1;
             if (r > 0 && r < 1) {
               const crouchEnd = 0.18, airEnd = 0.72;
               if (r < crouchEnd) {
                 final t = Curves.easeOut.transform(r / crouchEnd);
-                tapSy = 1 - 0.045 * t;
-                tapSx = 1 + 0.030 * t;
-                tapSink = 4.5 * t; // 中心錨補償：蹲下時腳保持貼地
+                tapSy = 1 - 0.045 * rs * t;
+                tapSx = 1 + 0.030 * rs * t;
+                tapSink = 4.5 * rs * t; // 中心錨補償：蹲下時腳保持貼地
               } else if (r < airEnd) {
                 final u = (r - crouchEnd) / (airEnd - crouchEnd);
-                tapLift = -10 * 4 * u * (1 - u);
+                tapLift = -10 * rs * 4 * u * (1 - u);
                 final v = (1 - 2 * u).abs();
-                tapSy = 1 + 0.035 * v;
-                tapSx = 1 - 0.020 * v;
+                tapSy = 1 + 0.035 * rs * v;
+                tapSx = 1 - 0.020 * rs * v;
               } else {
                 final t = (r - airEnd) / (1 - airEnd);
                 final squash = math.sin(math.pi * t);
-                tapSy = 1 - 0.030 * squash;
-                tapSx = 1 + 0.022 * squash;
-                tapSink = 1.5 * squash;
+                tapSy = 1 - 0.030 * rs * squash;
+                tapSx = 1 + 0.022 * rs * squash;
+                tapSink = 1.5 * rs * squash;
               }
             }
+
+            // 察覺：極小幅前傾下沉再回正。刻意不縮放整張圖——只有幾 px 的
+            // 位移與 <1% 的縱向壓縮，讀起來是「抬眼看了一下」不是預備動作。
+            final n = _noticeCtrl.value;
+            final noticeArc = n > 0 && n < 1 ? math.sin(math.pi * n) : 0.0;
+            final noticeSink = 2.6 * noticeArc;
+            final noticeSy = 1 - 0.008 * noticeArc;
 
             // 充電蓄力：下蹲（squash）＋越蓄越明顯的小顫動（蓄勁感）。
             // scale 以中心為錨，下沉補償讓腳保持貼地。
@@ -1058,18 +1156,22 @@ class _MascotStageState extends State<MascotStage>
             // 點擊小跳與充電大跳各自歸一化再相乘，互不干擾原本手感。
             final lighting = widget.lighting ?? MascotSceneLighting.neutral;
             final liftProgress = (-tapLift / 10).clamp(0.0, 1.0);
+            // 蹲下／察覺下沉時接地影略微加寬變實，「有重量」才成立。
+            final contactPress = ((tapSink + noticeSink) / 4.5).clamp(0.0, 1.0);
             final burstLiftProgress = (-burstLift / 42).clamp(0.0, 1.0);
             final maxLift = math.max(liftProgress, burstLiftProgress);
             final shadowScale =
                 ui.lerpDouble(1, 0.88, liftProgress)! *
-                ui.lerpDouble(1, 0.78, burstLiftProgress)!;
+                ui.lerpDouble(1, 0.78, burstLiftProgress)! *
+                ui.lerpDouble(1, 1.06, contactPress)!;
             final shadowOpacity =
                 ui.lerpDouble(
                   lighting.shadowOpacity,
                   lighting.shadowOpacity * 0.54,
                   liftProgress,
                 )! *
-                ui.lerpDouble(1, 0.55, burstLiftProgress)!;
+                ui.lerpDouble(1, 0.55, burstLiftProgress)! *
+                ui.lerpDouble(1, 1.12, contactPress)!;
             final shadowColor = Color.lerp(
               lighting.shadowColor,
               widget.accent,
@@ -1114,6 +1216,7 @@ class _MascotStageState extends State<MascotStage>
                           painter: _MascotSparklePainter(
                             progress: _reactionCtrl.value,
                             color: widget.accent,
+                            strength: rs,
                           ),
                         ),
                         CustomPaint(
@@ -1143,7 +1246,12 @@ class _MascotStageState extends State<MascotStage>
                 Transform.translate(
                   offset: Offset(
                     petOffsetX,
-                    tapLift + tapSink + petOffsetY + burstLift + chargeSink,
+                    tapLift +
+                        tapSink +
+                        noticeSink +
+                        petOffsetY +
+                        burstLift +
+                        chargeSink,
                   ),
                   child: Transform.rotate(
                     angle: petTilt + chargeWobble,
@@ -1155,7 +1263,11 @@ class _MascotStageState extends State<MascotStage>
                           (1 + chargeSquash * 0.55) *
                           burstScaleX,
                       scaleY:
-                          tapSy * petScaleY * (1 - chargeSquash) * burstScaleY,
+                          tapSy *
+                          noticeSy *
+                          petScaleY *
+                          (1 - chargeSquash) *
+                          burstScaleY,
                       child: child,
                     ),
                   ),
@@ -1284,11 +1396,25 @@ class _MascotGroundShadowPainter extends CustomPainter {
       old.color != color || old.opacity != opacity;
 }
 
+/// 一次反應會畫出幾顆星星。
+///
+/// 完整幅度（直接點兔咪）6 顆；打卡的克制版本只留 4 顆。上限刻意壓在
+/// 個位數：普通完成是高頻動作，粒子多一點就會變成「抽卡」的語彙。
+int mascotSparkleCountFor(double strength) => strength >= 0.999 ? 6 : 4;
+
 class _MascotSparklePainter extends CustomPainter {
   final double progress;
   final Color color;
 
-  _MascotSparklePainter({required this.progress, required this.color});
+  /// 反應幅度（見 [MascotStage.reactionStrength]）。打卡的克制版本只留
+  /// 前 4 顆、透明度也降下來——普通完成不該看起來像抽卡。
+  final double strength;
+
+  _MascotSparklePainter({
+    required this.progress,
+    required this.color,
+    this.strength = 1.0,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1306,22 +1432,32 @@ class _MascotSparklePainter extends CustomPainter {
       (angle: 0.62, distance: 95, size: 7),
       (angle: 2.65, distance: 78, size: 5),
     ];
-    for (final spec in specs) {
-      final distance = spec.distance * Curves.easeOut.transform(progress);
+    for (final spec in specs.take(mascotSparkleCountFor(strength))) {
+      final distance =
+          spec.distance *
+          (0.55 + 0.45 * strength) *
+          Curves.easeOut.transform(progress);
       final offset = Offset(
         center.dx + distance * math.cos(spec.angle),
         center.dy + distance * math.sin(spec.angle),
       );
       final paint = Paint()
-        ..color = color.withValues(alpha: 0.55 * opacity)
+        ..color = color.withValues(alpha: 0.55 * opacity * strength)
         ..style = PaintingStyle.fill;
-      _drawEightStar(canvas, offset, spec.size * (0.7 + progress * 0.3), paint);
+      _drawEightStar(
+        canvas,
+        offset,
+        spec.size * (0.7 + progress * 0.3) * (0.7 + 0.3 * strength),
+        paint,
+      );
     }
   }
 
   @override
   bool shouldRepaint(covariant _MascotSparklePainter old) =>
-      old.progress != progress || old.color != color;
+      old.progress != progress ||
+      old.color != color ||
+      old.strength != strength;
 }
 
 /// 八角星（四長四短尖角），sparkle / 充電爆發共用。
