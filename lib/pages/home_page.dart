@@ -1024,8 +1024,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ///
   /// 舊版用「Home 沒有主張擁有權」反推，只要有第三方寫過就會判斷錯；
   /// 改成直接問全域狀態自己的來源。
+  /// 目前畫面上**那句話**是不是開場問候／待機這種系統寫入。
+  ///
+  /// 讀的是台詞的 provenance，不是整體狀態的擁有權：打卡的中間拍會換姿勢並
+  /// 取得狀態擁有權，但那句問候仍然是問候。兩者共用一個欄位時，衝擊點換完
+  /// 姿勢後就再也認不出它，470ms 的語意拍會把還沒講完的問候提早清掉。
   bool get _personaShowsOpening =>
-      MascotPersona.origin == MascotStateOrigin.opening;
+      MascotPersona.speechOrigin == MascotStateOrigin.opening;
 
   /// 首頁目前**仍然擁有**的那句話。
   ///
@@ -1067,10 +1072,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   /// 只登記真的被接受的寫入：被優先度擋下來時什麼都沒發生，
   /// 不能把別人的狀態登記成 Home 的。
-  void _claimPersona(HomeSpeechToken? token, {required bool accepted}) {
+  /// [ownsSpeech] = 畫面上那句話是這次寫入自己的。為 false 時（沿用了別人
+  /// 還在講的話）只登記狀態擁有權，不搶台詞的擁有者。
+  void _claimPersona(
+    HomeSpeechToken? token, {
+    required bool accepted,
+    bool ownsSpeech = true,
+  }) {
     if (!accepted) return;
     _personaClaim = MascotPersona.claim;
-    _speechOwner = MascotPersona.current.value.speech == null ? null : token;
+    _speechOwner = (!ownsSpeech || MascotPersona.current.value.speech == null)
+        ? null
+        : token;
     _speechOwnerSerial = ++_speechSerial;
   }
 
@@ -1702,11 +1715,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     bool silent = false,
     bool withVoice = true,
     bool holds = true,
+    bool speechIsInherited = false,
   }) {
     if (!_arcPersonaAvailable(arcId)) return false;
     final applied = _applyPersona(
       ctx,
       speech: speech,
+      speechIsInherited: speechIsInherited,
       asset: asset,
       silentBeatFor: silentBeatFor,
       silentBeatEpoch: silentBeatEpoch,
@@ -1777,17 +1792,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final line = (!milestone && doneNow == 1)
             ? MascotLines.doneCountLine(doneNow)
             : null;
+        // 沒有自己的台詞時沿用 silent beat 的規則：留自己的、留開場問候、
+        // 留比自己新的，只收掉比自己舊的 Home 台詞。
+        final resolved = line != null
+            ? (text: line, inherited: false)
+            : _speechForSilentBeat(token, epoch);
         // 先問寫不寫得進去，成功才登記本地台詞：被優先度擋下時什麼都沒發生，
         // 不能在畫面上留一句沒人擁有、也沒人會收的話。
         final spoke = _applyArcPersona(
           arcId,
           semanticContext,
           asset: _baselineMascotAsset,
-          // 沒有自己的台詞時沿用 silent beat 的規則：留自己的、留開場問候、
-          // 留比自己新的，只收掉比自己舊的 Home 台詞。
-          speech: HomeSpeechIntent.say(
-            line ?? _speechForSilentBeat(token, epoch),
-          ),
+          speech: HomeSpeechIntent.say(resolved.text),
+          speechIsInherited: resolved.inherited,
           withVoice: milestone || line != null,
         );
         if (spoke && line != null) {
@@ -1796,7 +1813,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _speechOwner = token;
           });
         }
-        _claimPersona(token, accepted: spoke);
+        // 沿用來的那句話不是這次完成的：不能登記成 completion 的擁有者，
+        // 否則它會跟著這條弧線的收尾一起被清掉，而不是由原本的擁有者收。
+        _claimPersona(token, accepted: spoke, ownsSpeech: !resolved.inherited);
         return spoke
             ? CompletionDelivery.delivered
             : CompletionDelivery.rejected;
@@ -1810,20 +1829,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (!_arcPersonaAvailable(arcId)) {
           return CompletionDelivery.rejected;
         }
+        // 里程碑是新的語意，不沿用普通完成留在本地的那句話；但還沒講完的
+        // 開場問候仍然留著（它有自己的顯示壽命）。
+        final keepsOpening = _personaShowsOpening;
         final handed = _applyArcPersona(
           arcId,
           MascotContext.halfDone,
           asset: _baselineMascotAsset,
-          // 里程碑是新的語意，不沿用普通完成留在本地的那句話。
           speech: HomeSpeechIntent.say(
-            _personaShowsOpening ? MascotPersona.current.value.speech : null,
+            keepsOpening ? MascotPersona.current.value.speech : null,
           ),
+          speechIsInherited: keepsOpening,
         );
         if (!handed) return CompletionDelivery.rejected;
         // 接手成功才收掉舊台詞的擁有權：被擋下時什麼都沒發生，
         // 不能把畫面上別人的那句話記成「已經被我換掉了」。
         _takeOverSpeech();
-        _claimPersona(token, accepted: true);
+        _claimPersona(token, accepted: true, ownsSpeech: !keepsOpening);
         return CompletionDelivery.delivered;
       case CompletionPhase.recover:
         // 落地：回到「目前進度」推導的 baseline。不再演一次——里程碑的
@@ -1841,15 +1863,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       case CompletionPhase.quiet:
         _completionSpeechEpoch.remove(arcId);
         // 本地那一句只看自己的 token（別人的不歸這裡管）。
-        _releaseLocalSpeechIfOwned(token);
+        final ownedTail = _releaseLocalSpeechIfOwned(token);
         // 全域的收尾看**弧線收據**，不看有沒有台詞：speech 為 null 的
         // 普通完成同樣寫過姿勢與泡泡，那些也要收。更新的台詞或其他分頁
         // 接手時收據就不符，整段 no-op。
+        //
+        // 台詞：剛剛收掉的就是自己那一句 → 明確清成沒有文字。否則走跟中間拍
+        // 同一套規則，把該留的留著（還沒講完的開場問候、比自己新的 Home
+        // 台詞）——它們有自己的顯示壽命，不歸這條弧線的收尾管。
+        //
+        // 不能直接丟給 `_speechForSilentBeat`：`_speechOwnerSerial` 記的正是
+        // 這條弧線自己那次寫入，它會把自己的台詞誤判成「比我更新的別人」。
+        final tail = ownedTail
+            ? (text: null, inherited: false)
+            : _speechForSilentBeat(token, epoch);
         _applyArcPersona(
           arcId,
           _progressMascotContext,
           asset: _baselineMascotAsset,
-          speech: HomeSpeechIntent.silence,
+          speech: HomeSpeechIntent.say(tail.text),
+          speechIsInherited: tail.inherited,
           silent: true,
           holds: false,
         );
@@ -2353,6 +2386,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     bool withVoice = true,
     bool force = false,
     bool holds = true,
+    bool speechIsInherited = false,
   }) {
     final quiet = silent || silentBeatFor != null;
     // 「中間拍不覆寫別人」的把關**不在這裡**：只看 origin 擋不掉更新的
@@ -2361,20 +2395,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final resolved = silentBeatFor != null
         ? _speechForSilentBeat(silentBeatFor, silentBeatEpoch)
         : switch (speech.mode) {
-            HomeSpeechMode.say => speech.text,
-            HomeSpeechMode.silence => null,
+            HomeSpeechMode.say => (
+              text: speech.text,
+              inherited: speechIsInherited,
+            ),
+            HomeSpeechMode.silence => (text: null, inherited: false),
             // 沿用的是「首頁仍然擁有的那句」，不是裸的本地欄位。
-            HomeSpeechMode.inherit => _ownedLocalSpeech,
+            HomeSpeechMode.inherit => (
+              text: _ownedLocalSpeech,
+              inherited: false,
+            ),
           };
     final applied = MascotPersona.setForContext(
       asset ?? _mascotAsset,
       ctx,
-      speech: resolved,
+      speech: resolved.text,
       silent: quiet,
       withVoice: withVoice,
       force: force,
       origin: MascotStateOrigin.home,
       holds: holds,
+      // 沿用別人那句話時只取得**狀態**擁有權，台詞的來源留給原本的擁有者：
+      // 換姿勢不該讓還沒講完的開場問候變成「首頁的話」。
+      speechIsInherited: resolved.inherited,
     );
     if (!applied) return false;
     // 被 priority 擋下來的事件什麼都沒發生，不該登記成語意事件，
@@ -2388,22 +2431,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   /// 中間拍要不要保留現在畫面上那句話。
   ///
+  /// 回傳的 `inherited` 是「這句話是別人的、我只是沒把它蓋掉」——呼叫端據此
+  /// 決定要不要把台詞的 provenance 一起接管，以及要不要登記成自己的擁有者。
+  ///
   /// [epoch] 是這次完成建立當下的台詞序號，用來分辨「比我早」還是「比我晚」：
-  /// - 自己的台詞、而且全域狀態還是我們寫的 → 留著。
-  /// - 來源是開場問候／待機 → 留著（唯一的外來白名單）。
-  /// - 全域狀態已經被其他分頁接手 → 原樣留著，**絕不**動它。
-  /// - 比這次完成**更新**的 Home 台詞（撤銷、之後的點擊、里程碑）→ 留著：
+  /// - 自己的台詞、而且全域狀態還是我們寫的 → 留著（是我的，不是沿用）。
+  /// - 來源是開場問候／待機 → 沿用（唯一的外來白名單）。
+  /// - 全域狀態已經被其他分頁接手 → 原樣沿用，**絕不**動它。
+  /// - 比這次完成**更新**的 Home 台詞（撤銷、之後的點擊、里程碑）→ 沿用：
   ///   還活著的弧線收尾不該清掉後來才發生的事。
   /// - 只有「比這次完成更早」的 Home 舊台詞才收掉，免得被帶進打卡泡泡。
-  String? _speechForSilentBeat(HomeSpeechToken self, int epoch) {
+  ({String? text, bool inherited}) _speechForSilentBeat(
+    HomeSpeechToken self,
+    int epoch,
+  ) {
     final current = MascotPersona.current.value.speech;
-    if (_speechOwner == self && _personaStillOurs) return _transientSpeech;
-    if (_personaShowsOpening) return current;
-    if (!_personaStillOurs) return current;
-    if (_speechOwnerSerial > epoch) return current;
+    if (_speechOwner == self && _personaStillOurs) {
+      return (text: _transientSpeech, inherited: false);
+    }
+    if (_personaShowsOpening) return (text: current, inherited: true);
+    if (!_personaStillOurs) return (text: current, inherited: true);
+    if (_speechOwnerSerial > epoch) return (text: current, inherited: true);
     _transientSpeech = null;
     _speechOwner = null;
-    return null;
+    return (text: null, inherited: false);
   }
 
   Widget _habitCardContent({

@@ -159,6 +159,37 @@ enum CompletionDelivery {
   obsolete,
 }
 
+/// 一拍排程綁在誰身上。
+///
+/// 這是「被撤銷的 timer 不得冒用別人」的資料模型根據，不是四個時間點的特例。
+enum _BeatScope {
+  /// 綁在**排程它的那個成員**身上。那一件被撤銷，這一拍就作廢——不能改掛到
+  /// 弧線裡其他還活著的成員身上。每一件自己的衝擊點與語意機會都是這種。
+  member,
+
+  /// 綁在**整條弧線**身上。只要弧線裡還有任何有效成員就照發，送出去的
+  /// payload 換成仍然有效的代表成員。察覺、蹲跳與收尾拍是這種：領頭被撤銷
+  /// 但別人還在時，那段共用的動作仍然該演完。
+  arc,
+}
+
+/// 這條弧線的語意交付到哪一步了。
+///
+/// 取代舊的兩個布林（semanticDelivered／milestoneDelivered）：那組合可以表達
+/// 「里程碑發過但一般語意沒發過」這種不存在的狀態，而且讓「被拒之後還能不能
+/// 重試」變成要同時判斷兩個欄位的隱含規則。
+enum _SemanticProgress {
+  /// 還沒有任何語意成功交付。任何有效成員都可以嘗試。
+  none,
+
+  /// 一般完成的語意已經交付。之後若有成員讓弧線跨過門檻，還要補一次里程碑。
+  ordinaryDelivered,
+
+  /// 里程碑已經交付。這條弧線的語意到此為止，之後所有機會都是 no-op。
+  /// 第一次就以 half 交付時直接到這裡——一般語意與里程碑同時算完成。
+  halfDelivered,
+}
+
 /// 撤銷單一件之後，這條弧線的下場。
 ///
 /// 呼叫端需要明確知道「還有沒有人活著」才能決定要不要送出動作取消，
@@ -188,11 +219,26 @@ class _CompletionArc {
   /// 仍然有效的成員 id。
   final Set<int> live = {};
 
-  /// 這條弧線已經發過語意事件（speak）了。
-  bool semanticDelivered = false;
+  /// 語意交付進度。**只有呼叫端真的套用了才會前進**——被拒的那一次什麼都
+  /// 沒發生，不該把後面成員的機會一起吃掉。
+  _SemanticProgress semantic = _SemanticProgress.none;
 
-  /// 已經補送過里程碑，之後不再補第二次。
-  bool milestoneDelivered = false;
+  /// 這一刻的語意還需不需要送。
+  ///
+  /// [kind] 是**當下**重算的弧線語意，不是排程時的快照：半程成員被撤銷後
+  /// 弧線會降回一般完成，那時就不該再補里程碑。
+  bool needsSemantic(CompletionKind kind) => switch (semantic) {
+    _SemanticProgress.halfDelivered => false,
+    _SemanticProgress.ordinaryDelivered => kind == CompletionKind.half,
+    _SemanticProgress.none => true,
+  };
+
+  /// 呼叫端回覆 [CompletionDelivery.delivered] 之後才呼叫。
+  void markSemanticDelivered(CompletionKind kind) {
+    semantic = kind == CompletionKind.half
+        ? _SemanticProgress.halfDelivered
+        : _SemanticProgress.ordinaryDelivered;
+  }
 
   /// 合併視窗還開著（還能收新成員進來）。
   bool windowOpen = true;
@@ -361,35 +407,57 @@ class CompletionPresentationController {
         arc.windowOpen = false;
         _sweep();
       });
-      if (reduceMotion) {
-        _armArc(arc, kReducedSpeakDelay, CompletionPhase.speak, event);
-      } else {
-        _armArc(arc, kNoticeDelay, CompletionPhase.notice, event);
-        _armArc(arc, kAnticipateDelay, CompletionPhase.anticipate, event);
-        _armArc(arc, kSpeakDelay, CompletionPhase.speak, event);
+      // 察覺與蹲跳是整條弧線共用的那段動作：領頭被撤銷但別人還在時，
+      // 它們仍然該演完，所以綁在弧線上。
+      if (!reduceMotion) {
+        _arm(
+          arc,
+          kNoticeDelay,
+          event,
+          phase: CompletionPhase.notice,
+          scope: _BeatScope.arc,
+        );
+        _arm(
+          arc,
+          kAnticipateDelay,
+          event,
+          phase: CompletionPhase.anticipate,
+          scope: _BeatScope.arc,
+        );
       }
-    } else if (crossedHalf) {
-      // 跟在後面才跨過門檻：語意還沒發就等 speak 自己重算；已經發過了就
-      // 補送一次里程碑（不重啟動作）。
-      _armArc(
-        arc,
-        Duration(
-          milliseconds:
-              (reduceMotion ? kCheckDrawReducedMs : kCheckDrawMs) +
-              kSpeakAfterImpactMs,
-        ),
-        CompletionPhase.milestoneHandoff,
-        event,
-      );
     }
 
     // 每一件都有自己的衝擊點：勾勾、觸覺、音效不會因為合併而消失。
-    _armArc(
+    _arm(
       arc,
       reduceMotion ? kReducedImpactDelay : kImpactDelay,
-      CompletionPhase.impact,
       event,
-      soloBeat: true,
+      phase: CompletionPhase.impact,
+      scope: _BeatScope.member,
+    );
+
+    // 每一件都在自己的衝擊點之後提供**一次語意機會**。
+    //
+    // 不是「領頭發 speak、跨門檻的後續成員發 handoff」那種寫死的分工：
+    // 領頭那一次可能被更高優先的狀態擋下來（撤銷、喝水過量），若只有它有
+    // 機會，這條弧線就再也開不了口。改成人人有機會、但由弧線的交付進度
+    // 決定要不要用（見 [_CompletionArc.needsSemantic]），被拒的那一次
+    // 什麼都不消耗。
+    //
+    // 時間點沿用各自原本的公式：領頭在 Reduce Motion 下用較短的間隔，
+    // 後續成員維持一般間隔（兩者本來就不同，本輪不調整）。
+    _arm(
+      arc,
+      isLead
+          ? (reduceMotion ? kReducedSpeakDelay : kSpeakDelay)
+          : Duration(
+              milliseconds:
+                  (reduceMotion ? kCheckDrawReducedMs : kCheckDrawMs) +
+                  kSpeakAfterImpactMs,
+            ),
+      event,
+      phase: null, // 語意機會：要送哪一種在交付當下才決定
+      scope: _BeatScope.member,
     );
 
     // 尾韻掛在這條弧線上，跟著它最後一件往後延；**不會**被下一條弧線取消。
@@ -398,14 +466,24 @@ class CompletionPresentationController {
       reduceMotion ? kReducedRecoverDelay : kRecoverDelay,
       () {
         arc.recoverTimer = null;
-        _dispatch(CompletionPhase.recover, event, arc, soloBeat: false);
+        _dispatch(
+          arc,
+          event,
+          phase: CompletionPhase.recover,
+          scope: _BeatScope.arc,
+        );
         _sweep();
       },
     );
     arc.quietTimer?.cancel();
     arc.quietTimer = Timer(kQuietDelay, () {
       arc.quietTimer = null;
-      _dispatch(CompletionPhase.quiet, event, arc, soloBeat: false);
+      _dispatch(
+        arc,
+        event,
+        phase: CompletionPhase.quiet,
+        scope: _BeatScope.arc,
+      );
       _sweep();
     });
 
@@ -464,17 +542,23 @@ class CompletionPresentationController {
     );
   }
 
-  void _armArc(
+  /// 排一拍。
+  ///
+  /// [source] 是**排程來源成員**——這一拍是誰排的。它跟送出去的 payload 是
+  /// 兩件事：[_BeatScope.arc] 會在來源被撤銷時換成仍有效的代表成員，
+  /// [_BeatScope.member] 則直接作廢。[phase] 為 null 代表這是一次語意機會，
+  /// 要送 speak 還是 milestoneHandoff 在交付當下才決定。
+  void _arm(
     _CompletionArc arc,
     Duration delay,
-    CompletionPhase phase,
-    HomeCompletionEvent event, {
-    bool soloBeat = false,
+    HomeCompletionEvent source, {
+    required CompletionPhase? phase,
+    required _BeatScope scope,
   }) {
     late final Timer timer;
     timer = Timer(delay, () {
       arc.beats.remove(timer);
-      _dispatch(phase, event, arc, soloBeat: soloBeat);
+      _dispatch(arc, source, phase: phase, scope: scope);
       _sweep();
     });
     arc.beats.add(timer);
@@ -482,53 +566,56 @@ class CompletionPresentationController {
 
   /// 發出前的最後一道關卡。
   ///
+  /// 順序刻意固定：generation → 排程身分 → 語意資格 → 呼叫端的可播檢查。
+  ///
   /// - generation 不同 → 這是上一個畫面／上一天留下來的，丟掉。
-  /// - 單件拍（impact）只看自己那一件還在不在。
-  /// - 弧線拍只要弧線裡還有任何一件有效就照發：撤銷 A 不該把 B 的反應吃掉，
-  ///   但送出去的成員會換成**仍然有效**的那一個（見 [_CompletionArc.canonicalFor]）。
-  /// - speak／milestoneHandoff 各自只發一次，語意由**這條弧線**當下的成員決定。
-  /// - 最後再問呼叫端「現在還播得出來嗎」。
+  /// - [_BeatScope.member] → 排它的那一件被撤銷就整拍作廢。**不 canonicalize**：
+  ///   被撤銷的 B 留下的里程碑 timer 不得改掛到後來才加入的 C 身上，
+  ///   否則 C 的語意會在 C 自己的衝擊點之前就先發出去。
+  /// - [_BeatScope.arc] → 弧線裡還有任何一件有效就照發，payload 換成仍然
+  ///   有效的代表成員（撤銷領頭不該把跟著的人的收尾一起吃掉）。
+  /// - 語意機會 → 由弧線的交付進度決定要不要用；被拒不消耗。
   void _dispatch(
-    CompletionPhase phase,
-    HomeCompletionEvent event,
-    _CompletionArc arc, {
-    required bool soloBeat,
+    _CompletionArc arc,
+    HomeCompletionEvent source, {
+    required CompletionPhase? phase,
+    required _BeatScope scope,
   }) {
-    if (event.generation != _generation || arc.generation != _generation) {
+    if (source.generation != _generation || arc.generation != _generation) {
       return;
     }
-    var subject = event;
-    if (soloBeat) {
-      if (!arc.live.contains(event.id)) return;
-    } else {
-      final canonical = arc.canonicalFor(event);
-      if (canonical == null) return;
-      subject = canonical;
+    final HomeCompletionEvent payload;
+    switch (scope) {
+      case _BeatScope.member:
+        if (!arc.live.contains(source.id)) return;
+        payload = source;
+      case _BeatScope.arc:
+        final canonical = arc.canonicalFor(source);
+        if (canonical == null) return;
+        payload = canonical;
     }
-    if (phase == CompletionPhase.speak) {
-      if (arc.semanticDelivered) return;
-    } else if (phase == CompletionPhase.milestoneHandoff) {
-      // 語意還沒發 → speak 自己會用重算後的 kind，不需要補送。
-      // 已經降回 ordinary（半程成員被撤銷）→ 也不補送。
-      if (!arc.semanticDelivered ||
-          arc.milestoneDelivered ||
-          arc.kind != CompletionKind.half) {
-        return;
-      }
+
+    if (phase != null) {
+      if (isStillValid != null && !isStillValid!(payload)) return;
+      onPhase(phase, payload, arc.kind);
+      return;
     }
-    if (isStillValid != null && !isStillValid!(subject)) return;
-    // 語意由呼叫端真的套用之後才算交付。先設旗標的話，被擋下的那一次
-    // 會把資格吃掉——後面真正跨過門檻的成員就永遠交付不出去了。
+
+    // ── 語意機會 ──
+    // kind 在**這一刻**重算：半程成員被撤銷後弧線會降回一般完成。
     final kind = arc.kind;
-    final result = onPhase(phase, subject, kind);
-    if (result != CompletionDelivery.delivered) return;
-    if (phase == CompletionPhase.speak) {
-      arc.semanticDelivered = true;
-      if (kind == CompletionKind.half) {
-        arc.milestoneDelivered = true;
-      }
-    } else if (phase == CompletionPhase.milestoneHandoff) {
-      arc.milestoneDelivered = true;
+    if (!arc.needsSemantic(kind)) return;
+    if (isStillValid != null && !isStillValid!(payload)) return;
+    // 領頭那一次是「這條弧線開口」；後續成員把弧線推過門檻才叫補送里程碑。
+    // 領頭被拒之後由後續成員重試時，語意仍然是第一次開口（speak）。
+    final semanticPhase =
+        arc.leadEventId != source.id && kind == CompletionKind.half
+        ? CompletionPhase.milestoneHandoff
+        : CompletionPhase.speak;
+    // 交付與否由呼叫端回覆。先設旗標的話，被擋下的那一次會把資格吃掉——
+    // 後面真正有效的成員就永遠交付不出去了。
+    if (onPhase(semanticPhase, payload, kind) == CompletionDelivery.delivered) {
+      arc.markSemanticDelivered(kind);
     }
   }
 }

@@ -221,9 +221,18 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     }
   }
 
-  void _handleTap() {
+  /// 按壓回彈的**唯一入口**。
+  ///
+  /// 每日卡與每週卡的「＋」都走這裡，不各自呼叫 controller——分開寫過，
+  /// 結果每週那條漏掉了 Reduce Motion 的把關。
+  void _playPressAnimation() {
     // Reduce Motion：圓圈不彈跳（勾＋底色已經把「完成」講清楚了）。
-    if (!_reduceMotion) _ctrl.forward(from: 0);
+    if (_reduceMotion) return;
+    _ctrl.forward(from: 0);
+  }
+
+  void _handleTap() {
+    _playPressAnimation();
     widget.onToggle();
   }
 
@@ -569,7 +578,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                         !widget.isMoving &&
                                             widget.weeklyCount < 20
                                         ? () {
-                                            _ctrl.forward(from: 0);
+                                            _playPressAnimation();
                                             widget.onToggle();
                                           }
                                         : null,

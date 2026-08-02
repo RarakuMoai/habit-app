@@ -587,12 +587,21 @@ class MascotPersona {
   // 不必用 force 去蓋掉喝水頁、衣櫃或更新的事件所建立的狀態。
   static int _revision = 0;
   static MascotStateOrigin _origin = MascotStateOrigin.opening;
+  static MascotStateOrigin _speechOrigin = MascotStateOrigin.opening;
 
   /// 目前狀態的收據。與手上那張比對相等 = 這中間沒有人寫過。
   static MascotClaim get claim => MascotClaim(_revision, _origin);
 
-  /// 目前狀態是誰寫的。
+  /// 目前**整體狀態**是誰寫的（姿勢、泡泡、停留時間）。
   static MascotStateOrigin get origin => _origin;
+
+  /// 目前**那句台詞**是誰的。
+  ///
+  /// 跟 [origin] 分開的理由：首頁打卡的中間拍會換姿勢、取得狀態擁有權，
+  /// 但它常常是「沿用畫面上已經在講的那句話」（開場問候）。若兩者共用一個
+  /// 欄位，換姿勢就會把台詞的來源一起洗成首頁，後面的拍子再也認不出那是
+  /// 開場問候，於是把還沒講完的問候提早清掉。
+  static MascotStateOrigin get speechOrigin => _speechOrigin;
 
   /// 互動：根據情境換情緒 + 隨機抽一句台詞。10 秒後自動回神。
   ///
@@ -635,6 +644,10 @@ class MascotPersona {
   /// [origin] 標記這次是誰寫的（預設 [MascotStateOrigin.other]，其他分頁不必改）。
   /// [holds] = false 代表「這只是收拾，不是新的互動」：不重新起算停留時間，
   /// 也不重排回神計時器，免得每次清理都把兔咪的待機時鐘往後推。
+  /// [speechIsInherited] = 這次帶的台詞是**沿用畫面上已經在講的那一句**，
+  /// 不是這個呼叫端自己的。為 true 時只更新狀態擁有權（[origin]），
+  /// 台詞的來源（[speechOrigin]）留給原本那個寫入者——它的顯示壽命也一樣
+  /// 由原本的擁有者收尾。
   static bool setForContext(
     String assetPath,
     MascotContext ctx, {
@@ -644,6 +657,7 @@ class MascotPersona {
     bool withVoice = true,
     MascotStateOrigin origin = MascotStateOrigin.other,
     bool holds = true,
+    bool speechIsInherited = false,
   }) {
     if (!_canApply(ctx, force: force)) return false;
     // 呼叫端明確帶了 speech 就照顯示；沒帶才看情境要不要講話（[MascotLines.speaksFor]）。
@@ -660,6 +674,7 @@ class MascotPersona {
       withVoice: withVoice && !silent,
       origin: origin,
       holds: holds,
+      speechIsInherited: speechIsInherited,
     );
     return true;
   }
@@ -687,9 +702,13 @@ class MascotPersona {
     bool withVoice = true,
     MascotStateOrigin origin = MascotStateOrigin.other,
     bool holds = true,
+    bool speechIsInherited = false,
   }) {
     _revision++;
     _origin = origin;
+    // 沿用別人那句話時不動 provenance；其餘情況（自己的台詞、或明確不講話）
+    // 這句話就歸這次的寫入者。
+    if (!speechIsInherited) _speechOrigin = origin;
     current.value = MascotState(
       state.assetPath,
       state.speech,
@@ -861,6 +880,7 @@ class MascotPersona {
     _activePriority = 0;
     _revision++;
     _origin = MascotStateOrigin.opening;
+    _speechOrigin = MascotStateOrigin.opening;
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       MascotLines.randomLineFor(MascotContext.openApp),
@@ -875,6 +895,7 @@ class MascotPersona {
     _activePriority = 0;
     _revision++;
     _origin = MascotStateOrigin.opening;
+    _speechOrigin = MascotStateOrigin.opening;
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       null,
@@ -902,6 +923,7 @@ class MascotPersona {
     _activePriority = 0;
     _revision++;
     _origin = MascotStateOrigin.opening;
+    _speechOrigin = MascotStateOrigin.opening;
     current.value = MascotState(assetPath ?? current.value.assetPath, null);
     return true;
   }
@@ -932,6 +954,7 @@ class MascotPersona {
       _activePriority = 0;
       _revision++;
       _origin = MascotStateOrigin.opening;
+      _speechOrigin = MascotStateOrigin.opening;
       current.value = _idleState();
     });
   }
