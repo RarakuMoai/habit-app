@@ -3624,6 +3624,136 @@ void main() {
     });
   });
 
+  // ── 撤銷門檻來源，但進度仍在門檻之上 ─────────────────────────
+  //
+  // `cancelEvent` 不再單方面銷毀這次跨越：撤銷 C 不代表使用者看得見的進度
+  // 掉下去了（別的習慣還完成著）。門檻成不成立由 Home 在資料寫完之後回報。
+
+  group('撤銷門檻來源', () {
+    /// 一件早就完成的舊習慣 + 3 件新的。完成 1 件 = 2/4 剛好過半。
+    void seedWithExisting() {
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: _todayString(),
+        PrefsKeys.habits: jsonEncode([
+          _habit('既有完成', done: true),
+          for (var i = 1; i <= 3; i++) _habit('習慣$i'),
+        ]),
+      });
+    }
+
+    testWidgets('進度仍為 2/4：這次跨越保持 pending，之後由合法成員交付一次', (tester) async {
+      seedWithExisting();
+      final home = await _pumpHome(tester, height: 1500);
+
+      await _tapHabit(tester, '習慣1'); // C@0：1/4 → 2/4，門檻來源
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2'); // D@10：3/4
+      await tester.pump(const Duration(milliseconds: 310)); // t=320
+      expect(home.dailyDoneCount, 3);
+      expect(home.debugSemanticEvents, isEmpty, reason: '語意機會都還沒到');
+
+      await _tapHabit(tester, '習慣1'); // 撤銷來源；資料仍是 2/4
+      await tester.pump();
+      expect(home.dailyDoneCount, 2, reason: '門檻仍然成立');
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.sad.assetPath,
+        reason: '撤銷是使用者最新的動作，它先擁有兔咪（A2）',
+      );
+      home.debugClearSemanticEvents();
+
+      // 再完成一件（仍在同一條弧線的合併視窗內）：這一件讓 Home 放掉自己的
+      // 撤銷 hold，弧線重新取得擁有權。它的 crossedHalf 是 false——進度本來
+      // 就在門檻之上——所以**唯一**能讓 half 講出來的，就是那個沒有被
+      // `cancelEvent` 銷毀、仍然 pending 的跨越。
+      await tester.pump(const Duration(milliseconds: 80)); // t=400
+      await _tapHabit(tester, '習慣3');
+      expect(home.debugCompletionArcActive, isTrue, reason: '仍在合併視窗內');
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(home.dailyDoneCount, 3);
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+        reason: '撤銷來源沒有取消這次跨越；它由後來已 impact 的成員交付一次',
+      );
+
+      // 資料與 history 都正確。
+      expect((home.habits as List)[1]['done'], isFalse);
+      expect((home.habits as List)[2]['done'], isTrue);
+      expect((home.habits as List)[3]['done'], isTrue);
+      final prefs = await SharedPreferences.getInstance();
+      final history = prefs.getString(PrefsKeys.habitDoneDay(_todayString()));
+      expect(history, contains('id_習慣2'));
+      expect(history, contains('id_習慣3'));
+      expect(history, isNot(contains('id_習慣1')));
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('撤銷讓進度掉回門檻以下：這次跨越失效，之後只講一般完成', (tester) async {
+      _seed(4);
+      final home = await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1'); // 1/4
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2'); // 2/4，跨過門檻
+      await tester.pump(const Duration(milliseconds: 310)); // t=320
+
+      await _tapHabit(tester, '習慣2'); // 撤銷來源 → 1/4，門檻掉了
+      await tester.pump();
+      expect(home.dailyDoneCount, 1);
+      home.debugClearSemanticEvents();
+
+      await tester.pump(const Duration(milliseconds: 80));
+      await _tapHabit(tester, '習慣3'); // 2/4：這是**重新跨越**
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(home.dailyDoneCount, 2);
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+        reason: '重新跨越是新的一次，可以再講一次',
+      );
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('已經交付過的跨越：撤銷來源但仍在門檻之上，不得重播', (tester) async {
+      seedWithExisting();
+      final home = await _pumpHome(tester, height: 1500);
+
+      await _tapHabit(tester, '習慣1'); // 2/4，跨過門檻
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2'); // 3/4
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+      );
+      home.debugClearSemanticEvents();
+
+      await _tapHabit(tester, '習慣1'); // 撤銷來源；仍是 2/4
+      await tester.pump(const Duration(milliseconds: 80));
+      await _tapHabit(tester, '習慣3'); // 再完成一件，讓弧線重新取得擁有權
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(
+        home.debugSemanticEvents,
+        isNot(contains(MascotContext.halfDone)),
+        reason: '這一次跨越已經講過了，撤銷來源不是重播的理由',
+      );
+
+      await _tearDownHome(tester);
+    });
+  });
+
   // ── 台詞的租約獨立於狀態 ────────────────────────────────────
 
   group('台詞租約', () {

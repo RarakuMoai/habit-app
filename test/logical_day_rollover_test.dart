@@ -9,16 +9,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/main.dart';
+import 'package:habit_app/pages/home/completion_presentation_controller.dart';
 import 'package:habit_app/pages/home/greeting_banner.dart';
 import 'package:habit_app/pages/home_page.dart';
 import 'package:habit_app/pages/water_page.dart';
 import 'package:habit_app/pages/weight_page.dart';
+import 'package:habit_app/utils/app_feedback.dart';
 import 'package:habit_app/utils/coin_service.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/logical_day_coordinator.dart';
 import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/preference_write_guard.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
+import 'package:habit_app/utils/sfx_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'l10n_test_app.dart';
@@ -769,5 +772,180 @@ void main() {
     await tester.pump(const Duration(seconds: 12));
 
     expect(tester.takeException(), isNull);
+  });
+
+  // ── 跨日時的 Persona 收拾：不得在 build 中通知 notifier ──────────
+  //
+  // MainPage 的 dayStamp 重建會走到 HomePage.didUpdateWidget → loadHabits →
+  // 演出作廢。那一段若同步寫全域 ValueNotifier，正在 build 的 listener 會被
+  // markNeedsBuild，framework 直接拋例外。
+
+  group('跨日的 Persona 收拾', () {
+    /// 五件、昨天完成一件：點一件是 2/5 的**普通完成**（不是全完成、也沒
+    /// 跨過一半），這一組要的就是那種「沒有自己台詞」的中間拍。
+    Map<String, Object> seed() => _yesterdayPartlyDone(
+      habits: [
+        _habit('走路', id: 'h1', done: true),
+        _habit('閱讀', id: 'h2'),
+        _habit('伸展', id: 'h3'),
+        _habit('喝茶', id: 'h4'),
+        _habit('寫字', id: 'h5'),
+      ],
+    );
+
+    /// 預設 800×600 的畫布會把習慣卡擠出畫面；這一組要真的點得到卡片。
+    void useTallSurface(WidgetTester tester) {
+      tester.view.physicalSize = const Size(430, 1500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+    }
+
+    /// 讓兔咪處於「狀態是首頁的、台詞是開場問候的」混合擁有權。
+    Future<void> mixedOwnership(WidgetTester tester) async {
+      MascotPersona.setForContext(
+        MascotEmotion.neutralFront.assetPath,
+        MascotContext.openApp,
+        speech: '醒了醒了。',
+        force: true,
+        origin: MascotStateOrigin.opening,
+      );
+      await tester.tap(find.text('閱讀'));
+      await tester.pump();
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(MascotPersona.origin, MascotStateOrigin.home);
+      expect(MascotPersona.speechOrigin, MascotStateOrigin.opening);
+      expect(MascotPersona.current.value.bubble, EmotionBubble.note);
+    }
+
+    testWidgets('真實跨日不得拋出 framework 例外，且舊 Home 狀態被收掉', (tester) async {
+      useTallSurface(tester);
+      SharedPreferences.setMockInitialValues(seed());
+      await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+      await mixedOwnership(tester);
+
+      final cues = <SfxCue>[];
+      final haptics = <HapticLevel>[];
+      final voices = <SfxCue>[];
+      debugFeedbackSink = (cue, haptic) {
+        if (cue != null) cues.add(cue);
+        if (haptic != HapticLevel.none) haptics.add(haptic);
+      };
+      MascotPersona.debugVoiceSink = voices.add;
+      addTearDown(() {
+        debugFeedbackSink = null;
+        MascotPersona.debugVoiceSink = null;
+      });
+
+      await _crossTo(tester, DateTime(2026, 8, 1, 4, 0, 1));
+
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '跨日的重建中不得同步通知 Persona 的 notifier',
+      );
+      expect(_homeState(tester).dailyDoneCount, 0, reason: '新的一天進度歸零');
+      expect(
+        MascotPersona.origin,
+        MascotStateOrigin.opening,
+        reason: '舊那一代 Home 的狀態擁有權要收掉',
+      );
+      expect(MascotPersona.current.value.bubble, isNull, reason: 'Home 的泡泡要收掉');
+      // 重載等待期間不得漏出上一代的**打卡演出**（跨日本身的解鎖音效不算）。
+      expect(cues, isNot(contains(SfxCue.success)));
+      expect(haptics, isEmpty);
+      expect(voices, isEmpty);
+
+      await tester.pump(const Duration(seconds: 3));
+      expect(tester.takeException(), isNull);
+      expect(
+        cues,
+        isNot(contains(SfxCue.success)),
+        reason: '延後期間也不得補播舊的 impact',
+      );
+      expect(voices, isEmpty);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('連續兩次跨日重建：不重複清理，也不拋例外', (tester) async {
+      useTallSurface(tester);
+      SharedPreferences.setMockInitialValues(seed());
+      await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+      await mixedOwnership(tester);
+
+      await _crossTo(tester, DateTime(2026, 8, 1, 4, 0, 1));
+      expect(tester.takeException(), isNull);
+      await _crossTo(tester, DateTime(2026, 8, 2, 4, 0, 1));
+      expect(tester.takeException(), isNull);
+
+      expect(_homeWidget(tester).dayStamp!.logicalDate, '2026-08-02');
+      expect(_homeState(tester).dailyDoneCount, 0);
+      expect(MascotPersona.origin, MascotStateOrigin.opening);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('跨日之後由其他分頁接手：遲到的舊收拾不得清掉它', (tester) async {
+      useTallSurface(tester);
+      SharedPreferences.setMockInitialValues(seed());
+      await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+      await mixedOwnership(tester);
+
+      await _crossTo(tester, DateTime(2026, 8, 1, 4, 0, 1));
+      expect(tester.takeException(), isNull);
+      // 跨日自己的當日問候排在 400ms 後（既有行為：它會把兔咪收回中性）。
+      // 等它跑完，之後的狀態才確定是「其他分頁的」。
+      await tester.pump(const Duration(milliseconds: 600));
+
+      // 其他分頁接手。這一刻之後，上一代 Home 排的任何收拾都只帶著更舊的
+      // 收據，compare-and-clear 自然對不上。
+      MascotPersona.interact(MascotContext.overhydration);
+      final waterClaim = MascotPersona.claim;
+      final waterLease = MascotPersona.speechLease;
+      final waterSpeech = MascotPersona.current.value.speech;
+
+      await tester.pump(const Duration(seconds: 3));
+      expect(tester.takeException(), isNull);
+      expect(
+        MascotPersona.claim,
+        waterClaim,
+        reason: '舊 callback 帶的是舊收據，不得清掉較新的狀態',
+      );
+      expect(MascotPersona.speechLease, waterLease);
+      expect(MascotPersona.current.value.speech, waterSpeech);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('延後清理執行前整棵樹被 dispose：只收捕捉到的那一份', (tester) async {
+      useTallSurface(tester);
+      SharedPreferences.setMockInitialValues(seed());
+      await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+      await mixedOwnership(tester);
+      final homeClaim = MascotPersona.claim;
+
+      _clock.now = DateTime(2026, 8, 1, 4, 0, 1);
+      unawaited(
+        LogicalDayCoordinator.instance.ensureCurrent(
+          trigger: LogicalDayTrigger.boundaryTimer,
+        ),
+      );
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(tester.takeException(), isNull);
+      expect(
+        MascotPersona.claim,
+        isNot(homeClaim),
+        reason: 'dispose 之後那一代擁有的狀態仍然要收掉',
+      );
+      expect(MascotPersona.origin, MascotStateOrigin.opening);
+
+      await tester.pump(const Duration(seconds: 12));
+    });
   });
 }

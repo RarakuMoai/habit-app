@@ -188,13 +188,21 @@ class _MilestoneEpisode {
   /// 門檻世代。交付與否記的是這個 id，不是一個永久的布林。
   final int id;
 
-  /// 把進度推過門檻的那一件。它被撤銷，這次跨越就不成立。
+  /// **歷史來源**：當初是哪一件把進度推過門檻的。
+  ///
+  /// 只用來認出「這次跨越的因果起點」，**不決定之後誰能交付**。撤銷它不等於
+  /// 撤銷使用者看得見的進度——別的習慣可能仍然完成著，門檻照樣成立。
   final int sourceEventId;
 
-  /// 那一件自己的衝擊點到了沒。
+  /// 因果起點已經發生：來源那一件演到自己的衝擊點了。
   ///
-  /// 語意不能跑在因果之前：使用者還沒看到那一勾落下，兔咪不該先為它慶祝。
-  bool impactReached = false;
+  /// 在那之前，任何成員的機會都不能把這次跨越講出去——使用者還沒看到那一勾
+  /// 落下，兔咪不該先為它慶祝。之後即使來源被撤銷，這件事仍然「發生過」。
+  bool crossingImpacted = false;
+
+  /// 門檻此刻是否**真的**還成立。權威是 Home 的實際進度，不是成員的存活
+  /// （見 [CompletionPresentationController.syncAboveThreshold]）。
+  bool thresholdHolds = true;
 }
 
 /// 撤銷單一件之後，這條弧線的下場。
@@ -242,32 +250,46 @@ class _CompletionArc {
   /// 再重新跨過去，就是第 N+1 次，可以再講一次。
   int? deliveredEpisodeId;
 
+  /// 已經演到自己衝擊點的成員。
+  ///
+  /// 「誰可以當交付的 anchor」看的是這個集合，不是誰當初跨過門檻的：
+  /// 語意必須由**自己**的因果鏈（自己的 impact → 自己的機會）觸發。
+  final Set<int> impacted = {};
+
   /// 這一件把進度推過門檻了。
   ///
-  /// 已經在門檻之上時不算新的一次——那只是「又完成一件」，不是重新跨越。
+  /// 門檻還成立時不算新的一次——那只是「又完成一件」，不是重新跨越。
   void openEpisode({required int id, required int sourceEventId}) {
-    if (episode != null) return;
+    if (episode != null && episode!.thresholdHolds) return;
     episode = _MilestoneEpisode(id: id, sourceEventId: sourceEventId);
   }
 
-  /// 這一次跨越不成立了（來源被撤銷，或 Home 回報進度已跌回門檻以下）。
-  void invalidateEpisode() => episode = null;
+  /// 進度真的跌回門檻以下了：這一次跨越到此為止。
+  void invalidateEpisode() => episode?.thresholdHolds = false;
 
-  /// 某一件演到自己的衝擊點了。只有門檻來源那一件會推進 episode。
+  /// 某一件演到自己的衝擊點了。
   void markImpactReached(int eventId) {
-    if (episode?.sourceEventId == eventId) episode!.impactReached = true;
+    impacted.add(eventId);
+    if (episode?.sourceEventId == eventId) episode!.crossingImpacted = true;
   }
 
-  /// 這一刻的語意是一般完成還是里程碑。
+  /// 從 [anchorEventId] 這個成員的角度看，這一刻的語意是一般完成還是里程碑。
   ///
-  /// 三個條件缺一不可：有正在進行的跨越、那一件已經演到衝擊點、那一件還活著。
-  /// 只看「有沒有成員帶著 crossedHalf 歷史旗標」會讓還沒 impact 的跨越被
-  /// 別人的 timer 借去用。
-  CompletionKind get kind {
+  /// 四個條件缺一不可：
+  ///   1. 有一次跨越；
+  ///   2. 它此刻仍然成立（Home 的實際進度說了算，**不是**來源的存活）；
+  ///   3. 這次跨越的因果起點已經發生（來源演到過自己的衝擊點）；
+  ///   4. anchor 自己也已經演到衝擊點。
+  ///
+  /// 第 2 與第 3 點分開，是這一版的重點：撤銷 C 不代表使用者看得見的進度
+  /// 掉下去了——別的習慣還完成著。那時這次跨越仍然 pending，只是要換一個
+  /// 已經 impact 的有效成員在**它自己的**機會上交付。
+  CompletionKind kindFor(int anchorEventId) {
     final ep = episode;
-    if (ep == null || !ep.impactReached || !live.contains(ep.sourceEventId)) {
+    if (ep == null || !ep.thresholdHolds || !ep.crossingImpacted) {
       return CompletionKind.ordinary;
     }
+    if (!impacted.contains(anchorEventId)) return CompletionKind.ordinary;
     return CompletionKind.half;
   }
 
@@ -439,7 +461,7 @@ class CompletionPresentationController {
       arc.openEpisode(id: ++_lastEpisodeId, sourceEventId: event.id);
     }
 
-    onPhase(CompletionPhase.confirm, event, arc.kind);
+    onPhase(CompletionPhase.confirm, event, arc.kindFor(event.id));
 
     final isLead = arc.leadEventId == event.id;
     if (isLead) {
@@ -545,8 +567,9 @@ class CompletionPresentationController {
     for (final arc in _arcs) {
       if (!arc.live.contains(eventId)) continue;
       arc.live.remove(eventId);
-      // 撤銷的正是把進度推過門檻的那一件 → 這一次跨越不成立了。
-      if (arc.episode?.sourceEventId == eventId) arc.invalidateEpisode();
+      // **不**在這裡動 episode：撤銷歷史來源不等於使用者看得見的進度掉下去
+      // （別的習慣可能仍然完成著）。門檻還成不成立由 Home 在資料寫完之後
+      // 用 [syncAboveThreshold] 回報——這裡沒有那個資訊，不該單方面銷毀。
       if (arc.hasLiveMember) return CompletionCancelOutcome.arcSurvives;
       arc.disposeTimers();
       arc.windowOpen = false;
@@ -658,13 +681,16 @@ class CompletionPresentationController {
       // 衝擊點是門檻事件的因果起點：那一勾落下之後，這次跨越才能被講出來。
       // 放在可播檢查之後——看不到的那一拍不算真的發生過。
       if (phase == CompletionPhase.impact) arc.markImpactReached(payload.id);
-      onPhase(phase, payload, arc.kind);
+      onPhase(phase, payload, arc.kindFor(payload.id));
       return;
     }
 
     // ── 語意機會 ──
-    // kind 在**這一刻**重算，而且要求門檻事件已經走到自己的衝擊點。
-    final kind = arc.kind;
+    // kind 從**這個 anchor** 的角度在這一刻重算。語意機會是 member-scoped，
+    // payload 就是排程它的那一件（被撤銷的話上面已經整拍作廢），所以
+    // 「交付由 anchor 自己的因果鏈觸發」在資料模型上就成立，不需要在
+    // callback 當下臨時挑一個人頂替。
+    final kind = arc.kindFor(payload.id);
     if (!arc.needsSemantic(kind)) return;
     if (isStillValid != null && !isStillValid!(payload)) return;
     // 這條弧線還沒開過口 → 這一次就是它的第一次開口（speak），不論語意是

@@ -7,6 +7,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
@@ -1092,32 +1093,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// 走 compare-and-clear：收據不符——喝水頁的過量提醒、衣櫃、更新的事件
   /// ——就整段 no-op，**絕不**放掉別人的狀態。
   /// 回傳有沒有真的放掉——呼叫端據此決定要不要讓弧線重新爭取擁有權。
+  ///
+  /// 這條路只從使用者互動（撤銷、開新弧線）進來，永遠不在 build 階段，
+  /// 所以可以同步收。
   bool _releaseStalePersonaHold() {
     final claim = _personaClaim;
     if (claim == null) return false;
-    if (!_clearHomePersona(claim)) return false;
-    _personaClaim = null;
-    _speechOwner = null;
-    return true;
-  }
-
-  /// 收掉 Home 擁有的那一半，兩層各自比對。
-  ///
-  /// 狀態（姿勢、泡泡、停留、回神）與台詞是兩份獨立的租約。「狀態是首頁的、
-  /// 台詞還屬於開場問候」是完全正常的混合——整份清掉會把還沒講完的問候
-  /// 一起殺掉，那是使用者看得見的錯誤。
-  ///
-  /// 回傳狀態有沒有真的收掉（台詞是不是我們的另外算）。
-  bool _clearHomePersona(MascotClaim claim) {
     final lease = _speechLease;
     // 先收台詞：清狀態時 `current.value` 會換一份新的，租約的比對必須在
     // 那之前完成。台詞不是我們的就整段跳過，它有自己的期限。
     if (lease != null) MascotPersona.clearSpeechIfLease(lease);
     _speechLease = null;
-    return MascotPersona.clearStateIfClaim(
+    if (!MascotPersona.clearStateIfClaim(
       claim,
       assetPath: _baselineMascotAsset,
-    );
+    )) {
+      return false;
+    }
+    _personaClaim = null;
+    _speechOwner = null;
+    return true;
   }
 
   /// 取代正在顯示的 sad transient（新的正向事件、里程碑、全完成都要呼叫）。
@@ -1650,52 +1645,114 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// Home 寫進去的，放著不管會一路留到全域十秒回神。
   ///
   /// 條件是整體 persona 擁有權，不是「有沒有台詞」——speech 為 null 的普通
-  /// 完成同樣寫過姿勢。狀態與台詞各自 compare-and-clear（見 [_clearHomePersona]）：
+  /// 完成同樣寫過姿勢。狀態與台詞各自 compare-and-clear（見 [_clearOwnedPersona]）：
   /// 收據／租約不符（其他分頁、更新的撤銷、還在講的開場問候）就整段 no-op。
   void _releaseHomePersona() {
     final claim = _personaClaim;
+    final lease = _speechLease;
     _speechOwner = null;
     _personaClaim = null;
+    _speechLease = null;
     _transientMascot = null;
     _transientSpeech = null;
-    if (claim == null) {
-      _speechLease = null;
+    if (claim == null) return;
+    // dispose 常常發生在樹拆除的那一幀裡：同步寫全域 notifier 一樣會讓
+    // 別頁正在 build 的 listener markNeedsBuild。收據已經捕捉好了，
+    // 推到這一幀之後收一樣安全。
+    if (_inBuildPhase) {
+      _schedulePersonaCleanup(claim: claim, lease: lease);
       return;
     }
-    _clearHomePersona(claim);
+    _clearOwnedPersona(claim: claim, lease: lease);
+  }
+
+  /// 現在是不是正在 build／layout 這一幀。
+  ///
+  /// 跨日與 resume 是從 `MainPage` 的重建流下來的：`didUpdateWidget` →
+  /// `loadHabits()` → 這一段。那時同步寫全域 notifier 會讓正在 build 的
+  /// listener `markNeedsBuild`，framework 直接拋例外。
+  bool get _inBuildPhase {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    return phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks ||
+        phase == SchedulerPhase.transientCallbacks;
+  }
+
+  /// 收掉**捕捉當下**那一份 Home 擁有權。純函式式：只用傳進來的收據與租約，
+  /// 不讀任何會在延後期間變動的欄位。
+  ///
+  /// 兩層各自 compare-and-clear，所以延後執行時若已經被別人接手
+  /// （其他分頁、新一代 Home、使用者的新互動），自然整段 no-op。
+  void _clearOwnedPersona({
+    required MascotClaim claim,
+    required MascotSpeechLease? lease,
+    String? assetPath,
+  }) {
+    // 先收台詞：清狀態會換一份新的 `current.value`，租約比對必須在那之前。
+    if (lease != null) MascotPersona.clearSpeechIfLease(lease);
+    MascotPersona.clearStateIfClaim(
+      claim,
+      assetPath: assetPath ?? _baselineMascotAsset,
+    );
+  }
+
+  /// 把「通知 widget tree 的那一步」推到這一幀之後。
+  ///
+  /// 捕捉當下的收據、租約與立繪——延後期間資料可能整份換掉，用當時的值才
+  /// 對得起「收掉的是那一代的東西」。generation 只用來決定要不要重建畫面。
+  void _schedulePersonaCleanup({
+    required MascotClaim claim,
+    required MascotSpeechLease? lease,
+  }) {
+    final assetPath = _baselineMascotAsset;
+    final generation = _presentationGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _clearOwnedPersona(claim: claim, lease: lease, assetPath: assetPath);
+      if (mounted && generation == _presentationGeneration) setState(() {});
+    });
   }
 
   /// 整個 generation 作廢：離開首頁、開始重載／換快照、跨日、交棒給全完成。
   ///
-  /// 除了取消未來的 callback，也要收掉**仍然由這一代擁有**的畫面狀態：
-  /// 進度按壓、Home 的 expiry timer、姿勢、泡泡與台詞。若全域狀態已經被其他
-  /// 分頁或更新的事件接手，收拾的部分一律 no-op。
+  /// 分成兩段，順序不能對調：
+  ///
+  ///   1. **同步、不通知任何人**——排程、generation、mutation 封鎖與本地
+  ///      欄位。這些一定要當場失效，否則舊的 impact／SFX／haptic／語音／
+  ///      泡泡會在延後期間多活一幀漏出去。
+  ///   2. **會通知 widget tree 的那一步**——全域 persona 的 compare-and-clear
+  ///      與畫面重建。在 build 階段（跨日／resume 從 MainPage 重建下來）
+  ///      必須推到這一幀之後，否則正在 build 的 listener 會 markNeedsBuild。
   void _invalidateCompletionPresentation({bool cancelMotion = true}) {
     _cancelCompletionSchedules();
     final ownsPersona = _personaStillOurs;
-    if (!mounted) {
-      _releaseHomePersona();
+    final claim = _personaClaim;
+    final lease = _speechLease;
+    // 本地狀態**無條件**清掉，不看收據。這一代已經作廢了，留著那句話
+    // 只會讓它在下一次沿用時重新冒出來——external 接手期間離開首頁
+    // 再回來、做一件 speech-null 的完成，畫面上就會出現一句早該消失的
+    // 舊台詞。能不能改寫全域是下面那段的事。
+    _progressHold = null;
+    _transientMascot = null;
+    _transientSpeech = null;
+    _speechOwner = null;
+    _personaClaim = null;
+    _speechLease = null;
+    if (cancelMotion) _mascotReactionCancelUpTo = _mascotReactionTick;
+
+    if (!ownsPersona || claim == null) {
+      if (mounted && !_inBuildPhase) setState(() {});
       return;
     }
-    setState(() {
-      _progressHold = null;
-      _transientMascot = null;
-      // 本地狀態**無條件**清掉，不看收據。這一代已經作廢了，留著那句話
-      // 只會讓它在下一次 inherit 時重新冒出來——external 接手期間離開首頁
-      // 再回來、做一件 speech-null 的完成，畫面上就會出現一句早該消失的
-      // 舊台詞。能不能改寫全域是下面那段的事。
-      _transientSpeech = null;
-      _speechOwner = null;
-      if (cancelMotion) _mascotReactionCancelUpTo = _mascotReactionTick;
-    });
-    if (ownsPersona) {
-      // 收拾不是互動：不冒泡泡、不出聲、也不重排待機時鐘。
-      // 只收 Home 自己那一半——還在講的開場問候留給它自己的期限。
-      _clearHomePersona(_personaClaim!);
-    } else {
-      _speechLease = null;
+    if (!mounted || _inBuildPhase) {
+      // dispose 也走這裡：不能 setState，但那一代擁有的狀態仍然要收，
+      // 而且是用**捕捉到的**收據，不是之後才讀的欄位。
+      _schedulePersonaCleanup(claim: claim, lease: lease);
+      return;
     }
-    _personaClaim = null;
+    // 收拾不是互動：不冒泡泡、不出聲、也不重排待機時鐘。
+    // 只收 Home 自己那一半——還在講的開場問候留給它自己的期限。
+    _clearOwnedPersona(claim: claim, lease: lease);
+    setState(() {});
   }
 
   /// 這條**弧線**的語意身分。
