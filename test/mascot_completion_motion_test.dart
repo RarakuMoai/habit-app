@@ -21,6 +21,10 @@ Future<void> _pumpStage(
   int reactionCancelUpTo = -1,
   MascotPoseTransition poseTransition = MascotPoseTransition.crossFade,
   bool reduceMotion = false,
+  // 凍結呼吸/眨眼：留下來的縱向位移就只會來自打卡演出本身。
+  // Reduce Motion 的驗證刻意傳 false——那條規則要求畫面**真的**靜止，
+  // 不能靠 paused 把呼吸藏起來。
+  bool paused = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -36,8 +40,7 @@ Future<void> _pumpStage(
             reactionStrength: reactionStrength,
             reactionCancelUpTo: reactionCancelUpTo,
             onTap: () {},
-            // 凍結呼吸/眨眼：留下來的縱向位移就只會來自打卡演出本身。
-            paused: true,
+            paused: paused,
           ),
         ),
       ),
@@ -48,6 +51,43 @@ Future<void> _pumpStage(
 /// 兔咪本體目前在畫面上的縱向位置（越小＝越高）。
 double _bodyTop(WidgetTester tester, [String asset = _asset]) =>
     tester.getTopLeft(find.byKey(ValueKey(asset))).dy;
+
+/// 兔咪立繪**實際渲染**的變換矩陣（含所有外層 Transform）。
+///
+/// 量的是最內層那張圖，不是 `ValueKey(asset)` 那個 Padding：呼吸的縮放掛在
+/// Padding **底下**，量 Padding 會完全看不到它。比 [_bodyTop] 嚴格——外框位置
+/// 不動不代表沒有縮放，呼吸與蹲下都是以 bottomCenter 為錨的 scale。
+Matrix4 _bodyMatrix(WidgetTester tester, [String asset = _asset]) => tester
+    .renderObject<RenderBox>(
+      find
+          .descendant(
+            of: find.byKey(ValueKey(asset)),
+            matching: find.byType(Image),
+          )
+          .first,
+    )
+    .getTransformTo(null);
+
+/// 星星粒子 painter 收到的 progress（找不到就回 -1）。
+double _sparkleProgress(WidgetTester tester) {
+  for (final paint in tester.widgetList<CustomPaint>(
+    find.byType(CustomPaint),
+  )) {
+    final painter = paint.painter;
+    if (painter != null && painter.runtimeType.toString().contains('Sparkle')) {
+      return (painter as dynamic).progress as double;
+    }
+  }
+  return -1;
+}
+
+/// 線性部分是 identity：沒有縮放、沒有旋轉、沒有錯切。
+void _expectIdentityBody(Matrix4 m, {required String reason}) {
+  expect(m.storage[0], closeTo(1.0, 1e-6), reason: '$reason（scaleX）');
+  expect(m.storage[5], closeTo(1.0, 1e-6), reason: '$reason（scaleY）');
+  expect(m.storage[1], closeTo(0.0, 1e-6), reason: '$reason（skew）');
+  expect(m.storage[4], closeTo(0.0, 1e-6), reason: '$reason（skew）');
+}
 
 /// 沒有任何一張立繪處於半透明（會透出背景＝雙影）。
 void _expectNoTranslucentPose(WidgetTester tester) {
@@ -319,6 +359,146 @@ void main() {
         kMascotPoseCutSettleScale,
         greaterThan(0.95),
         reason: '只是很小的沉降，不是縮成一點',
+      );
+    });
+  });
+
+  // ── 動態 Reduce Motion：演出途中被打開 ───────────────────────
+  //
+  // 這一組刻意 `paused: false`：規則是「畫面真的靜止」，不是「打卡演出停了
+  // 但呼吸還在縮放」。基準也在 Reduce Motion 下取，代表真正的靜止狀態。
+
+  group('演出途中打開 Reduce Motion', () {
+    testWidgets('reaction／notice／pose settle 立即停住，身體變換回 identity', (
+      tester,
+    ) async {
+      // 靜止基準：Reduce Motion 下連呼吸都停，這才是「什麼都沒發生」的樣子。
+      await _pumpStage(tester, paused: false, reduceMotion: true);
+      final rest = _bodyMatrix(tester);
+      _expectIdentityBody(rest, reason: 'Reduce Motion 的靜止基準本身就該是 identity');
+
+      // 關掉偏好 → 一般模式：小跳、察覺、離散換圖的沉降同時跑起來。
+      await _pumpStage(tester, paused: false, reactionTick: 1, noticeTick: 1);
+      await _pumpStage(
+        tester,
+        paused: false,
+        asset: _asset2,
+        reactionTick: 1,
+        noticeTick: 1,
+        poseTransition: MascotPoseTransition.cut,
+      );
+      await tester.pump(const Duration(milliseconds: 120));
+
+      // 先證明對照組真的在動，否則後面的斷言等於沒測。
+      final moving = _bodyMatrix(tester, _asset2);
+      expect(
+        _sparkleProgress(tester),
+        greaterThan(0.0),
+        reason: '一般模式此刻應該正在噴星星',
+      );
+      expect(
+        moving.storage[5],
+        isNot(closeTo(1.0, 1e-3)),
+        reason: '一般模式此刻身體應該有縮放',
+      );
+
+      // 演出途中打開 Reduce Motion。
+      await _pumpStage(
+        tester,
+        paused: false,
+        asset: _asset2,
+        reactionTick: 1,
+        noticeTick: 1,
+        poseTransition: MascotPoseTransition.cut,
+        reduceMotion: true,
+      );
+
+      expect(
+        _sparkleProgress(tester),
+        0.0,
+        reason: 'painter 收到的 progress 必須歸零，不能只是外框不動',
+      );
+      final halted = _bodyMatrix(tester, _asset2);
+      _expectIdentityBody(halted, reason: '打開的那一刻身體變換就要是 identity');
+      for (var i = 0; i < 16; i++) {
+        expect(
+          halted.storage[i],
+          closeTo(rest.storage[i], 1e-6),
+          reason: '第 $i 項與靜止基準不符：位移沒有完全歸零',
+        );
+      }
+
+      // 之後每一幀都維持靜止，不會慢慢滑回去也不會補播。
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(_sparkleProgress(tester), 0.0);
+        _expectIdentityBody(
+          _bodyMatrix(tester, _asset2),
+          reason: '${(i + 1) * 40}ms 後仍不得有任何變換',
+        );
+      }
+    });
+
+    testWidgets('Reduce Motion 期間的新 tick 不啟動任何 controller', (tester) async {
+      await _pumpStage(tester, paused: false, reduceMotion: true);
+      final rest = _bodyMatrix(tester);
+
+      // 語意事件照送（tick 前進），但不得有動作。
+      for (var tick = 1; tick <= 3; tick++) {
+        await _pumpStage(
+          tester,
+          paused: false,
+          reduceMotion: true,
+          reactionTick: tick,
+          noticeTick: tick,
+        );
+        for (var i = 0; i < 4; i++) {
+          await tester.pump(const Duration(milliseconds: 60));
+          expect(_sparkleProgress(tester), 0.0, reason: 'tick $tick 不得讓粒子動起來');
+          expect(
+            _bodyMatrix(tester).storage[5],
+            closeTo(rest.storage[5], 1e-6),
+            reason: 'tick $tick 不得讓身體縮放',
+          );
+        }
+      }
+    });
+
+    testWidgets('關掉 Reduce Motion 只恢復呼吸，不補播已取消的完成動作', (tester) async {
+      // 第一次 pumpWidget 走的是 initState，didUpdateWidget 不會跑——
+      // 動作必須由「tick 改變」觸發，否則後面等於在測一個從沒開始的動畫。
+      await _pumpStage(tester, paused: false);
+      await _pumpStage(tester, paused: false, reactionTick: 1, noticeTick: 1);
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        _sparkleProgress(tester),
+        greaterThan(0.0),
+        reason: '對照組：一般模式此刻確實在噴星星',
+      );
+
+      await _pumpStage(
+        tester,
+        paused: false,
+        reactionTick: 1,
+        noticeTick: 1,
+        reduceMotion: true,
+      );
+      expect(_sparkleProgress(tester), 0.0);
+
+      // 關掉偏好：不得把剛才取消的那次小跳補回來。
+      await _pumpStage(tester, paused: false, reactionTick: 1, noticeTick: 1);
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(_sparkleProgress(tester), 0.0, reason: '同一個 tick 不該因為偏好被關掉而重播');
+      }
+
+      // 呼吸則可以回來：這是允許的 idle 行為。
+      final a = _bodyMatrix(tester).storage[5];
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        _bodyMatrix(tester).storage[5],
+        isNot(closeTo(a, 1e-6)),
+        reason: '未 paused 時呼吸應該恢復',
       );
     });
   });

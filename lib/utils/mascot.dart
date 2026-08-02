@@ -881,6 +881,31 @@ class MascotPersona {
     );
   }
 
+  /// compare-and-clear：只有全域狀態**仍然是 [expected] 那一次寫入**時，
+  /// 才把它收回不帶台詞／泡泡的待機。回傳有沒有真的收掉。
+  ///
+  /// 存在的理由：呼叫端（首頁）要在切分頁、換快照、跨日、dispose 時收拾
+  /// 「自己還擁有的兔咪狀態」，但**絕不能**覆寫更新的狀態（喝水頁的過量提醒、
+  /// 使用者剛做的撤銷）。用 `force` 寫 baseline 做不到這件事——force 的定義
+  /// 就是繞過檢查。這裡改成原子的「相符才動手」。
+  ///
+  /// 收拾不是互動：不出聲、不冒泡泡、不重新起算停留時間。停留與回神計時
+  /// 一起清掉——狀態已經回到待機了，再留一個回神計時只會在十秒後把
+  /// baseline 再寫一次。
+  ///
+  /// [assetPath] 是要停在哪張立繪；null = 留著目前那張（只收台詞與泡泡）。
+  static bool clearIfClaim(MascotClaim expected, {String? assetPath}) {
+    if (claim != expected) return false;
+    _revertTimer?.cancel();
+    _revertTimer = null;
+    _holdUntil = null;
+    _activePriority = 0;
+    _revision++;
+    _origin = MascotStateOrigin.opening;
+    current.value = MascotState(assetPath ?? current.value.assetPath, null);
+    return true;
+  }
+
   /// 互動演出過期後要回到的待機狀態；null = 回中性（原本行為）。
   ///
   /// 首頁在 mount 期間掛上「由今天進度推導」的 baseline：打卡十秒後兔咪應該

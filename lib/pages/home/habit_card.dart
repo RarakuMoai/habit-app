@@ -104,9 +104,16 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     // 勾勾描繪：筆尖落點就是整段演出的主衝擊，時間對齊
     // CompletionPresentationController.kImpactDelay。easeOutCubic 太前傾，
     // 會讓勾在 40ms 就幾乎畫完、觸覺與音效反而變成「後補」。
+    //
+    // animationBehavior 必須是 preserve：預設的 normal 在系統開啟
+    // Disable Animations 時會把 duration 直接壓成 5%，勾在約 7ms 就描完，
+    // 而衝擊點（觸覺＋音效）仍然照 140ms 的 Timer 走——兩邊脫拍。
+    // Reduce Motion 該縮短多少由 [_syncCheckAnim] 決定（140ms，與編排器
+    // 共用同一個常數），不交給 framework 再自作主張縮一次。
     _checkCtrl = AnimationController(
       vsync: this,
       duration: kHabitCheckDrawDuration,
+      animationBehavior: AnimationBehavior.preserve,
     );
     _checkAnim = CurvedAnimation(
       parent: _checkCtrl,

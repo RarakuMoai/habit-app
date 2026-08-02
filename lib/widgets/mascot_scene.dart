@@ -748,7 +748,7 @@ class _MascotStageState extends State<MascotStage>
       vsync: this,
       duration: const Duration(milliseconds: 1300),
     );
-    if (!widget.paused) _breathCtrl.repeat(reverse: true);
+    if (_idleMotionAllowed) _breathCtrl.repeat(reverse: true);
     _breath = CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut);
 
     _bubbleCtrl = AnimationController(
@@ -834,17 +834,57 @@ class _MascotStageState extends State<MascotStage>
     if (!enabled) _poseSwitcherGeneration++;
   }
 
+  /// 呼吸這類自主 idle 動作現在可不可以跑。
+  ///
+  /// Reduce Motion 也要停：它是持續的縱向縮放，留著會讓「兔咪身上的變換
+  /// 必須是 identity」不成立——那條規則的重點不是「沒有打卡演出」，
+  /// 是**畫面真的靜止**。
+  bool get _idleMotionAllowed => !widget.paused && !widget.reduceMotion;
+
+  /// 立刻停掉所有會造成位移、縮放或粒子移動的演出，並歸零。
+  ///
+  /// 用 `value = 0` 而不是 `stop()`：停在半路等於把兔咪定格在蹲下或半空中，
+  /// 而且 painter 收到的 progress 仍然非零，星星會停在畫面上。歸零才是
+  /// 「這個動作沒有發生過」。
+  void _haltMotionForReduceMotion() {
+    for (final ctrl in [
+      _reactionCtrl,
+      _noticeCtrl,
+      _poseSettleCtrl,
+      _chargeCtrl,
+      _burstCtrl,
+      _breathCtrl,
+    ]) {
+      ctrl.stop();
+      ctrl.value = 0;
+    }
+    _burstPower = 0;
+    _isCharging = false;
+    _chargeTickStep = 0;
+    // 已經被取消的那次小跳不該在偏好關掉之後補播。
+    _activeReactionCancellable = false;
+  }
+
   @override
   void didUpdateWidget(covariant MascotStage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.reduceMotion != widget.reduceMotion) {
+      if (widget.reduceMotion) {
+        _haltMotionForReduceMotion();
+      } else if (!widget.paused && !_breathCtrl.isAnimating) {
+        // 關掉偏好可以恢復 idle 呼吸，但**不補播**已經取消的打卡／全完成動作。
+        _breathCtrl.repeat(reverse: true);
+      }
+    }
     if (oldWidget.reactionTick != widget.reactionTick) {
       // 幅度在觸發那一刻定住：中途改參數不該讓正在跑的動作瞬間變大小。
       _activeReactionStrength = widget.reactionStrength.clamp(0.0, 1.0);
       _activeReactionTick = widget.reactionTick;
       _activeReactionCancellable = true;
-      _reactionCtrl.forward(from: 0);
+      // Reduce Motion：語意事件照收（tick 記下來了），但不啟動任何位移。
+      if (!widget.reduceMotion) _reactionCtrl.forward(from: 0);
     }
-    if (oldWidget.noticeTick != widget.noticeTick) {
+    if (oldWidget.noticeTick != widget.noticeTick && !widget.reduceMotion) {
       _noticeCtrl.forward(from: 0);
     }
     // 只收束「這次取消所指的那一代」反應。同一幀同時來了舊取消與新反應時，
@@ -887,8 +927,10 @@ class _MascotStageState extends State<MascotStage>
         _cancelBlinkTimers();
         _eyesClosed = false; // 不要定格在閉眼；隨即重建會套用
       } else {
-        // 恢復：重新開始呼吸與眨眼。
-        if (!_breathCtrl.isAnimating) _breathCtrl.repeat(reverse: true);
+        // 恢復：重新開始呼吸與眨眼（Reduce Motion 下呼吸仍然停著）。
+        if (_idleMotionAllowed && !_breathCtrl.isAnimating) {
+          _breathCtrl.repeat(reverse: true);
+        }
         _scheduleNextBlink();
       }
     }
@@ -951,7 +993,9 @@ class _MascotStageState extends State<MascotStage>
     // 直接點兔咪永遠是完整幅度：reactionStrength 只用來收斂「打卡」那條路。
     _activeReactionStrength = 1.0;
     _activeReactionCancellable = false;
-    _reactionCtrl.forward(from: 0);
+    // Reduce Motion 下互動仍然成立（換表情、泡泡、語音都照走），
+    // 只是身體不跳、不冒星星。
+    if (!widget.reduceMotion) _reactionCtrl.forward(from: 0);
     widget.onTap();
   }
 
@@ -1068,7 +1112,8 @@ class _MascotStageState extends State<MascotStage>
     _chargeTickStep = 0;
     playHaptic(HapticLevel.selection);
     unawaited(SfxService.instance.play(SfxCue.tumiCharge));
-    _chargeCtrl.forward(from: 0);
+    // Reduce Motion：蓄力的觸覺與聲音留著（那是回饋），下蹲與顫動拿掉。
+    if (!widget.reduceMotion) _chargeCtrl.forward(from: 0);
   }
 
   void _updateCharge(Offset position) {
@@ -1088,6 +1133,10 @@ class _MascotStageState extends State<MascotStage>
     unawaited(SfxService.instance.play(SfxCue.tumiJump));
     playHaptic(_burstPower > 0.7 ? HapticLevel.medium : HapticLevel.light);
     widget.onEnergize?.call();
+    if (widget.reduceMotion) {
+      _burstPower = 0;
+      return;
+    }
     _burstCtrl.forward(from: 0);
   }
 

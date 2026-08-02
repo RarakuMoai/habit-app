@@ -191,6 +191,19 @@ class _CompletionArc {
       ? CompletionKind.half
       : CompletionKind.ordinary;
 
+  /// 這條弧線目前的代表成員：原本那一件還活著就是它，否則挑最早的有效成員。
+  ///
+  /// 弧線拍（speak／recover／quiet／milestoneHandoff）不該帶著一個**已經被
+  /// 撤銷**的事件出去：呼叫端會拿它去查 epoch、組 token，查到的都是已經被
+  /// 清掉的東西。語意身分本身另外掛在 [id]（見 [HomeCompletionEvent.arcId]），
+  /// 這裡只保證「傳出去的成員是活的」。
+  HomeCompletionEvent? canonicalFor(HomeCompletionEvent event) {
+    if (live.contains(event.id)) return event;
+    if (live.isEmpty) return null;
+    final firstLive = live.reduce((a, b) => a < b ? a : b);
+    return members[firstLive];
+  }
+
   void disposeTimers() {
     windowTimer?.cancel();
     windowTimer = null;
@@ -451,7 +464,8 @@ class CompletionPresentationController {
   ///
   /// - generation 不同 → 這是上一個畫面／上一天留下來的，丟掉。
   /// - 單件拍（impact）只看自己那一件還在不在。
-  /// - 弧線拍只要弧線裡還有任何一件有效就照發：撤銷 A 不該把 B 的反應吃掉。
+  /// - 弧線拍只要弧線裡還有任何一件有效就照發：撤銷 A 不該把 B 的反應吃掉，
+  ///   但送出去的成員會換成**仍然有效**的那一個（見 [_CompletionArc.canonicalFor]）。
   /// - speak／milestoneHandoff 各自只發一次，語意由**這條弧線**當下的成員決定。
   /// - 最後再問呼叫端「現在還播得出來嗎」。
   void _dispatch(
@@ -463,10 +477,13 @@ class CompletionPresentationController {
     if (event.generation != _generation || arc.generation != _generation) {
       return;
     }
+    var subject = event;
     if (soloBeat) {
       if (!arc.live.contains(event.id)) return;
-    } else if (!arc.hasLiveMember) {
-      return;
+    } else {
+      final canonical = arc.canonicalFor(event);
+      if (canonical == null) return;
+      subject = canonical;
     }
     if (phase == CompletionPhase.speak) {
       if (arc.semanticDelivered) return;
@@ -479,7 +496,7 @@ class CompletionPresentationController {
         return;
       }
     }
-    if (isStillValid != null && !isStillValid!(event)) return;
+    if (isStillValid != null && !isStillValid!(subject)) return;
     if (phase == CompletionPhase.speak) {
       arc.semanticDelivered = true;
       if (arc.kind == CompletionKind.half) {
@@ -488,6 +505,6 @@ class CompletionPresentationController {
     } else if (phase == CompletionPhase.milestoneHandoff) {
       arc.milestoneDelivered = true;
     }
-    onPhase(phase, event, arc.kind);
+    onPhase(phase, subject, arc.kind);
   }
 }
