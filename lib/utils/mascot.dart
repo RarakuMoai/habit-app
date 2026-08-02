@@ -563,6 +563,56 @@ class MascotClaim {
   String toString() => 'MascotClaim(#$revision, ${origin.name})';
 }
 
+/// 目前那句台詞的租約收據。相等 = 這中間沒有人換過台詞。
+///
+/// 跟 [MascotClaim] 分開：狀態（姿勢、泡泡、停留）與台詞是兩條各自有壽命的
+/// 東西。首頁換姿勢時台詞可能仍屬於開場問候，收拾時也只能收自己那一半。
+@immutable
+class MascotSpeechLease {
+  final int revision;
+  final MascotStateOrigin origin;
+
+  /// 絕對到期時間；null = 不自動消失。沿用時原封不動帶著走。
+  final DateTime? deadline;
+
+  const MascotSpeechLease(this.revision, this.origin, this.deadline);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MascotSpeechLease &&
+          revision == other.revision &&
+          origin == other.origin &&
+          deadline == other.deadline;
+
+  @override
+  int get hashCode => Object.hash(revision, origin, deadline);
+
+  @override
+  String toString() => 'MascotSpeechLease(#$revision, ${origin.name})';
+}
+
+/// 這一次寫入要怎麼處理台詞。
+///
+/// 每個呼叫端都必須表態。舊版是「nullable speech ＋ 一個 inherited 布林」，
+/// 那組參數可以表達 `inherited: true` ＋ `speech: null` ＋ 會講話的情境——
+/// 結果是台詞池新抽了一句，卻掛著別人的來源與期限。那種矛盾在這個型別下
+/// 根本寫不出來。
+enum MascotSpeechWrite {
+  /// 保留目前那句話**以及它的租約**：不換來源、不重排期限。
+  /// 只換姿勢或泡泡時用這個。
+  preserve,
+
+  /// 用呼叫端自己的文字取代，建立新租約（見 [MascotPersona.speak]）。
+  own,
+
+  /// 讓情境自己從台詞池抽一句，租約歸呼叫端。
+  generate,
+
+  /// 清掉台詞（新租約，內容為空）。
+  clear,
+}
+
 class MascotPersona {
   static final Random _voiceRandom = Random();
 
@@ -587,7 +637,20 @@ class MascotPersona {
   // 不必用 force 去蓋掉喝水頁、衣櫃或更新的事件所建立的狀態。
   static int _revision = 0;
   static MascotStateOrigin _origin = MascotStateOrigin.opening;
+
+  // ── 台詞的租約（跟狀態完全分開）──
+  //
+  // 舊版只多加一個 `_speechOrigin` 標記，但期限仍然共用狀態那一個 revert
+  // timer、清理也只有「整份清掉」一種。於是「狀態是首頁的、台詞是開場問候的」
+  // 這種完全正常的混合，會變成：首頁換個姿勢就把問候的十秒重新起算，
+  // 首頁收拾自己時又把問候一起殺掉。
+  //
+  // 改成台詞有自己的 revision、來源、絕對期限與計時器：沿用時整組原封不動，
+  // 收拾時可以只收狀態、或只收台詞。
+  static int _speechRevision = 0;
   static MascotStateOrigin _speechOrigin = MascotStateOrigin.opening;
+  static DateTime? _speechDeadline;
+  static Timer? _speechTimer;
 
   /// 目前狀態的收據。與手上那張比對相等 = 這中間沒有人寫過。
   static MascotClaim get claim => MascotClaim(_revision, _origin);
@@ -595,13 +658,47 @@ class MascotPersona {
   /// 目前**整體狀態**是誰寫的（姿勢、泡泡、停留時間）。
   static MascotStateOrigin get origin => _origin;
 
+  /// 目前那句台詞的租約。相等 = 這中間沒有人換過台詞。
+  static MascotSpeechLease get speechLease =>
+      MascotSpeechLease(_speechRevision, _speechOrigin, _speechDeadline);
+
   /// 目前**那句台詞**是誰的。
-  ///
-  /// 跟 [origin] 分開的理由：首頁打卡的中間拍會換姿勢、取得狀態擁有權，
-  /// 但它常常是「沿用畫面上已經在講的那句話」（開場問候）。若兩者共用一個
-  /// 欄位，換姿勢就會把台詞的來源一起洗成首頁，後面的拍子再也認不出那是
-  /// 開場問候，於是把還沒講完的問候提早清掉。
   static MascotStateOrigin get speechOrigin => _speechOrigin;
+
+  /// 目前那句台詞什麼時候到期；null = 不自動消失。
+  static DateTime? get speechDeadline => _speechDeadline;
+
+  /// 建立一段新的台詞租約：換掉來源、重新起算期限。
+  static void _openSpeechLease(
+    MascotStateOrigin origin, {
+    required bool holds,
+  }) {
+    _speechRevision++;
+    _speechOrigin = origin;
+    _speechTimer?.cancel();
+    _speechTimer = null;
+    if (!holds || current.value.speech == null) {
+      _speechDeadline = null;
+      return;
+    }
+    _speechDeadline = DateTime.now().add(_revertAfter);
+    final revision = _speechRevision;
+    _speechTimer = Timer(_revertAfter, () {
+      _speechTimer = null;
+      if (revision != _speechRevision) return;
+      _speechDeadline = null;
+      _speechRevision++;
+      _speechOrigin = MascotStateOrigin.opening;
+      final state = current.value;
+      if (state.speech == null) return;
+      current.value = MascotState(
+        state.assetPath,
+        null,
+        bubble: state.bubble,
+        bubbleTick: state.bubbleTick,
+      );
+    });
+  }
 
   /// 互動：根據情境換情緒 + 隨機抽一句台詞。10 秒後自動回神。
   ///
@@ -644,37 +741,54 @@ class MascotPersona {
   /// [origin] 標記這次是誰寫的（預設 [MascotStateOrigin.other]，其他分頁不必改）。
   /// [holds] = false 代表「這只是收拾，不是新的互動」：不重新起算停留時間，
   /// 也不重排回神計時器，免得每次清理都把兔咪的待機時鐘往後推。
-  /// [speechIsInherited] = 這次帶的台詞是**沿用畫面上已經在講的那一句**，
-  /// 不是這個呼叫端自己的。為 true 時只更新狀態擁有權（[origin]），
-  /// 台詞的來源（[speechOrigin]）留給原本那個寫入者——它的顯示壽命也一樣
-  /// 由原本的擁有者收尾。
+  /// [speechWrite] 明確指定台詞怎麼處理；不給時由 [speech] 與 [silent] 推導出
+  /// 等價的意圖（其他分頁維持原本的寫法即可）。兩者不能同時給——那會產生
+  /// 「說要保留、卻又帶了一句話」這種矛盾。
   static bool setForContext(
     String assetPath,
     MascotContext ctx, {
     String? speech,
+    MascotSpeechWrite? speechWrite,
     bool force = false,
     bool silent = false,
     bool withVoice = true,
     MascotStateOrigin origin = MascotStateOrigin.other,
     bool holds = true,
-    bool speechIsInherited = false,
   }) {
+    assert(
+      speechWrite == null ||
+          (speechWrite == MascotSpeechWrite.own) == (speech != null),
+      '`own` 必須帶一句話；`preserve`／`generate`／`clear` 不得帶文字——'
+      '那些組合表達的是互相矛盾的意圖',
+    );
     if (!_canApply(ctx, force: force)) return false;
     // 呼叫端明確帶了 speech 就照顯示；沒帶才看情境要不要講話（[MascotLines.speaksFor]）。
+    final write =
+        speechWrite ??
+        (speech != null
+            ? MascotSpeechWrite.own
+            : (!silent && MascotLines.speaksFor(ctx)
+                  ? MascotSpeechWrite.generate
+                  : MascotSpeechWrite.clear));
+    final resolved = switch (write) {
+      MascotSpeechWrite.preserve => current.value.speech,
+      MascotSpeechWrite.own => speech,
+      // 「讓情境決定」：不會講話的情境（打卡、過半…）本來就抽不出東西。
+      MascotSpeechWrite.generate =>
+        MascotLines.speaksFor(ctx) ? MascotLines.randomLineFor(ctx) : null,
+      MascotSpeechWrite.clear => null,
+    };
     _apply(
       MascotState(
         assetPath,
-        speech ??
-            (!silent && MascotLines.speaksFor(ctx)
-                ? MascotLines.randomLineFor(ctx)
-                : null),
+        resolved,
         bubble: silent ? null : EmotionBubble.forContext(ctx),
       ),
       ctx,
       withVoice: withVoice && !silent,
       origin: origin,
       holds: holds,
-      speechIsInherited: speechIsInherited,
+      speechWrite: write,
     );
     return true;
   }
@@ -702,19 +816,22 @@ class MascotPersona {
     bool withVoice = true,
     MascotStateOrigin origin = MascotStateOrigin.other,
     bool holds = true,
-    bool speechIsInherited = false,
+    MascotSpeechWrite speechWrite = MascotSpeechWrite.clear,
   }) {
     _revision++;
     _origin = origin;
-    // 沿用別人那句話時不動 provenance；其餘情況（自己的台詞、或明確不講話）
-    // 這句話就歸這次的寫入者。
-    if (!speechIsInherited) _speechOrigin = origin;
     current.value = MascotState(
       state.assetPath,
       state.speech,
       bubble: state.bubble,
       bubbleTick: state.bubble == null ? 0 : ++_bubbleSeq,
     );
+    // 台詞的租約獨立於狀態：保留時整組原封不動（來源、絕對期限、計時器都
+    // 是原本那個擁有者的），其餘情況才換新的一份。這一段刻意在 current.value
+    // 之後——新租約的期限只有在「這次真的留下一句話」時才有意義。
+    if (speechWrite != MascotSpeechWrite.preserve) {
+      _openSpeechLease(origin, holds: holds);
+    }
     final cue = withVoice ? _voiceCueFor(ctx) : null;
     final now = DateTime.now();
     if (cue != null && !voiceMuted && _voiceAllowed(ctx, now: now)) {
@@ -880,11 +997,12 @@ class MascotPersona {
     _activePriority = 0;
     _revision++;
     _origin = MascotStateOrigin.opening;
-    _speechOrigin = MascotStateOrigin.opening;
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       MascotLines.randomLineFor(MascotContext.openApp),
     );
+    // 冷啟動的問候沒有期限：它會停在畫面上直到下一次互動。
+    _openSpeechLease(MascotStateOrigin.opening, holds: false);
   }
 
   /// 回到不帶文字、泡泡或語音的中性待機。
@@ -895,27 +1013,30 @@ class MascotPersona {
     _activePriority = 0;
     _revision++;
     _origin = MascotStateOrigin.opening;
-    _speechOrigin = MascotStateOrigin.opening;
     current.value = MascotState(
       MascotLines.emotionFor(MascotContext.openApp).assetPath,
       null,
     );
+    _openSpeechLease(MascotStateOrigin.opening, holds: false);
   }
 
-  /// compare-and-clear：只有全域狀態**仍然是 [expected] 那一次寫入**時，
-  /// 才把它收回不帶台詞／泡泡的待機。回傳有沒有真的收掉。
+  /// compare-and-clear：只有**狀態**仍然是 [expected] 那一次寫入時，才把姿勢、
+  /// 泡泡、停留與回神收掉。**不碰台詞**。
   ///
   /// 存在的理由：呼叫端（首頁）要在切分頁、換快照、跨日、dispose 時收拾
   /// 「自己還擁有的兔咪狀態」，但**絕不能**覆寫更新的狀態（喝水頁的過量提醒、
   /// 使用者剛做的撤銷）。用 `force` 寫 baseline 做不到這件事——force 的定義
   /// 就是繞過檢查。這裡改成原子的「相符才動手」。
   ///
+  /// 台詞另外收（[clearSpeechIfLease]）：狀態是首頁的、台詞卻還屬於開場問候
+  /// 是完全正常的混合，整份清掉會把還沒講完的問候一起殺掉。
+  ///
   /// 收拾不是互動：不出聲、不冒泡泡、不重新起算停留時間。停留與回神計時
   /// 一起清掉——狀態已經回到待機了，再留一個回神計時只會在十秒後把
   /// baseline 再寫一次。
   ///
-  /// [assetPath] 是要停在哪張立繪；null = 留著目前那張（只收台詞與泡泡）。
-  static bool clearIfClaim(MascotClaim expected, {String? assetPath}) {
+  /// [assetPath] 是要停在哪張立繪；null = 留著目前那張（只收泡泡）。
+  static bool clearStateIfClaim(MascotClaim expected, {String? assetPath}) {
     if (claim != expected) return false;
     _revertTimer?.cancel();
     _revertTimer = null;
@@ -923,8 +1044,23 @@ class MascotPersona {
     _activePriority = 0;
     _revision++;
     _origin = MascotStateOrigin.opening;
-    _speechOrigin = MascotStateOrigin.opening;
-    current.value = MascotState(assetPath ?? current.value.assetPath, null);
+    final state = current.value;
+    current.value = MascotState(assetPath ?? state.assetPath, state.speech);
+    return true;
+  }
+
+  /// compare-and-clear：只有**台詞**仍然是 [expected] 那一份租約時才收掉它。
+  /// 姿勢與泡泡不動。
+  static bool clearSpeechIfLease(MascotSpeechLease expected) {
+    if (speechLease != expected) return false;
+    final state = current.value;
+    current.value = MascotState(
+      state.assetPath,
+      null,
+      bubble: state.bubble,
+      bubbleTick: state.bubbleTick,
+    );
+    _openSpeechLease(MascotStateOrigin.opening, holds: false);
     return true;
   }
 
@@ -954,8 +1090,10 @@ class MascotPersona {
       _activePriority = 0;
       _revision++;
       _origin = MascotStateOrigin.opening;
-      _speechOrigin = MascotStateOrigin.opening;
-      current.value = _idleState();
+      // 只回神**狀態**：台詞有自己的租約與期限，由它自己的計時器收。
+      // 兩者通常同時建立、同時到期，順序不影響最終結果；但台詞若是別人的
+      // （沿用的開場問候），狀態回神就不該替它決定壽命。
+      current.value = MascotState(_idleState().assetPath, current.value.speech);
     });
   }
 }

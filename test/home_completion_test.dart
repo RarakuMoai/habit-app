@@ -3410,44 +3410,518 @@ void main() {
     });
   });
 
-  // ── HomeSpeechIntent 的契約 ─────────────────────────────────
+  // ── 門檻事件的因果與世代 ────────────────────────────────────
+  //
+  // 「跨過一半」是一次有來源的事件，不是弧線的屬性。誰跨的、那一件演到
+  // 衝擊點了沒、這次交付屬於哪一次跨越、撤銷有沒有把它否定掉——四件事
+  // 都要答得出來。
 
-  group('HomeSpeechIntent 契約', () {
-    test('silence 只保證不從首頁本地狀態帶文字，不代表兔咪一定閉嘴', () {
-      // 這是刻意的分工，也是註解寫的那一件事：情境自己的台詞池由
-      // `MascotLines.speaksFor` 與 `silent` 決定，intent 不越權。
-      // 鎖住它是為了避免未來有人把 `silence` 當成「保證沒有文字」來用。
-      expect(HomeSpeechIntent.silence.mode, HomeSpeechMode.silence);
-      expect(HomeSpeechIntent.silence.text, isNull);
-      expect(HomeSpeechIntent.inherit.mode, HomeSpeechMode.inherit);
+  group('門檻事件', () {
+    testWidgets('還活著的 ordinary 成員不得借用尚未 impact 的跨越', (tester) async {
+      _seed(6);
+      final home = await _pumpHome(tester, height: 1500);
+
+      await _tapHabit(tester, '習慣1'); // A@0，1/6
+      await tester.pump(CompletionPresentationController.kSpeakDelay); // t=470
+      expect(home.debugSemanticEvents, contains(MascotContext.completedOne));
+      home.debugClearSemanticEvents();
+
+      await _tapHabit(tester, '習慣2'); // B@470，2/6，仍是一般完成
+      await tester.pump(const Duration(milliseconds: 180)); // t=650
+      await _tapHabit(tester, '習慣3'); // C@650，3/6，真正跨過門檻
+
+      // B 的衝擊點在 t=770；先讓它過去，之後的回饋才只會來自 C。
+      await tester.pump(const Duration(milliseconds: 130)); // t=780
+      log.clear();
+
+      // B 的語意機會在 t=940，C 的衝擊點在 t=950。
+      await tester.pump(const Duration(milliseconds: 165)); // t=945
       expect(
-        HomeSpeechIntent.say(null),
-        HomeSpeechIntent.silence,
-        reason: '算出「這次沒有台詞」時不必再自己分支',
+        home.debugSemanticEvents,
+        isNot(contains(MascotContext.halfDone)),
+        reason: 'C 還沒演到自己的衝擊點，B 的機會不得先把 half 講出來',
       );
-      expect(HomeSpeechIntent.say('嗯...').text, '嗯...');
+      expect(
+        MascotPersona.current.value.bubble,
+        isNot(EmotionBubble.note),
+        reason: '不得有 half 的泡泡',
+      );
+      expect(log.voices, isEmpty, reason: '不得有 half 的語音');
+      expect(log.cues, isEmpty, reason: 'C 的衝擊點回饋都還沒發生');
 
-      // 底層的實際行為：不帶文字 + 不 silent 的會講話情境仍會自己抽一句。
-      MascotPersona.resetToIdle();
-      MascotPersona.setForContext(
-        MascotEmotion.sleep.assetPath,
-        MascotContext.notStarted,
-        force: true,
+      // C 的衝擊點先到，之後才輪到它自己的語意機會。
+      await tester.pump(const Duration(milliseconds: 20)); // t=965
+      expect(log.cues, contains(SfxCue.success), reason: 'C 的成功回饋先發生');
+      expect(log.haptics, contains(HapticLevel.light));
+      expect(
+        home.debugSemanticEvents,
+        isNot(contains(MascotContext.halfDone)),
+        reason: '衝擊點那一拍還不是語意拍',
       );
+
+      await tester.pump(const Duration(seconds: 3));
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+        reason: '門檻語意只能由與這次跨越有因果關係的機會交付一次',
+      );
+      expect(home.dailyDoneCount, 3);
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('保留合法整合：門檻成員已 impact 時，領頭那一拍直接講 half', (tester) async {
+      _seed(4);
+      final home = await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1'); // A@0，1/4
+      await tester.pump(const Duration(milliseconds: 100));
+      await _tapHabit(tester, '習慣2'); // B@100，2/4 跨過門檻，衝擊點 t=400
+
+      await tester.pump(const Duration(milliseconds: 370)); // t=470：領頭的機會
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+        reason: 'B 已經演到衝擊點，領頭那一拍可以直接整合成一次 half',
+      );
+      expect(
+        home.debugSemanticEvents,
+        isNot(contains(MascotContext.completedOne)),
+        reason: '不該先講一次一般完成再補一次',
+      );
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('half 交付後撤銷跌回門檻以下，重新跨越要再講一次', (tester) async {
+      _seed(4);
+      final home = await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1'); // A@0
+      await tester.pump(const Duration(milliseconds: 100));
+      await _tapHabit(tester, '習慣2'); // B@100 跨過門檻
+      await tester.pump(const Duration(milliseconds: 370)); // t=470
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+      );
+      expect(MascotPersona.current.value.bubble, EmotionBubble.note);
+
+      // 使用者看得見地撤銷了唯一那個跨越——進度跌回一半以下。
+      await tester.pump(const Duration(milliseconds: 10)); // t=480
+      await _tapHabit(tester, '習慣2');
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.sad.assetPath,
+      );
+      expect(home.dailyDoneCount, 1);
+
+      // 在同一個合併視窗內再次跨過門檻：那是新的一次，要有自己的一次語意。
+      await tester.pump(const Duration(milliseconds: 20)); // t=500
+      log.clear();
+      // 語音的 18 秒冷卻走真實時鐘，測試裡跨不過去。它跟門檻世代是正交的
+      // 規則——重置之後才看得出「第二次 episode 走的是完整的語意路徑」，
+      // 而不是繞過冷卻。
+      MascotPersona.debugResetVoiceCooldowns();
+      await _tapHabit(tester, '習慣3');
+      await tester.pump(const Duration(seconds: 3));
+
+      expect(home.dailyDoneCount, 2);
+      expect((home.habits as List)[1]['done'], isFalse);
+      expect((home.habits as List)[2]['done'], isTrue);
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        2,
+        reason: '撤銷讓第一次跨越失效；重新跨過去是新的一次，可以再講一次',
+      );
+      // log 在撤銷之後才 clear，所以這裡的泡泡與語音都是第二次跨越冒出來的。
+      expect(log.bubbles, contains(EmotionBubble.note), reason: '第二次要有新的泡泡');
+      expect(log.voices, contains(SfxCue.tumiConfirm), reason: '第二次要有語音');
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('撤銷不屬於這條弧線的舊習慣也會讓門檻失效', (tester) async {
+      // 一件早就完成的舊習慣 + 3 件新的：完成 1 件就是 2/4，剛好過半。
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: _todayString(),
+        PrefsKeys.habits: jsonEncode([
+          _habit('既有完成', done: true),
+          for (var i = 1; i <= 3; i++) _habit('習慣$i'),
+        ]),
+      });
+      final home = await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1'); // 2/4，跨過門檻
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+      );
+      home.debugClearSemanticEvents();
+
+      // 撤銷一件**根本不屬於這條弧線**的舊習慣：進度掉回 1/4。
+      await tester.pump(const Duration(milliseconds: 30));
+      await _tapHabit(tester, '既有完成');
+      expect(home.dailyDoneCount, 1);
+
+      // 再次跨過門檻 → 新的一次，要再講一次。
+      await tester.pump(const Duration(milliseconds: 100));
+      await _tapHabit(tester, '習慣2'); // 2/4
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(home.dailyDoneCount, 2);
+      expect(
+        (home.debugSemanticEvents as List)
+            .where((e) => e == MascotContext.halfDone)
+            .length,
+        1,
+        reason: '撤銷別的習慣一樣讓門檻失效；重新跨過去要建立新的一次',
+      );
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('撤銷後沒有重新跨越：不得重播一般完成或門檻語意', (tester) async {
+      _seed(4);
+      final home = await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1'); // A@0
+      await tester.pump(const Duration(milliseconds: 100));
+      await _tapHabit(tester, '習慣2'); // B@100 跨過門檻
+      await tester.pump(const Duration(milliseconds: 370)); // t=470，第一次 half
+      home.debugClearSemanticEvents();
+
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2'); // 撤銷，跌回 1/4
+      await tester.pump(const Duration(seconds: 4));
+
+      // 撤銷本身是一個語意事件（sad + 撤銷台詞），那是應該的；
+      // 不該出現的是「完成」那一側的任何重播。
+      expect(
+        home.debugSemanticEvents,
+        isNot(
+          anyOf(
+            contains(MascotContext.halfDone),
+            contains(MascotContext.completedOne),
+          ),
+        ),
+        reason: '沒有重新跨越就沒有新的完成語意，一般完成也不該重播',
+      );
+      expect(home.dailyDoneCount, 1);
+
+      await _tearDownHome(tester);
+    });
+  });
+
+  // ── 台詞的租約獨立於狀態 ────────────────────────────────────
+
+  group('台詞租約', () {
+    /// 讓下一件完成是「沒有自有台詞」的普通完成，並把開場問候放上畫面。
+    Future<dynamic> openingThenSpeechlessCompletion(WidgetTester tester) async {
+      final home = await _pumpHome(tester, height: 1500);
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(seconds: 4));
+      MascotPersona.setForContext(
+        MascotEmotion.neutralFront.assetPath,
+        MascotContext.openApp,
+        speech: '醒了醒了。',
+        force: true,
+        origin: MascotStateOrigin.opening,
+      );
+      return home;
+    }
+
+    testWidgets('沿用開場問候不重排它原本的十秒期限', (tester) async {
+      _seed(5);
+      await openingThenSpeechlessCompletion(tester);
+      final lease = MascotPersona.speechLease;
+      expect(lease.deadline, isNotNull);
+
+      // 快到期時才完成下一件：9.7s 的衝擊點與 9.87s 的語意拍都會沿用它。
+      await tester.pump(const Duration(milliseconds: 9400));
+      expect(MascotPersona.current.value.speech, '醒了醒了。');
+
+      await _tapHabit(tester, '習慣2');
+      await tester.pump(CompletionPresentationController.kImpactDelay);
+      expect(MascotPersona.current.value.speech, '醒了醒了。');
+      expect(MascotPersona.speechOrigin, MascotStateOrigin.opening);
+      expect(
+        MascotPersona.speechLease,
+        lease,
+        reason: '沿用時整份租約原封不動：來源與絕對期限都不能換',
+      );
+      expect(
+        MascotPersona.origin,
+        MascotStateOrigin.home,
+        reason: '但狀態確實換成首頁的了',
+      );
+
+      await tester.pump(
+        CompletionPresentationController.kSpeakDelay -
+            CompletionPresentationController.kImpactDelay,
+      );
+      expect(MascotPersona.current.value.speech, '醒了醒了。');
+      expect(MascotPersona.speechLease, lease);
+
+      // 原本的十秒到了就該消失——不是「首頁寫入之後再十秒」。
+      await tester.pump(const Duration(milliseconds: 350));
       expect(
         MascotPersona.current.value.speech,
-        isNotNull,
-        reason: 'speaksFor 為 true 的情境本來就會補台詞——silence 管不到這一層',
+        isNull,
+        reason: '沿用的拍子不得把問候變成新的十秒',
       );
 
-      // 真的要安靜就要一起傳 silent（首頁所有 silence 的呼叫端都是這樣）。
+      await _tearDownHome(tester);
+    });
+
+    for (final scenario in ['dispose', 'tab switch', 'reload', 'logical-day']) {
+      testWidgets('$scenario 只收 Home 的狀態，保留還在講的開場問候', (tester) async {
+        _seed(5);
+        final visible = ValueNotifier<bool>(true);
+        _setSurface(tester, height: 1500);
+        await tester.pumpWidget(
+          l10nTestApp(
+            home: ValueListenableBuilder<bool>(
+              valueListenable: visible,
+              builder: (_, v, _) =>
+                  TickerMode(enabled: v, child: const HomePage()),
+            ),
+          ),
+        );
+        await tester.pump();
+        final home = tester.state(find.byType(HomePage)) as dynamic;
+        await home.loadHabits();
+        await tester.pump();
+
+        await _tapHabit(tester, '習慣1');
+        await tester.pump(const Duration(seconds: 4));
+        MascotPersona.setForContext(
+          MascotEmotion.neutralFront.assetPath,
+          MascotContext.openApp,
+          speech: '醒了醒了。',
+          force: true,
+          origin: MascotStateOrigin.opening,
+        );
+        final lease = MascotPersona.speechLease;
+
+        // 非首件完成走到 470ms：Home 擁有姿勢、泡泡與狀態收據，
+        // 台詞仍然是開場問候的。
+        await _tapHabit(tester, '習慣2');
+        await tester.pump(CompletionPresentationController.kSpeakDelay);
+        expect(MascotPersona.origin, MascotStateOrigin.home);
+        expect(MascotPersona.speechOrigin, MascotStateOrigin.opening);
+        expect(MascotPersona.current.value.speech, '醒了醒了。');
+        expect(MascotPersona.current.value.bubble, EmotionBubble.note);
+
+        switch (scenario) {
+          case 'dispose':
+            await tester.pumpWidget(const SizedBox());
+            await tester.pump();
+          case 'tab switch':
+            visible.value = false;
+            await tester.pump();
+            await tester.pump();
+          case 'reload':
+            await home.loadHabits();
+            await tester.pump();
+          case 'logical-day':
+            await home.loadHabits();
+            await tester.pump();
+        }
+
+        expect(
+          MascotPersona.origin,
+          MascotStateOrigin.opening,
+          reason: '$scenario 之後 Home 的狀態擁有權要收掉',
+        );
+        expect(
+          MascotPersona.current.value.bubble,
+          isNull,
+          reason: 'Home 的泡泡要收掉',
+        );
+        expect(
+          MascotPersona.current.value.speech,
+          '醒了醒了。',
+          reason: '$scenario 不得整份 reset：那句問候不是首頁的',
+        );
+        expect(MascotPersona.speechLease, lease, reason: '問候的租約（來源與期限）完全不變');
+
+        // 問候到自己的期限才消失。
+        await tester.pump(const Duration(seconds: 11));
+        expect(MascotPersona.current.value.speech, isNull);
+
+        visible.dispose();
+        await _tearDownHome(tester);
+      });
+    }
+
+    testWidgets('台詞也是 Home 的時候，cleanup 仍然要把它清掉', (tester) async {
+      _seed(5);
+      final home = await _pumpHome(tester);
+
+      // 今天第一件會帶自己的台詞。
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(MascotPersona.current.value.speech, '今天第一件。');
+      expect(MascotPersona.speechOrigin, MascotStateOrigin.home);
+
+      await home.loadHabits();
+      await tester.pump();
+      expect(
+        MascotPersona.current.value.speech,
+        isNull,
+        reason: '台詞是首頁自己的，收拾時就要一起清掉',
+      );
+      expect(MascotPersona.origin, MascotStateOrigin.opening);
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('更新的外部狀態與台詞完全不被 Home 的 cleanup 觸碰', (tester) async {
+      _seed(5);
+      final home = await _pumpHome(tester);
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+
+      MascotPersona.interact(MascotContext.overhydration);
+      final waterClaim = MascotPersona.claim;
+      final waterLease = MascotPersona.speechLease;
+      final waterSpeech = MascotPersona.current.value.speech;
+      final waterAsset = MascotPersona.current.value.assetPath;
+
+      await home.loadHabits();
+      await tester.pump();
+      expect(MascotPersona.claim, waterClaim);
+      expect(MascotPersona.speechLease, waterLease);
+      expect(MascotPersona.current.value.speech, waterSpeech);
+      expect(MascotPersona.current.value.assetPath, waterAsset);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(MascotPersona.claim, waterClaim, reason: 'dispose 同樣完全 no-op');
+      expect(MascotPersona.speechLease, waterLease);
+
+      await tester.pump(const Duration(seconds: 12));
+    });
+  });
+
+  // ── 台詞寫入意圖：矛盾組合無法表示 ───────────────────────────
+
+  group('台詞寫入意圖', () {
+    test('preserve 不換來源、不重排期限；generate 會建立呼叫端自己的租約', () {
+      MascotPersona.resetToIdle();
+      MascotPersona.debugResetVoiceCooldowns();
+
+      // 先讓「開場問候」建立一份有期限的租約。
+      MascotPersona.setForContext(
+        MascotEmotion.neutralFront.assetPath,
+        MascotContext.openApp,
+        speech: '醒了醒了。',
+        force: true,
+        origin: MascotStateOrigin.opening,
+      );
+      final lease = MascotPersona.speechLease;
+      expect(lease.origin, MascotStateOrigin.opening);
+      expect(lease.deadline, isNotNull);
+
+      // preserve：換姿勢與狀態擁有權，台詞那一份整組不動。
+      MascotPersona.setForContext(
+        MascotEmotion.expect.assetPath,
+        MascotContext.completedOne,
+        speechWrite: MascotSpeechWrite.preserve,
+        silent: true,
+        force: true,
+        origin: MascotStateOrigin.home,
+      );
+      expect(MascotPersona.current.value.speech, '醒了醒了。');
+      expect(MascotPersona.origin, MascotStateOrigin.home, reason: '狀態換人了');
+      expect(MascotPersona.speechLease, lease, reason: '台詞的租約（來源與絕對期限）必須一模一樣');
+
+      // generate：會講話的情境自己抽一句，租約歸這次的呼叫端。
       MascotPersona.setForContext(
         MascotEmotion.sleep.assetPath,
         MascotContext.notStarted,
-        silent: true,
+        speechWrite: MascotSpeechWrite.generate,
+        force: true,
+      );
+      expect(MascotPersona.current.value.speech, isNotNull);
+      expect(MascotPersona.speechLease, isNot(lease));
+      expect(MascotPersona.speechOrigin, MascotStateOrigin.other);
+
+      // generate 交給情境決定：不會講話的情境抽不出東西。
+      MascotPersona.setForContext(
+        MascotEmotion.expect.assetPath,
+        MascotContext.completedOne,
+        speechWrite: MascotSpeechWrite.generate,
         force: true,
       );
       expect(MascotPersona.current.value.speech, isNull);
+    });
+
+    test('preserve 不得同時帶文字：矛盾組合在入口就被擋下', () {
+      MascotPersona.resetToIdle();
+      // 「保留現有那句」＋「這是我的新台詞」是互相矛盾的意圖；
+      // 舊的 nullable speech ＋ bool 組合表達得出來，這個型別表達不出來。
+      expect(
+        () => MascotPersona.setForContext(
+          MascotEmotion.expect.assetPath,
+          MascotContext.completedOne,
+          speechWrite: MascotSpeechWrite.preserve,
+          speech: '這句不該被接受',
+          force: true,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+      // own 一定要帶話，否則同樣是矛盾。
+      expect(
+        () => MascotPersona.setForContext(
+          MascotEmotion.expect.assetPath,
+          MascotContext.completedOne,
+          speechWrite: MascotSpeechWrite.own,
+          force: true,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('preserve 不會讓會講話的情境憑空生出一句掛著舊來源的話', () {
+      MascotPersona.resetToIdle();
+      MascotPersona.setForContext(
+        MascotEmotion.neutralFront.assetPath,
+        MascotContext.openApp,
+        speech: '醒了醒了。',
+        force: true,
+        origin: MascotStateOrigin.opening,
+      );
+      final lease = MascotPersona.speechLease;
+
+      // notStarted 是「會講話」的情境；preserve 仍然只保留原本那一句。
+      expect(MascotLines.speaksFor(MascotContext.notStarted), isTrue);
+      MascotPersona.setForContext(
+        MascotEmotion.sleep.assetPath,
+        MascotContext.notStarted,
+        speechWrite: MascotSpeechWrite.preserve,
+        force: true,
+        origin: MascotStateOrigin.home,
+      );
+      expect(
+        MascotPersona.current.value.speech,
+        '醒了醒了。',
+        reason: '不得從台詞池補一句新的，卻掛著開場問候的來源',
+      );
+      expect(MascotPersona.speechLease, lease);
     });
   });
 

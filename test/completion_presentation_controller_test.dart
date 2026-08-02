@@ -77,8 +77,8 @@ void main() {
         clock.elapse(_semanticDelayFor(isLead: false));
 
         expect(rec.semantics, [
-          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
-        ], reason: '被拒不得吃掉資格；有效的半程成員要能重試，而且只發一次');
+          (CompletionPhase.speak, CompletionKind.half, 'C'),
+        ], reason: '被拒不得吃掉資格；這條弧線還沒開過口，所以這是它的第一次開口（直接整合成里程碑）');
 
         clock.elapse(const Duration(seconds: 5));
         expect(rec.semantics, hasLength(1), reason: '交付之後其餘 timer 一律 no-op');
@@ -300,6 +300,165 @@ void main() {
     });
   });
 
+  group('門檻世代', () {
+    test('尚未 impact 的跨越不得被別人的機會借去用', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'A'); // t=0
+        clock.elapse(CompletionPresentationController.kSpeakDelay); // t=470
+        _start(c, 'B'); // t=470，一般完成
+        clock.elapse(const Duration(milliseconds: 180)); // t=650
+        _start(c, 'C', crossedHalf: true, doneCount: 3);
+
+        // B 的機會在 t=940；C 的衝擊點在 t=950。
+        clock.elapse(const Duration(milliseconds: 295)); // t=945
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          isEmpty,
+          reason: 'C 還沒演到自己的衝擊點，這次跨越還不能被講出來',
+        );
+        expect(rec.impacts, isNot(contains('C')));
+
+        clock.elapse(const Duration(seconds: 2));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
+        ], reason: '門檻語意只能由與這次跨越有因果關係的機會交付');
+      });
+    });
+
+    test('交付過的跨越被撤銷之後，重新跨過去是新的一次', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'A'); // t=0
+        clock.elapse(const Duration(milliseconds: 100));
+        final b = _start(c, 'B', crossedHalf: true, doneCount: 2); // t=100
+        clock.elapse(const Duration(milliseconds: 370)); // t=470
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'A'),
+        ], reason: 'B 已經 impact，領頭那一拍直接整合成 half');
+
+        clock.elapse(const Duration(milliseconds: 10)); // t=480
+        expect(c.cancelEvent(b.id), CompletionCancelOutcome.arcSurvives);
+        clock.elapse(const Duration(milliseconds: 20)); // t=500
+        _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(seconds: 3));
+
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'A'),
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
+        ], reason: '撤銷讓第一次跨越失效；重新跨過去可以再交付一次');
+      });
+    });
+
+    test('Home 回報進度跌回門檻以下：正在進行的跨越當場失效', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'A');
+        clock.elapse(CompletionPresentationController.kSpeakDelay);
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+        ]);
+
+        clock.elapse(const Duration(milliseconds: 30));
+        _start(c, 'B', crossedHalf: true, doneCount: 2);
+        // 使用者撤銷了一件**不屬於這條弧線**的舊習慣，進度掉回門檻以下。
+        c.syncAboveThreshold(false);
+        clock.elapse(const Duration(seconds: 3));
+
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          isEmpty,
+          reason: '門檻的真相在 Home 的進度，不在成員身上的歷史旗標',
+        );
+      });
+    });
+
+    test('已經在門檻之上時再完成一件，不算新的一次跨越', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'A', crossedHalf: true, doneCount: 2);
+        clock.elapse(CompletionPresentationController.kSpeakDelay);
+        expect(rec.semantics, hasLength(1));
+
+        // 同一次跨越還有效時再加一個「跨越」成員：不建立新的世代。
+        _start(c, 'B', crossedHalf: true, doneCount: 3);
+        clock.elapse(const Duration(seconds: 3));
+        expect(rec.semantics, hasLength(1), reason: '同一次跨越只講一次');
+      });
+    });
+
+    test('被撤銷的成員留下的 timer 不得替下一次跨越交付', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'A');
+        clock.elapse(CompletionPresentationController.kSpeakDelay); // t=470
+        clock.elapse(const Duration(milliseconds: 30)); // t=500
+        final b = _start(c, 'B', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(milliseconds: 20)); // t=520
+        c.cancelEvent(b.id);
+        clock.elapse(const Duration(milliseconds: 160)); // t=680
+        _start(c, 'C', crossedHalf: true, doneCount: 2);
+
+        // B 的機會在 t=970，C 的衝擊點在 t=980。
+        clock.elapse(const Duration(milliseconds: 295)); // t=975
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          isEmpty,
+          reason: 'B 已經被撤銷，它的 timer 不得替 C 的那一次交付',
+        );
+
+        clock.elapse(const Duration(seconds: 2));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
+        ]);
+      });
+    });
+
+    test('被拒的門檻語意可以由同一次跨越的後續機會重試', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'A');
+        clock.elapse(CompletionPresentationController.kSpeakDelay); // ordinary
+        rec.semantics.clear();
+
+        rec.accept = false;
+        clock.elapse(const Duration(milliseconds: 30)); // t=500
+        _start(c, 'B', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(milliseconds: 180)); // t=680
+        _start(c, 'C', doneCount: 3); // 一般完成，只是提供另一次機會
+
+        clock.elapse(const Duration(milliseconds: 290)); // t=970：B 的機會被拒
+        expect(rec.semantics, isEmpty);
+
+        rec.accept = true;
+        clock.elapse(const Duration(seconds: 3)); // C 的機會 t=1150
+        expect(rec.semantics, [
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
+        ], reason: '被拒不消耗這一次跨越的交付資格');
+      });
+    });
+  });
+
   group('失效的機會不得取得資格', () {
     test('跨日／離開首頁之後的 timer 一律不交付', () {
       fakeAsync((clock) {
@@ -333,8 +492,8 @@ void main() {
         _start(c, 'B', crossedHalf: true, doneCount: 2);
         clock.elapse(_semanticDelayFor(isLead: false));
         expect(rec.semantics, [
-          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'B'),
-        ], reason: '不可播不等於交付過，後續成員仍要拿得到機會');
+          (CompletionPhase.speak, CompletionKind.half, 'B'),
+        ], reason: '不可播不等於交付過；弧線還沒開過口，所以仍是第一次開口');
       });
     });
   });

@@ -173,21 +173,28 @@ enum _BeatScope {
   arc,
 }
 
-/// 這條弧線的語意交付到哪一步了。
+/// 一次「跨過一半門檻」的事件。
 ///
-/// 取代舊的兩個布林（semanticDelivered／milestoneDelivered）：那組合可以表達
-/// 「里程碑發過但一般語意沒發過」這種不存在的狀態，而且讓「被拒之後還能不能
-/// 重試」變成要同時判斷兩個欄位的隱含規則。
-enum _SemanticProgress {
-  /// 還沒有任何語意成功交付。任何有效成員都可以嘗試。
-  none,
+/// 門檻不是弧線的屬性，是**有因果來源的一次事件**：某一件把進度從門檻以下
+/// 推到門檻以上。舊模型只有一個 `crossedHalf` 歷史旗標加上一個 arc 層級的
+/// terminal 布林，答不出四個問題——哪一件跨的、那一件演到衝擊點了沒、這次
+/// 交付屬於哪一次跨越、撤銷有沒有把那次跨越否定掉。
+///
+/// 一條弧線同一時間最多只有一個有效 episode：已經在門檻之上時再完成一件
+/// 不是「又跨了一次」，撤銷讓進度掉回門檻以下才會結束目前這一次。
+class _MilestoneEpisode {
+  _MilestoneEpisode({required this.id, required this.sourceEventId});
 
-  /// 一般完成的語意已經交付。之後若有成員讓弧線跨過門檻，還要補一次里程碑。
-  ordinaryDelivered,
+  /// 門檻世代。交付與否記的是這個 id，不是一個永久的布林。
+  final int id;
 
-  /// 里程碑已經交付。這條弧線的語意到此為止，之後所有機會都是 no-op。
-  /// 第一次就以 half 交付時直接到這裡——一般語意與里程碑同時算完成。
-  halfDelivered,
+  /// 把進度推過門檻的那一件。它被撤銷，這次跨越就不成立。
+  final int sourceEventId;
+
+  /// 那一件自己的衝擊點到了沒。
+  ///
+  /// 語意不能跑在因果之前：使用者還沒看到那一勾落下，兔咪不該先為它慶祝。
+  bool impactReached = false;
 }
 
 /// 撤銷單一件之後，這條弧線的下場。
@@ -219,25 +226,60 @@ class _CompletionArc {
   /// 仍然有效的成員 id。
   final Set<int> live = {};
 
-  /// 語意交付進度。**只有呼叫端真的套用了才會前進**——被拒的那一次什麼都
-  /// 沒發生，不該把後面成員的機會一起吃掉。
-  _SemanticProgress semantic = _SemanticProgress.none;
+  /// 一般完成的語意已經交付過了（整條弧線一次）。
+  ///
+  /// **只有呼叫端真的套用了才會設**——被拒的那一次什麼都沒發生，不該把後面
+  /// 成員的機會一起吃掉。以 half 交付時同樣算數：里程碑本來就涵蓋一般完成。
+  bool ordinaryDelivered = false;
+
+  /// 目前這一次跨越門檻的事件；null = 進度不在門檻之上。
+  _MilestoneEpisode? episode;
+
+  /// 已經交付過語意的那一次跨越。
+  ///
+  /// 這裡放 id 而不是布林，是整組修正的關鍵：half 交付不再是「這條弧線的
+  /// 語意到此為止」，而是「第 N 次跨越已經講過了」。撤銷讓進度掉回門檻以下
+  /// 再重新跨過去，就是第 N+1 次，可以再講一次。
+  int? deliveredEpisodeId;
+
+  /// 這一件把進度推過門檻了。
+  ///
+  /// 已經在門檻之上時不算新的一次——那只是「又完成一件」，不是重新跨越。
+  void openEpisode({required int id, required int sourceEventId}) {
+    if (episode != null) return;
+    episode = _MilestoneEpisode(id: id, sourceEventId: sourceEventId);
+  }
+
+  /// 這一次跨越不成立了（來源被撤銷，或 Home 回報進度已跌回門檻以下）。
+  void invalidateEpisode() => episode = null;
+
+  /// 某一件演到自己的衝擊點了。只有門檻來源那一件會推進 episode。
+  void markImpactReached(int eventId) {
+    if (episode?.sourceEventId == eventId) episode!.impactReached = true;
+  }
+
+  /// 這一刻的語意是一般完成還是里程碑。
+  ///
+  /// 三個條件缺一不可：有正在進行的跨越、那一件已經演到衝擊點、那一件還活著。
+  /// 只看「有沒有成員帶著 crossedHalf 歷史旗標」會讓還沒 impact 的跨越被
+  /// 別人的 timer 借去用。
+  CompletionKind get kind {
+    final ep = episode;
+    if (ep == null || !ep.impactReached || !live.contains(ep.sourceEventId)) {
+      return CompletionKind.ordinary;
+    }
+    return CompletionKind.half;
+  }
 
   /// 這一刻的語意還需不需要送。
-  ///
-  /// [kind] 是**當下**重算的弧線語意，不是排程時的快照：半程成員被撤銷後
-  /// 弧線會降回一般完成，那時就不該再補里程碑。
-  bool needsSemantic(CompletionKind kind) => switch (semantic) {
-    _SemanticProgress.halfDelivered => false,
-    _SemanticProgress.ordinaryDelivered => kind == CompletionKind.half,
-    _SemanticProgress.none => true,
-  };
+  bool needsSemantic(CompletionKind kind) => kind == CompletionKind.half
+      ? episode!.id != deliveredEpisodeId
+      : !ordinaryDelivered;
 
   /// 呼叫端回覆 [CompletionDelivery.delivered] 之後才呼叫。
   void markSemanticDelivered(CompletionKind kind) {
-    semantic = kind == CompletionKind.half
-        ? _SemanticProgress.halfDelivered
-        : _SemanticProgress.ordinaryDelivered;
+    ordinaryDelivered = true;
+    if (kind == CompletionKind.half) deliveredEpisodeId = episode?.id;
   }
 
   /// 合併視窗還開著（還能收新成員進來）。
@@ -249,11 +291,6 @@ class _CompletionArc {
   final Set<Timer> beats = {};
 
   bool get hasLiveMember => live.isNotEmpty;
-
-  /// 由**目前仍然有效的成員**重算語意。半程成員被撤銷就自動降回 ordinary。
-  CompletionKind get kind => live.any((id) => members[id]?.crossedHalf == true)
-      ? CompletionKind.half
-      : CompletionKind.ordinary;
 
   /// 這條弧線目前的代表成員：原本那一件還活著就是它，否則挑最早的有效成員。
   ///
@@ -337,6 +374,7 @@ class CompletionPresentationController {
 
   int _lastEventId = 0;
   int _lastArcId = 0;
+  int _lastEpisodeId = 0;
   int _generation = 0;
 
   /// 所有還沒收乾淨的弧線。上一條沒播完的 recover／quiet 不會被下一條蓋掉。
@@ -397,6 +435,9 @@ class CompletionPresentationController {
     );
     arc.members[event.id] = event;
     arc.live.add(event.id);
+    if (crossedHalf) {
+      arc.openEpisode(id: ++_lastEpisodeId, sourceEventId: event.id);
+    }
 
     onPhase(CompletionPhase.confirm, event, arc.kind);
 
@@ -504,6 +545,8 @@ class CompletionPresentationController {
     for (final arc in _arcs) {
       if (!arc.live.contains(eventId)) continue;
       arc.live.remove(eventId);
+      // 撤銷的正是把進度推過門檻的那一件 → 這一次跨越不成立了。
+      if (arc.episode?.sourceEventId == eventId) arc.invalidateEpisode();
       if (arc.hasLiveMember) return CompletionCancelOutcome.arcSurvives;
       arc.disposeTimers();
       arc.windowOpen = false;
@@ -511,6 +554,21 @@ class CompletionPresentationController {
       return CompletionCancelOutcome.arcEnded;
     }
     return CompletionCancelOutcome.unknown;
+  }
+
+  /// Home 回報「目前的進度是不是還在門檻之上」。
+  ///
+  /// 門檻的真相在 Home 的資料，不在弧線成員的歷史旗標：使用者可能撤銷一件
+  /// **根本不屬於這條弧線**的舊習慣，進度一樣會掉回門檻以下。跌下去之後
+  /// 正在進行的那一次跨越就不成立了；要再講一次里程碑，必須真的再跨一次。
+  ///
+  /// 只有「跌下去」需要處理——重新跨過去一定伴隨一次新的完成事件，那時
+  /// [start] 會帶著 `crossedHalf` 開一次新的 episode。
+  void syncAboveThreshold(bool aboveThreshold) {
+    if (aboveThreshold) return;
+    for (final arc in _arcs) {
+      arc.invalidateEpisode();
+    }
   }
 
   /// 丟掉所有還沒發生的 phase 並讓整個 generation 失效。
@@ -597,19 +655,23 @@ class CompletionPresentationController {
 
     if (phase != null) {
       if (isStillValid != null && !isStillValid!(payload)) return;
+      // 衝擊點是門檻事件的因果起點：那一勾落下之後，這次跨越才能被講出來。
+      // 放在可播檢查之後——看不到的那一拍不算真的發生過。
+      if (phase == CompletionPhase.impact) arc.markImpactReached(payload.id);
       onPhase(phase, payload, arc.kind);
       return;
     }
 
     // ── 語意機會 ──
-    // kind 在**這一刻**重算：半程成員被撤銷後弧線會降回一般完成。
+    // kind 在**這一刻**重算，而且要求門檻事件已經走到自己的衝擊點。
     final kind = arc.kind;
     if (!arc.needsSemantic(kind)) return;
     if (isStillValid != null && !isStillValid!(payload)) return;
-    // 領頭那一次是「這條弧線開口」；後續成員把弧線推過門檻才叫補送里程碑。
-    // 領頭被拒之後由後續成員重試時，語意仍然是第一次開口（speak）。
-    final semanticPhase =
-        arc.leadEventId != source.id && kind == CompletionKind.half
+    // 這條弧線還沒開過口 → 這一次就是它的第一次開口（speak），不論語意是
+    // 一般完成還是里程碑（領頭之前若已經有成員跨過門檻並演到衝擊點，
+    // 第一次開口就直接整合成里程碑，不必先講一次一般完成再補一次）。
+    // 已經開過口、之後才跨過門檻 → 那才是補送（milestoneHandoff）。
+    final semanticPhase = arc.ordinaryDelivered && kind == CompletionKind.half
         ? CompletionPhase.milestoneHandoff
         : CompletionPhase.speak;
     // 交付與否由呼叫端回覆。先設旗標的話，被擋下的那一次會把資格吃掉——
