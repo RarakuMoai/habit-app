@@ -187,6 +187,25 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     return mq?.disableAnimations == true || mq?.accessibleNavigation == true;
   }
 
+  /// 上一次看到的 Reduce Motion 狀態；用來偵測**執行中**被打開。
+  bool _lastReduceMotion = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 使用者可以在打卡的當下才打開偏好（設定 App 就在旁邊）。開啟那一刻，
+    // 正在跑的圓圈按壓／回彈必須當場停住並回到原尺寸，不能演完剩下的
+    // 340ms。MediaQuery 改變本來就會走到這裡。
+    final reduce = _reduceMotion;
+    if (reduce == _lastReduceMotion) return;
+    _lastReduceMotion = reduce;
+    if (!reduce) return;
+    _ctrl.stop();
+    // TweenSequence 的 0 就是 1.0；歸零而不是停在半路的 0.92 或 1.06。
+    // 關掉偏好之後也不會補播——這一次已經沒有了。
+    _ctrl.value = 0;
+  }
+
   /// habit map 是同一個實例被原地修改，didUpdateWidget 比不出新舊值，
   /// 改在 build 時偵測 done 變化來觸發描繪動畫。
   void _syncCheckAnim(bool done) {

@@ -863,6 +863,14 @@ class _MascotStageState extends State<MascotStage>
     _chargeTickStep = 0;
     // 已經被取消的那次小跳不該在偏好關掉之後補播。
     _activeReactionCancellable = false;
+    // 換立繪的過場也要當場收斂。停掉 `_poseSettleCtrl` 只管沉降那一段；
+    // AnimatedSwitcher 內部**已經建立**的 outgoing entry 有自己的
+    // controller 與 curve（建立當下就定好了，之後改 switchOutCurve 對它
+    // 無效），放著不管會繼續淡出，畫面上就是兩張半透明立繪。
+    // 換掉 switcher 的 key 是唯一能整組丟掉它們的方式：重建之後只剩
+    // 目前那一張，而且完全不透明。
+    _poseSwitcherGeneration++;
+    _dropOutgoingPose = true;
   }
 
   @override

@@ -141,6 +141,24 @@ class HomeCompletionEvent {
       'HomeCompletionEvent(#$id arc$arcId gen$generation $habitKey)';
 }
 
+/// 呼叫端對一次語意交付的回覆。
+///
+/// speak 與 milestoneHandoff 是「一條弧線只發一次」的拍子，過去只要 timer
+/// 響過就記成已交付。但呼叫端可能整拍被拒（更高優先的狀態、更新的擁有權），
+/// 那一次其實什麼都沒發生——把資格消耗掉，之後**真的**跨過門檻的成員就再也
+/// 交付不出去了。改成由呼叫端明確回覆，只有 [delivered] 才消耗資格。
+enum CompletionDelivery {
+  /// 呼叫端真的把語意套用上去了。
+  delivered,
+
+  /// 這一次被擋下或延後，什麼都沒發生。之後的成員仍可再試。
+  rejected,
+
+  /// 這個成員／語意已經不成立（畫面沒了、弧線已降級），丟掉就好。
+  /// 與 [rejected] 一樣不消耗資格，分開只是為了讀得出原因。
+  obsolete,
+}
+
 /// 撤銷單一件之後，這條弧線的下場。
 ///
 /// 呼叫端需要明確知道「還有沒有人活著」才能決定要不要送出動作取消，
@@ -228,7 +246,9 @@ class CompletionPresentationController {
   ///
   /// [kind] 是**這一拍所屬弧線**當下的語意，由 controller 解析後傳進來——
   /// 呼叫端不需要（也不可以）去問一個會被下一條弧線改寫的全域欄位。
-  final void Function(
+  ///
+  /// 回傳值只對 speak 與 milestoneHandoff 有意義：見 [CompletionDelivery]。
+  final CompletionDelivery Function(
     CompletionPhase phase,
     HomeCompletionEvent event,
     CompletionKind kind,
@@ -497,14 +517,18 @@ class CompletionPresentationController {
       }
     }
     if (isStillValid != null && !isStillValid!(subject)) return;
+    // 語意由呼叫端真的套用之後才算交付。先設旗標的話，被擋下的那一次
+    // 會把資格吃掉——後面真正跨過門檻的成員就永遠交付不出去了。
+    final kind = arc.kind;
+    final result = onPhase(phase, subject, kind);
+    if (result != CompletionDelivery.delivered) return;
     if (phase == CompletionPhase.speak) {
       arc.semanticDelivered = true;
-      if (arc.kind == CompletionKind.half) {
+      if (kind == CompletionKind.half) {
         arc.milestoneDelivered = true;
       }
     } else if (phase == CompletionPhase.milestoneHandoff) {
       arc.milestoneDelivered = true;
     }
-    onPhase(phase, subject, arc.kind);
   }
 }
