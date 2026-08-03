@@ -632,18 +632,15 @@ void main() {
     SharedPreferences.setMockInitialValues(_yesterdayPartlyDone());
     await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
 
-    // 留下一個屬於昨天、兩秒後會回寫 Persona 的本地 transient timer。
+    // 昨天留下來的兔咪狀態必須是**首頁自己寫的**——production 就是這樣：
+    // 打卡、撤銷、里程碑都走 Home 的 origin 與收據。撤銷同時留下一個屬於
+    // 昨天、兩秒後會回寫 Persona 的本地 transient timer，一個動作蓋兩件事。
+    //
+    // 刻意不用 `force` 直接寫一份 external 狀態來當「昨天的狀態」：跨日只有
+    // 資格收自己那一份，external 較新的狀態不得被覆寫（見下一個測試）。
     _homeState(tester).toggleHabit(0);
     await tester.pump();
-
-    // 模擬昨天全完成留下的兔咪狀態
-    MascotPersona.setForContext(
-      MascotEmotion.happy.assetPath,
-      MascotContext.allDone,
-      speech: '今天全部完成了。',
-      force: true,
-    );
-    await tester.pump();
+    expect(MascotPersona.origin, MascotStateOrigin.home);
     expect(MascotPersona.current.value.speech, isNotNull);
 
     await _crossTo(tester, DateTime(2026, 8, 1, 4, 0, 1));
@@ -662,6 +659,38 @@ void main() {
       MascotEmotion.neutralFront.assetPath,
     );
     expect(MascotPersona.current.value.speech, isNull);
+
+    await _teardownTree(tester);
+  });
+
+  testWidgets('跨日前被其他分頁接手：新日的中性重設完全不碰它', (tester) async {
+    SharedPreferences.setMockInitialValues(_yesterdayPartlyDone());
+    await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+
+    _homeState(tester).toggleHabit(0);
+    await tester.pump();
+    expect(MascotPersona.origin, MascotStateOrigin.home);
+
+    // 其他分頁（喝水過量，優先度 40）在跨日之前接手。從這一刻起，首頁手上
+    // 的收據——不管是還握著的、還是收拾自己之後留下的——都對不上了。
+    MascotPersona.interact(MascotContext.overhydration);
+    final externalClaim = MascotPersona.claim;
+    final externalLease = MascotPersona.speechLease;
+    final externalState = MascotPersona.current.value;
+    expect(externalState.speech, isNotNull);
+
+    await _crossTo(tester, DateTime(2026, 8, 1, 4, 0, 1));
+
+    expect(_homeState(tester).dailyDoneCount, 0, reason: '新的一天進度歸零');
+    expect(
+      MascotPersona.claim,
+      externalClaim,
+      reason: '換日只能收自己的狀態，不得覆寫較新的 external claim',
+    );
+    expect(MascotPersona.speechLease, externalLease);
+    expect(MascotPersona.current.value.assetPath, externalState.assetPath);
+    expect(MascotPersona.current.value.speech, externalState.speech);
+    expect(tester.takeException(), isNull);
 
     await _teardownTree(tester);
   });
@@ -914,6 +943,119 @@ void main() {
       );
       expect(MascotPersona.speechLease, waterLease);
       expect(MascotPersona.current.value.speech, waterSpeech);
+
+      await _teardownTree(tester);
+    });
+
+    // ── 換日只收自己的 state，台詞的租約整份原封不動 ────────────
+    //
+    // 開場問候的**狀態擁有權**與**台詞租約**是兩條各自的壽命。換日只有資格
+    // 動自己那一半：無條件的全域重設會建立一份新的 opening 租約，把還沒講完
+    // 的問候文字一起清掉。
+
+    /// production 冷啟動順序：coordinator 先 settle，`main()` 才建立開場問候的
+    /// 租約，最後 MainPage / HomePage 才 mount。
+    Future<void> pumpAfterColdOpening(WidgetTester tester, DateTime at) async {
+      _clock = _FakeClock(at);
+      LogicalDayCoordinator.debugInstance = LogicalDayCoordinator(
+        clock: _clock.call,
+      );
+      await LogicalDayCoordinator.instance.start();
+      MascotPersona.resetToOpening();
+      await tester.pumpWidget(l10nTestApp(home: const MainPage()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+
+    testWidgets('冷啟動的開場問候：跨日之後文字、租約、來源、期限完全相同', (tester) async {
+      useTallSurface(tester);
+      SharedPreferences.setMockInitialValues(seed());
+      await pumpAfterColdOpening(tester, DateTime(2026, 8, 1, 3, 58));
+
+      final opening = MascotPersona.current.value.speech!;
+      final openingLease = MascotPersona.speechLease;
+      expect(
+        MascotPersona.speechDeadline,
+        isNull,
+        reason: '冷啟動的問候刻意沒有期限：它停在畫面上直到下一次互動',
+      );
+
+      // 狀態是首頁的、台詞仍然是開場問候的混合擁有權。
+      await tester.tap(find.text('閱讀'));
+      await tester.pump();
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(MascotPersona.origin, MascotStateOrigin.home);
+      expect(MascotPersona.speechOrigin, MascotStateOrigin.opening);
+      expect(MascotPersona.current.value.speech, opening);
+      expect(MascotPersona.speechLease, openingLease);
+
+      final cues = <SfxCue>[];
+      final haptics = <HapticLevel>[];
+      final voices = <SfxCue>[];
+      debugFeedbackSink = (cue, haptic) {
+        if (cue != null) cues.add(cue);
+        if (haptic != HapticLevel.none) haptics.add(haptic);
+      };
+      MascotPersona.debugVoiceSink = voices.add;
+      addTearDown(() {
+        debugFeedbackSink = null;
+        MascotPersona.debugVoiceSink = null;
+      });
+
+      await _crossTo(tester, DateTime(2026, 8, 1, 4, 0, 1));
+
+      expect(tester.takeException(), isNull);
+      expect(_homeState(tester).dailyDoneCount, 0, reason: '新的一天進度歸零');
+      expect(
+        (
+          MascotPersona.current.value.speech,
+          MascotPersona.speechLease,
+          MascotPersona.speechOrigin,
+          MascotPersona.speechDeadline,
+        ),
+        (opening, openingLease, MascotStateOrigin.opening, null),
+        reason: '換日只能收 state；台詞的文字、租約身分、來源與絕對期限是同一條壽命',
+      );
+      // state 那一半確實收乾淨了。
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.neutralFront.assetPath,
+      );
+      expect(MascotPersona.current.value.bubble, isNull);
+      expect(cues, isNot(contains(SfxCue.success)));
+      expect(haptics, isEmpty);
+      expect(voices, isEmpty);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('有期限的開場問候：跨日不重排它的絕對期限', (tester) async {
+      useTallSurface(tester);
+      SharedPreferences.setMockInitialValues(seed());
+      await _pumpMain(tester, DateTime(2026, 8, 1, 3, 58));
+
+      // 有期限的 opening 租約（十秒後由它自己的計時器收掉），對上「狀態是
+      // 首頁的、台詞是問候的」混合擁有權。
+      await mixedOwnership(tester);
+      final lease = MascotPersona.speechLease;
+      final deadline = MascotPersona.speechDeadline;
+      expect(deadline, isNotNull, reason: '這一份問候有期限，和冷啟動那份不同');
+
+      await _crossTo(tester, DateTime(2026, 8, 1, 4, 0, 1));
+
+      expect(tester.takeException(), isNull);
+      // 租約整份相等就是「沒有重排」的完整證明：`_openSpeechLease` 只要被叫到
+      // 就一定會遞增 speech revision，而期限是租約自己的絕對欄位。
+      expect(MascotPersona.speechLease, lease, reason: '不得換一份新租約');
+      expect(MascotPersona.speechDeadline, deadline, reason: '絕對期限原樣保留');
+      expect(MascotPersona.speechOrigin, MascotStateOrigin.opening);
+      expect(MascotPersona.current.value.speech, '醒了醒了。');
+      // 狀態那一半照樣收乾淨。
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.neutralFront.assetPath,
+      );
+      expect(MascotPersona.current.value.bubble, isNull);
 
       await _teardownTree(tester);
     });

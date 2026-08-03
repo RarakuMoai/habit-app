@@ -3053,6 +3053,351 @@ void main() {
     });
   });
 
+  // ── 撤銷讓出擁有權之後的補送（不需要第三次輸入）─────────────────
+  //
+  // 權威 production 序列：1/4 → C 跨到 2/4 → D 到 3/4 → 兩件都 impact →
+  // 撤銷 C（資料仍是 2/4）。撤銷在自己的顯示期內優先是既有 invariant
+  // （`undone` 20 > `halfDone` 12），但它只是**延後**那次跨越：門檻沒有跌、
+  // 使用者也已經看過那一勾落下。顯示期合法結束之後必須自動補回來，
+  // 而不是等使用者再輸入一次。
+  //
+  // 這一組刻意不輸入第三件：多按一下就會經由「新弧線／放掉 hold」把擁有權
+  // 還回來，測不到 deferred retry 本身。
+
+  group('撤銷顯示期結束後的補送', () {
+    /// 一件早就完成的舊習慣 + 3 件新的。完成 1 件 = 2/4 剛好過半。
+    Future<dynamic> pumpFourWithOneDone(
+      WidgetTester tester, {
+      bool reduceMotion = false,
+    }) {
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: _todayString(),
+        PrefsKeys.habits: jsonEncode([
+          _habit('既有完成', done: true),
+          for (var i = 1; i <= 3; i++) _habit('習慣$i'),
+        ]),
+      });
+      return _pumpHome(tester, height: 1500, reduceMotion: reduceMotion);
+    }
+
+    int halfCount(dynamic home) => (home.debugSemanticEvents as List)
+        .where((e) => e == MascotContext.halfDone)
+        .length;
+
+    /// 兩種動效模式的時間差只在「等多久兩件都 impact」。撤銷之後到 D 自己的
+    /// 機會、以及到撤銷顯示期結束，兩邊的間隔一樣。
+    const variants = [
+      (label: '一般', reduceMotion: false, settle: 310),
+      (label: 'Reduced Motion', reduceMotion: true, settle: 150),
+    ];
+
+    for (final variant in variants) {
+      testWidgets('${variant.label}：撤銷顯示期結束後自動補送一次，不需要第三次輸入', (tester) async {
+        final home = await pumpFourWithOneDone(
+          tester,
+          reduceMotion: variant.reduceMotion,
+        );
+
+        await _tapHabit(tester, '習慣1'); // C@0：1/4 → 2/4，門檻來源
+        await tester.pump(const Duration(milliseconds: 10));
+        await _tapHabit(tester, '習慣2'); // D@10：3/4
+        await tester.pump(Duration(milliseconds: variant.settle));
+        expect(home.dailyDoneCount, 3);
+        expect(halfCount(home), 0, reason: '語意機會都還沒到');
+
+        await _tapHabit(tester, '習慣1'); // 撤銷 C；資料仍是 2/4
+        expect(home.dailyDoneCount, 2, reason: '門檻仍然成立');
+        expect(
+          MascotPersona.current.value.assetPath,
+          MascotEmotion.sad.assetPath,
+          reason: '撤銷是使用者最新的動作，它先擁有兔咪（A2）',
+        );
+        home.debugClearSemanticEvents();
+        log.clear();
+
+        // D 自己的機會到了，但被較新的撤銷擋下：這一拍什麼都沒發生。
+        await tester.pump(const Duration(milliseconds: 160));
+        expect(halfCount(home), 0, reason: '撤銷顯示期內不得被 half 覆寫');
+        expect(
+          MascotPersona.current.value.assetPath,
+          MascotEmotion.sad.assetPath,
+          reason: 'sad 必須完整撐完自己的兩秒',
+        );
+
+        // 撤銷的兩秒顯示期結束。**不再輸入任何東西**。
+        await tester.pump(const Duration(milliseconds: 1841));
+        expect(
+          MascotPersona.current.value.assetPath,
+          isNot(MascotEmotion.sad.assetPath),
+          reason: '撤銷的顯示期合法結束了',
+        );
+        expect(halfCount(home), 1, reason: '欠著的那一次必須自動補回來');
+        expect(
+          home.debugSemanticAnchors,
+          ['id_習慣2'],
+          reason: '補送的 anchor 是仍然有效、已 impact 的 D，不是被撤銷的 C',
+        );
+        expect(
+          log.cues,
+          isNot(contains(SfxCue.success)),
+          reason: '補送只補語意：不得重播衝擊點的音效',
+        );
+        expect(log.haptics, isEmpty, reason: '不得重播觸覺');
+
+        // 資料與 history 一路都是 2/4。
+        expect(home.dailyDoneCount, 2);
+        expect((home.habits as List)[1]['done'], isFalse);
+        expect((home.habits as List)[2]['done'], isTrue);
+        final prefs = await SharedPreferences.getInstance();
+        final history = prefs.getString(PrefsKeys.habitDoneDay(_todayString()));
+        expect(history, contains('id_習慣2'));
+        expect(history, isNot(contains('id_習慣1')));
+
+        // 收尾拍、停留與回神計時全部走完之後仍然恰好一次。
+        await tester.pump(const Duration(seconds: 12));
+        expect(halfCount(home), 1, reason: 'quiet／hold／revert 都不得再補一次');
+        expect(home.debugPresentationActive, isFalse);
+
+        await _tearDownHome(tester);
+      });
+
+      testWidgets('${variant.label}：來源在自己的衝擊點之前被撤銷，補送仍由 D 完成', (tester) async {
+        final home = await pumpFourWithOneDone(
+          tester,
+          reduceMotion: variant.reduceMotion,
+        );
+
+        await _tapHabit(tester, '習慣1'); // C@0：2/4
+        await tester.pump(const Duration(milliseconds: 10));
+        await _tapHabit(tester, '習慣2'); // D@10：3/4
+        // 一般模式的衝擊點在 300／310，Reduce Motion 在 140／150：
+        // t=100 兩種模式都還沒到 C 的衝擊點。
+        await tester.pump(const Duration(milliseconds: 90));
+        await _tapHabit(tester, '習慣1'); // 撤銷 C；資料仍是 2/4
+        expect(home.dailyDoneCount, 2);
+        home.debugClearSemanticEvents();
+        log.clear();
+
+        // D 自己的衝擊點照發，C 的整拍作廢。
+        await tester.pump(const Duration(milliseconds: 260));
+        expect(
+          log.cues.where((c) => c == SfxCue.success),
+          hasLength(1),
+          reason: '只有 D 自己的衝擊點；被撤銷的 C 不得發出回饋',
+        );
+        expect(halfCount(home), 0, reason: '撤銷顯示期內不得交付');
+
+        await tester.pump(const Duration(seconds: 2));
+        expect(halfCount(home), 1, reason: '來源 pre-impact 撤銷不得讓跨越永久卡死');
+        expect(home.debugSemanticAnchors, ['id_習慣2']);
+        expect(home.dailyDoneCount, 2);
+
+        await _tearDownHome(tester);
+      });
+    }
+
+    testWidgets('門檻已經跌回一半以下：撤銷顯示期結束時不得補送', (tester) async {
+      final home = await pumpFourWithOneDone(tester);
+
+      await _tapHabit(tester, '習慣1'); // C@0：2/4
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2'); // D@10：3/4
+      await tester.pump(const Duration(milliseconds: 310));
+
+      await _tapHabit(tester, '習慣1'); // 撤銷 C：2/4，門檻仍成立
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '既有完成'); // 再撤銷一件：1/4，門檻掉了
+      expect(home.dailyDoneCount, 1);
+      home.debugClearSemanticEvents();
+
+      await tester.pump(const Duration(seconds: 12));
+      expect(halfCount(home), 0, reason: '門檻不成立就沒有東西可補');
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('這次跨越已經交付過：撤銷顯示期結束時不重播', (tester) async {
+      final home = await pumpFourWithOneDone(tester);
+
+      await _tapHabit(tester, '習慣1'); // C@0：2/4
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2'); // D@10：3/4
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(halfCount(home), 1, reason: '領頭那一拍已經整合成 half');
+      home.debugClearSemanticEvents();
+
+      await _tapHabit(tester, '習慣1'); // 撤銷來源；仍是 2/4
+      await tester.pump(const Duration(seconds: 12));
+      expect(halfCount(home), 0, reason: '講過的那一次不是「欠著」，不得重播');
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('外部高優先狀態在顯示期結束前接手：不覆寫它，也不補送', (tester) async {
+      final home = await pumpFourWithOneDone(tester);
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2');
+      await tester.pump(const Duration(milliseconds: 310));
+      await _tapHabit(tester, '習慣1'); // 撤銷 C
+      home.debugClearSemanticEvents();
+
+      // 喝水頁的過量提醒（優先度 40）接手。撤銷的收據從這一刻起就對不上了。
+      await tester.pump(const Duration(milliseconds: 80));
+      MascotPersona.interact(MascotContext.overhydration);
+      final externalClaim = MascotPersona.claim;
+      final externalLease = MascotPersona.speechLease;
+      final externalSpeech = MascotPersona.current.value.speech;
+
+      // 撤銷的兩秒（t=2320）與整條弧線的收尾（t=2910）都走完，但還沒到
+      // Persona 自己的十秒回神——這段時間內全域狀態必須一動也不動。
+      await tester.pump(const Duration(seconds: 4));
+      expect(
+        MascotPersona.claim,
+        externalClaim,
+        reason: '收據不符時整段 no-op，絕不覆寫 external',
+      );
+      expect(MascotPersona.speechLease, externalLease);
+      expect(MascotPersona.current.value.speech, externalSpeech);
+      expect(halfCount(home), 0, reason: '沒有放掉自己的擁有權就不得強行補送');
+
+      await tester.pump(const Duration(seconds: 12));
+      expect(halfCount(home), 0, reason: '之後也不得偷偷補一次');
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('顯示期結束前重載換快照：欠條隨 generation 作廢', (tester) async {
+      final home = await pumpFourWithOneDone(tester);
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2');
+      await tester.pump(const Duration(milliseconds: 310));
+      await _tapHabit(tester, '習慣1'); // 撤銷 C
+      await tester.pump(const Duration(milliseconds: 160));
+      home.debugClearSemanticEvents();
+
+      await home.loadHabits(); // 換快照：整個 generation 作廢
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 12));
+
+      expect(halfCount(home), 0, reason: '上一代的欠條不得跨過 generation 補送');
+      expect(tester.takeException(), isNull);
+
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('顯示期結束前分頁被收起：看不到就不補送', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: _todayString(),
+        PrefsKeys.habits: jsonEncode([
+          _habit('既有完成', done: true),
+          for (var i = 1; i <= 3; i++) _habit('習慣$i'),
+        ]),
+      });
+      _setSurface(tester, height: 1500);
+      final visible = ValueNotifier<bool>(true);
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: ValueListenableBuilder<bool>(
+            valueListenable: visible,
+            builder: (_, v, _) =>
+                TickerMode(enabled: v, child: const HomePage()),
+          ),
+        ),
+      );
+      await tester.pump();
+      final home = tester.state(find.byType(HomePage)) as dynamic;
+      await home.loadHabits();
+      await tester.pump();
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2');
+      await tester.pump(const Duration(milliseconds: 310));
+      await _tapHabit(tester, '習慣1'); // 撤銷 C
+      await tester.pump(const Duration(milliseconds: 160));
+      home.debugClearSemanticEvents();
+      log.clear();
+
+      visible.value = false;
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 12));
+
+      expect(halfCount(home), 0, reason: '切走分頁之後不得補播任何語意');
+      expect(log.voices, isEmpty);
+
+      visible.dispose();
+      await _tearDownHome(tester);
+    });
+
+    testWidgets('顯示期結束前整棵樹被拆掉：不丟例外、也不補送', (tester) async {
+      final home = await pumpFourWithOneDone(tester);
+
+      await _tapHabit(tester, '習慣1');
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2');
+      await tester.pump(const Duration(milliseconds: 310));
+      await _tapHabit(tester, '習慣1'); // 撤銷 C
+      await tester.pump(const Duration(milliseconds: 160));
+      home.debugClearSemanticEvents();
+      log.clear();
+
+      await _tearDownHome(tester);
+      expect(halfCount(home), 0);
+      expect(log.voices, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('連續兩次撤銷：只有最新那一次的顯示期結束才補送，而且只補一次', (tester) async {
+      // 6 件、其中 2 件早就完成：完成 3 件之後撤銷 2 件，仍然是 3/6。
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: _todayString(),
+        PrefsKeys.habits: jsonEncode([
+          _habit('既有完成1', done: true),
+          _habit('既有完成2', done: true),
+          for (var i = 1; i <= 4; i++) _habit('習慣$i'),
+        ]),
+      });
+      final home = await _pumpHome(tester, height: 1500);
+
+      await _tapHabit(tester, '習慣1'); // 3/6，跨過門檻
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣2'); // 4/6
+      await tester.pump(const Duration(milliseconds: 10));
+      await _tapHabit(tester, '習慣3'); // 5/6
+      await tester.pump(const Duration(milliseconds: 310)); // t=330
+      home.debugClearSemanticEvents();
+
+      await _tapHabit(tester, '既有完成1'); // 第一次撤銷：4/6
+      await tester.pump(const Duration(milliseconds: 270)); // t=600
+      expect(halfCount(home), 0, reason: '三個機會都被撤銷擋下');
+      await _tapHabit(tester, '既有完成2'); // 第二次撤銷：3/6，門檻仍成立
+      expect(home.dailyDoneCount, 3);
+
+      // 第一次撤銷原本的到期時間（t=2330）：那條 timer 已經不是最新的。
+      await tester.pump(const Duration(milliseconds: 1731));
+      expect(halfCount(home), 0, reason: '舊的 expiry 不得放掉新撤銷的擁有權');
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.sad.assetPath,
+        reason: '最新那次撤銷的兩秒還沒走完',
+      );
+
+      // 最新那一次的顯示期結束（t=2600）。
+      await tester.pump(const Duration(milliseconds: 271));
+      expect(halfCount(home), 1);
+      expect(home.debugSemanticAnchors, ['id_習慣1']);
+
+      await tester.pump(const Duration(seconds: 12));
+      expect(halfCount(home), 1, reason: '只補一次');
+
+      await _tearDownHome(tester);
+    });
+  });
+
   // ── 排程身分：被撤銷的成員不得把 timer 借給別人 ────────────────
 
   group('里程碑的排程身分', () {

@@ -627,6 +627,293 @@ void main() {
     });
   });
 
+  // ── 因果資格：誰有權建立這次跨越的起點 ────────────────────────
+  //
+  // 起點不再永遠綁在「來源自己的 impact」上：來源可能在自己的衝擊點之前就被
+  // 撤銷，那時整次跨越會卡死。改成由**有資格的成員**（來源本身，或跨越之後
+  // 才加入的）自己的衝擊點建立。
+
+  group('因果資格', () {
+    test('來源在自己的衝擊點之前被撤銷：由後續有效成員建立起點並交付', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        final cEvent = _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(milliseconds: 10));
+        _start(c, 'D', doneCount: 3); // t=10
+
+        clock.elapse(const Duration(milliseconds: 90)); // t=100，C 還沒 impact
+        expect(c.cancelEvent(cEvent.id), CompletionCancelOutcome.arcSurvives);
+        // 別的習慣仍然完成著：撤銷 C 之後資料還是 2/4。
+        c.syncAboveThreshold(true);
+
+        clock.elapse(const Duration(milliseconds: 220)); // t=320
+        expect(rec.impacts, ['D'], reason: 'C 的衝擊點必須整拍作廢，不得借用');
+
+        clock.elapse(const Duration(milliseconds: 200)); // t=520
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'D'),
+        ], reason: 'D 自己已 impact、機會也到了，這次跨越必須由它交付');
+
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, hasLength(1), reason: '只交付一次');
+      });
+    });
+
+    test('跨越之前就加入的一般成員：來源還沒 impact 時只能講一般完成', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'B'); // t=0，領頭；機會 t=470
+        clock.elapse(const Duration(milliseconds: 180));
+        _start(c, 'C', crossedHalf: true, doneCount: 2); // t=180，衝擊點 t=480
+
+        clock.elapse(const Duration(milliseconds: 295)); // t=475
+        expect(rec.impacts, isNot(contains('C')));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'B'),
+        ], reason: 'B 早於這次跨越，不得因為整條弧線後來升級就提前送出 half');
+
+        clock.elapse(const Duration(seconds: 3));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'B'),
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
+        ], reason: '起點成立之後才由有資格的 C 在自己的機會補送');
+      });
+    });
+
+    test('來源撤銷後門檻真的掉下去：這次跨越失效，後續成員只講一般完成', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        final cEvent = _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(milliseconds: 10));
+        _start(c, 'D', doneCount: 3);
+
+        clock.elapse(const Duration(milliseconds: 90)); // t=100，C 還沒 impact
+        c.cancelEvent(cEvent.id);
+        c.syncAboveThreshold(false); // 這次撤銷讓進度真的掉回門檻以下
+
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'D'),
+        ], reason: '門檻不成立就沒有里程碑可講，但一般完成仍然要講一次');
+      });
+    });
+  });
+
+  // ── 擁有權讓出後的補送 ────────────────────────────────────────
+  //
+  // 被更高優先的狀態（撤銷）擋下的門檻語意只是**被延後**，不是被取消：資料
+  // 仍在門檻之上，使用者也已經看過那一勾落下。呼叫端放掉自己的佔用之後，
+  // 要把欠的那一次補回來，而且不需要使用者再輸入一次。
+
+  group('擁有權讓出後的補送', () {
+    /// 權威 production 形狀：C 跨過門檻、D 跟上，兩件都已 impact，
+    /// 之後 C 被撤銷但真實進度仍在門檻之上。
+    ({HomeCompletionEvent c, HomeCompletionEvent d}) crossThenUndoSource(
+      CompletionPresentationController c,
+      FakeAsync clock,
+    ) {
+      final cEvent = _start(c, 'C', crossedHalf: true, doneCount: 2);
+      clock.elapse(const Duration(milliseconds: 10));
+      final dEvent = _start(c, 'D', doneCount: 3);
+      clock.elapse(const Duration(milliseconds: 310)); // t=320
+      c.cancelEvent(cEvent.id);
+      c.syncAboveThreshold(true);
+      return (c: cEvent, d: dEvent);
+    }
+
+    test('被擋下的門檻語意：讓出後由已 impact、機會已到的成員補送一次', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        rec.accept = false; // 撤銷正擁有兔咪
+        clock.elapse(const Duration(milliseconds: 200)); // t=520 > D 的機會 480
+        expect(rec.semantics, isEmpty);
+        expect(
+          c.pendingSemanticArcIds,
+          hasLength(1),
+          reason: '被擋下的那一次留下欠條，而且已經有合法 anchor',
+        );
+
+        rec.accept = true; // 撤銷的顯示期合法結束
+        expect(c.retryPendingSemantic(), isTrue);
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'D'),
+        ], reason: '補送的 anchor 必須是仍有效、已 impact、機會已到的 D');
+        expect(rec.impacts, ['C', 'D'], reason: '補送不得重播任何衝擊點');
+
+        expect(c.pendingSemanticArcIds, isEmpty);
+        expect(c.retryPendingSemantic(), isFalse, reason: '補送過就不再欠');
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, hasLength(1), reason: '其餘 timer 一律 no-op');
+      });
+    });
+
+    test('門檻已經跌回以下：讓出時不得補送', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        rec.accept = false;
+        clock.elapse(const Duration(milliseconds: 200)); // D 的機會被擋下
+        c.syncAboveThreshold(false); // 使用者又撤銷了別的，進度掉下去了
+
+        rec.accept = true;
+        expect(c.pendingSemanticArcIds, isEmpty);
+        expect(c.retryPendingSemantic(), isFalse);
+        clock.elapse(const Duration(seconds: 4));
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          isEmpty,
+          reason: '門檻不成立的跨越沒有東西可補',
+        );
+      });
+    });
+
+    test('這次跨越已經交付過：讓出時不重播', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        clock.elapse(const Duration(milliseconds: 200)); // D 的機會照常交付
+        expect(rec.semantics, hasLength(1));
+
+        expect(c.pendingSemanticArcIds, isEmpty);
+        expect(c.retryPendingSemantic(), isFalse);
+        expect(rec.semantics, hasLength(1), reason: '交付過就不是「欠著」');
+      });
+    });
+
+    test('anchor 還沒走到自己的機會：補送 no-op，之後到了才有資格', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        final events = crossThenUndoSource(c, clock); // t=320
+        rec.accept = false;
+        // C 自己的機會在 t=470（C 已被撤銷，整拍作廢）；D 的在 t=480。
+        clock.elapse(const Duration(milliseconds: 150)); // t=470
+        expect(rec.semantics, isEmpty);
+        expect(
+          c.pendingSemanticArcIds,
+          isEmpty,
+          reason: 'D 的機會還沒到，時間線上沒有人補得出來',
+        );
+        expect(c.retryPendingSemantic(), isFalse);
+
+        clock.elapse(const Duration(milliseconds: 20)); // t=490，D 的機會被擋下
+        expect(c.pendingSemanticArcIds, [events.d.arcId]);
+
+        rec.accept = true;
+        expect(c.retryPendingSemantic(), isTrue);
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'D'),
+        ]);
+      });
+    });
+
+    test('補送再次被拒：不消耗資格、不排新的 timer', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        rec.accept = false;
+        clock.elapse(const Duration(milliseconds: 200));
+
+        expect(c.retryPendingSemantic(), isFalse, reason: '這一次也被拒');
+        expect(rec.semantics, isEmpty);
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, isEmpty, reason: '被拒不得排任何自動重試');
+
+        // 弧線的 timer 都收乾淨了：欠條仍在，但已經沒有弧線可補。
+        expect(c.presentationActive, isFalse);
+        expect(c.pendingSemanticArcIds, isEmpty);
+        expect(c.retryPendingSemantic(), isFalse);
+      });
+    });
+
+    test('弧線已經結束：補送安全 no-op', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        rec.accept = false;
+        clock.elapse(const Duration(seconds: 5)); // 整條弧線收乾淨
+        expect(c.presentationActive, isFalse);
+
+        rec.accept = true;
+        expect(c.retryPendingSemantic(), isFalse);
+        expect(rec.semantics, isEmpty);
+      });
+    });
+
+    test('跨日／離開首頁之後：欠條隨 generation 一起作廢', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        rec.accept = false;
+        clock.elapse(const Duration(milliseconds: 200));
+        expect(c.pendingSemanticArcIds, hasLength(1));
+
+        c.invalidate(); // 跨日／換快照／dispose
+        rec.accept = true;
+        expect(c.pendingSemanticArcIds, isEmpty);
+        expect(c.retryPendingSemantic(), isFalse);
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, isEmpty);
+      });
+    });
+
+    test('呼叫端回報畫面不可用：不留欠條，也補送不出去', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        var playable = true;
+        final c = CompletionPresentationController(
+          onPhase: rec.call,
+          isStillValid: (_) => playable,
+        );
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        playable = false;
+        clock.elapse(const Duration(milliseconds: 200)); // D 的機會不可播
+        expect(rec.semantics, isEmpty);
+        expect(
+          c.pendingSemanticArcIds,
+          isEmpty,
+          reason: '「畫面看不到」不是被擁有權擋下，不留欠條',
+        );
+
+        playable = true;
+        expect(c.retryPendingSemantic(), isFalse);
+        expect(rec.semantics, isEmpty);
+      });
+    });
+  });
+
   group('失效的機會不得取得資格', () {
     test('跨日／離開首頁之後的 timer 一律不交付', () {
       fakeAsync((clock) {
