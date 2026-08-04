@@ -163,18 +163,19 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
     Navigator.of(context).push(_slideRoute((_) => const ReviewPage()));
   }
 
-  // 共用「右滑入」轉場：足跡 / 設定同一套手感。
-  PageRouteBuilder<void> _slideRoute(WidgetBuilder builder) {
-    return PageRouteBuilder<void>(
-      pageBuilder: (context, _, _) => builder(context),
-      transitionsBuilder: (_, anim, _, child) => SlideTransition(
-        position: Tween(
-          begin: const Offset(1.0, 0.0),
-          end: Offset.zero,
-        ).chain(CurveTween(curve: Curves.easeInOut)).animate(anim),
-        child: child,
-      ),
-    );
+  // 設定 / 足跡的推頁轉場。
+  //
+  // 這裡曾經是自訂的 `PageRouteBuilder` + `SlideTransition`（「共用右滑入」），
+  // 看起來跟系統轉場很像，但**裸 PageRouteBuilder 不走 theme 的
+  // pageTransitionsTheme**，所以它靜靜地拿掉了兩樣東西：iOS 的邊緣滑回手勢，
+  // 以及舊頁的視差退場。全 app 其他 16 個推頁點都用 MaterialPageRoute，
+  // 只有這兩頁滑不回去——那不是風格差異，是功能少一塊。
+  //
+  // 改回平台路由：18 個推頁點手感一致、滑回手勢回來、而且少維護一段程式。
+  // 之後若真的要做品牌轉場，必須從 `CupertinoPageRoute` 或
+  // `PageTransitionsTheme` 走，不能用裸 PageRouteBuilder 換掉整個轉場層。
+  MaterialPageRoute<void> _slideRoute(WidgetBuilder builder) {
+    return MaterialPageRoute<void>(builder: builder);
   }
 }
 
