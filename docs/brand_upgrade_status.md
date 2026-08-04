@@ -19,8 +19,8 @@
 | 技術驗收 | Sol APPROVE；merge 前後 `flutter analyze` 0 issues、`flutter test` 794/794 |
 | Creative 驗收 | 2026-08-04 使用者裁決 **KEEP** |
 | Production blocker | 0 |
-| 當前階段 | 進行中：`兔咪待機生命感`（branch `polish/idle-life`，**未 merge**） |
-| 下一個大型 milestone | 已選定＝兔咪待機生命感；它結束前不選下一個 |
+| 當前階段 | 兩條未 merge 分支：`polish/idle-life`、`polish/tab-weight` |
+| 下一個大型 milestone | 上述兩條完成審查前不再開新的 |
 
 Hash 與測試數是 2026-08-04 的核對結果；未來 main 前進時應更新，不得把舊 hash
 誤認成必須回退的固定目標。
@@ -153,6 +153,38 @@ reviewer 沒看過實作者的推理過程本來就是它的價值來源，只�
 - `expect`（進度 0–50%）是唯一睜眼的待機姿，而且沒有閉眼差分，會一直瞪著。
   補 `tumi_expect_blink.png` 一張即可（低難度、只改眼睛）。其餘待機姿
   （sleep／smile／happy）本來就是閉眼造型，不需要差分。
+
+## 進行中：介面回饋與導覽
+
+Branch `polish/tab-weight`（從 `ed6a1fd` 開出）。**技術 gate 未過，不得 merge。**
+與 `polish/idle-life` 互不相干，可以分開審。
+
+只讀審查的數字（2026-08-04）：
+
+| 發現 | 證據 | 處理 |
+|---|---|---|
+| 底部分頁切換零回饋 | `_onTabTapped` 只有 `setState` | selection 觸覺，刻意不出聲 |
+| 對話框／面板 94% 無聲 | 67 個開啟點只有 4 個有回饋 | 一個 `PopupFeedbackObserver` 全覆蓋 |
+| 自訂轉場弄丟返回手勢 | 裸 `PageRouteBuilder` 不走 `pageTransitionsTheme` | 三處改回平台路由 |
+| BGM 不為音效讓路 | `bgm_service` 只有淡入淡出 | **未做**，見下方 |
+
+定下的回饋語言：高頻導覽只給觸覺（出聲會變噪音）、面板出現給一次最輕的觸覺、
+取消走統一的 `cancel` 語彙、確認刻意不發（讓真正發生的那件事自己出聲）。
+
+兩個查證結果，避免之後重複踩：
+
+- **不要用裸 `PageRouteBuilder` 推頁。** 它不走 theme 的 `pageTransitionsTheme`，
+  會默默拿掉 iOS 邊緣滑回手勢與舊頁視差。要做品牌轉場必須從
+  `CupertinoPageRoute` 或 `PageTransitionsTheme` 走。已用 `page_transition_test`
+  的正反對照釘住。全螢幕揭曉演出（story_reveal、login_streak）不受此限。
+- **回饋的「最近剛發過」窗口只給 observer 用，不是全域節流。** 打卡連打每一次
+  完成都必須各自發音效與觸覺，全域節流會吃掉第二次。
+
+尚未處理：BGM 為 SFX ducking。`bgm_service` 的救援流程是 release 實機問題的
+必要處理，不可為了簡化而移除；動它要用 `flutter run --profile` 在實機驗證，
+debug 時序不足以代表 release。留給有實機驗證條件時再做。
+
+待實機確認：觸覺強度（分頁切換與面板出現都是 selection），模擬器摸不出來。
 
 ## 下一個大型 milestone 的候選池
 
