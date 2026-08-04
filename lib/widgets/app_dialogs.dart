@@ -32,11 +32,12 @@ Widget dialogCancelAction(
 /// 標準確認框：標題 + 訊息 + 取消/確認。回傳 true = 使用者按下確認。
 /// [confirmLabel]／[cancelLabel] 不傳時用通用「確定」／「取消」。
 /// [danger] = true 時確認鈕用暖磚紅（刪除、清空類）。
-/// 回饋語言：**打斷使用者的東西要出聲，使用者自己按的不要重複出聲。**
-/// 確認框是 app 主動擋在前面，所以開啟時給一次 selection 觸覺當「這裡停一下」；
-/// 取消走 [SfxCue.cancel]（收回、退場的統一語彙），確認則刻意不發——
-/// 按下確認之後真正發生的那件事會自己出聲（刪除、清空、儲存各有各的回饋），
-/// 在這裡先響一次會變成同一個動作連響兩聲。
+/// 回饋語言：
+/// - **開啟**不在這裡發。所有蓋在內容上的東西統一由 [PopupFeedbackObserver]
+///   給一次 selection 觸覺，一個規則一個實作，新增面板不會漏掉。
+/// - **取消**走 [SfxCue.cancel]，全 app 統一的收回、退場語彙。
+/// - **確認刻意不發**：按下確認之後真正發生的那件事會自己出聲（刪除、清空、
+///   儲存各有各的回饋），在這裡先響一次會變成同一個動作連響兩聲。
 Future<bool> showAppConfirmDialog(
   BuildContext context, {
   required String title,
@@ -45,7 +46,6 @@ Future<bool> showAppConfirmDialog(
   String? cancelLabel,
   bool danger = false,
 }) async {
-  playHaptic(HapticLevel.selection);
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(

@@ -3,8 +3,8 @@
 // 未來在設定頁加「觸覺回饋開關」時只需要在這裡把關。
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import 'sfx_service.dart';
 
@@ -58,9 +58,25 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
 @visibleForTesting
 void Function(SfxCue? cue, HapticLevel haptic)? debugFeedbackSink;
 
+/// 最近一次回饋的時刻。
+///
+/// **只給 [PopupFeedbackObserver] 判斷「這個面板是不是某個已經自己出過回饋的
+/// 按鈕打開的」用，不是全域節流。** 打卡連打那種情境每一次完成都必須各自發，
+/// 全域節流會直接吃掉第二次的音效與觸覺。
+DateTime? _lastFeedbackAt;
+
+@visibleForTesting
+void debugResetFeedbackClock() => _lastFeedbackAt = null;
+
+bool _feedbackWithin(Duration window) {
+  final at = _lastFeedbackAt;
+  return at != null && DateTime.now().difference(at) < window;
+}
+
 // 播音效並配對觸覺回饋
 void playFeedback(SfxCue cue, {HapticLevel? haptic}) {
   final level = haptic ?? _defaultHaptic(cue);
+  _lastFeedbackAt = DateTime.now();
   final sink = debugFeedbackSink;
   if (sink != null) {
     sink(cue, level);
@@ -72,6 +88,7 @@ void playFeedback(SfxCue cue, {HapticLevel? haptic}) {
 
 // 只發觸覺（無音效的輕互動：chip 選取、開關切換等）
 void playHaptic(HapticLevel level) {
+  _lastFeedbackAt = DateTime.now();
   final sink = debugFeedbackSink;
   if (sink != null) {
     sink(null, level);
@@ -86,5 +103,31 @@ void playHaptic(HapticLevel level) {
       unawaited(HapticFeedback.lightImpact());
     case HapticLevel.medium:
       unawaited(HapticFeedback.mediumImpact());
+  }
+}
+
+/// 任何蓋在內容上的東西出現時，給一次最輕的觸覺。
+///
+/// 對話框與底部面板底層都是 `PopupRoute`（`showDialog`／
+/// `showModalBottomSheet`／`showMenu` 都是），所以掛一個 observer 就覆蓋全部
+/// 呼叫端——不必在幾十個 `showXxx` 前面各補一行，也不會有人新增面板時忘記。
+///
+/// 一般的頁面推送（`MaterialPageRoute`）**不是** `PopupRoute`，不會觸發：
+/// 換頁本來就有轉場可看，不需要再震一下。
+///
+/// [_recentWindow] 內剛發過回饋就跳過：有些面板是由已經播過 `tap` 的按鈕打開的
+/// （實測 67 個開啟點裡有 14 個是這樣），連著震兩下手感是壞的。這個窗口只擋
+/// observer 自己這一次，不影響任何真實事件的回饋。
+class PopupFeedbackObserver extends NavigatorObserver {
+  PopupFeedbackObserver();
+
+  static const Duration _recentWindow = Duration(milliseconds: 220);
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    if (route is! PopupRoute) return;
+    if (_feedbackWithin(_recentWindow)) return;
+    playHaptic(HapticLevel.selection);
   }
 }

@@ -19,9 +19,13 @@ void main() {
 
   setUp(() {
     events = [];
+    debugResetFeedbackClock();
     debugFeedbackSink = (cue, haptic) => events.add((cue, haptic));
   });
-  tearDown(() => debugFeedbackSink = null);
+  tearDown(() {
+    debugFeedbackSink = null;
+    debugResetFeedbackClock();
+  });
 
   group('確認框', () {
     Future<void> openConfirm(
@@ -30,6 +34,7 @@ void main() {
     }) async {
       await tester.pumpWidget(
         l10nTestApp(
+          navigatorObservers: [PopupFeedbackObserver()],
           home: Builder(
             builder: (context) => Scaffold(
               body: Center(
@@ -56,6 +61,40 @@ void main() {
     testWidgets('開啟時只給一次 selection 觸覺，不出聲', (tester) async {
       await openConfirm(tester, onResult: (_) {});
       expect(events, [(null, HapticLevel.selection)]);
+    });
+
+    testWidgets('觸發按鈕剛出過回饋時，開啟不再重複震一次', (tester) async {
+      await tester.pumpWidget(
+        l10nTestApp(
+          navigatorObservers: [PopupFeedbackObserver()],
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () {
+                    // 很多面板是這樣打開的：按鈕自己先播一次 tap。
+                    playFeedback(SfxCue.tap);
+                    showAppConfirmDialog(
+                      context,
+                      title: '刪除',
+                      message: '確定要刪除嗎？',
+                    );
+                  },
+                  child: const Text('開啟'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('開啟'));
+      await tester.pumpAndSettle();
+
+      expect(
+        events,
+        [(SfxCue.tap, HapticLevel.light)],
+        reason: '只留按鈕自己那一次，observer 不再疊上去',
+      );
     });
 
     testWidgets('取消走 cancel 的收回語彙', (tester) async {

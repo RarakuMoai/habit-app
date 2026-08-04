@@ -273,6 +273,9 @@ class _MyAppState extends State<MyApp> {
       // 掛上，拿不到 AppLocalizations。這是 i18n 遷移的第一個範例。
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
+      // 對話框／底部面板出現時的統一觸覺。掛在這裡而不是各個 showXxx 呼叫端，
+      // 新增面板就不會有人忘記加。詳見 PopupFeedbackObserver。
+      navigatorObservers: [PopupFeedbackObserver()],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
