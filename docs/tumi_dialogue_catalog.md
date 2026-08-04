@@ -64,8 +64,8 @@
 | `streak` | 首頁全完成且連續 ≥7 天（`home_page`） | 雀躍 | 星星 | ✅ 4 句 | 歡呼 | 30 | ✅ |
 | `undone` | 首頁撤銷習慣（`home_page`） | 心疼 | — | ✅ 4 句 | 難過 | 20 | ✅ |
 | `night` | 22:00–06:00 且當天尚未開始（`home_page`） | 夜晚 | Zzz | ✅ 4 句 | 靜音 | 5 | ✅ |
-| `dozeOff` | 首頁閒置一段時間沒有任何互動（`home_page` 場景閒置計時） | 睡眠 | Zzz | ❌ 池備用 | 靜音 | 5 | ✅ |
-| `wakeUp` | 打瞌睡狀態下被碰到（`home_page` 點兔咪） | 剛醒 | — | ❌ 池備用 | 靜音 | 5 | ✅ |
+| `dozeOff` | 首頁閒置一段時間沒有任何互動 | 睡眠 | Zzz | ❌ 池備用 | 靜音 | 5 | ⬜ 尚未接線 |
+| `wakeUp` | 打瞌睡狀態下被碰到 | 剛醒 | — | ❌ 池備用 | 靜音 | 5 | ⬜ 尚未接線 |
 | `tapReaction` | 點兔咪（`mascot_scene`）；首頁改用進度專屬池（`home_page`） | 中性 | 問號 | ❌ 池備用 | 70% 疑問／30% 確認 | 5 | ✅ |
 | `headPet` | 摸頭（`mascot_scene`、`home_page`） | 微笑 | 愛心 | ❌ 池備用 | 開心 | 6 | ✅ |
 | `energize` | 長按蓄力放開（`mascot_scene`）；報到卡領完足跡幣（`main.dart`） | 雀躍 | 星星 | ❌ 池備用 | 歡呼 | 6 | ✅ |
@@ -78,7 +78,14 @@
 **情境判斷順序**（同一頁多個條件時誰優先）：
 - 首頁 `home_page._mascotContext`：撤銷 → 點擊台詞 → 無習慣 → 全完成（連續 ≥7 走 `streak`）→ 過半 → 完成一件 → 夜晚 → 未開始。
 - `dozeOff`／`wakeUp` **不進這條順序**：它們由場景閒置計時驅動，不是由進度推導。
-  優先度只有 5，任何真正的事件（完成、撤銷、過量提醒）都會直接蓋過去。
+  **目前只有定義、還沒有呼叫端**——2026-08-04 接過一次沒成功，畫面上完全沒有反應。
+  查到首頁要同時滿足三層才會動，三層都做了仍然無效，根因未明，下次接線先從這裡查起：
+  1. **優先度**：`_priorityOf(dozeOff)` 是 5，而夜間的 `night` 也是 5；
+     `_priorityOf(ctx) > _activePriority` 於是不成立，要傳 `force: true`。
+  2. **立繪**：`home_page._applyPersona` 的姿勢是 `asset ?? _mascotAsset`，
+     **不會**自動採用情境的預設表情，要明確傳 `asset:`。
+  3. **畫面來源**：畫面上的立繪其實來自 `_transientMascot`（見 `_mascotAsset`），
+     不是 `MascotPersona.current`；只寫 persona 不會換畫面。
 - 喝水頁 `water_page._mascotCtx`：**過量優先於達標** → 達標 → 零杯 → 過半 → 完成一杯。
 
 ## 總表 B：功能專屬事件
