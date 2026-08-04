@@ -19,7 +19,7 @@
 | 技術驗收 | Sol APPROVE；merge 前後 `flutter analyze` 0 issues、`flutter test` 794/794 |
 | Creative 驗收 | 2026-08-04 使用者裁決 **KEEP** |
 | Production blocker | 0 |
-| 當前階段 | 兩條未 merge 分支：`polish/idle-life`、`polish/tab-weight` |
+| 當前階段 | `polish/idle-life` 已暫停；進行中的是 `polish/tab-weight` |
 | 下一個大型 milestone | 上述兩條完成審查前不再開新的 |
 
 Hash 與測試數是 2026-08-04 的核對結果；未來 main 前進時應更新，不得把舊 hash
@@ -107,6 +107,10 @@ allDone、快速連打、Undo、Reduced Motion 各錄前後對照。
 
 ## 進行中：兔咪待機生命感
 
+> **2026-08-04 暫停。使用者決定先回到 main 的行為，這條分支不 merge。**
+> 分支保留不刪；`f029a2d`（依情緒的呼吸）是唯一穩定有效又沒有副作用的改動，
+> 未來要撿回來單獨 cherry-pick 即可。停下來的理由見本節最後。
+
 Branch `polish/idle-life`（從 `b74dd3a` 開出）。**技術 gate 還沒過，不得 merge。**
 使用者已決定：先實作，等 Codex token 恢復後由它冷讀審查——這不是降級，
 reviewer 沒看過實作者的推理過程本來就是它的價值來源，只是把 gate 往後移。
@@ -153,6 +157,32 @@ reviewer 沒看過實作者的推理過程本來就是它的價值來源，只�
 - `expect`（進度 0–50%）是唯一睜眼的待機姿，而且沒有閉眼差分，會一直瞪著。
   補 `tumi_expect_blink.png` 一張即可（低難度、只改眼睛）。其餘待機姿
   （sleep／smile／happy）本來就是閉眼造型，不需要差分。
+
+### 為什麼暫停（2026-08-04）
+
+五個 commit 的實際狀態：
+
+| commit | 狀態 |
+|---|---|
+| `f029a2d` 依情緒的呼吸 | ✅ 模擬器實測有效（neutral 7px/2.5s vs sleep 12px/4.0s） |
+| `8f1aeb6` 冷啟動回待機姿 | ⚠️ 技術上有效，但**方向與使用者要的相反** |
+| `c90c8f7` 凍結前閉眼 | 🟡 機制正確，但只有 `neutral_front` 有閉眼差分，實際幾乎看不到 |
+| `d88e5a3` + `5346ee4` | ⬜ 打瞌睡接線失敗、已收掉，程式淨變動為零 |
+
+`8f1aeb6` 是關鍵：改之前冷啟動會停在**會眨眼的中性臉**且不過期，而使用者明確表示
+那樣才好。改成依進度推導之後，待機姿變成 sleep／expect／smile／happy——四張都沒有
+閉眼差分，兔咪反而永遠不眨眼了。**這條分支唯一穩定生效的行為改動，方向是錯的。**
+
+使用者要的模型是「一個會眨眼的預設 + 少數特殊情境（睡覺＋Zzz）+ 有動作就醒來」。
+那個模型現階段做不出來，卡在兩件事，兩件都已查證並釘進程式註解：
+
+1. 待機姿承載進度是**架構承重**的：演出收尾是把狀態清回 baseline，baseline 一旦與
+   進度無關，全完成的 `happy` 就留不住（`home_completion_test` 有 26 項在守）。
+2. 泛用睜眼立繪只有 `neutral_front` 有閉眼差分。要「待機一定會眨眼」又「待機姿承載
+   進度」，需要 `tumi_expect_blink.png`，以及一張睜眼版的「安心」立繪取代過半的
+   `smile`。
+
+在那兩張圖到位之前，這個 milestone 沒有能站得住的做法。
 
 ## 進行中：介面回饋與導覽
 
