@@ -650,6 +650,10 @@ class _MascotStageState extends State<MascotStage>
   late final AnimationController _breathCtrl;
   late final Animation<double> _breath;
 
+  // 目前立繪對應的待機呼吸參數。快取成欄位而不是每幀反查，順便讓
+  // didUpdateWidget 能比對「這次換立繪有沒有真的換掉呼吸節奏」。
+  late MascotIdleBreath _idleBreath;
+
   // 頭頂情緒泡泡：一次性演出，時長與動態依泡泡種類而異。
   // 觸發見 didUpdateWidget / _playBubble；規格與繪製見 mascot_bubbles.dart。
   late final AnimationController _bubbleCtrl;
@@ -743,10 +747,12 @@ class _MascotStageState extends State<MascotStage>
       duration: const Duration(milliseconds: 820),
     );
 
-    // idle 呼吸：以腳底為錨點的細微縱向縮放，一吸一吐 ~2.6 秒
+    // idle 呼吸：以腳底為錨點的細微縱向縮放。節奏與幅度隨情緒不同
+    // （越睏越慢越深、越振奮越快越淺），分組理由見 MascotEmotion.idleBreath。
+    _idleBreath = MascotEmotion.idleBreathForPath(widget.asset);
     _breathCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1300),
+      duration: _idleBreath.halfCycle,
     );
     if (_idleMotionAllowed) _breathCtrl.repeat(reverse: true);
     _breath = CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut);
@@ -876,6 +882,23 @@ class _MascotStageState extends State<MascotStage>
   @override
   void didUpdateWidget(covariant MascotStage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset != widget.asset) {
+      final next = MascotEmotion.idleBreathForPath(widget.asset);
+      if (next != _idleBreath) {
+        _idleBreath = next;
+        _breathCtrl.duration = next.halfCycle;
+        // `repeat()` 建立模擬時就把 duration 用掉了，事後改欄位不會影響
+        // 正在跑的循環——一定要重新 repeat 才會換節奏。重來會把呼吸值歸零
+        // （等於瞬間吐完氣），但**換節奏必然伴隨換立繪**，那一刻本來就有
+        // AnimatedSwitcher 的過場蓋著，所以看不出跳動。
+        //
+        // 只有本來就在跑的時候才重啟：閒置凍結與 Reduce Motion 期間
+        // duration 照更新，但不能偷偷把停住的畫面重新動起來。
+        if (_idleMotionAllowed && _breathCtrl.isAnimating) {
+          _breathCtrl.repeat(reverse: true);
+        }
+      }
+    }
     if (oldWidget.reduceMotion != widget.reduceMotion) {
       if (widget.reduceMotion) {
         _haltMotionForReduceMotion();
@@ -1509,8 +1532,8 @@ class _MascotStageState extends State<MascotStage>
               child: AnimatedBuilder(
                 animation: _breath,
                 builder: (context, bunny) => Transform.scale(
-                  scaleY: 1 + 0.013 * _breath.value,
-                  scaleX: 1 - 0.005 * _breath.value,
+                  scaleY: 1 + _idleBreath.depth * _breath.value,
+                  scaleX: 1 - _idleBreath.widthDepth * _breath.value,
                   alignment: Alignment.bottomCenter,
                   child: bunny,
                 ),

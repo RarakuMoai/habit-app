@@ -84,6 +84,42 @@ abstract final class MascotName {
       template.replaceAll('{name}', current.value);
 }
 
+/// 待機呼吸的節奏與幅度。
+///
+/// 呼吸是兔咪唯一一個**不需要任何事件就會發生**的動作，所以它就是「待機時
+/// 這隻兔子是什麼狀態」的主要載體。全部情緒共用一組參數時，睡著的兔咪和剛
+/// 全部完成的兔咪呼吸完全一樣，待機就只剩一個機械循環。
+///
+/// 分組規則是角色的，不是數字微調：**越睏越慢越深，越振奮越快越淺，低落
+/// 則慢而淺（提不起勁）。** 新增情緒時照這條規則歸隊，不要另外發明數值。
+///
+/// [halfCycle] 是一吸或一吐的長度——controller 用 `repeat(reverse: true)`，
+/// 完整一輪是它的兩倍。[depth] 是縱向縮放的最大增量；橫向的擠壓由
+/// [squashRatio] 推導，兩邊不各寫一個數字，免得之後只調一邊變成體積忽大忽小。
+class MascotIdleBreath {
+  const MascotIdleBreath({required this.halfCycle, required this.depth});
+
+  final Duration halfCycle;
+  final double depth;
+
+  /// 吸氣拉高時橫向要縮多少（相對 [depth]）。維持體積感，不是等比縮放。
+  static const double squashRatio = 0.385;
+
+  double get widthDepth => depth * squashRatio;
+
+  // 多個情緒共用同一組參數（例如平靜基準那一格），呼叫端要能判斷「這次換
+  // 立繪有沒有真的換掉呼吸」才決定重啟循環。const 實例雖然會被正規化成
+  // identical，但那是編譯器的實作細節，不該當成語意依據。
+  @override
+  bool operator ==(Object other) =>
+      other is MascotIdleBreath &&
+      other.halfCycle == halfCycle &&
+      other.depth == depth;
+
+  @override
+  int get hashCode => Object.hash(halfCycle, depth);
+}
+
 // 兔咪情緒。每個情緒 = assets/mascot/core/tumi_<assetKey>.png 一張 CG 立繪。
 //
 // 基礎圖按「身體姿勢／手的高度」分（兔咪嘴巴不動，情緒靠眼/耳/手表達；
@@ -109,6 +145,73 @@ enum MascotEmotion {
   const MascotEmotion(this.assetKey);
 
   String get assetPath => 'assets/mascot/core/tumi_$assetKey.png';
+
+  /// 這個情緒待機時怎麼呼吸。分組理由見 [MascotIdleBreath]。
+  MascotIdleBreath get idleBreath => switch (this) {
+    // 睡著：最慢最深，胸口明顯起伏才看得出來是睡著不是定格。
+    MascotEmotion.sleep => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 2000),
+      depth: 0.020,
+    ),
+    // 夜晚／剛醒：慢，但沒有睡著那麼深。
+    MascotEmotion.night => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 1700),
+      depth: 0.016,
+    ),
+    MascotEmotion.wake => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 1500),
+      depth: 0.015,
+    ),
+    // 低落：慢而**淺**——洩了氣，不是睡著。這一格是刻意跟 sleep 分開的。
+    MascotEmotion.sad => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 1600),
+      depth: 0.009,
+    ),
+    // 期待／開心：開始有精神，快一點淺一點。
+    MascotEmotion.expect => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 1050),
+      depth: 0.011,
+    ),
+    MascotEmotion.happy => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 950),
+      depth: 0.010,
+    ),
+    // 雀躍：最快最淺。這兩個是慶祝姿，停留短，但節奏要跟得上情緒。
+    MascotEmotion.popHappy || MascotEmotion.streak => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 850),
+      depth: 0.010,
+    ),
+    // 平靜基準（中性、邀請、疑問、完成一件的安心陪跑）＝改版前的全域值。
+    MascotEmotion.neutralFront ||
+    MascotEmotion.invite ||
+    MascotEmotion.question ||
+    MascotEmotion.smile => const MascotIdleBreath(
+      halfCycle: Duration(milliseconds: 1300),
+      depth: 0.013,
+    ),
+  };
+
+  /// 認不得的立繪路徑（例如差分圖）用這一組，行為等同改版前。
+  static const MascotIdleBreath fallbackIdleBreath = MascotIdleBreath(
+    halfCycle: Duration(milliseconds: 1300),
+    depth: 0.013,
+  );
+
+  /// 由 asset 路徑反查情緒；認不得回 null。
+  ///
+  /// 和 [blinkAssetForPath] 一樣**比對檔名而非完整路徑**，所以穿造型
+  /// （`assets/mascot/<skin>/…`）時一樣認得。開頭的 `/` 不能省——少了它
+  /// `tumi_pop_happy.png` 會被誤判成 `happy`。
+  static MascotEmotion? fromAssetPath(String assetPath) {
+    for (final e in MascotEmotion.values) {
+      if (assetPath.endsWith('/tumi_${e.assetKey}.png')) return e;
+    }
+    return null;
+  }
+
+  /// 由 asset 路徑取待機呼吸；差分圖與未知路徑退回 [fallbackIdleBreath]。
+  static MascotIdleBreath idleBreathForPath(String assetPath) =>
+      fromAssetPath(assetPath)?.idleBreath ?? fallbackIdleBreath;
 
   // 有閉眼差分圖（tumi_<key>_blink.png）的情緒。
   // 眨眼動畫由 MascotStage 處理；新增差分圖後把情緒加進這裡即可生效。
