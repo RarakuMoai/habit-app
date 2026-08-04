@@ -68,6 +68,72 @@ void main() {
     );
   }
 
+  // 閒置凍結是省電決定，不會改；但停在一雙睜著不眨的眼睛會讀成畫面當掉。
+  // 先慢慢闔上眼再靜止，靜止就變成「牠等著等著睡著了」。
+  group('閒置凍結前先打瞌睡', () {
+    // 閉眼差分那一層現在的不透明度；找不到回 -1。
+    double closedEyeOpacity(WidgetTester tester, String basePath) {
+      final blink = MascotEmotion.blinkAssetForPath(basePath)!;
+      for (final o in tester.widgetList<Opacity>(find.byType(Opacity))) {
+        final child = o.child;
+        if (child is Image) {
+          final img = child.image;
+          if (img is AssetImage && img.assetName == blink) return o.opacity;
+        }
+      }
+      return -1;
+    }
+
+    Future<void> pumpPaused(WidgetTester tester, {required bool paused}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: MascotStage(
+                // neutralFront 是目前唯一有閉眼差分的立繪。
+                asset: MascotEmotion.neutralFront.assetPath,
+                accent: Colors.orange,
+                reactionTick: 0,
+                onTap: () {},
+                paused: paused,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('凍結時眼睛慢慢闔上，回來時再睜開', (tester) async {
+      final base = MascotEmotion.neutralFront.assetPath;
+
+      await pumpPaused(tester, paused: false);
+      expect(closedEyeOpacity(tester, base), 0, reason: '醒著時眼睛是睜的');
+
+      await pumpPaused(tester, paused: true);
+      // 淡入途中：已經在闔，但還沒闔滿——證明是漸變不是瞬間跳圖。
+      await tester.pump(const Duration(milliseconds: 200));
+      final mid = closedEyeOpacity(tester, base);
+      expect(mid, greaterThan(0));
+      expect(mid, lessThan(1));
+
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(closedEyeOpacity(tester, base), 1, reason: '凍結時停在闔眼');
+
+      await pumpPaused(tester, paused: false);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(closedEyeOpacity(tester, base), 0, reason: '一有互動就睜開');
+      await pumpPaused(tester, paused: true);
+    });
+
+    testWidgets('一開始就是凍結狀態：直接落在闔眼，不補播淡入', (tester) async {
+      await pumpPaused(tester, paused: true);
+      expect(
+        closedEyeOpacity(tester, MascotEmotion.neutralFront.assetPath),
+        1,
+      );
+    });
+  });
+
   testWidgets('環境光參數只濾兔咪本體，中性路徑不增加濾鏡', (tester) async {
     await pumpStage(tester);
     expect(find.byType(ColorFiltered), findsNothing);

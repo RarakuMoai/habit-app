@@ -1553,6 +1553,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   /// 純由今天進度推導的立繪，不含任何 transient 演出。
   /// 演出結束後要回到的就是這張——不是開 app 的中性臉。
+  ///
+  /// **待機姿的已知限制（2026-08-04 查證，不要重複踩）：**
+  ///
+  /// 閉眼是反應不是狀態——笑眼掛著當待機姿不能眨眼，看起來像貼紙。照這條原則，
+  /// 過半的 `smile` 應該換成睜眼立繪。立繪本身是個 2×2（見 [MascotEmotion]）：
+  ///
+  ///  | | 睜眼（適合待機） | 閉眼（只適合反應） |
+  ///  |---|---|---|
+  ///  | 手垂・平靜 | `neutralFront` | `smile` |
+  ///  | 手胸前・振奮 | `expect` | `happy` |
+  ///
+  /// **但零素材換不動。** 泛用睜眼立繪只有兩張，而兩張都已經有主人：
+  /// `neutralFront` 是空狀態，`expect` 是「一點進度就期待」——那是角色指南
+  /// 寫死的人設（「很容易被使用者的小行動喚醒⋯⋯從想睡變期待」）。把過半也改成
+  /// `expect` 的話，跨過一半時姿勢完全沒變化，`halfDone` 的交棒訊號會整個消失
+  /// （`home_completion_test` 的「收尾要安靜交棒給較高層級的 baseline」正是守這個）。
+  ///
+  /// 所以過半維持 `smile`，直到有一張**睜眼版的「安心」立繪**為止。
+  /// 0 進度的 `sleep` 與全完成的 `happy` 閉眼是對的：那是今天的兩個結局，
+  /// 睡著與心滿意足本來就閉眼。
   String get _baselineMascotAsset {
     if (habits.isEmpty) return MascotEmotion.neutralFront.assetPath;
 

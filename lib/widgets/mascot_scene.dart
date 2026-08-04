@@ -666,6 +666,17 @@ class _MascotStageState extends State<MascotStage>
   Timer? _blinkStepTimer;
   bool _eyesClosed = false;
 
+  // 打瞌睡：閒置凍結（[MascotStage.paused]）時眼睛慢慢闔上，回來時再睜開。
+  //
+  // 凍結本身是省電決定，不會改。但停在一雙睜著、永遠不眨的眼睛會讀成畫面當掉；
+  // 先闔上眼再靜止，靜止就變成演出的終點——牠等著等著睡著了——而不是故障。
+  // 額外耗電是這一段 0.45 秒的淡入，之後照樣完全不排幀。
+  //
+  // 跟眨眼分開兩個機制是刻意的：眨眼要乾脆（130ms 硬切才像眨眼），
+  // 打瞌睡要慢（硬切會變成瞬間跳圖）。
+  late final AnimationController _drowsyCtrl;
+  late final Animation<double> _drowsy;
+
   // ── 摸頭（頭上搓動）──
   // 完全由手指驅動、沒有自己的節奏：身體朝手指方向輕靠（彈簧平滑）、
   // 被摸時像承受手掌重量微微下沉；每搓一段距離從指尖冒一顆小愛心＋
@@ -756,6 +767,14 @@ class _MascotStageState extends State<MascotStage>
     );
     if (_idleMotionAllowed) _breathCtrl.repeat(reverse: true);
     _breath = CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut);
+
+    // 打瞌睡的閉眼淡入。一開始就是凍結狀態時直接落在闔眼，不補播。
+    _drowsyCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+      value: widget.paused ? 1 : 0,
+    );
+    _drowsy = CurvedAnimation(parent: _drowsyCtrl, curve: Curves.easeInOut);
 
     _bubbleCtrl = AnimationController(
       vsync: this,
@@ -956,9 +975,12 @@ class _MascotStageState extends State<MascotStage>
         // 閒置凍結：停呼吸、取消眨眼，畫面靜止省電。
         _breathCtrl.stop();
         _cancelBlinkTimers();
-        _eyesClosed = false; // 不要定格在閉眼；隨即重建會套用
+        _eyesClosed = false; // 不要定格在半途的眨眼；闔眼交給 _drowsyCtrl
+        // 先慢慢闔上眼再靜止：靜止因此是「牠睡著了」，不是畫面當掉。
+        _drowsyCtrl.forward();
       } else {
-        // 恢復：重新開始呼吸與眨眼（Reduce Motion 下呼吸仍然停著）。
+        // 恢復：睜眼，然後重新開始呼吸與眨眼（Reduce Motion 下呼吸仍然停著）。
+        _drowsyCtrl.reverse();
         if (_idleMotionAllowed && !_breathCtrl.isAnimating) {
           _breathCtrl.repeat(reverse: true);
         }
@@ -976,6 +998,7 @@ class _MascotStageState extends State<MascotStage>
     unawaited(SfxService.instance.stop(SfxCue.tumiPet));
     _petCtrl.dispose();
     _breathCtrl.dispose();
+    _drowsyCtrl.dispose();
     _reactionCtrl.dispose();
     _noticeCtrl.dispose();
     _poseSettleCtrl.dispose();
@@ -1192,20 +1215,28 @@ class _MascotStageState extends State<MascotStage>
     if (layers.length == 1) {
       return Image.asset(widget.asset, fit: BoxFit.contain);
     }
-    final String shown;
-    if (_petEyesClosed && blissAsset != null) {
-      shown = blissAsset;
-    } else if (_eyesClosed && blinkAsset != null) {
-      shown = blinkAsset;
-    } else {
-      shown = widget.asset;
+    // 閉眼層的不透明度：眨眼是硬切（130ms，乾脆才像眨眼），打瞌睡是慢慢闔上
+    // （_drowsy）。兩者取大，所以凍結期間補一次眨眼也不會把眼睛打開。
+    final closed = blinkAsset == null
+        ? 0.0
+        : math.max(_eyesClosed ? 1.0 : 0.0, _drowsy.value);
+
+    double opacityFor(String asset) {
+      // 摸頭瞇眼是完整換臉，優先於上面兩者。
+      if (_petEyesClosed && blissAsset != null) {
+        return asset == blissAsset ? 1 : 0;
+      }
+      if (asset == blinkAsset) return closed;
+      if (asset == widget.asset) return 1 - closed;
+      return 0;
     }
+
     return Stack(
       fit: StackFit.passthrough,
       children: [
         for (final asset in layers)
           Opacity(
-            opacity: asset == shown ? 1 : 0,
+            opacity: opacityFor(asset),
             child: Image.asset(asset, fit: BoxFit.contain),
           ),
       ],
@@ -1540,14 +1571,23 @@ class _MascotStageState extends State<MascotStage>
                 // 環境色溫（清晨粉金/黃昏琥珀/夜晚燈暖微暗）套在兔咪
                 // 本體（含眨眼/瞇眼差分）上；白天 colorMatrix 為 null，
                 // 走零成本路徑。互動特效（星星/愛心/泡泡）不濾色。
-                child: widget.lighting?.colorMatrix == null
-                    ? _buildBunnyImage()
-                    : ColorFiltered(
-                        colorFilter: ColorFilter.matrix(
-                          widget.lighting!.colorMatrix!,
-                        ),
-                        child: _buildBunnyImage(),
-                      ),
+                //
+                // 立繪這一層包在自己的 AnimatedBuilder 裡：打瞌睡的閉眼淡入需要
+                // 逐幀重畫，但它不該跟著呼吸每幀重建（呼吸只改外層 Transform，
+                // 立繪本身當 child 傳進去不重建）。_drowsy 靜止時不會通知，
+                // 所以平常零成本。
+                child: AnimatedBuilder(
+                  animation: _drowsy,
+                  builder: (context, _) {
+                    final bunny = _buildBunnyImage();
+                    final matrix = widget.lighting?.colorMatrix;
+                    if (matrix == null) return bunny;
+                    return ColorFiltered(
+                      colorFilter: ColorFilter.matrix(matrix),
+                      child: bunny,
+                    );
+                  },
+                ),
               ),
             ),
           ),
