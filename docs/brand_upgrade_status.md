@@ -19,7 +19,7 @@
 | 技術驗收 | Sol APPROVE；merge 前後 `flutter analyze` 0 issues、`flutter test` 794/794 |
 | Creative 驗收 | 2026-08-04 使用者裁決 **KEEP** |
 | Production blocker | 0 |
-| 當前階段 | `polish/idle-life` 已暫停；進行中的是 `polish/tab-weight` |
+| 當前階段 | UI 軌道 U1 Creative gate 已過（`polish/first-glance`）；三條分支都待技術 gate |
 | 下一個大型 milestone | 上述兩條完成審查前不再開新的 |
 
 Hash 與測試數是 2026-08-04 的核對結果；未來 main 前進時應更新，不得把舊 hash
@@ -229,7 +229,7 @@ debug 時序不足以代表 release。留給有實機驗證條件時再做。
 修的都是「本來就該一致卻不一致」的事實錯誤。這類不需要 Creative Proof，
 用技術 gate 審過即可合併。**已停止往上追加。**
 
-### Milestone U1：開 App 到首頁的第一眼（待使用者確認情緒目標）
+### Milestone U1：開 App 到首頁的第一眼（Creative gate 已通過）
 
 | 欄位 | 內容 |
 |---|---|
@@ -238,6 +238,18 @@ debug 時序不足以代表 release。留給有實機驗證條件時再做。
 | **非目標** | 不動報到卡本身的演出（既有已核准設計）、不動 onboarding、不改啟動時的實際工作（音訊快取／通知初始化，那是效能題）、不碰兔咪待機（在已暫停的 `polish/idle-life`）。 |
 | **驗收證據** | 冷啟動連拍前後對照，至少涵蓋原生第一幀、Flutter 接手幀、交棒幀。**必須用 profile／release build 量**。 |
 | **退出方式** | 獨立 branch，只動啟動素材與接縫，可整條丟棄。 |
+
+**狀態：** branch `polish/first-glance`（`d0670da`，2 個 commit）。
+2026-08-05 使用者裁決 **KEEP**；Bible extraction 已完成（`visual_spec.md` §啟動接縫）。
+**技術 gate 未過，不得 merge。**
+
+實作的是**接縫**不是載入畫面——那一頁本身是好的。原生啟動圖改由
+`scripts/gen_launch_image.py` 從 `_StartupSplash` 的規格產生，storyboard 從
+`contentMode="center"`（配 1×1 空白圖等於沒有）改成 aspect fill 釘四邊。
+實測接縫位移 **0px**（原生與 Flutter 兩層的兔咪圓心都在 y=1313px）。
+
+⬜ **待實機**：空白期的實際長度。iOS 不支援模擬器 profile／release，
+模擬器只證明接縫存在與否、不證明時間。
 
 #### 只讀審查結果（2026-08-05）
 
