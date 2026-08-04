@@ -1199,6 +1199,214 @@ void main() {
     });
   });
 
+  // ── 交付之後的弧線分界 ──────────────────────────────────────
+  //
+  // 跨越還欠著時可以跨 arc 找 anchor；**一旦講出去**，它就只是實際交付它的
+  // 那一條弧線的語意。門檻仍然成立不代表使用者接下來的每一次完成都是
+  // 「又過半了」——那是一次全新的普通完成，該有自己的 completedOne。
+
+  group('交付之後的弧線分界', () {
+    test('half 在 arc1 交付後，全新的 arc2 仍然有自己的一般完成', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'C', crossedHalf: true, doneCount: 3);
+        clock.elapse(CompletionPresentationController.kSpeakDelay);
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'C'),
+        ]);
+
+        clock.elapse(const Duration(seconds: 4));
+        expect(c.presentationActive, isFalse, reason: 'arc1 已經完整結束');
+
+        _start(c, 'D', doneCount: 4);
+        clock.elapse(CompletionPresentationController.kSpeakDelay);
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'C'),
+          (CompletionPhase.speak, CompletionKind.ordinary, 'D'),
+        ], reason: '講過的跨越不是之後每一條弧線的語意');
+
+        clock.elapse(const Duration(seconds: 4));
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          hasLength(1),
+          reason: '不得重播 halfDone',
+        );
+      });
+    });
+
+    test('同一條弧線裡 half 已經涵蓋一般完成：不再補 completedOne', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'C', crossedHalf: true, doneCount: 3); // t=0，arc1 領頭
+        clock.elapse(const Duration(milliseconds: 100));
+        _start(c, 'D', doneCount: 4); // t=100，同一條弧線
+        clock.elapse(const Duration(seconds: 4));
+
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'C'),
+        ], reason: '里程碑本來就涵蓋一般完成，同一條弧線不得再講一次');
+      });
+    });
+
+    test('交付之後門檻掉回以下再重新跨越：新的一次仍然講 half', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'C', crossedHalf: true, doneCount: 3);
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, hasLength(1));
+
+        c.syncAboveThreshold(false);
+        expect(c.debugPendingCandidateCount, 0, reason: '失效的跨越整份回收');
+
+        _start(c, 'E', crossedHalf: true, doneCount: 3);
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'C'),
+          (CompletionPhase.speak, CompletionKind.half, 'E'),
+        ], reason: '重新跨越是新的一次');
+      });
+    });
+  });
+
+  // ── 語意退場與動作回收解耦 ──────────────────────────────────
+  //
+  // 動作弧線被 `_sweep()` 回收之後，那一件仍然可能是還欠著的跨越的合法
+  // anchor。但它一旦被撤銷，就必須當場從帳本退場——不能因為「找不到弧線」
+  // 就讓它繼續當 payload。
+
+  group('語意退場與動作回收解耦', () {
+    /// C 跨過門檻、D／E 跟上，全部 impact 且走過自己的機會（都被擋下），
+    /// 然後所有動作弧線自然收乾淨。
+    ({HomeCompletionEvent c, HomeCompletionEvent d, HomeCompletionEvent e})
+    pendingAfterSweep(CompletionPresentationController c, FakeAsync clock) {
+      final source = _start(c, 'C', crossedHalf: true, doneCount: 3);
+      clock.elapse(const Duration(milliseconds: 10));
+      final d = _start(c, 'D', doneCount: 4);
+      clock.elapse(const Duration(milliseconds: 10));
+      final e = _start(c, 'E', doneCount: 5);
+      clock.elapse(const Duration(milliseconds: 300));
+      expect(c.cancelEvent(source.id), CompletionCancelOutcome.arcSurvives);
+      c.syncAboveThreshold(true); // 其他早就完成的習慣仍然撐著門檻
+      clock.elapse(const Duration(seconds: 4));
+      expect(c.presentationActive, isFalse, reason: '動作弧線已經全部回收');
+      return (c: source, d: d, e: e);
+    }
+
+    test('弧線已回收後撤銷候選：它立刻退場，補送也不得選它', () {
+      fakeAsync((clock) {
+        final rec = _Recorder(accept: false);
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        final events = pendingAfterSweep(c, clock);
+        expect(c.pendingSemanticArcIds, [events.d.arcId]);
+        expect(c.debugPendingCandidateCount, 2, reason: 'C 撤銷時已經退場');
+
+        // 動作弧線早就不在了，但 Home 仍然握著這一件的事件身分。
+        expect(c.cancelEvent(events.d.id), CompletionCancelOutcome.unknown);
+        expect(c.cancelEvent(events.e.id), CompletionCancelOutcome.unknown);
+        c.syncAboveThreshold(true);
+        rec.accept = true;
+
+        expect(c.debugPendingCandidateCount, 0);
+        expect(c.pendingSemanticArcIds, isEmpty);
+        expect(c.retryPendingSemantic(), isFalse);
+        expect(rec.semantics, isEmpty, reason: '被撤銷的習慣絕不能被當成補送的 payload');
+      });
+    });
+
+    test('撤銷最早的候選：補送改用下一個仍然有效的合法 anchor', () {
+      fakeAsync((clock) {
+        final rec = _Recorder(accept: false);
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        final events = pendingAfterSweep(c, clock);
+        expect(c.cancelEvent(events.d.id), CompletionCancelOutcome.unknown);
+        c.syncAboveThreshold(true);
+        rec.accept = true;
+
+        expect(c.debugPendingCandidateCount, 1);
+        expect(c.retryPendingSemantic(), isTrue);
+        expect(rec.semantics, [
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'E'),
+        ], reason: 'D 已經被撤銷，最早仍有效的合法 anchor 是 E');
+        expect(rec.impacts, ['C', 'D', 'E'], reason: '補送不得重播任何衝擊點');
+      });
+    });
+
+    test('反覆新弧線／回收／撤銷／重做：帳本不會無界成長，也不留 stale anchor', () {
+      fakeAsync((clock) {
+        final rec = _Recorder(accept: false);
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'C', crossedHalf: true, doneCount: 3);
+        clock.elapse(const Duration(seconds: 4));
+
+        var peak = 0;
+        for (var i = 0; i < 8; i++) {
+          final event = _start(c, 'H$i', doneCount: 4);
+          clock.elapse(const Duration(seconds: 4)); // 這一條弧線自然收乾淨
+          expect(c.presentationActive, isFalse);
+          peak = peak > c.debugPendingCandidateCount
+              ? peak
+              : c.debugPendingCandidateCount;
+          expect(c.cancelEvent(event.id), CompletionCancelOutcome.unknown);
+          c.syncAboveThreshold(true);
+        }
+
+        expect(peak, lessThanOrEqualTo(2), reason: '每一輪都退場，帳本不會累積');
+        expect(
+          c.debugPendingCandidateCount,
+          1,
+          reason: '八件都撤銷了，只剩下從來沒被撤銷的來源 C',
+        );
+
+        // 補送用的是仍然有效的 C，不是任何一個已經退場的 H。
+        rec.accept = true;
+        expect(c.retryPendingSemantic(), isTrue);
+        expect(rec.semantics, [
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
+        ], reason: '被撤銷的成員全部退場，不得留下 stale anchor');
+      });
+    });
+
+    test('generation 作廢與門檻跌回：帳本整份回收', () {
+      fakeAsync((clock) {
+        final rec = _Recorder(accept: false);
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        pendingAfterSweep(c, clock);
+        expect(c.debugPendingCandidateCount, 2);
+        c.syncAboveThreshold(false);
+        expect(c.debugPendingCandidateCount, 0);
+
+        rec.accept = true;
+        _start(c, 'F', crossedHalf: true, doneCount: 3);
+        clock.elapse(const Duration(seconds: 4));
+        expect(c.debugPendingCandidateCount, 0, reason: '交付之後也整份回收');
+
+        // 門檻真的掉回去之後再跨一次：這才是新的一次跨越，帳本重新開始收。
+        c.syncAboveThreshold(false);
+        _start(c, 'G', crossedHalf: true, doneCount: 3);
+        expect(c.debugPendingCandidateCount, greaterThan(0));
+        c.invalidate();
+        expect(c.debugPendingCandidateCount, 0, reason: 'generation 作廢清帳');
+      });
+    });
+  });
+
   group('失效的機會不得取得資格', () {
     test('跨日／離開首頁之後的 timer 一律不交付', () {
       fakeAsync((clock) {

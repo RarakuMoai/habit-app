@@ -3687,6 +3687,133 @@ void main() {
     });
   });
 
+  // ── 交付之後的弧線分界與候選退場 ────────────────────────────
+  //
+  // 兩個資料模型不變量，不是毫秒序列的特例：
+  //
+  //   * 跨越一旦講出去，它只屬於**實際交付它的那一條弧線**；門檻仍然成立
+  //     不代表之後每一次完成都是「又過半了」。
+  //   * 一件被撤銷的習慣必須當場退出語意帳本，**不管它的動作弧線還在不在**
+  //     ——它已經從資料與 history 消失了，絕不能被補送當成 payload。
+
+  group('交付之後的弧線分界與候選退場', () {
+    int halfCount(dynamic home) => (home.debugSemanticEvents as List)
+        .where((e) => e == MascotContext.halfDone)
+        .length;
+
+    for (final variant in [
+      (label: '一般', reduceMotion: false, settle: 320),
+      (label: 'Reduced Motion', reduceMotion: true, settle: 160),
+    ]) {
+      testWidgets('${variant.label}：half 交付之後，全新弧線的完成仍有自己的 completedOne', (
+        tester,
+      ) async {
+        SharedPreferences.setMockInitialValues({
+          PrefsKeys.lastOpenDate: _todayString(),
+          PrefsKeys.habits: jsonEncode([
+            _habit('既有完成1', done: true),
+            _habit('既有完成2', done: true),
+            for (var i = 1; i <= 4; i++) _habit('習慣$i'),
+          ]),
+        });
+        final home = await _pumpHome(
+          tester,
+          height: 1500,
+          reduceMotion: variant.reduceMotion,
+        );
+
+        await _tapHabit(tester, '習慣1'); // C：2/6 → 3/6，跨過門檻
+        await tester.pump(const Duration(seconds: 4));
+        expect(home.debugSemanticEvents, [MascotContext.halfDone]);
+        expect(home.debugPresentationActive, isFalse, reason: 'C 那一條弧線已經完整結束');
+        home.debugClearSemanticEvents();
+        log.clear();
+
+        await _tapHabit(tester, '習慣2'); // D：4/6，全新的一條弧線
+        await tester.pump(const Duration(seconds: 4));
+
+        expect(home.allDone0, isFalse);
+        expect(home.dailyDoneCount, 4);
+        expect(home.debugSemanticEvents, [
+          MascotContext.completedOne,
+        ], reason: '講過的跨越不是之後每一條弧線的語意；D 是一次全新的普通完成');
+        expect(home.debugSemanticAnchors, ['id_習慣2']);
+        expect(halfCount(home), 0, reason: '不得重播 halfDone');
+        expect(
+          log.cues.where((c) => c == SfxCue.success),
+          hasLength(1),
+          reason: 'D 自己的衝擊點照發，而且只有一次',
+        );
+        expect(log.haptics.where((h) => h == HapticLevel.light), hasLength(1));
+
+        await _tearDownHome(tester);
+      });
+
+      testWidgets('${variant.label}：弧線回收後撤銷候選，補送改用最早仍有效的習慣', (tester) async {
+        SharedPreferences.setMockInitialValues({
+          PrefsKeys.lastOpenDate: _todayString(),
+          PrefsKeys.habits: jsonEncode([
+            for (var i = 1; i <= 4; i++) _habit('既有完成$i', done: true),
+            for (var i = 1; i <= 6; i++) _habit('習慣$i'),
+          ]),
+        });
+        final home = await _pumpHome(
+          tester,
+          height: 2200,
+          reduceMotion: variant.reduceMotion,
+        );
+
+        await _tapHabit(tester, '習慣1'); // C：4/10 → 5/10，跨過門檻
+        await tester.pump(const Duration(milliseconds: 10));
+        await _tapHabit(tester, '習慣2'); // D：6/10
+        await tester.pump(const Duration(milliseconds: 10));
+        await _tapHabit(tester, '習慣3'); // E：7/10
+        await tester.pump(const Duration(milliseconds: 10));
+        await _tapHabit(tester, '習慣4'); // F：8/10
+        await tester.pump(Duration(milliseconds: variant.settle));
+        await _tapHabit(tester, '習慣1'); // 撤銷來源 C：7/10，門檻仍成立
+        home.debugClearSemanticEvents();
+
+        // 在到期之前換一次撤銷，讓擁有權一路擋著，直到所有動作弧線自然收乾淨。
+        await tester.pump(const Duration(milliseconds: 1800));
+        await _tapHabit(tester, '既有完成1'); // 6/10，第二次撤銷
+        await tester.pump(const Duration(milliseconds: 1100));
+        expect(
+          home.debugPresentationActive,
+          isFalse,
+          reason: '這一刻所有 motion arc 都已經被回收',
+        );
+
+        // 動作弧線已經不存在，但 Home 仍然握著這一件的事件身分。
+        await _tapHabit(tester, '習慣2'); // 撤銷 D
+        expect(home.dailyDoneCount, 5, reason: 'E／F 與三件舊習慣仍然把進度撐在門檻之上');
+        home.debugClearSemanticEvents();
+        log.clear();
+
+        await tester.pump(const Duration(milliseconds: 2001));
+
+        expect(home.debugSemanticEvents, [MascotContext.halfDone]);
+        expect(home.debugSemanticAnchors, [
+          'id_習慣3',
+        ], reason: 'D 已經撤銷、也不在資料與 history 裡；最早仍有效的候選是 E');
+        expect(home.dailyDoneCount, 5);
+        expect(log.cues, isEmpty, reason: '補送不得重播衝擊點的音效');
+        expect(log.haptics, isEmpty, reason: '補送不得重播觸覺');
+
+        final prefs = await SharedPreferences.getInstance();
+        final history = prefs.getString(PrefsKeys.habitDoneDay(_todayString()));
+        expect(history, isNot(contains('id_習慣2')));
+        expect(history, contains('id_習慣3'));
+        expect(history, contains('id_習慣4'));
+
+        await tester.pump(const Duration(seconds: 12));
+        expect(halfCount(home), 1, reason: '所有 timer 走完仍然恰好一次');
+
+        await _tearDownHome(tester);
+      });
+    }
+  });
+
   // ── 排程身分：被撤銷的成員不得把 timer 借給別人 ────────────────
 
   group('里程碑的排程身分', () {

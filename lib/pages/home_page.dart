@@ -616,33 +616,59 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   _PersonaSettlement? _settlement;
   int _settlementSeq = 0;
 
-  /// 開一筆新交易，並讓舊的那一筆明確作廢。
+  /// 開一筆新交易，並讓舊的那一筆明確作廢——但**先把它還欠著的責任接過來**。
   ///
   /// 「明確 supersede」而不是「等收據自然對不上」：新一輪已經接手了，舊那筆
-  /// 遲到的 callback 不該再寫任何東西——包含它自己的 metadata。
+  /// 遲到的 callback 不該再寫任何東西。可是 supersede 不等於「那些事不用做
+  /// 了」：舊那筆可能還握著一份**捕捉好、卻還沒執行**的收拾責任（deferred
+  /// cleanup 排在 post-frame，本地欄位卻已經清空），也可能已經記下了「這次
+  /// 快照是新的一天」。第二次 `loadHabits()` 進來時它自己拿不到 claim，
+  /// 若直接把舊那筆丟掉，那份收拾就永遠不會發生。
+  ///
+  /// 所以交接是**原子的**：claim、lease、cleanup duty、settled receipt 與
+  /// needsNeutral 一起搬到新的一筆上，舊那筆從此純粹是 no-op。每份捕捉到的
+  /// Home claim/lease 仍然最多只清理一次，而且一律 compare-gated。
   _PersonaSettlement _beginSettlement({
     required MascotClaim? claim,
     required MascotSpeechLease? lease,
   }) {
     final previous = _settlement;
     previous?.superseded = true;
-    final settlement = _PersonaSettlement(
-      id: ++_settlementSeq,
-      generation: _presentationGeneration,
-      claim: claim,
-      lease: lease,
-    );
-    // 這一輪沒有東西要收，但上一筆交易剛剛才把狀態收成中性：那張收據仍然
-    // 是全域現值時就接手過來，換日才有東西可以再往前收一格。接手是
-    // compare-gated 的——中間只要有人寫過就對不上，這一筆就什麼都不帶。
+    var handedClaim = claim;
+    var handedLease = lease;
+    var cleanupDone = false;
+    MascotClaim? receipt;
+    // 換日的中性收尾是**累積**的需求：它可能在上一筆交易身上就登記過了，
+    // 不能因為換了一筆交易就消失。
+    final needsNeutral =
+        previous != null && previous.needsNeutral && !previous.neutralDone;
+
     if (claim == null && previous != null) {
-      final inherited = previous.settledReceipt;
-      if (inherited != null && MascotPersona.claim == inherited) {
-        settlement
-          ..cleanupDone = true
-          ..settledReceipt = inherited;
+      if (!previous.cleanupDone) {
+        // 上一筆還欠著一次收拾：把它捕捉到的那份 claim／lease 整組接過來。
+        handedClaim = previous.claim;
+        handedLease = previous.lease;
+      } else {
+        // 上一筆已經收完：接手它的收據，換日才有東西可以再往前收一格。
+        // compare-gated——中間只要有人寫過就對不上，這一筆就什麼都不帶。
+        final inherited = previous.settledReceipt;
+        if (inherited != null && MascotPersona.claim == inherited) {
+          cleanupDone = true;
+          receipt = inherited;
+        }
       }
     }
+
+    final settlement =
+        _PersonaSettlement(
+            id: ++_settlementSeq,
+            generation: _presentationGeneration,
+            claim: handedClaim,
+            lease: handedLease,
+          )
+          ..cleanupDone = cleanupDone
+          ..settledReceipt = receipt
+          ..needsNeutral = needsNeutral;
     _settlement = settlement;
     return settlement;
   }
@@ -2036,8 +2062,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       claim: ownsPersona ? claim : null,
       lease: ownsPersona ? lease : null,
     );
-    if (!ownsPersona || claim == null) {
-      _completeSettlement(settlement, receipt: null);
+    // 從這裡開始一律問**交易上**的 claim，不是本地那個：這一輪自己拿不到
+    // 擁有權時，它可能剛從上一筆手上接下一份還沒執行的收拾責任。
+    if (settlement.claim == null) {
+      if (!settlement.cleanupDone) {
+        _completeSettlement(settlement, receipt: null);
+      }
       if (mounted && !_inBuildPhase) setState(() {});
       return;
     }

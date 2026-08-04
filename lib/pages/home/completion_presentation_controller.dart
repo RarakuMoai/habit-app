@@ -177,6 +177,11 @@ enum _BeatScope {
 ///
 /// 只收「跨越發生時或之後」出現的成員——更早的成員不屬於這次跨越的因果鏈，
 /// 永遠當不了 anchor，收進來只會讓帳本無界成長。
+///
+/// 「還在不在帳本裡」就是這一件的語意存活：撤銷會把它整筆退場
+/// （[CompletionPresentationController._retireCandidate]），**與它的動作弧線
+/// 還在不在完全無關**。弧線被 `_sweep()` 收掉之後，那一件仍然可能是還欠著的
+/// 跨越的合法 anchor；而它一旦被撤銷，就再也不能當 payload。
 class _MilestoneCandidate {
   _MilestoneCandidate(this.event, this.arcId);
 
@@ -186,12 +191,11 @@ class _MilestoneCandidate {
   /// （若還在）「這條弧線開過口了沒」。
   final int arcId;
 
-  bool live = true;
   bool impacted = false;
   bool opportunityReached = false;
 
   /// 這一件走完了自己的整條因果鏈，可以在任何安全時機當補送的 anchor。
-  bool get canAnchorRetry => live && impacted && opportunityReached;
+  bool get canAnchorRetry => impacted && opportunityReached;
 }
 
 /// 一次「跨過一半門檻」的事件——**controller generation 層級**的邏輯狀態。
@@ -482,18 +486,24 @@ class CompletionPresentationController {
   /// 第 3 點刻意不是「anchor 自己要有資格」：跨越之前就加入的一般成員只是
   /// 不能**建立**起點，起點成立之後（畫面上那一勾已經落下）它在自己的機會上
   /// 講出這次跨越是合法整合，不是提前搶跑。
+  ///
+  /// 第 5 個條件是**交付之後的弧線分界**：跨越還欠著時它可以跨 arc 找 anchor，
+  /// 但一旦講出去了，它就只是**實際交付它的那一條弧線**的語意，不是之後每一條
+  /// 弧線的語意。門檻仍然成立不代表使用者接下來的每一次完成都是「又過半了」
+  /// ——那是一次全新的普通完成，該有自己的 `completedOne`。
   CompletionKind _kindFor(_CompletionArc arc, int anchorEventId) {
-    final ep = _pendingEpisodeOrDelivered;
-    if (ep == null || !ep.thresholdHolds || !ep.causalOnset) {
+    final ep = _episodeInEffect;
+    if (ep == null || !ep.causalOnset) return CompletionKind.ordinary;
+    if (ep.delivered && ep.deliveredArcId != arc.id) {
       return CompletionKind.ordinary;
     }
     if (!arc.impacted.contains(anchorEventId)) return CompletionKind.ordinary;
     return CompletionKind.half;
   }
 
-  /// 門檻仍成立的那一次跨越（交付過的也算——它仍然是「現在的語意」，
-  /// 只是 [_needsSemantic] 不會再讓它送第二次）。
-  _MilestoneEpisode? get _pendingEpisodeOrDelivered {
+  /// 門檻仍成立的那一次跨越（交付過的也算——對**交付它的那條弧線**來說它
+  /// 仍然是「現在的語意」，只是 [_needsSemantic] 不會再讓它送第二次）。
+  _MilestoneEpisode? get _episodeInEffect {
     final ep = _episode;
     if (ep == null || ep.generation != _generation) return null;
     return ep.thresholdHolds ? ep : null;
@@ -503,9 +513,13 @@ class CompletionPresentationController {
   ///
   /// 一般完成是**弧線**的進度（每條弧線各講一次）；里程碑是**跨越**的進度
   /// （整個 generation 一次，不論跨幾條弧線）。
+  ///
+  /// 兩者不會在同一條弧線上重複：里程碑交付時同時把那條弧線的
+  /// `ordinaryDelivered` 記起來（里程碑本來就涵蓋一般完成），而別條弧線的
+  /// kind 已經在 [_kindFor] 降回 ordinary，走的是它自己的進度。
   bool _needsSemantic(_CompletionArc arc, CompletionKind kind) =>
       kind == CompletionKind.half
-      ? !(_pendingEpisodeOrDelivered?.delivered ?? true)
+      ? !(_episodeInEffect?.delivered ?? true)
       : !arc.ordinaryDelivered;
 
   _CompletionArc? get _openArc {
@@ -530,6 +544,13 @@ class CompletionPresentationController {
 
   /// 最後一次發出的事件序號。
   int get lastEventId => _lastEventId;
+
+  /// 目前這次跨越的帳本裡還留著幾筆候選。
+  ///
+  /// 帳本必須有界：撤銷當場退場、交付／門檻跌回／重新跨越／generation 作廢
+  /// 時整份回收。反覆「新弧線 → sweep → 撤銷 → 重做」不得讓它一直長大。
+  @visibleForTesting
+  int get debugPendingCandidateCount => _episode?.candidates.length ?? 0;
 
   /// 這個事件還沒被撤銷／失效。
   bool isLive(int eventId) =>
@@ -663,19 +684,30 @@ class CompletionPresentationController {
     return arc;
   }
 
+  /// 讓這一件**在語意帳本裡**退場。
+  ///
+  /// 整筆移除而不是留一個死旗標：被撤銷的成員永遠不可能再成為 anchor 或
+  /// payload，留著只會讓帳本無界成長。這一步刻意不看動作弧線——退場與回收
+  /// 是同一件事，跟 motion lifecycle 完全解耦。
+  void _retireCandidate(int eventId) => _episode?.candidates.remove(eventId);
+
   /// 只讓**某一件**的演出失效（撤銷那一件時用）。
   ///
-  /// 回傳這條弧線還在不在——呼叫端據此決定要不要送出動作取消，
-  /// 而不是用目前的 reaction tick 去猜。
+  /// 回傳的是**動作**那一半的下場：這條弧線還在不在——呼叫端據此決定要不要
+  /// 送出動作取消，而不是用目前的 reaction tick 去猜。弧線早就被 `_sweep()`
+  /// 收掉時回 [CompletionCancelOutcome.unknown]（已經沒有動作可以取消了），
+  /// 但**語意帳本一定會更新**：那一件的存活跟它的動作容器是兩件事。
   CompletionCancelOutcome cancelEvent(int eventId) {
+    // 語意先退場，而且無條件——弧線被回收之後，那一件仍然可能是還欠著的
+    // 跨越的合法 anchor。少了這一步，被撤銷、也已經從資料與 history 消失的
+    // 習慣會被補送當成 payload 講出去。
+    _retireCandidate(eventId);
     for (final arc in _arcs) {
       if (!arc.live.contains(eventId)) continue;
       arc.live.remove(eventId);
-      // 帳本裡那一筆當場回收：死掉的成員永遠當不了 anchor。
       // **不**在這裡動 episode 本身：撤銷歷史來源不等於使用者看得見的進度
       // 掉下去（別的習慣可能仍然完成著）。門檻還成不成立由 Home 在資料寫完
       // 之後用 [syncAboveThreshold] 回報——這裡沒有那個資訊，不該單方面銷毀。
-      _episode?.candidates.remove(eventId);
       if (arc.hasLiveMember) return CompletionCancelOutcome.arcSurvives;
       arc.disposeTimers();
       arc.windowOpen = false;
@@ -857,10 +889,12 @@ class CompletionPresentationController {
     // 交付與否由呼叫端回覆。先設旗標的話，被擋下的那一次會把資格吃掉——
     // 後面真正有效的成員就永遠交付不出去了。
     final outcome = onPhase(semanticPhase, payload, kind);
-    final ep = _pendingEpisodeOrDelivered;
+    final ep = _episodeInEffect;
     if (outcome == CompletionDelivery.delivered) {
       arc?.ordinaryDelivered = true;
       if (kind == CompletionKind.half && ep != null) {
+        // `deliveredArcId` 是語意分界：這次跨越從此只屬於這一條弧線，
+        // 之後全新的弧線是全新的普通完成（見 [_kindFor]）。
         ep
           ..delivered = true
           ..deliveredAnchorId = payload.id
