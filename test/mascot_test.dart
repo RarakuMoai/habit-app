@@ -18,6 +18,53 @@ void main() {
     MascotPersona.voiceMuted = false;
   });
 
+  // 冷啟動過去是唯一一條不排回神的路徑，兔咪會停在中性臉直到下一次互動；
+  // 場景 20 秒後凍結時停的也是那張睜眼的臉。現在它跟其他事件走同一套。
+  group('冷啟動之後要回到待機姿', () {
+    test('問候到期後姿勢回到 idleBaseline，台詞照原本的租約留著', () {
+      fakeAsync((async) {
+        MascotPersona.idleBaseline = () =>
+            MascotState(MascotEmotion.sleep.assetPath, null);
+        addTearDown(() => MascotPersona.idleBaseline = null);
+
+        MascotPersona.resetToOpening();
+        expect(
+          MascotPersona.current.value.assetPath,
+          MascotEmotion.neutralFront.assetPath,
+          reason: '問候當下用的是中性臉',
+        );
+        final greeting = MascotPersona.current.value.speech;
+        expect(greeting, isNotNull);
+
+        async.elapse(const Duration(seconds: 11));
+
+        expect(
+          MascotPersona.current.value.assetPath,
+          MascotEmotion.sleep.assetPath,
+          reason: '姿勢要回到依今天進度推導的待機姿，不是停在開 app 的中性臉',
+        );
+        expect(
+          MascotPersona.current.value.speech,
+          greeting,
+          reason: '只回姿勢：台詞有自己的租約，冷啟動問候仍然沒有期限',
+        );
+        expect(MascotPersona.speechDeadline, isNull);
+      });
+    });
+
+    test('沒有人註冊 idleBaseline 時回神是無害的：仍然停在中性臉', () {
+      fakeAsync((async) {
+        MascotPersona.idleBaseline = null;
+        MascotPersona.resetToOpening();
+        async.elapse(const Duration(seconds: 11));
+        expect(
+          MascotPersona.current.value.assetPath,
+          MascotEmotion.neutralFront.assetPath,
+        );
+      });
+    });
+  });
+
   test('direct mascot interactions share a seven-second voice cooldown', () {
     final start = DateTime(2026, 7, 13, 12);
     MascotPersona.debugMarkVoicePlayedAt(MascotContext.tapReaction, start);

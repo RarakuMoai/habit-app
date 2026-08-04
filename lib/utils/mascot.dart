@@ -1093,7 +1093,17 @@ class MascotPersona {
   }
 
   /// App 冷啟動：從 openApp 池隨機抽一句問候（每次打開都有變化）。
-  /// 已經是中性狀態，不需要安排回神。
+  ///
+  /// 問候用的是中性臉，但那**不是**兔咪該停著的樣子——待機姿要由今天的進度
+  /// 推導（0 進度打瞌睡、過半微笑、全完成開心），也就是 [idleBaseline]。
+  /// 冷啟動過去是唯一一條不排回神的路徑，結果是：開 app 之後兔咪就停在中性
+  /// 臉，直到你碰它為止；場景 20 秒後凍結時停的也是那張睜眼的臉，讀起來像
+  /// 畫面當掉而不是牠在休息。所以這裡跟其他事件走同一套租約。
+  ///
+  /// **只回姿勢，不動台詞。** 冷啟動的問候仍然沒有期限，會停在畫面上直到下一次
+  /// 互動——那是刻意的，而且換日收拾的「只能收 state」不變量就是拿它當探針
+  /// （見 `logical_day_rollover_test.dart`）。這裡走的正是其他事件共用的
+  /// [_scheduleRevert]：台詞有自己的租約，由它自己的計時器收。
   static void resetToOpening() {
     _revertTimer?.cancel();
     _holdUntil = null;
@@ -1106,6 +1116,7 @@ class MascotPersona {
     );
     // 冷啟動的問候沒有期限：它會停在畫面上直到下一次互動。
     _openSpeechLease(MascotStateOrigin.opening, holds: false);
+    _scheduleRevert();
   }
 
   /// 回到不帶文字、泡泡或語音的中性待機。

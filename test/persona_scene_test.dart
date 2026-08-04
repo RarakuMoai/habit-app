@@ -8,14 +8,18 @@ void main() {
 
   void resetPersona() {
     MascotPersona.debugResetVoiceCooldowns();
-    MascotPersona.resetToOpening();
+    // 收尾要的是「乾淨的中性待機」，不是模擬一次冷啟動——resetToOpening 會抽
+    // 一句問候並排回神計時器，測試樹拆掉後那個 timer 會變成 pending。
+    MascotPersona.resetToIdle();
     MascotPersona.voiceMuted = true;
   }
 
   setUp(resetPersona);
   tearDown(() {
     MascotPersona.debugResetVoiceCooldowns();
-    MascotPersona.resetToOpening();
+    // 收尾要的是「乾淨的中性待機」，不是模擬一次冷啟動——resetToOpening 會抽
+    // 一句問候並排回神計時器，測試樹拆掉後那個 timer 會變成 pending。
+    MascotPersona.resetToIdle();
     MascotPersona.voiceMuted = false;
   });
 
@@ -38,7 +42,7 @@ void main() {
     await tester.pump();
 
     expect(MascotPersona.current.value.bubble, EmotionBubble.question);
-    MascotPersona.resetToOpening();
+    MascotPersona.resetToIdle();
   });
 
   testWidgets('PersonaScene 有自訂 onTap 時不重複套用預設反應', (tester) async {

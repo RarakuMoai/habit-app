@@ -373,7 +373,8 @@ void main() {
     // 重設現在固定留在同一位置，待機時只停用，不再變回設定按鈕。
     expect(find.byIcon(Icons.replay_rounded), findsOneWidget);
     expect(tester.takeException(), isNull);
-    MascotPersona.resetToOpening();
+    // 收尾用中性待機：resetToOpening 會排回神計時器，樹拆掉後會變成 pending。
+    MascotPersona.resetToIdle();
   });
 
   testWidgets('舊版自訂方案會遷移到第四個快捷方案', (tester) async {
