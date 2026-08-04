@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/weight_records.dart';
 import '../../widgets/habit_ui.dart';
+import 'completion_timing.dart';
 
 // 長按進排序的延遲。每週卡「按住綠波紋」的填滿時間與它對齊：波紋填滿整框那
 // 一刻剛好進拖曳模式（home_page 的 _HabitDragListener 也用這個常數當 delay）。
@@ -14,6 +15,16 @@ const Duration kHabitDragHoldDelay = Duration(seconds: 1);
 
 // 按住要超過這個門檻才開始長出波紋；比這短的純單點完全不出特效。
 const Duration _kHoldFillStartDelay = Duration(milliseconds: 130);
+
+/// 勾勾描完的時間＝主衝擊點。**唯一真相在 `completion_timing.dart`**：
+/// 觸覺與音效必須落在筆尖抵達的那一刻，兩邊不能各寫一個數字。
+const Duration kHabitCheckDrawDuration = kCheckDrawDuration;
+
+/// Reduce Motion：仍然把勾畫出來（語意不能只剩顏色變化），但不拖長。
+const Duration kHabitCheckDrawDurationReduced = kCheckDrawDurationReduced;
+
+/// 圓圈按壓回彈的長度；Reduce Motion 下完全不播。
+const Duration kHabitCheckPressDuration = Duration(milliseconds: 340);
 const Color _kWaterLinkedAccent = Color(0xFF42A5F5);
 const Color _kWeightLinkedAccent = Color(0xFF7E57C2);
 
@@ -78,23 +89,35 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
       vsync: this,
       duration: kHabitDragHoldDelay - _kHoldFillStartDelay,
     );
+    // 打卡圓圈：克制的按壓＋回彈。舊版 0.78→1.18 是 UI 等比彈跳的語彙，
+    // 幅度大到會把注意力從勾勾本身搶走；改成「按下去有回應」的量級即可。
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 380),
+      duration: kHabitCheckPressDuration,
     );
     _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.78), weight: 25),
-      TweenSequenceItem(tween: Tween(begin: 0.78, end: 1.18), weight: 45),
-      TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.92), weight: 22),
+      TweenSequenceItem(tween: Tween(begin: 0.92, end: 1.06), weight: 44),
+      TweenSequenceItem(tween: Tween(begin: 1.06, end: 1.0), weight: 34),
     ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
+    // 勾勾描繪：筆尖落點就是整段演出的主衝擊，時間對齊
+    // CompletionPresentationController.kImpactDelay。easeOutCubic 太前傾，
+    // 會讓勾在 40ms 就幾乎畫完、觸覺與音效反而變成「後補」。
+    //
+    // animationBehavior 必須是 preserve：預設的 normal 在系統開啟
+    // Disable Animations 時會把 duration 直接壓成 5%，勾在約 7ms 就描完，
+    // 而衝擊點（觸覺＋音效）仍然照 140ms 的 Timer 走——兩邊脫拍。
+    // Reduce Motion 該縮短多少由 [_syncCheckAnim] 決定（140ms，與編排器
+    // 共用同一個常數），不交給 framework 再自作主張縮一次。
     _checkCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 320),
+      duration: kHabitCheckDrawDuration,
+      animationBehavior: AnimationBehavior.preserve,
     );
     _checkAnim = CurvedAnimation(
       parent: _checkCtrl,
-      curve: Curves.easeOutCubic,
+      curve: Curves.easeInOutCubic,
     );
     // 列表載入時已完成的卡直接顯示完整勾，不重播描繪
     _wasDone = widget.habit['done'] == true;
@@ -157,20 +180,59 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     );
   }
 
+  /// 系統的 Reduce Motion／Disable Animations。取消位移類演出，但保留
+  /// 「已完成」的所有語意（勾、顏色、狀態）。
+  bool get _reduceMotion {
+    final mq = MediaQuery.maybeOf(context);
+    return mq?.disableAnimations == true || mq?.accessibleNavigation == true;
+  }
+
+  /// 上一次看到的 Reduce Motion 狀態；用來偵測**執行中**被打開。
+  bool _lastReduceMotion = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 使用者可以在打卡的當下才打開偏好（設定 App 就在旁邊）。開啟那一刻，
+    // 正在跑的圓圈按壓／回彈必須當場停住並回到原尺寸，不能演完剩下的
+    // 340ms。MediaQuery 改變本來就會走到這裡。
+    final reduce = _reduceMotion;
+    if (reduce == _lastReduceMotion) return;
+    _lastReduceMotion = reduce;
+    if (!reduce) return;
+    _ctrl.stop();
+    // TweenSequence 的 0 就是 1.0；歸零而不是停在半路的 0.92 或 1.06。
+    // 關掉偏好之後也不會補播——這一次已經沒有了。
+    _ctrl.value = 0;
+  }
+
   /// habit map 是同一個實例被原地修改，didUpdateWidget 比不出新舊值，
   /// 改在 build 時偵測 done 變化來觸發描繪動畫。
   void _syncCheckAnim(bool done) {
     if (done == _wasDone) return;
     _wasDone = done;
     if (done) {
+      _checkCtrl.duration = _reduceMotion
+          ? kHabitCheckDrawDurationReduced
+          : kHabitCheckDrawDuration;
       _checkCtrl.forward(from: 0);
     } else {
       _checkCtrl.value = 0;
     }
   }
 
-  void _handleTap() {
+  /// 按壓回彈的**唯一入口**。
+  ///
+  /// 每日卡與每週卡的「＋」都走這裡，不各自呼叫 controller——分開寫過，
+  /// 結果每週那條漏掉了 Reduce Motion 的把關。
+  void _playPressAnimation() {
+    // Reduce Motion：圓圈不彈跳（勾＋底色已經把「完成」講清楚了）。
+    if (_reduceMotion) return;
     _ctrl.forward(from: 0);
+  }
+
+  void _handleTap() {
+    _playPressAnimation();
     widget.onToggle();
   }
 
@@ -516,7 +578,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                         !widget.isMoving &&
                                             widget.weeklyCount < 20
                                         ? () {
-                                            _ctrl.forward(from: 0);
+                                            _playPressAnimation();
                                             widget.onToggle();
                                           }
                                         : null,

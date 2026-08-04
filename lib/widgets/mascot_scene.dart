@@ -33,6 +33,13 @@ const Duration mascotPetHeartLifetime = Duration(milliseconds: 1130);
 
 const Duration _mascotPetMinimumHold = Duration(milliseconds: 450);
 
+/// [MascotPoseTransition.cut] 換圖後的沉降長度與起始縮放。
+/// 非零、可讀，但沒有 overshoot、沒有半透明——Reduce Motion 也用同一組。
+@visibleForTesting
+const Duration kMascotPoseCutSettle = Duration(milliseconds: 150);
+@visibleForTesting
+const double kMascotPoseCutSettleScale = 0.985;
+
 /// 兔咪環境光融合參數（四時段完整背景的房間用）。
 ///
 /// 由頁面依 [SceneTimeState] 權重「算好再傳入」：兔咪層自己不讀時間，
@@ -185,6 +192,24 @@ class PersonaScene extends StatelessWidget {
   final Color accent;
   final int reactionTick;
 
+  /// 見 [MascotStage.noticeTick]。
+  final int noticeTick;
+
+  /// 見 [MascotStage.reactionStrength]。
+  final double reactionStrength;
+
+  /// 見 [MascotStage.reactionCancelUpTo]。
+  final int reactionCancelUpTo;
+
+  /// 見 [MascotStage.poseTransition]。
+  final MascotPoseTransition poseTransition;
+
+  /// 見 [MascotStage.reduceMotion]。
+  final bool reduceMotion;
+
+  /// 台詞停留多久後開始淡出；null = 用 [MascotSpeechBubble] 的預設值。
+  final Duration? speechVisibleDuration;
+
   /// 點擊兔咪的自訂行為；未提供時走共用的 [MascotContext.tapReaction]。
   final VoidCallback? onTap;
   final VoidCallback? onHeadPet;
@@ -208,6 +233,12 @@ class PersonaScene extends StatelessWidget {
     super.key,
     required this.accent,
     this.reactionTick = 0,
+    this.noticeTick = 0,
+    this.reactionStrength = 1.0,
+    this.reactionCancelUpTo = -1,
+    this.poseTransition = MascotPoseTransition.crossFade,
+    this.reduceMotion = false,
+    this.speechVisibleDuration,
     this.onTap,
     this.onHeadPet,
     this.onEnergize,
@@ -280,6 +311,12 @@ class PersonaScene extends StatelessWidget {
           bubble: state.bubble,
           bubbleTick: state.bubbleTick,
           reactionTick: reactionTick,
+          noticeTick: noticeTick,
+          reactionStrength: reactionStrength,
+          reactionCancelUpTo: reactionCancelUpTo,
+          poseTransition: poseTransition,
+          reduceMotion: reduceMotion,
+          speechVisibleDuration: speechVisibleDuration,
           onTap: handleTap,
           onHeadPet: handleHeadPet,
           onEnergize: handleEnergize,
@@ -311,6 +348,24 @@ class MascotScene extends StatelessWidget {
   /// 不需要的話傳 0 即可。
   final int reactionTick;
 
+  /// 見 [MascotStage.noticeTick]。
+  final int noticeTick;
+
+  /// 見 [MascotStage.reactionStrength]。
+  final double reactionStrength;
+
+  /// 見 [MascotStage.reactionCancelUpTo]。
+  final int reactionCancelUpTo;
+
+  /// 見 [MascotStage.poseTransition]。
+  final MascotPoseTransition poseTransition;
+
+  /// 見 [MascotStage.reduceMotion]。
+  final bool reduceMotion;
+
+  /// 台詞停留多久後開始淡出；null = 用 [MascotSpeechBubble] 的預設值。
+  final Duration? speechVisibleDuration;
+
   /// 點擊兔咪的 callback；不需互動可省略。
   final VoidCallback? onTap;
 
@@ -334,6 +389,12 @@ class MascotScene extends StatelessWidget {
     this.bubble,
     this.bubbleTick = 0,
     this.reactionTick = 0,
+    this.noticeTick = 0,
+    this.reactionStrength = 1.0,
+    this.reactionCancelUpTo = -1,
+    this.poseTransition = MascotPoseTransition.crossFade,
+    this.reduceMotion = false,
+    this.speechVisibleDuration,
     this.onTap,
     this.onHeadPet,
     this.onEnergize,
@@ -351,7 +412,12 @@ class MascotScene extends StatelessWidget {
             top: 50,
             left: 28,
             right: 28,
-            child: MascotSpeechBubble(text: speech!, accent: accent),
+            child: MascotSpeechBubble(
+              text: speech!,
+              accent: accent,
+              visibleDuration:
+                  speechVisibleDuration ?? const Duration(seconds: 7),
+            ),
           ),
         Align(
           alignment: const Alignment(0, 0.92),
@@ -375,6 +441,11 @@ class MascotScene extends StatelessWidget {
                   bubble: bubble,
                   bubbleTick: bubbleTick,
                   reactionTick: reactionTick,
+                  noticeTick: noticeTick,
+                  reactionStrength: reactionStrength,
+                  reactionCancelUpTo: reactionCancelUpTo,
+                  poseTransition: poseTransition,
+                  reduceMotion: reduceMotion,
                   onTap: onTap ?? () {},
                   onHeadPet: onHeadPet,
                   onEnergize: onEnergize,
@@ -488,6 +559,21 @@ class _MascotSpeechBubbleState extends State<MascotSpeechBubble> {
   }
 }
 
+/// 換立繪的過場方式。
+enum MascotPoseTransition {
+  /// 交叉淡入（360ms＋easeOutBack＋縮放）。全 app 既有預設，不動。
+  crossFade,
+
+  /// 直接換圖，再用一段極短的**不透明**沉降收尾。
+  ///
+  /// 為什麼不是「快一點的交叉淡入」：兩張完整立繪在同一時間各半透明地疊在
+  /// 房間背景上，合成結果一定會透出背景——那就是打卡衝擊點看到的雙影。
+  /// 只要還在做 alpha 混合就躲不掉，所以這裡改成離散換圖（不混合），
+  /// 再讓新姿勢做 0.985→1.0 的縱向沉降，維持「有重量」又不出現半透明。
+  /// 沒有 overshoot、沒有 back 曲線，Reduce Motion 也走這條。
+  cut,
+}
+
 class MascotStage extends StatefulWidget {
   final String asset;
   final Color accent;
@@ -496,6 +582,30 @@ class MascotStage extends StatefulWidget {
   final EmotionBubble? bubble;
   final int bubbleTick;
   final int reactionTick;
+
+  /// 每次 +1 播一次「察覺」：2–3px 級別的前傾下沉，比 [reactionTick] 的
+  /// 小跳早一拍，用來表達「MI 注意到你剛做了什麼」而不是直接慶祝。
+  final int noticeTick;
+
+  /// [reactionTick] 那次小跳的幅度（0–1）。打卡是高頻動作，用比直接點擊
+  /// 更克制的值；預設 1 = 原本的點擊反應。變更只影響**下一次**觸發。
+  final double reactionStrength;
+
+  /// 收束「[reactionTick] 小於等於這個值」的那次小跳（撤銷時用）：
+  /// 滑回落地而不是硬切回原位。
+  ///
+  /// 帶著 tick 而不是單純 +1 的理由：撤銷與「跨進全完成」可能落在同一個
+  /// rebuild，舊的取消不能把同一幀才開始的新反應一起殺掉。比對 tick 之後，
+  /// `didUpdateWidget` 兩個分支誰先跑都不影響結果。
+  final int reactionCancelUpTo;
+
+  /// 換立繪的過場方式。預設交叉淡入（其他頁面維持原本行為）；
+  /// 首頁打卡演出改用 [MascotPoseTransition.cut]，見該項說明。
+  final MascotPoseTransition poseTransition;
+
+  /// 系統開了 Reduce Motion：離散換圖照舊（那是可讀性不是動態），但
+  /// 換圖後的沉降完全不跑——body scale、sink、位移一律為零。
+  final bool reduceMotion;
   final VoidCallback onTap;
   final VoidCallback? onHeadPet;
 
@@ -515,6 +625,11 @@ class MascotStage extends StatefulWidget {
     this.bubble,
     this.bubbleTick = 0,
     required this.reactionTick,
+    this.noticeTick = 0,
+    this.reactionStrength = 1.0,
+    this.reactionCancelUpTo = -1,
+    this.poseTransition = MascotPoseTransition.crossFade,
+    this.reduceMotion = false,
     required this.onTap,
     this.onHeadPet,
     this.onEnergize,
@@ -529,6 +644,8 @@ class MascotStage extends StatefulWidget {
 class _MascotStageState extends State<MascotStage>
     with TickerProviderStateMixin {
   late final AnimationController _reactionCtrl;
+  late final AnimationController _noticeCtrl;
+  late final AnimationController _poseSettleCtrl;
   late final AnimationController _petCtrl;
   late final AnimationController _breathCtrl;
   late final Animation<double> _breath;
@@ -593,6 +710,18 @@ class _MascotStageState extends State<MascotStage>
       duration: const Duration(milliseconds: 640),
     );
 
+    // 察覺：只有一次極小幅的前傾下沉，跑完就停（不常駐排幀）。
+    _noticeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    );
+
+    // 離散換圖後的沉降（見 MascotPoseTransition.cut）：不透明、不 overshoot。
+    _poseSettleCtrl = AnimationController(
+      vsync: this,
+      duration: kMascotPoseCutSettle,
+    );
+
     // 摸頭逐幀驅動器：只負責讓畫面每幀重建＋收斂彈簧與愛心壽命，
     // 沒有自己的節奏（節奏完全來自手指）。
     _petCtrl = AnimationController(
@@ -619,7 +748,7 @@ class _MascotStageState extends State<MascotStage>
       vsync: this,
       duration: const Duration(milliseconds: 1300),
     );
-    if (!widget.paused) _breathCtrl.repeat(reverse: true);
+    if (_idleMotionAllowed) _breathCtrl.repeat(reverse: true);
     _breath = CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut);
 
     _bubbleCtrl = AnimationController(
@@ -705,11 +834,91 @@ class _MascotStageState extends State<MascotStage>
     if (!enabled) _poseSwitcherGeneration++;
   }
 
+  /// 呼吸這類自主 idle 動作現在可不可以跑。
+  ///
+  /// Reduce Motion 也要停：它是持續的縱向縮放，留著會讓「兔咪身上的變換
+  /// 必須是 identity」不成立——那條規則的重點不是「沒有打卡演出」，
+  /// 是**畫面真的靜止**。
+  bool get _idleMotionAllowed => !widget.paused && !widget.reduceMotion;
+
+  /// 立刻停掉所有會造成位移、縮放或粒子移動的演出，並歸零。
+  ///
+  /// 用 `value = 0` 而不是 `stop()`：停在半路等於把兔咪定格在蹲下或半空中，
+  /// 而且 painter 收到的 progress 仍然非零，星星會停在畫面上。歸零才是
+  /// 「這個動作沒有發生過」。
+  void _haltMotionForReduceMotion() {
+    for (final ctrl in [
+      _reactionCtrl,
+      _noticeCtrl,
+      _poseSettleCtrl,
+      _chargeCtrl,
+      _burstCtrl,
+      _breathCtrl,
+    ]) {
+      ctrl.stop();
+      ctrl.value = 0;
+    }
+    _burstPower = 0;
+    _isCharging = false;
+    _chargeTickStep = 0;
+    // 已經被取消的那次小跳不該在偏好關掉之後補播。
+    _activeReactionCancellable = false;
+    // 換立繪的過場也要當場收斂。停掉 `_poseSettleCtrl` 只管沉降那一段；
+    // AnimatedSwitcher 內部**已經建立**的 outgoing entry 有自己的
+    // controller 與 curve（建立當下就定好了，之後改 switchOutCurve 對它
+    // 無效），放著不管會繼續淡出，畫面上就是兩張半透明立繪。
+    // 換掉 switcher 的 key 是唯一能整組丟掉它們的方式：重建之後只剩
+    // 目前那一張，而且完全不透明。
+    _poseSwitcherGeneration++;
+    _dropOutgoingPose = true;
+  }
+
   @override
   void didUpdateWidget(covariant MascotStage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.reduceMotion != widget.reduceMotion) {
+      if (widget.reduceMotion) {
+        _haltMotionForReduceMotion();
+      } else if (!widget.paused && !_breathCtrl.isAnimating) {
+        // 關掉偏好可以恢復 idle 呼吸，但**不補播**已經取消的打卡／全完成動作。
+        _breathCtrl.repeat(reverse: true);
+      }
+    }
     if (oldWidget.reactionTick != widget.reactionTick) {
-      _reactionCtrl.forward(from: 0);
+      // 幅度在觸發那一刻定住：中途改參數不該讓正在跑的動作瞬間變大小。
+      _activeReactionStrength = widget.reactionStrength.clamp(0.0, 1.0);
+      _activeReactionTick = widget.reactionTick;
+      _activeReactionCancellable = true;
+      // Reduce Motion：語意事件照收（tick 記下來了），但不啟動任何位移。
+      if (!widget.reduceMotion) _reactionCtrl.forward(from: 0);
+    }
+    if (oldWidget.noticeTick != widget.noticeTick && !widget.reduceMotion) {
+      _noticeCtrl.forward(from: 0);
+    }
+    // 只收束「這次取消所指的那一代」反應。同一幀同時來了舊取消與新反應時，
+    // 新反應的 tick 一定比 cancelUpTo 大，不會被誤殺——與這裡的判斷順序無關。
+    if (oldWidget.reactionCancelUpTo != widget.reactionCancelUpTo &&
+        _activeReactionCancellable &&
+        _activeReactionTick <= widget.reactionCancelUpTo) {
+      _cancelReaction();
+    }
+    if (oldWidget.asset != widget.asset &&
+        widget.poseTransition == MascotPoseTransition.cut) {
+      if (widget.reduceMotion) {
+        // Reduce Motion：換圖是離散的，但不做任何沉降／縮放／位移。
+        _poseSettleCtrl.value = 0;
+      }
+      // 新姿勢在第一幀就完全不透明、而且疊在上層，所以那一幀看到的只有它；
+      // 下一幀再把退場那張整個移出版面，避免它從新姿勢的透明區域露出來。
+      // （不能直接第一幀就拿掉：新立繪的 Image element 是全新的，
+      //   還沒解到圖的那一幀會整隻兔咪不見。）
+      _dropOutgoingPose = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_dropOutgoingPose) {
+          setState(() => _dropOutgoingPose = true);
+        }
+      });
+      if (!widget.reduceMotion) _poseSettleCtrl.forward(from: 0);
     }
     // 情緒事件帶了泡泡，且（事件序號、泡泡或立繪改變）就重冒一次。
     // 同情境連點會被 MascotPersona 的 holdDuration 擋掉，不會狂閃。
@@ -726,8 +935,10 @@ class _MascotStageState extends State<MascotStage>
         _cancelBlinkTimers();
         _eyesClosed = false; // 不要定格在閉眼；隨即重建會套用
       } else {
-        // 恢復：重新開始呼吸與眨眼。
-        if (!_breathCtrl.isAnimating) _breathCtrl.repeat(reverse: true);
+        // 恢復：重新開始呼吸與眨眼（Reduce Motion 下呼吸仍然停著）。
+        if (_idleMotionAllowed && !_breathCtrl.isAnimating) {
+          _breathCtrl.repeat(reverse: true);
+        }
         _scheduleNextBlink();
       }
     }
@@ -743,6 +954,8 @@ class _MascotStageState extends State<MascotStage>
     _petCtrl.dispose();
     _breathCtrl.dispose();
     _reactionCtrl.dispose();
+    _noticeCtrl.dispose();
+    _poseSettleCtrl.dispose();
     _bubbleCtrl.dispose();
     _chargeCtrl.dispose();
     _burstCtrl.dispose();
@@ -772,9 +985,36 @@ class _MascotStageState extends State<MascotStage>
   double _headDragAmount(Offset position) =>
       ((position.dx - 126) / 94).clamp(-1.0, 1.0).toDouble();
 
+  // 目前這次小跳的幅度；由觸發當下的 [MascotStage.reactionStrength] 定住。
+  double _activeReactionStrength = 1.0;
+
+  // 目前這次小跳屬於哪一個 reactionTick；取消時用來分辨新舊。
+  int _activeReactionTick = -1;
+
+  // cut 模式：退場的立繪已經可以整個移出版面了（換圖後的下一幀）。
+  bool _dropOutgoingPose = true;
+
+  // 直接點兔咪起的反應不屬於首頁演出，任何 cancelUpTo 都不該收掉它。
+  bool _activeReactionCancellable = false;
+
   void _triggerTapReaction() {
-    _reactionCtrl.forward(from: 0);
+    // 直接點兔咪永遠是完整幅度：reactionStrength 只用來收斂「打卡」那條路。
+    _activeReactionStrength = 1.0;
+    _activeReactionCancellable = false;
+    // Reduce Motion 下互動仍然成立（換表情、泡泡、語音都照走），
+    // 只是身體不跳、不冒星星。
+    if (!widget.reduceMotion) _reactionCtrl.forward(from: 0);
     widget.onTap();
+  }
+
+  /// 收束正在跑的小跳：滑到終點（終點是原位）而不是硬切，星星也跟著收掉。
+  void _cancelReaction() {
+    if (!_reactionCtrl.isAnimating && _reactionCtrl.value == 0) return;
+    _reactionCtrl.animateTo(
+      1.0,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+    );
   }
 
   // ── 摸頭 ──
@@ -880,7 +1120,8 @@ class _MascotStageState extends State<MascotStage>
     _chargeTickStep = 0;
     playHaptic(HapticLevel.selection);
     unawaited(SfxService.instance.play(SfxCue.tumiCharge));
-    _chargeCtrl.forward(from: 0);
+    // Reduce Motion：蓄力的觸覺與聲音留著（那是回饋），下蹲與顫動拿掉。
+    if (!widget.reduceMotion) _chargeCtrl.forward(from: 0);
   }
 
   void _updateCharge(Offset position) {
@@ -900,6 +1141,10 @@ class _MascotStageState extends State<MascotStage>
     unawaited(SfxService.instance.play(SfxCue.tumiJump));
     playHaptic(_burstPower > 0.7 ? HapticLevel.medium : HapticLevel.light);
     widget.onEnergize?.call();
+    if (widget.reduceMotion) {
+      _burstPower = 0;
+      return;
+    }
     _burstCtrl.forward(from: 0);
   }
 
@@ -980,6 +1225,8 @@ class _MascotStageState extends State<MascotStage>
         child: AnimatedBuilder(
           animation: Listenable.merge([
             _reactionCtrl,
+            _noticeCtrl,
+            _poseSettleCtrl,
             _petCtrl,
             _bubbleCtrl,
             _chargeCtrl,
@@ -998,28 +1245,49 @@ class _MascotStageState extends State<MascotStage>
             // 點擊反應：迷你版充電爆發——快速小蹲 → 小跳 → 落地回彈。
             // 錨定「有重量的身體」而不是 UI 等比縮放。
             final r = _reactionCtrl.value;
+            final rs = _activeReactionStrength;
             double tapLift = 0, tapSink = 0, tapSy = 1, tapSx = 1;
             if (r > 0 && r < 1) {
               const crouchEnd = 0.18, airEnd = 0.72;
               if (r < crouchEnd) {
                 final t = Curves.easeOut.transform(r / crouchEnd);
-                tapSy = 1 - 0.045 * t;
-                tapSx = 1 + 0.030 * t;
-                tapSink = 4.5 * t; // 中心錨補償：蹲下時腳保持貼地
+                tapSy = 1 - 0.045 * rs * t;
+                tapSx = 1 + 0.030 * rs * t;
+                tapSink = 4.5 * rs * t; // 中心錨補償：蹲下時腳保持貼地
               } else if (r < airEnd) {
                 final u = (r - crouchEnd) / (airEnd - crouchEnd);
-                tapLift = -10 * 4 * u * (1 - u);
+                tapLift = -10 * rs * 4 * u * (1 - u);
                 final v = (1 - 2 * u).abs();
-                tapSy = 1 + 0.035 * v;
-                tapSx = 1 - 0.020 * v;
+                tapSy = 1 + 0.035 * rs * v;
+                tapSx = 1 - 0.020 * rs * v;
               } else {
                 final t = (r - airEnd) / (1 - airEnd);
                 final squash = math.sin(math.pi * t);
-                tapSy = 1 - 0.030 * squash;
-                tapSx = 1 + 0.022 * squash;
-                tapSink = 1.5 * squash;
+                tapSy = 1 - 0.030 * rs * squash;
+                tapSx = 1 + 0.022 * rs * squash;
+                tapSink = 1.5 * rs * squash;
               }
             }
+
+            // 察覺：極小幅前傾下沉再回正。刻意不縮放整張圖——只有幾 px 的
+            // 位移與 <1% 的縱向壓縮，讀起來是「抬眼看了一下」不是預備動作。
+            final n = _noticeCtrl.value;
+            final noticeArc = n > 0 && n < 1 ? math.sin(math.pi * n) : 0.0;
+            final noticeSink = 2.6 * noticeArc;
+            final noticeSy = 1 - 0.008 * noticeArc;
+
+            // 離散換圖後的沉降：新姿勢從 0.985 收到 1.0，全程不透明。
+            final settle = _poseSettleCtrl.value;
+            final settleSy = settle > 0 && settle < 1
+                ? ui.lerpDouble(
+                    kMascotPoseCutSettleScale,
+                    1.0,
+                    Curves.easeOutCubic.transform(settle),
+                  )!
+                : 1.0;
+            // 中心錨補償（與 tapSink 同一組經驗係數）：沉降時腳保持貼地，
+            // 維持 bottom-center anchor。
+            final settleSink = 100 * (1 - settleSy);
 
             // 充電蓄力：下蹲（squash）＋越蓄越明顯的小顫動（蓄勁感）。
             // scale 以中心為錨，下沉補償讓腳保持貼地。
@@ -1058,18 +1326,22 @@ class _MascotStageState extends State<MascotStage>
             // 點擊小跳與充電大跳各自歸一化再相乘，互不干擾原本手感。
             final lighting = widget.lighting ?? MascotSceneLighting.neutral;
             final liftProgress = (-tapLift / 10).clamp(0.0, 1.0);
+            // 蹲下／察覺下沉時接地影略微加寬變實，「有重量」才成立。
+            final contactPress = ((tapSink + noticeSink) / 4.5).clamp(0.0, 1.0);
             final burstLiftProgress = (-burstLift / 42).clamp(0.0, 1.0);
             final maxLift = math.max(liftProgress, burstLiftProgress);
             final shadowScale =
                 ui.lerpDouble(1, 0.88, liftProgress)! *
-                ui.lerpDouble(1, 0.78, burstLiftProgress)!;
+                ui.lerpDouble(1, 0.78, burstLiftProgress)! *
+                ui.lerpDouble(1, 1.06, contactPress)!;
             final shadowOpacity =
                 ui.lerpDouble(
                   lighting.shadowOpacity,
                   lighting.shadowOpacity * 0.54,
                   liftProgress,
                 )! *
-                ui.lerpDouble(1, 0.55, burstLiftProgress)!;
+                ui.lerpDouble(1, 0.55, burstLiftProgress)! *
+                ui.lerpDouble(1, 1.12, contactPress)!;
             final shadowColor = Color.lerp(
               lighting.shadowColor,
               widget.accent,
@@ -1114,6 +1386,7 @@ class _MascotStageState extends State<MascotStage>
                           painter: _MascotSparklePainter(
                             progress: _reactionCtrl.value,
                             color: widget.accent,
+                            strength: rs,
                           ),
                         ),
                         CustomPaint(
@@ -1143,7 +1416,13 @@ class _MascotStageState extends State<MascotStage>
                 Transform.translate(
                   offset: Offset(
                     petOffsetX,
-                    tapLift + tapSink + petOffsetY + burstLift + chargeSink,
+                    tapLift +
+                        tapSink +
+                        noticeSink +
+                        settleSink +
+                        petOffsetY +
+                        burstLift +
+                        chargeSink,
                   ),
                   child: Transform.rotate(
                     angle: petTilt + chargeWobble,
@@ -1155,7 +1434,12 @@ class _MascotStageState extends State<MascotStage>
                           (1 + chargeSquash * 0.55) *
                           burstScaleX,
                       scaleY:
-                          tapSy * petScaleY * (1 - chargeSquash) * burstScaleY,
+                          tapSy *
+                          noticeSy *
+                          settleSy *
+                          petScaleY *
+                          (1 - chargeSquash) *
+                          burstScaleY,
                       child: child,
                     ),
                   ),
@@ -1178,18 +1462,47 @@ class _MascotStageState extends State<MascotStage>
           child: AnimatedSwitcher(
             // 分頁被收起來時直接換圖、且丟掉沒跑完的過場（見 _tickersEnabled）。
             key: ValueKey<int>(_poseSwitcherGeneration),
-            duration: _tickersEnabled
-                ? const Duration(milliseconds: 360)
-                : Duration.zero,
-            switchInCurve: Curves.easeOutBack,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: ScaleTransition(
-                scale: Tween(begin: 0.92, end: 1.0).animate(anim),
-                child: child,
-              ),
-            ),
+            // cut 模式完全不做 alpha 混合（雙影的來源就是混合本身）；
+            // 沉降交給 _poseSettleCtrl，不在這裡加曲線。
+            //
+            // cut 的長度刻意不是 0：退場那張要在**第一幀**還撐著，蓋住新立繪
+            // 尚未解圖的那一格（duration 0 會讓它同幀就被移除，畫面上兔咪
+            // 整隻消失一幀）。第二幀起 _dropOutgoingPose 會把它移出版面。
+            duration: !_tickersEnabled
+                ? Duration.zero
+                : widget.poseTransition == MascotPoseTransition.cut
+                ? kMascotPoseCutSettle
+                : const Duration(milliseconds: 360),
+            // cut：新姿勢從第 0 幀就完全不透明（而且疊在上層），舊的即刻歸零。
+            // 用 Threshold 而不是縮短 duration —— AnimatedSwitcher 的退場控制器
+            // 是建立當下就定好長度的，之後改 duration 對它無效，畫面上會留著
+            // 一張慢慢淡出的實心圖。
+            switchInCurve: widget.poseTransition == MascotPoseTransition.cut
+                ? const Threshold(0)
+                : Curves.easeOutBack,
+            switchOutCurve: widget.poseTransition == MascotPoseTransition.cut
+                ? const Threshold(1)
+                : Curves.easeIn,
+            layoutBuilder:
+                widget.poseTransition == MascotPoseTransition.cut &&
+                    _dropOutgoingPose
+                ? (currentChild, previousChildren) =>
+                      currentChild ?? const SizedBox.shrink()
+                : AnimatedSwitcher.defaultLayoutBuilder,
+            // cut 模式的 duration 是 0，所以這個 opacity 只會是 0 或 1
+            // ——退場那張在被移除前的那一幀就已經完全透明，不會疊出雙影。
+            // 這裡仍然要包 FadeTransition：直接回傳 child 的話，舊立繪會以
+            // 全不透明再畫一幀，反而變成兩張實心圖重疊。
+            transitionBuilder: (child, anim) =>
+                widget.poseTransition == MascotPoseTransition.cut
+                ? FadeTransition(opacity: anim, child: child)
+                : FadeTransition(
+                    opacity: anim,
+                    child: ScaleTransition(
+                      scale: Tween(begin: 0.92, end: 1.0).animate(anim),
+                      child: child,
+                    ),
+                  ),
             child: Padding(
               key: ValueKey(widget.asset),
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
@@ -1284,11 +1597,25 @@ class _MascotGroundShadowPainter extends CustomPainter {
       old.color != color || old.opacity != opacity;
 }
 
+/// 一次反應會畫出幾顆星星。
+///
+/// 完整幅度（直接點兔咪）6 顆；打卡的克制版本只留 4 顆。上限刻意壓在
+/// 個位數：普通完成是高頻動作，粒子多一點就會變成「抽卡」的語彙。
+int mascotSparkleCountFor(double strength) => strength >= 0.999 ? 6 : 4;
+
 class _MascotSparklePainter extends CustomPainter {
   final double progress;
   final Color color;
 
-  _MascotSparklePainter({required this.progress, required this.color});
+  /// 反應幅度（見 [MascotStage.reactionStrength]）。打卡的克制版本只留
+  /// 前 4 顆、透明度也降下來——普通完成不該看起來像抽卡。
+  final double strength;
+
+  _MascotSparklePainter({
+    required this.progress,
+    required this.color,
+    this.strength = 1.0,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1306,22 +1633,32 @@ class _MascotSparklePainter extends CustomPainter {
       (angle: 0.62, distance: 95, size: 7),
       (angle: 2.65, distance: 78, size: 5),
     ];
-    for (final spec in specs) {
-      final distance = spec.distance * Curves.easeOut.transform(progress);
+    for (final spec in specs.take(mascotSparkleCountFor(strength))) {
+      final distance =
+          spec.distance *
+          (0.55 + 0.45 * strength) *
+          Curves.easeOut.transform(progress);
       final offset = Offset(
         center.dx + distance * math.cos(spec.angle),
         center.dy + distance * math.sin(spec.angle),
       );
       final paint = Paint()
-        ..color = color.withValues(alpha: 0.55 * opacity)
+        ..color = color.withValues(alpha: 0.55 * opacity * strength)
         ..style = PaintingStyle.fill;
-      _drawEightStar(canvas, offset, spec.size * (0.7 + progress * 0.3), paint);
+      _drawEightStar(
+        canvas,
+        offset,
+        spec.size * (0.7 + progress * 0.3) * (0.7 + 0.3 * strength),
+        paint,
+      );
     }
   }
 
   @override
   bool shouldRepaint(covariant _MascotSparklePainter old) =>
-      old.progress != progress || old.color != color;
+      old.progress != progress ||
+      old.color != color ||
+      old.strength != strength;
 }
 
 /// 八角星（四長四短尖角），sparkle / 充電爆發共用。
