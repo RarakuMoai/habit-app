@@ -595,10 +595,82 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
     _appliedDate = s.logicalDate;
     if (s.transitionId != null) _handledTransitionId = s.transitionId;
-    if (dayChanged) _settleMascotForNewDay();
+    if (dayChanged) _requestNewDayNeutral();
   }
 
-  /// 新的一天：把**Home 自己的**姿勢、泡泡、停留與回神收成中性待機。
+  // ── 換日的 Persona settlement：順序無關的交易 ─────────────────
+  //
+  // 一次 reload 會產生兩件事，而它們的先後**沒有保證**：
+  //
+  //   * 收拾舊 Home 狀態（可能同步、也可能被推到 post-frame）；
+  //   * 套用新快照（storage 的 async 續體，可能先到也可能後到）。
+  //
+  // 舊版把中間結果放在一個全域欄位上做「兩階段橋接」，於是：snapshot 先到
+  // 時沒有收據可用，那個需求就整個被丟掉（兔咪停在昨天的姿勢）；而遲到的
+  // stale 收拾又會把**新一輪**的收據擦掉。
+  //
+  // 改成一筆交易：兩邊的結果寫在同一個物件上，誰後到誰負責收尾。stale 的
+  // callback 只認得自己那一筆，寫不到現行的那一筆。
+
+  /// 目前這一輪的 settlement 交易。
+  _PersonaSettlement? _settlement;
+  int _settlementSeq = 0;
+
+  /// 開一筆新交易，並讓舊的那一筆明確作廢。
+  ///
+  /// 「明確 supersede」而不是「等收據自然對不上」：新一輪已經接手了，舊那筆
+  /// 遲到的 callback 不該再寫任何東西——包含它自己的 metadata。
+  _PersonaSettlement _beginSettlement({
+    required MascotClaim? claim,
+    required MascotSpeechLease? lease,
+  }) {
+    final previous = _settlement;
+    previous?.superseded = true;
+    final settlement = _PersonaSettlement(
+      id: ++_settlementSeq,
+      generation: _presentationGeneration,
+      claim: claim,
+      lease: lease,
+    );
+    // 這一輪沒有東西要收，但上一筆交易剛剛才把狀態收成中性：那張收據仍然
+    // 是全域現值時就接手過來，換日才有東西可以再往前收一格。接手是
+    // compare-gated 的——中間只要有人寫過就對不上，這一筆就什麼都不帶。
+    if (claim == null && previous != null) {
+      final inherited = previous.settledReceipt;
+      if (inherited != null && MascotPersona.claim == inherited) {
+        settlement
+          ..cleanupDone = true
+          ..settledReceipt = inherited;
+      }
+    }
+    _settlement = settlement;
+    return settlement;
+  }
+
+  /// 收拾階段結束（成功或失敗都算），並看看要不要接著做新一天的中性收尾。
+  void _completeSettlement(
+    _PersonaSettlement settlement, {
+    required MascotClaim? receipt,
+  }) {
+    // stale：更新的一輪已經接手。**只**放棄自己這一筆，絕不改寫別人的。
+    if (settlement.superseded) return;
+    // 已經有結果了（例如接手了上一筆的收據）：不得被之後的 null 蓋掉。
+    if (settlement.cleanupDone) return;
+    settlement.cleanupDone = true;
+    settlement.settledReceipt = receipt;
+    _maybeSettleNeutral(settlement);
+  }
+
+  /// Home 同步收拾自己成功（撤銷結束、開新弧線前放掉舊佔用）：
+  /// 用一筆已經完成收拾的交易持有那張收據，換日才有東西可以接著收。
+  void _recordOwnSettlement(MascotClaim receipt) {
+    final settlement = _beginSettlement(claim: null, lease: null)
+      ..cleanupDone = true
+      ..settledReceipt = receipt;
+    _maybeSettleNeutral(settlement);
+  }
+
+  /// 這次快照是新的一天：交易要在收拾完成之後把姿勢收成中性。
   ///
   /// 兔咪要從昨天的情緒（例如全完成的開心臉）回到中性，否則 MI 的基準會和
   /// 歸零後的進度對不上。同日 reload 不動，免得打斷使用者剛剛的互動演出。
@@ -612,42 +684,68 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ///   Home 已經寫過）就整段 no-op，絕不覆寫別人。
   /// - **台詞**：一個字都不碰。整份租約（來源、絕對期限、計時器）原封不動；
   ///   Home 自己那句已經由 [_invalidateCompletionPresentation] 依租約收掉了。
+  void _requestNewDayNeutral() {
+    // Home 此刻就握著活的擁有權（同步收拾那條路）：直接用它開一筆已完成
+    // 收拾的交易，不必等任何 callback。
+    final live = _personaStillOurs ? _personaClaim : null;
+    if (live != null) {
+      final settlement = _beginSettlement(claim: live, lease: _speechLease)
+        ..needsNeutral = true;
+      _completeSettlement(settlement, receipt: live);
+      return;
+    }
+    final settlement = _settlement;
+    if (settlement == null ||
+        settlement.superseded ||
+        settlement.generation != _presentationGeneration) {
+      return;
+    }
+    // 收拾還沒回來也照樣登記：需求不能因為 callback 還沒到就被丟掉，
+    // 那正是「snapshot 先到就停在昨天姿勢」的成因。
+    settlement.needsNeutral = true;
+    _maybeSettleNeutral(settlement);
+  }
+
+  /// 交易的收尾：兩個階段都到齊了才做，所以誰先誰後都收斂到同一個結果。
   ///
-  /// 手上的收據有兩種來源：還握著的 [_personaClaim]，或收拾自己之後留下的
-  /// [_settledPersonaClaim]（跨日這條路一定是後者——`loadHabits` 開頭就先
-  /// 作廢過一次了）。兩者都對不上就代表這個狀態已經不是我們的。
-  ///
-  /// 跨日重建是從 `MainPage` 的 build 流下來的，這一步會通知全域 notifier，
-  /// 所以在 build 階段必須推到這一幀之後（連同要用的收據與立繪一起捕捉）。
-  /// post-frame callback 依註冊順序執行，前面那次收拾一定先跑完。
-  void _settleMascotForNewDay() {
-    final claim = _personaStillOurs
-        ? _personaClaim
-        : (MascotPersona.claim == _settledPersonaClaim
-              ? _settledPersonaClaim
-              : null);
-    if (claim == null) return;
+  /// 在 build 階段（跨日是從 `MainPage` 的重建流下來的）連同收據與立繪一起
+  /// 推到這一幀之後——這一步會通知全域 notifier。
+  void _maybeSettleNeutral(_PersonaSettlement settlement) {
+    if (settlement.superseded) return;
+    if (!settlement.needsNeutral || settlement.neutralDone) return;
+    if (!settlement.cleanupDone) return;
+    final receipt = settlement.settledReceipt;
+    // 收拾失敗（external 或新一代 Home 接手）：交易到此為止，不覆寫別人，
+    // 也不留下一張可以復活的收據。
+    if (receipt == null) {
+      settlement.neutralDone = true;
+      return;
+    }
     // 新的一天回到的是「開 app 的中性臉」，不是由進度推導的 baseline：
     // 進度剛歸零，睡臉／夜晚臉是給「今天還沒開始」的情境用的，跨日這一刻
     // 只需要一個乾淨的起點。
-    final asset = MascotEmotion.neutralFront.assetPath;
+    const asset = MascotEmotion.neutralFront;
     if (_inBuildPhase) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _applyNewDayNeutral(claim, asset);
+        _applyNewDayNeutral(settlement, asset.assetPath);
       });
       return;
     }
-    _applyNewDayNeutral(claim, asset);
+    _applyNewDayNeutral(settlement, asset.assetPath);
   }
 
-  /// 純函式式的那一步：只用傳進來的收據與立繪，不讀任何會在延後期間變動的
-  /// 欄位。首頁監聽全域狀態時會順手喚醒場景時鐘；自動跨日沒有使用者互動
-  /// （可能是凌晨四點），不該把畫面叫醒。
-  void _applyNewDayNeutral(MascotClaim claim, String asset) {
+  /// 純函式式的那一步：只用交易自己捕捉到的收據與立繪，不讀任何會在延後
+  /// 期間變動的欄位。首頁監聽全域狀態時會順手喚醒場景時鐘；自動跨日沒有
+  /// 使用者互動（可能是凌晨四點），不該把畫面叫醒。
+  void _applyNewDayNeutral(_PersonaSettlement settlement, String asset) {
+    if (settlement.superseded || settlement.neutralDone) return;
+    final receipt = settlement.settledReceipt;
+    if (receipt == null) return;
+    settlement.neutralDone = true;
     _suppressSceneWake = true;
     try {
-      if (MascotPersona.clearStateIfClaim(claim, assetPath: asset)) {
-        _settledPersonaClaim = MascotPersona.claim;
+      if (MascotPersona.clearStateIfClaim(receipt, assetPath: asset)) {
+        settlement.settledReceipt = MascotPersona.claim;
       }
     } finally {
       _suppressSceneWake = false;
@@ -1036,16 +1134,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// 首頁的（沿用的開場問候、其他分頁的話），收拾時完全不能碰它。
   MascotSpeechLease? _speechLease;
 
-  /// Home **收拾自己**之後留下的那張收據。
-  ///
-  /// 收拾（[_clearOwnedPersona]、[_releaseStalePersonaHold]、撤銷到期）會把
-  /// 姿勢停在**當下**推導出來的立繪，並讓 [_personaClaim] 歸零。跨日還要再往前
-  /// 收一格——新的一天得回中性待機——那時手上唯一剩下的證據就是這張收據。
-  ///
-  /// 一律用嚴格相等比對全域現值：中間只要有人寫過（其他分頁、新一代 Home、
-  /// 使用者的新互動），它自然就對不上，跨日整段 no-op。
-  MascotClaim? _settledPersonaClaim;
-
   /// 單調遞增的台詞序號：用來比較「這句話比那次完成早還是晚」。
   int _speechSerial = 0;
   int _speechOwnerSerial = 0;
@@ -1073,6 +1161,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   /// sad transient 的擁有者；被新事件取代後舊 timer 就不再作數。
   int _transientMascotSeq = 0;
+
+  /// 目前那一次撤銷的完整身分。
+  ///
+  /// 本地 sad、全域佔用與「被它擋下來的那次跨越」是同一件事，收在一起才
+  /// 有辦法讓兩個結束來源（自然到期、被新的正向輸入取代）跑同一段 terminal
+  /// operation。見 [_finishUndoTransient]。
+  _UndoLifecycle? _undo;
 
   /// 全域狀態現在還是不是 Home 上次寫進去的那一份。
   bool get _personaStillOurs =>
@@ -1163,7 +1258,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     )) {
       return false;
     }
-    _settledPersonaClaim = MascotPersona.claim;
+    _recordOwnSettlement(MascotPersona.claim);
     _personaClaim = null;
     _speechOwner = null;
     return true;
@@ -1172,7 +1267,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// 取代正在顯示的 sad transient（新的正向事件、里程碑、全完成都要呼叫）。
   ///
   /// 回傳「有沒有順手放掉 Home 自己的 hold」。
+  ///
+  /// 撤銷的顯示期在這裡結束，走的是與自然到期**同一個** terminal operation：
+  /// 舊版只在這裡 `cancel()` 掉 expiry timer，而那條 timer 的 callback 同時是
+  /// 唯一的 ownership release ＋ 補送入口——於是「使用者又做了一件」反而把
+  /// 本來會自動發生的補送一起取消掉了。
   bool _supersedeTransientMascot() {
+    if (_undo != null) {
+      // 補送刻意不在這裡發生：呼叫端接下來還會放掉自己上一段演出的佔用
+      // （`_releaseStalePersonaHold`），補送若排在那之前會被當場清掉。
+      final released = _finishUndoTransient(retryNow: false);
+      _transientMascotSeq++;
+      _transientMascotTimer?.cancel();
+      _transientMascotTimer = null;
+      return released;
+    }
     _transientMascotSeq++;
     _transientMascotTimer?.cancel();
     _transientMascotTimer = null;
@@ -1190,9 +1299,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 注意：這裡不加 _mascotReactionTick——彈跳是「正向」動作語彙，
     // 這條路目前只給撤銷打卡的 sad 用，難過還跳起來會很突兀；
     // 換圖動畫＋汗滴泡泡＋語音已足夠承載這個時刻。
-    _transientMascotTimer?.cancel();
+    //
+    // 上一次撤銷（若還在）直接作廢，不跑 terminal operation：新的撤銷馬上
+    // 又會把擁有權拿回去，那時補送一定被擋，跑了也只是白跑一次。欠條留著，
+    // 由**最新**這一次的顯示期結束時償還。
+    _discardUndoLifecycle();
     final seq = ++_transientMascotSeq;
-    final generation = _presentationGeneration;
     setState(() {
       _transientMascot = name;
     });
@@ -1206,51 +1318,95 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ++_undoSeq,
     );
     _claimPersona(token, accepted: accepted);
-    // 這一次撤銷**自己那一份**收據與租約。到期時比對的是它們，不是之後才讀的
-    // 欄位：中間若有更新的事件（含 Home 自己的）接手，這條 expiry 就不該再
+    // 這一次撤銷**自己那一份**收據與租約。結束時比對的是它們，不是之後才讀的
+    // 欄位：中間若有更新的事件（含 Home 自己的）接手，這次的結束就不該再
     // 動任何東西。
-    final undoClaim = accepted ? MascotPersona.claim : null;
-    final undoLease = accepted ? MascotPersona.speechLease : null;
+    final undo = _UndoLifecycle(
+      seq: seq,
+      generation: _presentationGeneration,
+      token: token,
+      claim: accepted ? MascotPersona.claim : null,
+      lease: accepted ? MascotPersona.speechLease : null,
+    );
+    _undo = undo;
     _transientMascotTimer = Timer(duration, () {
       _transientMascotTimer = null;
-      // ── 三段，順序不能對調 ──
-      //
-      // 1. 本地 transient 的到期**只**看自己的身分（seq／generation／mounted）：
-      //    它是首頁自己的欄位，沒有人會替它收。舊版把全域收據也綁進來，於是
-      //    這次撤銷被更高優先的狀態（喝水過量）擋下時，本地就永遠卡著一張
-      //    sad——切回首頁或下次點兔咪都會突然變難過，而且
-      //    `_baselineMascotContext` 會一路回報 `undone`。
-      if (!mounted ||
-          seq != _transientMascotSeq ||
-          generation != _presentationGeneration) {
-        return;
-      }
-      setState(() => _transientMascot = null);
-      // 2. 全域只放掉**這一次撤銷**留下的那一份佔用，走 compare-and-clear。
-      //    不符（其他分頁、使用者更新的動作）就到此為止，不碰別人的狀態、
-      //    也不強行把 half 講出來。
-      if (!_releaseUndoHold(token, claim: undoClaim, lease: undoLease)) return;
-      // 3. 真的放掉自己的擁有權之後，被它擋下來的跨越才重新有機會。
-      _retryPendingMilestoneSemantic();
+      _finishUndoTransient(retryNow: true);
     });
+    undo.timer = _transientMascotTimer;
   }
 
-  /// 撤銷的顯示期到了：放掉**這一次撤銷自己**在全域留下的佔用。
+  /// generation 已經作廢（跨日／重載／切分頁／dispose／全完成接手）：
+  /// 這一次撤銷直接丟掉，不做任何 release 或補送。
+  void _discardUndoLifecycle() {
+    final undo = _undo;
+    if (undo == null) return;
+    undo.finished = true;
+    undo.timer?.cancel();
+    undo.timer = null;
+    _undo = null;
+  }
+
+  /// **撤銷顯示期結束**——唯一、可重入、恰好一次的 terminal operation。
+  ///
+  /// 兩個來源共用同一段：
+  ///   1. 兩秒 expiry 自然到期；
+  ///   2. 新的正向輸入主動取代這次撤銷（[_supersedeTransientMascot]）。
+  ///
+  /// 「取消 timer」不等於「撤銷結束」——那正是上一版把唯一的補送入口一起
+  /// 取消掉的原因。這裡把驗證、清本地、compare-release、恢復資格與補送
+  /// 綁成同一件事，誰先到誰負責，重複呼叫是安全的 no-op。
+  ///
+  /// [retryNow] = false：只做到「恢復資格」，補送由呼叫端在放掉自己那一段
+  /// 佔用之後再叫（見 [_supersedeTransientMascot]）。補送本身冪等——欠條在
+  /// 交付當下就結清了。
+  ///
+  /// 回傳「有沒有真的放掉這次撤銷在全域的佔用」。
+  bool _finishUndoTransient({required bool retryNow}) {
+    final undo = _undo;
+    if (undo == null || undo.finished) return false;
+    undo.finished = true;
+    undo.timer?.cancel();
+    undo.timer = null;
+    _undo = null;
+    // 身分不符：更新的 transient 已經接手、跨日／重載換了 generation、
+    // 或整棵樹已經拆掉。本地與全域都不動。
+    if (!mounted ||
+        undo.seq != _transientMascotSeq ||
+        undo.generation != _presentationGeneration) {
+      return false;
+    }
+    // 1. 本地 sad 只看自己的身分：它是首頁自己的欄位，沒有人會替它收。
+    //    舊版把全域收據也綁進來，於是這次撤銷被更高優先的狀態（喝水過量）
+    //    擋下時，本地就永遠卡著一張 sad——切回首頁或下次點兔咪都會突然變
+    //    難過，而且 `_baselineMascotContext` 會一路回報 `undone`。
+    if (_transientMascot != null) {
+      setState(() => _transientMascot = null);
+    }
+    // 2. 全域只放掉**這一次撤銷**留下的那一份佔用，走 compare-and-clear。
+    //    不符（其他分頁、使用者更新的動作）就到此為止，不碰別人的狀態、
+    //    也不強行把 half 講出來。
+    if (!_releaseUndoHold(undo)) return false;
+    // 3. 真的放掉自己的擁有權之後，被它擋下來的跨越才重新有資格。
+    _restoreMilestoneAvailability();
+    if (retryNow) _retryPendingMilestoneSemantic();
+    return true;
+  }
+
+  /// 放掉**這一次撤銷自己**在全域留下的佔用。
   ///
   /// 刻意不是 `force + holds:false` 寫一次 baseline——那是「蓋過去」，會在
   /// 收據對不上時覆寫別人，也會留下一張已經失效的 claim。這裡是原子的
   /// 「相符才動手」：不符就整段 no-op，回傳 false 讓呼叫端知道擁有權還在
   /// 別人手上（因此也不該補送任何語意）。
-  bool _releaseUndoHold(
-    HomeSpeechToken token, {
-    required MascotClaim? claim,
-    required MascotSpeechLease? lease,
-  }) {
+  bool _releaseUndoHold(_UndoLifecycle undo) {
+    final claim = undo.claim;
     if (claim == null) return false;
     // 先問一次收據：不符就整段不動手。台詞雖然是我們自己的，但放不掉狀態時
-    // 收掉它只會留下半套——擁有權還在別人手上，這條 expiry 就什麼都不該做。
+    // 收掉它只會留下半套——擁有權還在別人手上，這時什麼都不該做。
     if (MascotPersona.claim != claim) return false;
     // 先收台詞：清狀態會換一份新的 `current.value`，租約比對必須在那之前。
+    final lease = undo.lease;
     if (lease != null) MascotPersona.clearSpeechIfLease(lease);
     if (!MascotPersona.clearStateIfClaim(
       claim,
@@ -1258,31 +1414,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     )) {
       return false;
     }
-    _settledPersonaClaim = MascotPersona.claim;
+    _recordOwnSettlement(MascotPersona.claim);
     if (_personaClaim == claim) _personaClaim = null;
     if (_speechLease == lease) _speechLease = null;
-    _releaseLocalSpeechIfOwned(token);
+    _releaseLocalSpeechIfOwned(undo.token);
     return true;
   }
 
-  /// 擁有權讓出之後，補送「門檻仍然成立、卻還沒交付」的那一次跨越。
+  /// 被這次撤銷擋下來的弧線，重新有資格爭取全域擁有權。
   ///
-  /// 撤銷在自己的顯示期內優先是既有 invariant（`undone` 20 > `halfDone` 12），
-  /// 但它只是**延後**那次跨越，不是取消：資料仍在門檻之上，使用者也已經看過
-  /// 那一勾落下。所以顯示期合法結束、而且我們確實放掉了自己的佔用之後，
-  /// 要把欠的那一次補回來——不需要使用者再輸入第三次。
-  ///
-  /// 先放行、再補送：`_arcPersonaLost` 是「這條弧線已經確定失去擁有權」的
-  /// 短路旗標，擋下那一拍的正是我們自己剛放掉的撤銷。只放行真的補得出來的
-  /// 那幾條，其餘弧線維持原本的短路。
-  void _retryPendingMilestoneSemantic() {
-    final pending = _completion.pendingSemanticArcIds.toList();
-    if (pending.isEmpty) return;
-    for (final arcId in pending) {
+  /// `_arcPersonaLost` 是「這條弧線已經確定失去擁有權」的短路旗標，擋下那一拍
+  /// 的正是我們自己剛放掉的撤銷。只放行真的補得出來的那幾條，其餘弧線維持
+  /// 原本的短路。跨越是全域的，所以這可能一次放行好幾條弧線。
+  void _restoreMilestoneAvailability() {
+    for (final arcId in _completion.pendingSemanticArcIds) {
       _arcPersonaLost.remove(arcId);
       // 舊收據跟著撤銷一起失效了：補送的第一拍不 force，讓優先度重新裁決。
       _arcPersonaClaim.remove(arcId);
     }
+  }
+
+  /// 補送「門檻仍然成立、卻還沒交付」的那一次跨越。
+  ///
+  /// 撤銷在自己的顯示期內優先是既有 invariant（`undone` 20 > `halfDone` 12），
+  /// 但它只是**延後**那次跨越，不是取消：資料仍在門檻之上，使用者也已經看過
+  /// 那一勾落下。所以顯示期結束（自然到期或被新輸入取代）、而且我們確實放掉
+  /// 了自己的佔用之後，要把欠的那一次補回來——不需要使用者再輸入第三次，
+  /// 新的輸入也不該把它取消掉。
+  void _retryPendingMilestoneSemantic() {
+    _restoreMilestoneAvailability();
     _completion.retryPendingSemantic();
   }
 
@@ -1709,6 +1869,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _arcPersonaLost.remove(event.arcId);
       _arcPersonaClaim.remove(event.arcId);
     }
+    // 這一次輸入結束了上一個撤銷的顯示期，所以欠著的那次跨越現在補得出來。
+    // 排在最後：前面 `_releaseStalePersonaHold()` 是「新輸入放掉自己上一段的
+    // 佔用」，補送若排在它之前會被當場清掉。新的輸入是**解除阻擋**，不是
+    // 取消補送——它也不該變成補送的必要條件（沒有它，兩秒到期照樣會補）。
+    if (releasedUndoHold) _retryPendingMilestoneSemantic();
   }
 
   /// 撤銷單一件：只作廢那一件的演出。同一串連打裡其他仍然有效的完成
@@ -1752,6 +1917,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _transientMascotTimer?.cancel();
     _transientMascotTimer = null;
     _transientMascotSeq++;
+    // 這一代整個作廢了：撤銷的生命週期跟著丟掉，不做 release、也不補送。
+    _discardUndoLifecycle();
   }
 
   /// 收掉「仍然由 Home 擁有的全域兔咪狀態」，**不依賴 widget rebuild**。
@@ -1771,14 +1938,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _transientMascot = null;
     _transientSpeech = null;
     if (claim == null) return;
+    final settlement = _beginSettlement(claim: claim, lease: lease);
     // dispose 常常發生在樹拆除的那一幀裡：同步寫全域 notifier 一樣會讓
     // 別頁正在 build 的 listener markNeedsBuild。收據已經捕捉好了，
     // 推到這一幀之後收一樣安全。
     if (_inBuildPhase) {
-      _schedulePersonaCleanup(claim: claim, lease: lease);
+      _schedulePersonaCleanup(settlement);
       return;
     }
-    _clearOwnedPersona(claim: claim, lease: lease);
+    _clearOwnedPersona(settlement);
   }
 
   /// 現在是不是正在 build／layout 這一幀。
@@ -1793,38 +1961,44 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         phase == SchedulerPhase.transientCallbacks;
   }
 
-  /// 收掉**捕捉當下**那一份 Home 擁有權。純函式式：只用傳進來的收據與租約，
-  /// 不讀任何會在延後期間變動的欄位。
+  /// 收掉**這一筆交易捕捉當下**的那份 Home 擁有權。純函式式：只用交易上的
+  /// 收據與租約，不讀任何會在延後期間變動的欄位。
   ///
   /// 兩層各自 compare-and-clear，所以延後執行時若已經被別人接手
   /// （其他分頁、新一代 Home、使用者的新互動），自然整段 no-op。
-  void _clearOwnedPersona({
-    required MascotClaim claim,
-    required MascotSpeechLease? lease,
-    String? assetPath,
-  }) {
+  ///
+  /// 結果只寫回**自己這一筆**交易：遲到又失敗的 stale 收拾不得把更新那一輪
+  /// 的收據擦掉——那張收據正是換日要用的東西。
+  void _clearOwnedPersona(_PersonaSettlement settlement, {String? assetPath}) {
+    if (settlement.superseded) return;
+    final claim = settlement.claim;
+    if (claim == null) {
+      _completeSettlement(settlement, receipt: null);
+      return;
+    }
     // 先收台詞：清狀態會換一份新的 `current.value`，租約比對必須在那之前。
+    final lease = settlement.lease;
     if (lease != null) MascotPersona.clearSpeechIfLease(lease);
     final settled = MascotPersona.clearStateIfClaim(
       claim,
       assetPath: assetPath ?? _baselineMascotAsset,
     );
-    // 收拾成功才留下收據；被別人接手時留 null，跨日的中性重設就自然 no-op。
-    _settledPersonaClaim = settled ? MascotPersona.claim : null;
+    _completeSettlement(
+      settlement,
+      receipt: settled ? MascotPersona.claim : null,
+    );
   }
 
   /// 把「通知 widget tree 的那一步」推到這一幀之後。
   ///
-  /// 捕捉當下的收據、租約與立繪——延後期間資料可能整份換掉，用當時的值才
-  /// 對得起「收掉的是那一代的東西」。generation 只用來決定要不要重建畫面。
-  void _schedulePersonaCleanup({
-    required MascotClaim claim,
-    required MascotSpeechLease? lease,
-  }) {
+  /// 捕捉當下的立繪——延後期間資料可能整份換掉，用當時的值才對得起
+  /// 「收掉的是那一代的東西」。收據與租約掛在交易上。
+  /// generation 只用來決定要不要重建畫面。
+  void _schedulePersonaCleanup(_PersonaSettlement settlement) {
     final assetPath = _baselineMascotAsset;
     final generation = _presentationGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _clearOwnedPersona(claim: claim, lease: lease, assetPath: assetPath);
+      _clearOwnedPersona(settlement, assetPath: assetPath);
       if (mounted && generation == _presentationGeneration) setState(() {});
     });
   }
@@ -1856,19 +2030,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _speechLease = null;
     if (cancelMotion) _mascotReactionCancelUpTo = _mascotReactionTick;
 
+    // 這一輪的交易在這裡開，不管收不收得掉：新一天的中性收尾可能比收拾
+    // 先到，那時它得有地方登記自己的需求。
+    final settlement = _beginSettlement(
+      claim: ownsPersona ? claim : null,
+      lease: ownsPersona ? lease : null,
+    );
     if (!ownsPersona || claim == null) {
+      _completeSettlement(settlement, receipt: null);
       if (mounted && !_inBuildPhase) setState(() {});
       return;
     }
     if (!mounted || _inBuildPhase) {
       // dispose 也走這裡：不能 setState，但那一代擁有的狀態仍然要收，
-      // 而且是用**捕捉到的**收據，不是之後才讀的欄位。
-      _schedulePersonaCleanup(claim: claim, lease: lease);
+      // 而且是用**交易捕捉到的**收據，不是之後才讀的欄位。
+      _schedulePersonaCleanup(settlement);
       return;
     }
     // 收拾不是互動：不冒泡泡、不出聲、也不重排待機時鐘。
     // 只收 Home 自己那一半——還在講的開場問候留給它自己的期限。
-    _clearOwnedPersona(claim: claim, lease: lease);
+    _clearOwnedPersona(settlement);
     setState(() {});
   }
 
@@ -2629,9 +2810,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 收據永遠跟著最後一次成功寫入走，否則自己的中間拍會讓自己失去擁有權。
     // 這是**整體 persona** 的擁有權，跟這次有沒有台詞無關。
     _personaClaim = MascotPersona.claim;
-    // 又有活的擁有權了：上一張「收拾收據」到此為止（兩者同時有效會讓跨日
-    // 分不清該對哪一張）。
-    _settledPersonaClaim = null;
+    // Home 又握著活的擁有權了：上一筆交易到此為止。**明確** supersede，
+    // 不是等它之後收據碰巧對不上——換日要用的是這一次的 claim。
+    _settlement?.superseded = true;
+    _settlement = null;
     // 台詞的租約另外記：只有這次真的動過台詞（不是 preserve）才是首頁的。
     if (resolved.write != MascotSpeechWrite.preserve) {
       _speechLease = MascotPersona.speechLease;
@@ -3152,6 +3334,88 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+/// 一次「Home 收拾自己 →（若換日）再收成新一天中性」的交易。
+///
+/// 存在的理由是**順序無關**：一輪 reload 會產生兩件事——收拾舊 Home 狀態
+/// （可能同步、也可能被推到 post-frame）與套用新快照（storage 的 async
+/// 續體）——而它們誰先誰後沒有保證。舊版把中間結果放在一個全域欄位上做
+/// 兩階段橋接，於是 snapshot 先到時需求整個被丟掉，遲到的 stale 收拾又會
+/// 把新一輪的收據擦掉。
+///
+/// 交易把兩邊的結果寫在同一個物件上：誰後到誰負責收尾，兩種順序收斂到
+/// 同一個結果。stale 的 callback 只認得自己那一筆，寫不到現行的那一筆。
+class _PersonaSettlement {
+  _PersonaSettlement({
+    required this.id,
+    required this.generation,
+    required this.claim,
+    required this.lease,
+  });
+
+  /// 單調遞增的交易身分。
+  final int id;
+
+  /// 建立當下的 presentation generation。
+  final int generation;
+
+  /// 捕捉到的舊 Home 收據與台詞租約；null = 這一輪 Home 根本沒有擁有權。
+  final MascotClaim? claim;
+  final MascotSpeechLease? lease;
+
+  /// 收拾階段已經跑完（成功或失敗都算）。
+  bool cleanupDone = false;
+
+  /// 收拾**成功**之後留下的新收據；null = 被 external 或新一代 Home 接手了。
+  MascotClaim? settledReceipt;
+
+  /// 已經得知這次快照是新的一天。
+  bool needsNeutral = false;
+
+  /// 新一天的中性收尾已經做過。
+  bool neutralDone = false;
+
+  /// 更新的一輪已經接手：這一筆只能整個放棄，不得再寫任何東西。
+  bool superseded = false;
+}
+
+/// 一次撤銷的完整生命週期。
+///
+/// 撤銷不是「一個 2 秒的 timer」：它同時佔著本地 sad、全域的姿勢／台詞／
+/// 停留優先度，並且擋著一次仍然成立的門檻跨越。三件事必須一起結束，而且
+/// 只結束一次——所以它們收在同一個物件上，由 [_HomePageState._finishUndoTransient]
+/// 這個唯一的 terminal operation 消費。
+///
+/// 結束有兩個來源（自然到期、被新的正向輸入取代），兩邊走同一段：把
+/// 「取消 timer」當成「撤銷結束」的舊模型會讓第二種來源把補送一起吃掉。
+class _UndoLifecycle {
+  _UndoLifecycle({
+    required this.seq,
+    required this.generation,
+    required this.token,
+    required this.claim,
+    required this.lease,
+  });
+
+  /// 這一次 sad 的本地身分；被更新的 transient 取代之後就不再作數。
+  final int seq;
+
+  /// 建立當下的 presentation generation。
+  final int generation;
+
+  /// 這一次撤銷在首頁台詞上的擁有者。
+  final HomeSpeechToken token;
+
+  /// 寫入成功時拿到的全域收據與台詞租約；null = 這次撤銷根本沒寫進去
+  /// （被更高優先的狀態擋下），因此也沒有東西可以放掉。
+  final MascotClaim? claim;
+  final MascotSpeechLease? lease;
+
+  Timer? timer;
+
+  /// terminal operation 已經跑過了。可重入的保證就在這一格。
+  bool finished = false;
 }
 
 /// 一輪載入讀出來的完整結果。`_readSnapshot` 產生、`_applySnapshot` 消費，

@@ -173,21 +173,49 @@ enum _BeatScope {
   arc,
 }
 
-/// 一次「跨過一半門檻」的事件。
+/// 這次跨越的一個候選 anchor。
 ///
-/// 門檻不是弧線的屬性，是**有因果來源的一次事件**：某一件把進度從門檻以下
-/// 推到門檻以上。舊模型只有一個 `crossedHalf` 歷史旗標加上一個 arc 層級的
-/// terminal 布林，答不出四個問題——哪一件跨的、那一件演到衝擊點了沒、這次
-/// 交付屬於哪一次跨越、撤銷有沒有把那次跨越否定掉。
+/// 只收「跨越發生時或之後」出現的成員——更早的成員不屬於這次跨越的因果鏈，
+/// 永遠當不了 anchor，收進來只會讓帳本無界成長。
+class _MilestoneCandidate {
+  _MilestoneCandidate(this.event, this.arcId);
+
+  final HomeCompletionEvent event;
+
+  /// 它是在哪一條動作弧線裡出生的。跨 arc 交付時要用它回頭問那條弧線
+  /// （若還在）「這條弧線開過口了沒」。
+  final int arcId;
+
+  bool live = true;
+  bool impacted = false;
+  bool opportunityReached = false;
+
+  /// 這一件走完了自己的整條因果鏈，可以在任何安全時機當補送的 anchor。
+  bool get canAnchorRetry => live && impacted && opportunityReached;
+}
+
+/// 一次「跨過一半門檻」的事件——**controller generation 層級**的邏輯狀態。
 ///
-/// 一條弧線同一時間最多只有一個有效 episode：已經在門檻之上時再完成一件
-/// 不是「又跨了一次」，撤銷讓進度掉回門檻以下才會結束目前這一次。
+/// 門檻不是動作弧線的屬性。弧線只是 700ms 內的共享 motion grouping，
+/// `_sweep()` 一到就消失；跨越代表的是**真實進度**的一次 threshold crossing，
+/// 它的壽命由門檻、交付與 generation 決定，跟哪條弧線正在播沒有關係。
+/// 兩者綁在同一個容器裡時，弧線視窗一關就會把仍然成立、仍然欠著的跨越
+/// 一起丟掉（跨 arc 的成員因此永遠交付不出去）。
+///
+/// 同一個 generation 同一時間最多只有一個有效 episode：已經在門檻之上時
+/// 再完成一件不是「又跨了一次」，只有進度真的掉回門檻以下才會結束這一次。
 class _MilestoneEpisode {
-  _MilestoneEpisode({required this.id, required this.sourceEventId})
-    : minEligibleEventId = sourceEventId;
+  _MilestoneEpisode({
+    required this.id,
+    required this.generation,
+    required this.sourceEventId,
+  }) : minEligibleEventId = sourceEventId;
 
   /// 門檻世代。交付與否記的是這個 id，不是一個永久的布林。
   final int id;
+
+  /// 建立當下的 presentation generation；跨日／離開首頁／dispose 之後失效。
+  final int generation;
 
   /// **歷史來源**：當初是哪一件把進度推過門檻的。
   ///
@@ -199,11 +227,15 @@ class _MilestoneEpisode {
   ///
   /// 這是「因果資格」的資料表達，取代「永遠綁定來源的 impact」。來源在自己的
   /// 衝擊點之前就被撤銷時，那個旗標永遠設不起來，整次跨越會卡死；改用序號
-  /// 之後，同樣有資格的後續成員可以接手建立因果起點。
+  /// 之後，同樣有資格的後續成員可以接手建立因果起點——**不論它在哪一條弧線**。
   ///
   /// 反過來也要擋住：跨越**之前**就加入的一般成員不屬於這次跨越的因果鏈，
   /// 不能因為整條弧線後來升級就替它建立起點。
   final int minEligibleEventId;
+
+  /// 這次跨越的候選 anchor（跨 arc）。交付、失效或重新跨越時整份丟掉，
+  /// 撤銷的當下就把死掉的那一筆移除——帳本因此有界。
+  final Map<int, _MilestoneCandidate> candidates = {};
 
   /// 因果起點已經發生：**某個有資格的成員**演到自己的衝擊點了。
   ///
@@ -215,15 +247,31 @@ class _MilestoneEpisode {
   /// （見 [CompletionPresentationController.syncAboveThreshold]）。
   bool thresholdHolds = true;
 
+  /// 這一次跨越已經講出去了。
+  bool delivered = false;
+
+  /// 最後真的講出這次跨越的成員，以及它所屬的弧線。
+  int? deliveredAnchorId;
+  int? deliveredArcId;
+
   /// 有一次語意交付被呼叫端的擁有權擋下來，正在等一個安全的重試時機。
   ///
   /// 這一格是「還欠一次交付」的憑據，不是計時器：重試只由呼叫端的明確事件
-  /// （撤銷的顯示期合法結束）驅動，見
+  /// （撤銷的顯示期結束——自然到期或被新的正向輸入取代）驅動，見
   /// [CompletionPresentationController.retryPendingSemantic]。
   bool awaitingRetry = false;
 
   /// 這個成員屬不屬於這次跨越的因果鏈。
   bool allowsAnchor(int eventId) => eventId >= minEligibleEventId;
+
+  /// 還活著：門檻仍成立、也還沒講出去。
+  bool get pending => thresholdHolds && !delivered;
+
+  /// 這次跨越到此為止：帳本可以整份回收。
+  void close() {
+    candidates.clear();
+    awaitingRetry = false;
+  }
 }
 
 /// 撤銷單一件之後，這條弧線的下場。
@@ -242,6 +290,11 @@ enum CompletionCancelOutcome {
 }
 
 /// 一條共用的 MI 動作弧線。
+///
+/// 它只負責**動作**：notice／anticipate／impact／recover／quiet 的排程、
+/// 700ms 合併視窗、這條弧線自己的一般完成語意進度，以及呼叫端拿 arcId 做的
+/// Persona token 與收尾。門檻跨越不在這裡——那是 controller 層級的帳本
+/// （見 [_MilestoneEpisode]），弧線被 `_sweep()` 收掉不會把它一起帶走。
 class _CompletionArc {
   _CompletionArc(this.id, this.generation, this.leadEventId);
 
@@ -261,106 +314,11 @@ class _CompletionArc {
   /// 成員的機會一起吃掉。以 half 交付時同樣算數：里程碑本來就涵蓋一般完成。
   bool ordinaryDelivered = false;
 
-  /// 目前這一次跨越門檻的事件；null = 進度不在門檻之上。
-  _MilestoneEpisode? episode;
-
-  /// 已經交付過語意的那一次跨越。
+  /// 已經演到自己衝擊點的成員（這條弧線之內）。
   ///
-  /// 這裡放 id 而不是布林，是整組修正的關鍵：half 交付不再是「這條弧線的
-  /// 語意到此為止」，而是「第 N 次跨越已經講過了」。撤銷讓進度掉回門檻以下
-  /// 再重新跨過去，就是第 N+1 次，可以再講一次。
-  int? deliveredEpisodeId;
-
-  /// 已經演到自己衝擊點的成員。
-  ///
-  /// 「誰可以當交付的 anchor」看的是這個集合，不是誰當初跨過門檻的：
-  /// 語意必須由**自己**的因果鏈（自己的 impact → 自己的機會）觸發。
+  /// 「誰可以在自己的機會上把跨越講出來」看的是這個集合，不是誰當初跨過
+  /// 門檻的：語意必須由**自己**的因果鏈（自己的 impact → 自己的機會）觸發。
   final Set<int> impacted = {};
-
-  /// 已經走到自己那次語意機會的成員。
-  ///
-  /// 重試需要這個：補送只能挑「機會早就到過、只是當下被擋掉」的成員，
-  /// 不能挑一個時間線上還沒走到的人替它提前開口。
-  final Set<int> opportunityReached = {};
-
-  /// 這一件把進度推過門檻了。
-  ///
-  /// 門檻還成立時不算新的一次——那只是「又完成一件」，不是重新跨越。
-  void openEpisode({required int id, required int sourceEventId}) {
-    if (episode != null && episode!.thresholdHolds) return;
-    episode = _MilestoneEpisode(id: id, sourceEventId: sourceEventId);
-  }
-
-  /// 進度真的跌回門檻以下了：這一次跨越到此為止。
-  void invalidateEpisode() => episode?.thresholdHolds = false;
-
-  /// 某一件演到自己的衝擊點了。
-  ///
-  /// 有資格的成員（來源自己，或跨越之後才加入的）落下的那一勾，就是這次跨越
-  /// 的因果起點：使用者確實看到進度被推上去了。來源在自己的衝擊點之前被撤銷
-  /// 時，起點改由下一個有資格的成員建立——不是沿用來源的排程，是它自己的。
-  void markImpactReached(int eventId) {
-    impacted.add(eventId);
-    final ep = episode;
-    if (ep != null && ep.allowsAnchor(eventId)) ep.causalOnset = true;
-  }
-
-  /// 某一件走到自己那次語意機會了。
-  void markOpportunityReached(int eventId) => opportunityReached.add(eventId);
-
-  /// 從 [anchorEventId] 這個成員的角度看，這一刻的語意是一般完成還是里程碑。
-  ///
-  /// 四個條件缺一不可：
-  ///   1. 有一次跨越；
-  ///   2. 它此刻仍然成立（Home 的實際進度說了算，**不是**來源的存活）；
-  ///   3. 這次跨越的因果起點已經發生（**某個有資格的成員**演到過自己的衝擊點）；
-  ///   4. anchor 自己也已經演到衝擊點。
-  ///
-  /// 第 2 與第 3 點分開，是這一版的重點：撤銷 C 不代表使用者看得見的進度
-  /// 掉下去了——別的習慣還完成著。那時這次跨越仍然 pending，只是要換一個
-  /// 已經 impact 的有效成員在**它自己的**機會上交付。
-  ///
-  /// 第 3 點刻意不是「anchor 自己要有資格」：跨越之前就加入的一般成員只是
-  /// 不能**建立**起點，起點成立之後（畫面上那一勾已經落下）它在自己的機會上
-  /// 講出這次跨越是合法整合，不是提前搶跑。
-  CompletionKind kindFor(int anchorEventId) {
-    final ep = episode;
-    if (ep == null || !ep.thresholdHolds || !ep.causalOnset) {
-      return CompletionKind.ordinary;
-    }
-    if (!impacted.contains(anchorEventId)) return CompletionKind.ordinary;
-    return CompletionKind.half;
-  }
-
-  /// 擁有權讓出之後，這次跨越可以由誰補送。
-  ///
-  /// 比 [kindFor] 嚴格一格：補送不在任何人的時間線上，所以 anchor 必須自己
-  /// 已經走完整條因果鏈（有資格 → 仍有效 → 自己已 impact → 自己的機會已到），
-  /// 才不會變成「借別人的拍子提前開口」。相同條件下取最早的那一個。
-  int? retryAnchorFor(_MilestoneEpisode ep) {
-    int? anchor;
-    for (final id in live) {
-      if (!ep.allowsAnchor(id)) continue;
-      if (!impacted.contains(id)) continue;
-      if (!opportunityReached.contains(id)) continue;
-      if (anchor == null || id < anchor) anchor = id;
-    }
-    return anchor;
-  }
-
-  /// 這一刻的語意還需不需要送。
-  bool needsSemantic(CompletionKind kind) => kind == CompletionKind.half
-      ? episode!.id != deliveredEpisodeId
-      : !ordinaryDelivered;
-
-  /// 呼叫端回覆 [CompletionDelivery.delivered] 之後才呼叫。
-  void markSemanticDelivered(CompletionKind kind) {
-    ordinaryDelivered = true;
-    if (kind == CompletionKind.half) {
-      deliveredEpisodeId = episode?.id;
-      episode?.awaitingRetry = false;
-    }
-  }
 
   /// 合併視窗還開著（還能收新成員進來）。
   bool windowOpen = true;
@@ -460,8 +418,95 @@ class CompletionPresentationController {
   /// 所有還沒收乾淨的弧線。上一條沒播完的 recover／quiet 不會被下一條蓋掉。
   final List<_CompletionArc> _arcs = [];
 
+  /// 目前這個 generation 的門檻跨越；null = 進度不在門檻之上。
+  ///
+  /// **不掛在任何一條弧線上**：弧線是 700ms 的 motion grouping，跨越是真實
+  /// 進度的一次事件。弧線 `_sweep()` 掉不會結束它；它只在成功交付、Home 回報
+  /// 門檻跌回以下、generation 作廢（跨日／reload／切分頁／dispose／全完成
+  /// 接手）時結束。
+  _MilestoneEpisode? _episode;
+
   /// 目前的 generation；離開首頁／跨日／dispose 會遞增。
   int get generation => _generation;
+
+  /// 這個 generation 還成立、還沒講出去的跨越。
+  _MilestoneEpisode? get _pendingEpisode {
+    final ep = _episode;
+    if (ep == null) return null;
+    if (ep.generation != _generation) return null;
+    return ep.pending ? ep : null;
+  }
+
+  /// 這一件把進度推過門檻了。
+  ///
+  /// 門檻還成立時不算新的一次——那只是「又完成一件」，不是重新跨越；已經講過
+  /// 但門檻仍成立的那一次也還在（所以不會重播）。只有真的掉回門檻以下之後
+  /// 再跨上來，才是新的一次。
+  void _openEpisode(int sourceEventId) {
+    final current = _episode;
+    if (current != null &&
+        current.generation == _generation &&
+        current.thresholdHolds) {
+      return;
+    }
+    current?.close();
+    _episode = _MilestoneEpisode(
+      id: ++_lastEpisodeId,
+      generation: _generation,
+      sourceEventId: sourceEventId,
+    );
+  }
+
+  /// 把這一件登記成這次跨越的候選 anchor。
+  ///
+  /// 只收有資格的（來源自己或之後才出現的），而且只在跨越還欠著的時候收——
+  /// 帳本因此有界，交付或失效之後整份回收。
+  void _registerCandidate(HomeCompletionEvent event, int arcId) {
+    final ep = _pendingEpisode;
+    if (ep == null || !ep.allowsAnchor(event.id)) return;
+    ep.candidates[event.id] = _MilestoneCandidate(event, arcId);
+  }
+
+  /// 從 [anchorEventId] 的角度看，這一刻的語意是一般完成還是里程碑。
+  ///
+  /// 四個條件缺一不可：
+  ///   1. 有一次跨越，而且屬於目前的 generation；
+  ///   2. 它此刻仍然成立（Home 的實際進度說了算，**不是**來源的存活）；
+  ///   3. 這次跨越的因果起點已經發生（**某個有資格的成員**演到過自己的衝擊點）；
+  ///   4. anchor 自己也已經演到衝擊點。
+  ///
+  /// 第 2 與第 3 點分開是關鍵：撤銷來源不代表使用者看得見的進度掉下去了
+  /// ——別的習慣還完成著。那時這次跨越仍然 pending，只是要換一個已經 impact
+  /// 的有效成員在**它自己的**機會上交付，而那個成員可能在別條弧線裡。
+  ///
+  /// 第 3 點刻意不是「anchor 自己要有資格」：跨越之前就加入的一般成員只是
+  /// 不能**建立**起點，起點成立之後（畫面上那一勾已經落下）它在自己的機會上
+  /// 講出這次跨越是合法整合，不是提前搶跑。
+  CompletionKind _kindFor(_CompletionArc arc, int anchorEventId) {
+    final ep = _pendingEpisodeOrDelivered;
+    if (ep == null || !ep.thresholdHolds || !ep.causalOnset) {
+      return CompletionKind.ordinary;
+    }
+    if (!arc.impacted.contains(anchorEventId)) return CompletionKind.ordinary;
+    return CompletionKind.half;
+  }
+
+  /// 門檻仍成立的那一次跨越（交付過的也算——它仍然是「現在的語意」，
+  /// 只是 [_needsSemantic] 不會再讓它送第二次）。
+  _MilestoneEpisode? get _pendingEpisodeOrDelivered {
+    final ep = _episode;
+    if (ep == null || ep.generation != _generation) return null;
+    return ep.thresholdHolds ? ep : null;
+  }
+
+  /// 這一刻的語意還需不需要送。
+  ///
+  /// 一般完成是**弧線**的進度（每條弧線各講一次）；里程碑是**跨越**的進度
+  /// （整個 generation 一次，不論跨幾條弧線）。
+  bool _needsSemantic(_CompletionArc arc, CompletionKind kind) =>
+      kind == CompletionKind.half
+      ? !(_pendingEpisodeOrDelivered?.delivered ?? true)
+      : !arc.ordinaryDelivered;
 
   _CompletionArc? get _openArc {
     for (final arc in _arcs) {
@@ -515,11 +560,12 @@ class CompletionPresentationController {
     );
     arc.members[event.id] = event;
     arc.live.add(event.id);
-    if (crossedHalf) {
-      arc.openEpisode(id: ++_lastEpisodeId, sourceEventId: event.id);
-    }
+    if (crossedHalf) _openEpisode(event.id);
+    // 有資格的成員一律進帳本，**不管它開的是哪一條弧線**：跨越可能是上一條
+    // 弧線建立的，而支撐它的那一勾落在新的一條裡。
+    _registerCandidate(event, arc.id);
 
-    onPhase(CompletionPhase.confirm, event, arc.kindFor(event.id));
+    onPhase(CompletionPhase.confirm, event, _kindFor(arc, event.id));
 
     final isLead = arc.leadEventId == event.id;
     if (isLead) {
@@ -625,9 +671,11 @@ class CompletionPresentationController {
     for (final arc in _arcs) {
       if (!arc.live.contains(eventId)) continue;
       arc.live.remove(eventId);
-      // **不**在這裡動 episode：撤銷歷史來源不等於使用者看得見的進度掉下去
-      // （別的習慣可能仍然完成著）。門檻還成不成立由 Home 在資料寫完之後
-      // 用 [syncAboveThreshold] 回報——這裡沒有那個資訊，不該單方面銷毀。
+      // 帳本裡那一筆當場回收：死掉的成員永遠當不了 anchor。
+      // **不**在這裡動 episode 本身：撤銷歷史來源不等於使用者看得見的進度
+      // 掉下去（別的習慣可能仍然完成著）。門檻還成不成立由 Home 在資料寫完
+      // 之後用 [syncAboveThreshold] 回報——這裡沒有那個資訊，不該單方面銷毀。
+      _episode?.candidates.remove(eventId);
       if (arc.hasLiveMember) return CompletionCancelOutcome.arcSurvives;
       arc.disposeTimers();
       arc.windowOpen = false;
@@ -647,21 +695,29 @@ class CompletionPresentationController {
   /// [start] 會帶著 `crossedHalf` 開一次新的 episode。
   void syncAboveThreshold(bool aboveThreshold) {
     if (aboveThreshold) return;
-    for (final arc in _arcs) {
-      arc.invalidateEpisode();
-    }
+    final ep = _episode;
+    if (ep == null) return;
+    ep.thresholdHolds = false;
+    ep.close();
   }
 
   /// 丟掉所有還沒發生的 phase 並讓整個 generation 失效。
   ///
-  /// 用在離開首頁、跨日／同日換快照、重載開始、dispose。已經發生過的不會
-  /// 回滾——撤銷資料是 [onPhase] 呼叫端的事，這裡只保證「過時的裝飾不會再播」。
+  /// 用在離開首頁、跨日／同日換快照、重載開始、dispose、全完成接手。
+  /// 已經發生過的不會回滾——撤銷資料是 [onPhase] 呼叫端的事，這裡只保證
+  /// 「過時的裝飾不會再播」。跨越的帳本也在這裡結束：它的壽命綁在 generation
+  /// 上，不綁在動作弧線上。
   void invalidate() {
     cancel();
     _generation++;
+    _episode?.close();
+    _episode = null;
   }
 
   /// 清掉所有排程但保留 generation。
+  ///
+  /// **不動跨越的帳本**：動作可以停，但「進度確實跨過門檻、而且還沒講」是
+  /// 真實狀態，不是演出。要結束它請用 [invalidate] 或 [syncAboveThreshold]。
   void cancel() {
     for (final arc in _arcs) {
       arc.disposeTimers();
@@ -738,8 +794,8 @@ class CompletionPresentationController {
       if (isStillValid != null && !isStillValid!(payload)) return;
       // 衝擊點是門檻事件的因果起點：那一勾落下之後，這次跨越才能被講出來。
       // 放在可播檢查之後——看不到的那一拍不算真的發生過。
-      if (phase == CompletionPhase.impact) arc.markImpactReached(payload.id);
-      onPhase(phase, payload, arc.kindFor(payload.id));
+      if (phase == CompletionPhase.impact) _markImpactReached(arc, payload.id);
+      onPhase(phase, payload, _kindFor(arc, payload.id));
       return;
     }
 
@@ -751,11 +807,31 @@ class CompletionPresentationController {
     //
     // 「走到過自己的機會」是時間線上的事實，先記下來：之後補送要靠它分辨
     // 「早就到過、只是被擋掉」與「時間線上根本還沒走到」。
-    arc.markOpportunityReached(payload.id);
-    final kind = arc.kindFor(payload.id);
-    if (!arc.needsSemantic(kind)) return;
+    _markOpportunityReached(payload.id);
+    final kind = _kindFor(arc, payload.id);
+    if (!_needsSemantic(arc, kind)) return;
     if (isStillValid != null && !isStillValid!(payload)) return;
     _deliverSemantic(arc, payload, kind);
+  }
+
+  /// 某一件演到自己的衝擊點了。
+  ///
+  /// 弧線記自己的（[_kindFor] 用它判斷「這個 anchor 自己動過了沒」），帳本
+  /// 記跨 arc 的那一份：有資格的成員落下的那一勾就是這次跨越的因果起點，
+  /// 使用者確實看到進度被推上去了。來源在自己的衝擊點之前被撤銷時，起點改由
+  /// 下一個有資格的成員建立——不是沿用來源的排程，是它自己的，而且它可以
+  /// 屬於另一條弧線。
+  void _markImpactReached(_CompletionArc arc, int eventId) {
+    arc.impacted.add(eventId);
+    final candidate = _pendingEpisode?.candidates[eventId];
+    if (candidate == null) return;
+    candidate.impacted = true;
+    _episode!.causalOnset = true;
+  }
+
+  /// 某一件走到自己那次語意機會了。
+  void _markOpportunityReached(int eventId) {
+    _pendingEpisode?.candidates[eventId]?.opportunityReached = true;
   }
 
   /// 真正把語意送出去，並依呼叫端的回覆更新交付進度。
@@ -763,7 +839,7 @@ class CompletionPresentationController {
   /// 排程來的機會與擁有權讓出後的補送共用這一段，兩邊的「第一次開口
   /// vs 補送」判斷、以及「被拒不消耗資格」才不會有兩套規則。
   bool _deliverSemantic(
-    _CompletionArc arc,
+    _CompletionArc? arc,
     HomeCompletionEvent payload,
     CompletionKind kind,
   ) {
@@ -771,69 +847,101 @@ class CompletionPresentationController {
     // 一般完成還是里程碑（領頭之前若已經有成員跨過門檻並演到衝擊點，
     // 第一次開口就直接整合成里程碑，不必先講一次一般完成再補一次）。
     // 已經開過口、之後才跨過門檻 → 那才是補送（milestoneHandoff）。
-    final semanticPhase = arc.ordinaryDelivered && kind == CompletionKind.half
+    //
+    // 弧線已經被 `_sweep()` 收掉時（跨 arc 的補送），它的動作與尾韻早就演完
+    // 了，那就是不折不扣的補送。
+    final alreadySpoke = arc?.ordinaryDelivered ?? true;
+    final semanticPhase = alreadySpoke && kind == CompletionKind.half
         ? CompletionPhase.milestoneHandoff
         : CompletionPhase.speak;
     // 交付與否由呼叫端回覆。先設旗標的話，被擋下的那一次會把資格吃掉——
     // 後面真正有效的成員就永遠交付不出去了。
     final outcome = onPhase(semanticPhase, payload, kind);
+    final ep = _pendingEpisodeOrDelivered;
     if (outcome == CompletionDelivery.delivered) {
-      arc.markSemanticDelivered(kind);
+      arc?.ordinaryDelivered = true;
+      if (kind == CompletionKind.half && ep != null) {
+        ep
+          ..delivered = true
+          ..deliveredAnchorId = payload.id
+          ..deliveredArcId = payload.arcId
+          ..close();
+      }
       return true;
     }
     // 被擁有權擋下的**門檻**語意留下一張欠條：門檻還成立、也還沒交付，
     // 那次跨越就仍然欠使用者一次。[CompletionDelivery.obsolete] 是「這件事
     // 本來就不成立」，不留欠條。
     if (kind == CompletionKind.half && outcome == CompletionDelivery.rejected) {
-      arc.episode?.awaitingRetry = true;
+      ep?.awaitingRetry = true;
     }
     return false;
   }
 
-  /// 還欠一次門檻語意、而且已經有合法 anchor 可以補送的弧線。
+  /// 還欠一次門檻語意時，有哪些弧線握著合法的補送 anchor。
   ///
   /// 呼叫端用它決定「哪些弧線可以重新爭取擁有權」——放掉自己的佔用之後才問，
-  /// 而且只放行真的補得出來的那幾條。
+  /// 而且只放行真的補得出來的那幾條。跨越本身是全域的，所以這裡可能一次
+  /// 回報好幾條弧線（也可能包含已經被 `_sweep()` 收掉的那條的 id）。
   Iterable<int> get pendingSemanticArcIds sync* {
-    for (final arc in _arcs) {
-      if (_pendingRetryAnchor(arc) != null) yield arc.id;
+    final seen = <int>{};
+    for (final candidate in _retryCandidates()) {
+      if (seen.add(candidate.arcId)) yield candidate.arcId;
     }
+  }
+
+  /// 這次跨越目前所有合法的補送 anchor，序號小的在前。
+  ///
+  /// anchor 必須自己走完整條因果鏈：有資格（不早於這次跨越）→ 仍有效 →
+  /// 自己已 impact → 自己的機會已經到過。比排程機會嚴格一格，補送才不會
+  /// 變成「借別人的拍子提前開口」。
+  List<_MilestoneCandidate> _retryCandidates() {
+    final ep = _pendingEpisode;
+    if (ep == null || !ep.awaitingRetry || !ep.causalOnset) {
+      return const <_MilestoneCandidate>[];
+    }
+    final ready = ep.candidates.values
+        .where((c) => c.canAnchorRetry)
+        .toList(growable: false);
+    return ready..sort((a, b) => a.event.id.compareTo(b.event.id));
   }
 
   /// 擁有權讓出之後，補送「仍然成立但還沒交付」的門檻語意。
   ///
   /// **不是輪詢，也不是把舊 timer 挪給別人**：它是一次由呼叫端的安全事件
-  /// （撤銷的顯示期合法結束、而且確實放掉了自己的擁有權）驅動的補送機會。
-  /// 補送一次就結束——再被拒也不重排計時器、不消耗這次跨越的交付資格，
-  /// 所以不會形成無限重試。
+  /// （撤銷的顯示期結束——自然到期或被新的正向輸入取代——而且確實放掉了
+  /// 自己的擁有權）驅動的補送機會。補送一次就結束：再被拒也不重排計時器、
+  /// 不消耗這次跨越的交付資格，所以不會形成無限重試。
   ///
   /// 回傳有沒有真的補送成功。
   bool retryPendingSemantic() {
-    var delivered = false;
-    for (final arc in List<_CompletionArc>.of(_arcs)) {
-      final anchorId = _pendingRetryAnchor(arc);
-      if (anchorId == null) continue;
-      final payload = arc.members[anchorId];
-      if (payload == null) continue;
+    for (final candidate in _retryCandidates()) {
+      // 動作弧線可能早就被收掉了——跨越不會跟著它一起消失，補送只需要那個
+      // 成員本身。找得到就用它的一般語意進度決定 speak／handoff。
+      final arc = _arcOf(candidate.arcId);
+      final payload = candidate.event;
       // 補送走的是與排程機會**同一道**關卡：kind 重算、資格重問、
-      // 呼叫端的可播檢查照做。
-      final kind = arc.kindFor(anchorId);
+      // 呼叫端的可播檢查照做。弧線不在時 kind 直接由帳本判定——那一件自己
+      // 已經 impact 過（`canAnchorRetry` 保證），弧線的 `impacted` 只是同一
+      // 件事的本地副本。
+      final kind = arc != null
+          ? _kindFor(arc, payload.id)
+          : CompletionKind.half;
       if (kind != CompletionKind.half) continue;
-      if (!arc.needsSemantic(kind)) continue;
+      if (arc != null && !_needsSemantic(arc, kind)) continue;
       if (isStillValid != null && !isStillValid!(payload)) continue;
-      if (_deliverSemantic(arc, payload, kind)) delivered = true;
+      if (_deliverSemantic(arc, payload, kind)) return true;
+      // 這一次又被擋下：欠條留著，但不重排任何計時器，也不換下一個 anchor
+      // 硬試——那會變成同一個安全時機裡的連續嘗試。
+      return false;
     }
-    return delivered;
+    return false;
   }
 
-  /// 這條弧線現在有沒有「欠著一次門檻語意、而且補得出來」。
-  int? _pendingRetryAnchor(_CompletionArc arc) {
-    if (arc.generation != _generation) return null;
-    final ep = arc.episode;
-    if (ep == null) return null;
-    if (!ep.awaitingRetry) return null;
-    if (!ep.thresholdHolds) return null;
-    if (ep.id == arc.deliveredEpisodeId) return null;
-    return arc.retryAnchorFor(ep);
+  _CompletionArc? _arcOf(int arcId) {
+    for (final arc in _arcs) {
+      if (arc.id == arcId) return arc;
+    }
+    return null;
   }
 }

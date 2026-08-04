@@ -602,7 +602,7 @@ void main() {
       });
     });
 
-    test('撤銷來源後暫時沒有已 impact 的有效成員：跨越保持 pending', () {
+    test('撤銷來源後整條弧線結束：跨越仍然 pending，由新弧線的有資格成員交付一次', () {
       fakeAsync((clock) {
         final rec = _Recorder();
         final c = _controller(rec);
@@ -611,18 +611,47 @@ void main() {
         final cEvent = _start(c, 'C', crossedHalf: true, doneCount: 2);
         clock.elapse(const Duration(milliseconds: 305)); // C 已 impact
         c.cancelEvent(cEvent.id);
-        c.syncAboveThreshold(true);
+        c.syncAboveThreshold(true); // 別的習慣仍然完成著：門檻沒有掉
         expect(c.arcActive, isFalse, reason: '最後一個成員也沒了，這條弧線就結束了');
 
-        // 新的一條弧線：門檻仍然成立，但這是新弧線、要自己的跨越事件。
-        clock.elapse(const Duration(milliseconds: 100));
-        _start(c, 'F', doneCount: 2);
+        // 新的一條弧線。跨越是**真實進度**的事件，不是這條弧線的屬性：
+        // 動作容器沒了不代表那次跨越沒發生，F 又是跨越之後才出現的有資格成員。
+        clock.elapse(const Duration(milliseconds: 100)); // t=405
+        _start(c, 'F', doneCount: 2); // 衝擊點 t=705，機會 t=875
+        clock.elapse(const Duration(milliseconds: 400)); // t=805
+        expect(rec.impacts, ['C', 'F']);
+        expect(rec.semantics, isEmpty, reason: 'F 還沒走到自己的機會，不得提前把跨越講出去');
+
         clock.elapse(const Duration(seconds: 4));
-        expect(
-          rec.semantics.where((s) => s.$2 == CompletionKind.half),
-          isEmpty,
-          reason: '新弧線沒有自己的跨越事件，不該憑空講里程碑',
-        );
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'F'),
+        ], reason: '仍然成立、還沒講過的跨越不得因為動作容器消失就遺失');
+      });
+    });
+
+    test('跨越還沒建立起點時新弧線的成員：要等自己的衝擊點，不得提前交付', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        // 來源在自己的衝擊點之前就被撤銷：這次跨越還沒有任何因果起點。
+        final cEvent = _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(milliseconds: 100));
+        c.cancelEvent(cEvent.id);
+        c.syncAboveThreshold(true);
+        expect(c.arcActive, isFalse);
+
+        clock.elapse(const Duration(milliseconds: 100)); // t=200
+        _start(c, 'F', doneCount: 2); // 衝擊點 t=500，機會 t=670
+        clock.elapse(const Duration(milliseconds: 295)); // t=495
+        expect(rec.impacts, isEmpty, reason: '被撤銷的 C 不得留下任何衝擊點');
+        expect(rec.semantics, isEmpty);
+
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'F'),
+        ], reason: '起點改由 F 自己的衝擊點建立，並在 F 自己的機會交付');
       });
     });
   });
@@ -843,14 +872,16 @@ void main() {
         clock.elapse(const Duration(seconds: 4));
         expect(rec.semantics, isEmpty, reason: '被拒不得排任何自動重試');
 
-        // 弧線的 timer 都收乾淨了：欠條仍在，但已經沒有弧線可補。
+        // 弧線的 timer 都收乾淨了，但欠條是**跨越**的狀態不是弧線的：
+        // 門檻仍成立、也還沒講過，所以它還在。
         expect(c.presentationActive, isFalse);
-        expect(c.pendingSemanticArcIds, isEmpty);
-        expect(c.retryPendingSemantic(), isFalse);
+        expect(c.pendingSemanticArcIds, hasLength(1));
+        expect(c.retryPendingSemantic(), isFalse, reason: '呼叫端仍然擋著');
+        expect(rec.semantics, isEmpty);
       });
     });
 
-    test('弧線已經結束：補送安全 no-op', () {
+    test('弧線已經被收掉：跨越仍然補得出來，anchor 不變', () {
       fakeAsync((clock) {
         final rec = _Recorder();
         final c = _controller(rec);
@@ -862,7 +893,31 @@ void main() {
         expect(c.presentationActive, isFalse);
 
         rec.accept = true;
+        expect(c.retryPendingSemantic(), isTrue);
+        expect(rec.semantics, [
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'D'),
+        ], reason: '動作與尾韻早就演完了，這一次是不折不扣的補送');
+        expect(rec.impacts, ['C', 'D'], reason: '補送不得重播任何衝擊點');
+      });
+    });
+
+    test('跨越已經結束：補送安全 no-op', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenUndoSource(c, clock);
+        rec.accept = false;
+        clock.elapse(const Duration(milliseconds: 200));
+        expect(c.pendingSemanticArcIds, hasLength(1));
+
+        // 跨越自己結束的三條路：門檻跌回、generation 作廢、已經交付。
+        c.syncAboveThreshold(false);
+        rec.accept = true;
+        expect(c.pendingSemanticArcIds, isEmpty);
         expect(c.retryPendingSemantic(), isFalse);
+        clock.elapse(const Duration(seconds: 5));
         expect(rec.semantics, isEmpty);
       });
     });
@@ -910,6 +965,236 @@ void main() {
         playable = true;
         expect(c.retryPendingSemantic(), isFalse);
         expect(rec.semantics, isEmpty);
+      });
+    });
+  });
+
+  // ── 跨越脫離動作弧線 ─────────────────────────────────────────
+  //
+  // 動作弧線只是 700ms 的 motion grouping；跨越是真實進度的一次事件。
+  // 支撐門檻的那一勾可能落在**下一條**弧線裡，上一條弧線根本看不到它。
+
+  group('跨 arc 的跨越', () {
+    /// A 開 arc1；C 在視窗關閉前跨過門檻；D 在視窗關閉之後開 arc2。
+    ({HomeCompletionEvent a, HomeCompletionEvent c, HomeCompletionEvent d})
+    crossThenNewArc(CompletionPresentationController c, FakeAsync clock) {
+      final a = _start(c, 'A'); // t=0，arc1 領頭
+      clock.elapse(const Duration(milliseconds: 650));
+      final crossing = _start(c, 'C', crossedHalf: true, doneCount: 3);
+      clock.elapse(const Duration(milliseconds: 70)); // t=720，arc1 視窗已關
+      expect(c.arcActive, isFalse, reason: 'arc1 的合併視窗在 700ms 關閉');
+      final d = _start(c, 'D', doneCount: 4); // arc2 領頭
+      expect(d.arcId, isNot(crossing.arcId), reason: 'D 確實在另一條弧線');
+      return (a: a, c: crossing, d: d);
+    }
+
+    test('來源在 arc1 pre-impact 被撤銷：由 arc2 的 D 自己的因果鏈交付一次', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        final events = crossThenNewArc(c, clock);
+        clock.elapse(const Duration(milliseconds: 80)); // t=800，C 的衝擊點在 950
+        expect(
+          c.cancelEvent(events.c.id),
+          CompletionCancelOutcome.arcSurvives,
+          reason: 'A 還在 arc1 裡，共用的那段動作要留著',
+        );
+        c.syncAboveThreshold(true); // A + D + 舊的完成仍然撐著門檻
+
+        clock.elapse(const Duration(milliseconds: 220)); // t=1020：D 的衝擊點
+        expect(rec.impacts, ['A', 'D'], reason: 'C 的衝擊點必須整拍作廢');
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+        ], reason: 'arc1 自己的一般語意照發，但這時還輪不到門檻');
+
+        clock.elapse(const Duration(seconds: 4)); // D 的機會 t=1190
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+          (CompletionPhase.speak, CompletionKind.half, 'D'),
+        ], reason: 'arc1 看不到 D 不該讓跨越遺失；D 有自己的 impact 與機會');
+      });
+    });
+
+    test('arc2 的成員也在自己的衝擊點之前被撤銷：要等下一個有資格的成員', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        final events = crossThenNewArc(c, clock);
+        clock.elapse(const Duration(milliseconds: 80)); // t=800
+        c.cancelEvent(events.c.id);
+        clock.elapse(const Duration(milliseconds: 50)); // t=850，D 的衝擊點在 1020
+        c.cancelEvent(events.d.id);
+        c.syncAboveThreshold(true);
+
+        clock.elapse(const Duration(seconds: 2)); // t=2850
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          isEmpty,
+          reason: '沒有任何有資格的成員演到自己的衝擊點，這次跨越還不能被講出來',
+        );
+
+        // 之後才出現的有資格成員：起點由它自己的衝擊點建立。
+        final e = _start(c, 'E', doneCount: 4); // t=2850，arc3
+        expect(e.id, greaterThan(events.c.id));
+        clock.elapse(const Duration(milliseconds: 295)); // t=3145，E 衝擊點 3150
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          isEmpty,
+        );
+
+        clock.elapse(const Duration(seconds: 4)); // E 的機會 t=3320
+        expect(rec.semantics, [
+          // arc1 自己的一般語意（A 在 t=470）不受影響。
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+          (CompletionPhase.speak, CompletionKind.half, 'E'),
+        ], reason: '起點與交付都由 E 自己的因果鏈觸發');
+      });
+    });
+
+    test('跨越交付之後：兩條弧線的收尾都不得再講一次', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        crossThenNewArc(c, clock);
+        clock.elapse(const Duration(seconds: 6));
+        expect(
+          rec.semantics.where((s) => s.$2 == CompletionKind.half),
+          hasLength(1),
+          reason: '跨越是整個 generation 一次，不是每條弧線一次',
+        );
+      });
+    });
+  });
+
+  // ── Sol 第十輪的診斷矩陣（裁決為正確行為，收進來當回歸保護）─────
+
+  group('最小合法序號矩陣', () {
+    test('B@0、C@100：C 的衝擊點早於 B 的機會，B 直接整合成 half', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'B');
+        clock.elapse(const Duration(milliseconds: 100));
+        _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(milliseconds: 370)); // t=470
+
+        expect(rec.impacts, ['B', 'C']);
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'B'),
+        ], reason: '起點已經成立，跨越之前加入的成員在自己的機會上整合是合法的');
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, hasLength(1));
+      });
+    });
+
+    test('B@0、C@180：B 的機會早於 C 的衝擊點，先一般完成再補送', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'B');
+        clock.elapse(const Duration(milliseconds: 180));
+        _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(const Duration(milliseconds: 295)); // t=475
+
+        expect(rec.impacts, ['B']);
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'B'),
+        ], reason: '起點還沒成立，B 不得提前把跨越講出去');
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'B'),
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'C'),
+        ]);
+      });
+    });
+
+    test('多個跨越前的成員：都不能建立起點，但起點成立後可以整合', () {
+      fakeAsync((clock) {
+        final rec = _Recorder();
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'A'); // 衝擊點 300／機會 470
+        clock.elapse(const Duration(milliseconds: 100));
+        _start(c, 'B'); // 衝擊點 400／機會 570
+        clock.elapse(const Duration(milliseconds: 100));
+        _start(c, 'C', crossedHalf: true, doneCount: 3); // 衝擊點 500／機會 670
+
+        clock.elapse(const Duration(milliseconds: 275)); // t=475，C 還沒 impact
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+        ]);
+
+        clock.elapse(const Duration(milliseconds: 100)); // t=575
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.ordinary, 'A'),
+          (CompletionPhase.milestoneHandoff, CompletionKind.half, 'B'),
+        ]);
+        clock.elapse(const Duration(seconds: 4));
+        expect(rec.semantics, hasLength(2), reason: 'C 的機會不得再補一次');
+      });
+    });
+  });
+
+  group('補送的邊界矩陣', () {
+    test('obsolete 不留欠條，之後的成員仍有全新的機會', () {
+      fakeAsync((clock) {
+        var attempts = 0;
+        final semantics = <_Semantic>[];
+        final c = CompletionPresentationController(
+          onPhase: (phase, event, kind) {
+            if (phase != CompletionPhase.speak &&
+                phase != CompletionPhase.milestoneHandoff) {
+              return CompletionDelivery.delivered;
+            }
+            attempts++;
+            if (attempts == 1) return CompletionDelivery.obsolete;
+            semantics.add((phase, kind, event.habitKey));
+            return CompletionDelivery.delivered;
+          },
+        );
+        addTearDown(c.dispose);
+
+        _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(CompletionPresentationController.kSpeakDelay);
+        expect(c.pendingSemanticArcIds, isEmpty);
+        expect(c.retryPendingSemantic(), isFalse);
+
+        _start(c, 'D', doneCount: 3);
+        clock.elapse(_semanticDelayFor(isLead: false));
+        expect(semantics, [(CompletionPhase.speak, CompletionKind.half, 'D')]);
+      });
+    });
+
+    test('欠著的舊跨越不得從門檻跌回／重新跨越的縫隙漏出去', () {
+      fakeAsync((clock) {
+        final rec = _Recorder(accept: false);
+        final c = _controller(rec);
+        addTearDown(c.dispose);
+
+        _start(c, 'C', crossedHalf: true, doneCount: 2);
+        clock.elapse(CompletionPresentationController.kSpeakDelay);
+        expect(c.pendingSemanticArcIds, hasLength(1));
+
+        c.syncAboveThreshold(false);
+        expect(c.pendingSemanticArcIds, isEmpty);
+        rec.accept = true;
+        _start(c, 'D', crossedHalf: true, doneCount: 2);
+        expect(c.retryPendingSemantic(), isFalse, reason: '新的跨越不繼承舊欠條');
+        clock.elapse(_semanticDelayFor(isLead: false));
+        expect(rec.semantics, [
+          (CompletionPhase.speak, CompletionKind.half, 'D'),
+        ]);
       });
     });
   });

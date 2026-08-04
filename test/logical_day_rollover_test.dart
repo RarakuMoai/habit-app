@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/main.dart';
 import 'package:habit_app/pages/home/completion_presentation_controller.dart';
@@ -1088,6 +1089,432 @@ void main() {
       expect(MascotPersona.origin, MascotStateOrigin.opening);
 
       await tester.pump(const Duration(seconds: 12));
+    });
+  });
+
+  // ── 換日的 Persona settlement 是一筆順序無關的交易 ────────────────
+  //
+  // 一輪 reload 會產生兩件事，而且**誰先誰後沒有保證**：收拾舊 Home 狀態
+  // （可能同步、也可能被推到 post-frame），以及套用新快照（storage 的 async
+  // 續體）。用一個全域欄位做兩階段橋接時，snapshot 先到就會把「要收成中性」
+  // 這個需求整個丟掉，而遲到又失敗的 stale 收拾還會把新一輪的收據擦掉。
+  //
+  // 這一組把兩種順序都釘住，並證明 stale 的那一筆寫不到現行的那一筆。
+
+  group('換日 settlement 交易', () {
+    /// 五件、昨天完成一件：再點一件 = 2/5，落在 `expect` 這張立繪上
+    /// （比率 > 0 且 < 0.5），跟新一天的 `neutralFront` 分得開。
+    Map<String, Object> fiveHabits() => _yesterdayPartlyDone(
+      habits: [
+        _habit('走路', id: 'h1', done: true),
+        _habit('閱讀', id: 'h2'),
+        _habit('伸展', id: 'h3'),
+        _habit('喝茶', id: 'h4'),
+        _habit('寫字', id: 'h5'),
+      ],
+    );
+
+    void useTallSurface(WidgetTester tester) {
+      tester.view.physicalSize = const Size(430, 1500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+    }
+
+    /// 掛一個「昨天」的首頁，並做出混合擁有權：
+    /// 姿勢是 Home 的（expect），台詞仍然是開場問候的。
+    ///
+    /// [finiteLease] = true 時問候帶十秒絕對期限；false 走 production 的冷啟動
+    /// 路徑（`resetToOpening`，沒有期限）。兩者都不得被換日碰到。
+    Future<dynamic> mountYesterdayHome(
+      WidgetTester tester, {
+      required bool finiteLease,
+    }) async {
+      useTallSurface(tester);
+      SharedPreferences.setMockInitialValues(fiveHabits());
+      _clock = _FakeClock(DateTime(2026, 8, 1, 3, 58));
+      LogicalDayCoordinator.debugInstance = LogicalDayCoordinator(
+        clock: _clock.call,
+      );
+      await LogicalDayCoordinator.instance.start();
+      if (finiteLease) {
+        MascotPersona.setForContext(
+          MascotEmotion.neutralFront.assetPath,
+          MascotContext.openApp,
+          speech: '醒了醒了。',
+          force: true,
+          origin: MascotStateOrigin.opening,
+        );
+      } else {
+        MascotPersona.resetToOpening();
+      }
+      final stamp = LogicalDayCoordinator.instance.stamp.value!;
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: HomePage(key: const ValueKey('home'), dayStamp: stamp),
+        ),
+      );
+      await tester.pump();
+      final home = tester.state(find.byType(HomePage)) as dynamic;
+      await home.loadHabits();
+      await tester.pump();
+
+      await tester.tap(find.text('閱讀'));
+      await tester.pump();
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(home.dailyDoneCount, 2);
+      expect(MascotPersona.origin, MascotStateOrigin.home);
+      expect(MascotPersona.speechOrigin, MascotStateOrigin.opening);
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.expect.assetPath,
+        reason: '2/5 的 Home baseline 是 expect',
+      );
+      return home;
+    }
+
+    Future<LogicalDayStamp> settleNewDay() async {
+      _clock.now = DateTime(2026, 8, 1, 4, 0, 1);
+      await LogicalDayCoordinator.instance.ensureCurrent(
+        trigger: LogicalDayTrigger.boundaryTimer,
+      );
+      return LogicalDayCoordinator.instance.stamp.value!;
+    }
+
+    Future<void> pumpUntilLoaded(WidgetTester tester, dynamic home) async {
+      for (var i = 0; i < 30 && home.debugReloading == true; i++) {
+        await tester.pump();
+      }
+    }
+
+    /// 台詞那一半必須一個位元都沒被動到。
+    void expectOpeningUntouched(
+      String? text,
+      MascotSpeechLease lease,
+      DateTime? deadline,
+    ) {
+      expect(
+        (
+          MascotPersona.current.value.speech,
+          MascotPersona.speechLease,
+          MascotPersona.speechOrigin,
+          MascotPersona.speechDeadline,
+        ),
+        (text, lease, MascotStateOrigin.opening, deadline),
+        reason: '換日只收 state；台詞的文字、租約身分、來源與絕對期限是同一條壽命',
+      );
+    }
+
+    for (final lease in [
+      (label: '無期限的冷啟動問候', finite: false),
+      (label: '有期限的問候', finite: true),
+    ]) {
+      testWidgets('${lease.label}：收拾先到，快照後到（Order 1）', (tester) async {
+        final home = await mountYesterdayHome(
+          tester,
+          finiteLease: lease.finite,
+        );
+        final opening = MascotPersona.current.value.speech;
+        final openingLease = MascotPersona.speechLease;
+        final deadline = MascotPersona.speechDeadline;
+        expect(deadline, lease.finite ? isNotNull : isNull);
+
+        final stamp = await settleNewDay();
+
+        // 把 storage 卡住：新快照會晚於延後的收拾抵達。
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        final blocker = LogicalDayCoordinator.instance.synchronizeStorage(
+          () async {
+            entered.complete();
+            await release.future;
+          },
+        );
+        await entered.future;
+
+        final cues = <SfxCue>[];
+        final haptics = <HapticLevel>[];
+        final voices = <SfxCue>[];
+        debugFeedbackSink = (cue, haptic) {
+          if (cue != null) cues.add(cue);
+          if (haptic != HapticLevel.none) haptics.add(haptic);
+        };
+        MascotPersona.debugVoiceSink = voices.add;
+        addTearDown(() {
+          debugFeedbackSink = null;
+          MascotPersona.debugVoiceSink = null;
+        });
+
+        await tester.pumpWidget(
+          l10nTestApp(
+            home: HomePage(key: const ValueKey('home'), dayStamp: stamp),
+          ),
+        );
+        expect(home.debugReloading, isTrue);
+        expect(home.dailyDoneCount, 2, reason: '快照還卡在 storage 鎖後面');
+        expect(
+          MascotPersona.origin,
+          MascotStateOrigin.opening,
+          reason: '收拾已經把舊 Home 的擁有權放掉了',
+        );
+        expect(MascotPersona.current.value.bubble, isNull);
+        expectOpeningUntouched(opening, openingLease, deadline);
+
+        release.complete();
+        await blocker;
+        await pumpUntilLoaded(tester, home);
+
+        expect(home.dailyDoneCount, 0);
+        expect(
+          MascotPersona.current.value.assetPath,
+          MascotEmotion.neutralFront.assetPath,
+          reason: '收拾先到時，快照抵達後要用交易自己的收據再收成中性',
+        );
+        expect(MascotPersona.current.value.bubble, isNull);
+        expectOpeningUntouched(opening, openingLease, deadline);
+        expect(tester.takeException(), isNull);
+        expect(cues, isNot(contains(SfxCue.success)));
+        expect(haptics, isEmpty);
+        expect(voices, isEmpty);
+
+        await _teardownTree(tester);
+      });
+
+      testWidgets('${lease.label}：快照先到，收拾後到（Order 2）', (tester) async {
+        final home = await mountYesterdayHome(
+          tester,
+          finiteLease: lease.finite,
+        );
+        final opening = MascotPersona.current.value.speech;
+        final openingLease = MascotPersona.speechLease;
+        final deadline = MascotPersona.speechDeadline;
+        final stamp = await settleNewDay();
+        final element =
+            tester.element(find.byType(HomePage)) as StatefulElement;
+        int? doneAtFirstPostFrame;
+        MascotStateOrigin? originAtFirstPostFrame;
+
+        // 這個 callback 註冊在 Home 的延後收拾之前，所以它看得到「新快照已經
+        // 套用、但收拾還沒跑」的那一刻。
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          doneAtFirstPostFrame = home.dailyDoneCount as int;
+          originAtFirstPostFrame = MascotPersona.origin;
+        });
+        SchedulerBinding.instance.scheduleFrameCallback((_) {
+          element.owner!.buildScope(element, () {
+            element.update(
+              HomePage(key: const ValueKey('home'), dayStamp: stamp),
+            );
+          });
+        });
+        await tester.pump();
+
+        expect(
+          doneAtFirstPostFrame,
+          0,
+          reason: '這一輪確實是「快照先到」：第一個 post-frame 就已經是新的一天',
+        );
+        expect(
+          originAtFirstPostFrame,
+          MascotStateOrigin.home,
+          reason: '那一刻舊 Home 的 claim 都還在，收拾根本還沒跑',
+        );
+        expect(home.dailyDoneCount, 0);
+        expect(
+          MascotPersona.current.value.assetPath,
+          MascotEmotion.neutralFront.assetPath,
+          reason: '需求不能因為收拾還沒回來就被丟掉，否則會停在昨天的 expect',
+        );
+        expect(MascotPersona.current.value.bubble, isNull);
+        expectOpeningUntouched(opening, openingLease, deadline);
+        expect(tester.takeException(), isNull);
+
+        await _teardownTree(tester);
+      });
+    }
+
+    testWidgets('遲到又失敗的 stale 收拾：不得擦掉新一輪的收據', (tester) async {
+      final home = await mountYesterdayHome(tester, finiteLease: false);
+      MascotClaim? newerSettledClaim;
+      String? newerSettledAsset;
+      Future<void>? staleReload;
+
+      // 這個 callback 註冊在前：它會在 stale 收拾之前建立並**同步**收掉一個
+      // 更新的 Home claim，拿到收據 B′。
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        home.toggleHabit(0); // 撤銷 → 新的 Home claim
+        expect(MascotPersona.origin, MascotStateOrigin.home);
+        home.loadHabits(); // post-frame 不在 build 階段：同步收掉它
+        expect(MascotPersona.origin, MascotStateOrigin.opening);
+        newerSettledClaim = MascotPersona.claim;
+        newerSettledAsset = MascotPersona.current.value.assetPath;
+      });
+      // 這一輪 reload 在 transient 階段開始，收拾被推到 post-frame——排在
+      // 上面那個 callback 後面。
+      SchedulerBinding.instance.scheduleFrameCallback((_) {
+        staleReload = home.loadHabits() as Future<void>;
+      });
+      await tester.pump();
+      if (staleReload != null) await staleReload;
+      await tester.pump();
+
+      expect(newerSettledClaim, isNotNull);
+      expect(
+        MascotPersona.claim,
+        newerSettledClaim,
+        reason: 'stale 收拾的 compare 正確失敗，全域一個位元都不該動',
+      );
+      expect(MascotPersona.current.value.assetPath, newerSettledAsset);
+
+      // 下一次正常換日必須還用得到 B′。
+      final stamp = await settleNewDay();
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: HomePage(key: const ValueKey('home'), dayStamp: stamp),
+        ),
+      );
+      await pumpUntilLoaded(tester, home);
+
+      expect(home.dailyDoneCount, 0);
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.neutralFront.assetPath,
+        reason: 'stale 那一筆不得把換日要用的收據擦掉',
+      );
+      expect(tester.takeException(), isNull);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('連續兩次成功收拾：只由最新那一筆交易決定換日的結果', (tester) async {
+      final home = await mountYesterdayHome(tester, finiteLease: false);
+      final opening = MascotPersona.current.value.speech;
+      final openingLease = MascotPersona.speechLease;
+
+      await home.loadHabits(); // 第一筆：同步收拾成功
+      await tester.pump();
+      await tester.tap(find.text('伸展')); // 新的 Home claim
+      await tester.pump();
+      await tester.pump(CompletionPresentationController.kSpeakDelay);
+      expect(MascotPersona.origin, MascotStateOrigin.home);
+      await home.loadHabits(); // 第二筆：同樣同步收拾成功
+      await tester.pump();
+
+      final stamp = await settleNewDay();
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: HomePage(key: const ValueKey('home'), dayStamp: stamp),
+        ),
+      );
+      await pumpUntilLoaded(tester, home);
+
+      expect(home.dailyDoneCount, 0);
+      expect(
+        MascotPersona.current.value.assetPath,
+        MascotEmotion.neutralFront.assetPath,
+      );
+      expectOpeningUntouched(opening, openingLease, null);
+      expect(tester.takeException(), isNull);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('external 在換日前接手：交易終止為 no-op，完全不覆寫它', (tester) async {
+      final home = await mountYesterdayHome(tester, finiteLease: false);
+
+      MascotPersona.interact(MascotContext.overhydration);
+      final externalClaim = MascotPersona.claim;
+      final externalLease = MascotPersona.speechLease;
+      final externalState = MascotPersona.current.value;
+
+      final stamp = await settleNewDay();
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: HomePage(key: const ValueKey('home'), dayStamp: stamp),
+        ),
+      );
+      await pumpUntilLoaded(tester, home);
+
+      expect(home.dailyDoneCount, 0, reason: '資料照樣換成新的一天');
+      expect(
+        MascotPersona.claim,
+        externalClaim,
+        reason: '收拾 compare 失敗 → 交易終止，不得留下可復活的收據',
+      );
+      expect(MascotPersona.speechLease, externalLease);
+      expect(MascotPersona.current.value.assetPath, externalState.assetPath);
+      expect(MascotPersona.current.value.speech, externalState.speech);
+      expect(tester.takeException(), isNull);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('新的 Home 寫入明確 supersede 舊交易：舊收拾不得清掉它', (tester) async {
+      final home = await mountYesterdayHome(tester, finiteLease: false);
+      MascotClaim? freshClaim;
+
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        // 舊交易的收拾還沒跑，這裡先同步寫進一個新的 Home 狀態。
+        // 用撤銷是因為它**當場**就寫 persona；打卡的第一次寫入要等到
+        // 300ms 後的衝擊點。
+        home.toggleHabit(0); // 撤銷「走路」→ 新的 Home claim
+        freshClaim = MascotPersona.claim;
+      });
+      SchedulerBinding.instance.scheduleFrameCallback((_) {
+        home.loadHabits();
+      });
+      await tester.pump();
+      await tester.pump();
+
+      expect(freshClaim, isNotNull);
+      expect(
+        MascotPersona.origin,
+        MascotStateOrigin.home,
+        reason: '新的 Home 寫入明確接手，舊那一筆的收拾整段 no-op',
+      );
+      expect(tester.takeException(), isNull);
+
+      await _teardownTree(tester);
+    });
+
+    testWidgets('延後收拾執行前整棵樹被拆掉：不丟例外，也不影響下一次 mount', (tester) async {
+      final home = await mountYesterdayHome(tester, finiteLease: false);
+      final homeClaim = MascotPersona.claim;
+
+      SchedulerBinding.instance.scheduleFrameCallback((_) {
+        home.loadHabits();
+      });
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.takeException(), isNull);
+      expect(
+        MascotPersona.claim,
+        isNot(homeClaim),
+        reason: 'dispose 之後那一代擁有的狀態仍然要收',
+      );
+
+      // 新的一次 mount 完全不受上一代的 stale callback 影響。
+      MascotPersona.resetToOpening();
+      final opening = MascotPersona.current.value.speech;
+      final openingLease = MascotPersona.speechLease;
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: HomePage(
+            key: const ValueKey('home2'),
+            dayStamp: LogicalDayCoordinator.instance.stamp.value,
+          ),
+        ),
+      );
+      await tester.pump();
+      final next = tester.state(find.byType(HomePage)) as dynamic;
+      await next.loadHabits();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(tester.takeException(), isNull);
+      expectOpeningUntouched(opening, openingLease, null);
+
+      await _teardownTree(tester);
     });
   });
 }
