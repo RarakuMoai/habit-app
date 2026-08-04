@@ -46,11 +46,34 @@
 
 ## 動效
 
-- 打卡勾 = 320ms easeOutCubic 路徑描繪（`_CheckDrawPainter`），列表載入不重播。
+- 打卡勾 = 300ms easeOutCubic 路徑描繪（`_CheckDrawPainter`），列表載入不重播。
+  時長是共用常數 `kCheckDrawDuration`（[`completion_timing.dart`](../lib/pages/home/completion_timing.dart)），
+  卡片與編排器都只 import，**不要兩邊各寫一個數字**——勾勾畫完那一刻就是衝擊點。
 - 進度列 = 漸層填色 + 尾端白心亮點（10px、accent 描邊 2.5）；達標時 900ms 呼吸光暈 `repeat(reverse)`。
 - 兔咪互動（呼吸、彈跳、情緒泡泡、完成星光）由 Flutter 負責。
 - 場景環境光、窗景、燈具與家具陰影畫進四時段完整背景，不再由 Flutter 畫光束、
   燈暈或長影；細節見 `four_period_background_plan.md`。
+
+### 完成演出的節奏（2026-08-04 One-Habit Hero 定案）
+
+一次「完成一件習慣」不是一個瞬間，是一條有先後的弧線：
+**confirm → notice → anticipate → impact → speak → recover → quiet**。
+
+實際毫秒、Reduce Motion 對照與合併視窗寫在
+[`completion_presentation_controller.dart`](../lib/pages/home/completion_presentation_controller.dart)
+的檔頭時間軸，**那裡才是數字的真相來源**。這裡只鎖不會變的意圖：
+
+- **衝擊點對齊使用者看得到的事實，不對齊輸入。** 主 haptic、SFX、換 pose 與放開
+  進度條全部落在勾勾筆尖觸底，不落在手指放開。輸入當下只做安靜確認。
+- **每一拍都要有事做，沒事就不要留。** notice 是察覺、anticipate 是蓄勢、
+  recover 是落地、quiet 是清乾淨。少了 anticipate 就會退化成「系統打勾」。
+- **同一拍不給兩件事。** impact 給身體，speak 給語言。疊在同一幀就沒有因果。
+- **連打共用一條動作弧線，但每一件的勾勾各自完成。** 兔咪不從第零幀重蹲，
+  重啟弧線會變成抽搐。
+- 想加東西之前先問「這一拍解決了哪個讀不出來的問題」。加特效不等於改善節奏。
+
+角色為什麼要這樣反應見 [`tumi_character_guide.md`](tumi_character_guide.md)
+的「演出節奏」。
 
 ## 間距 / 留白
 

@@ -54,6 +54,11 @@
   光照、色盤、構圖、畫布與透明背景。提示詞需明確寫「Do not redraw the whole
   image. Local edit only. 不重繪，只局部修改。」
 - 完全新姿勢或新構圖才走 generate，並先說明一致性會下降。
+- Reduce Motion 是正式體驗，不是把動畫關掉。位移、縮放、跳躍與會移動的粒子要
+  省略，但**事實與語意必須留著**：勾勾照樣畫出來（只縮短，不能只剩換顏色）、
+  進度與件數照更新、表情照換、泡泡與台詞照出、SFX 與 haptic 照觸發，先後順序
+  也照原本的。縮短後的時間一律從 `lib/pages/home/completion_timing.dart` 的同一組
+  常數推導，不要在各處另外寫縮短數字。
 - 角色與情緒的程式單一真相來源是 `lib/utils/mascot.dart`；資產規格見
   `docs/asset_convention.md`。
 

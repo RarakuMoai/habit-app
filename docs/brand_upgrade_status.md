@@ -11,15 +11,16 @@
 |---|---|
 | Repository | `/Users/yayoi991331/habit-app` |
 | Remote | `https://github.com/RarakuMoai/habit-app.git` |
-| main／origin/main | `6c5f4ba1c0588131e18f759525d592f3edbefafb` |
-| 品牌升級前的可追溯程式基準 | `4994742196e9acf5b42e45b6aee43251a8e6c79d`（尚未建立 tag／影像基準） |
-| 最近完成 milestone | `One-Habit Hero` |
+| main／origin/main | `8081a33bba1fd1515b54fc3fb6f04f2513d642d5` |
+| 品牌升級前的可追溯程式基準 | `4994742196e9acf5b42e45b6aee43251a8e6c79d`（尚未建立 tag；影像基準見下方 Creative Proof） |
+| 最近完成 milestone | `One-Habit Hero`（技術 gate 與 Creative gate 皆已通過） |
 | Feature 最終 commit | `203788f53d19c30e53523c4e8309fd9b553098c0` |
 | Merge commit | `6c5f4ba1c0588131e18f759525d592f3edbefafb` |
 | 技術驗收 | Sol APPROVE；merge 前後 `flutter analyze` 0 issues、`flutter test` 794/794 |
+| Creative 驗收 | 2026-08-04 使用者裁決 **KEEP** |
 | Production blocker | 0 |
-| 當前階段 | milestone 之間；補完 One-Habit Hero 的品牌證據 |
-| 下一個大型 milestone | **尚未決定，不得直接開工** |
+| 當前階段 | milestone 之間；兩個 gate 皆已關閉，可以選下一個 milestone |
+| 下一個大型 milestone | **尚未選定**；候選池見下方，選定前不得開分支 |
 
 Hash 與測試數是 2026-08-04 的核對結果；未來 main 前進時應更新，不得把舊 hash
 誤認成必須回退的固定目標。
@@ -43,7 +44,7 @@ Hash 與測試數是 2026-08-04 的核對結果；未來 main 前進時應更新
 - 修正 radial gradient stops 數量錯誤造成的 runtime crash。
 - Merge：`bc7dca78b514d735deb7f6423d0523ba5357d6d5`。
 
-### One-Habit Hero — 技術部分
+### One-Habit Hero
 
 - 完成一件習慣的節奏已實作：confirm → notice → anticipate → impact → speak／
   milestone handoff → recover → quiet。
@@ -54,53 +55,59 @@ Hash 與測試數是 2026-08-04 的核對結果；未來 main 前進時應更新
 - Feature 保持 12 個原始 commits，未 squash／rebase；Sol 最終獨立反例與正式
   794 項測試通過後合併 main。
 
-## 尚未完成：One-Habit Hero 品牌閉環
+#### Gate 1 — Creative Proof（2026-08-04 完成）
 
-技術 APPROVE 不等於 Creative APPROVE。目前缺少 Master Prompt 要求的兩個 gate：
+以 iPhone 14 Pro Max、430×932、zh-TW、場景時段固定 13:00、相同 6 個習慣與相同
+音量設定，比較 baseline `4994742` 與 candidate `6c5f4ba`：普通完成、跨過 half、
+allDone、快速連打、Undo、Reduced Motion 各錄前後對照。
 
-### Gate 1 — Creative Proof（目前唯一下一步）
+**使用者裁決：KEEP。** 站得住的改善：
 
-以相同模擬器、資料、尺寸與操作比較：
+- 普通完成的 SFX／haptic 從「手指放開」移到勾勾筆尖觸底，語音與泡泡再晚一拍，
+  因果讀得出來（baseline 是勾勾與台詞同一幀出現）。
+- Undo 之後正向泡泡立刻讓位給心疼，不再與已歸零的進度並存。這是最清楚的情緒改善。
+- allDone 不再與普通完成疊播，且修掉 baseline 的 completion-aura gradient paint
+  例外（那個 painter 失敗在 baseline 每一相關 frame 都發生）。
+- Reduced Motion 從「靠 framework 壓掉動畫」變成刻意設計的語意順序。
 
-- 基準：`4994742196e9acf5b42e45b6aee43251a8e6c79d`
-- 現況：`6c5f4ba1c0588131e18f759525d592f3edbefafb`
-- 普通完成
-- 跨過 half
-- allDone
-- 快速連打
-- Undo
-- Reduced Motion
+留作未來觀察，**不阻擋 KEEP、也不自動變成下一個 milestone**：
 
-至少從 Character、Motion、Audio、Emotion、Art 五個視角產出前後證據。這一輪只讀、
-不修改 production code、不重新做 lifecycle 理論審查。使用者最後明確裁決：
+- 普通完成的 notice／anticipate 姿勢差異接近不可見門檻，逐幀圖上幾乎讀不到。
+  要處理的話是微調停頓與 2–3px 姿態，不是加特效。
+- half 在靜音下與普通完成的層級差距偏小，主要靠閉眼 expect pose 與音符。
+- 連打時不重複說「今天第一件」是刻意的克制，但也降低了「每件都被口頭看見」。
 
-- **KEEP**：品牌感明顯改善，進入 Bible extraction。
-- **ADJUST**：只列可見、可聽、可感受的問題，回原 Opus milestone 對話修正。
-- **REVERT／REDESIGN**：若新版主觀體驗反而較差，另行決定回退範圍；不得因測試多
-  就強迫保留。
+證據限制（下次做 Creative Proof 要避開的坑）：
 
-Codex 不得在實體 iPhone／iPad 安裝或執行 App；模擬器證據可由 Codex 準備，實機
-手感、聲音與觸覺由使用者本人確認。
+- half 的 A/B 逐幀對照表錨點抓晚，candidate 欄標成 contact 的那一幀件數已經跳完，
+  **該張圖不能當 half 的證據**；影片本身沒問題。教訓已寫進 operating system §7。
+- 模擬器錄影沒有可信系統音軌，音訊同步是用可見 frame 與 production 觸發時點推得，
+  不是聲畫實測；音色、喇叭疲勞與真實 haptic 手感仍待實機確認。
+- Reduced Motion 是從 platform dispatcher 注入的決定性 fallback，不是經由
+  iOS Settings 端到端傳入的 runtime proof。
+- 證據放在 `/private/tmp`，屬於暫存，不隨 repo 保存。
 
-### Gate 2 — Bible Extraction
+#### Gate 2 — Bible Extraction（2026-08-04 完成）
 
-只有 Gate 1 得到 KEEP 後執行。把已被證明的規則寫回最接近的長期文件，至少涵蓋：
+已被證明的規則寫回最接近的既有 Bible，沒有新增文件：
 
-- anticipation → impact → recovery → quiet 的目的
-- 兔咪先動、台詞後到
-- impact 與使用者看到的完成事實同拍
-- ordinary／half／allDone 的情緒層級
-- SFX、haptic、語音與安靜的分工
-- Reduced Motion 保留語意、移除不必要位移
-- 高頻互動的克制與餘韻
-- Creative gate 與 correctness gate 的分界
+| 規則 | 落點 |
+|---|---|
+| 弧線七拍的意圖、衝擊點對齊看得到的事實、連打共用弧線 | `visual_spec.md` §動效／完成演出的節奏 |
+| 先動起來才開口、層級克制、餘韻、撤銷讓位 | `tumi_character_guide.md` §演出節奏 |
+| SFX／haptic／語音三管道職責、安靜是正式回饋、撤銷接手 | `tumi_dialogue_catalog.md` §執行規則 6–8 |
+| Reduce Motion 保留語意、移除位移、時間從同一組常數推導 | `engineering_guardrails.md` §兔咪素材與演出 |
+| Creative gate 與 correctness gate 的分界 | `brand_upgrade_operating_system.md` §5.5 |
+| A/B 證據錨點要自己先驗過 | `brand_upgrade_operating_system.md` §7 |
 
-不要把目前 class 名稱、每一個 timer 數字或暫時 ownership 實作全部寫成不可更動的
-產品規則；細節仍以程式與測試為真相。
+毫秒數字一律不抄進文件，指向
+`lib/pages/home/completion_timing.dart` 與 `completion_presentation_controller.dart`
+檔頭時間軸。同時修正兩處文件與程式不同步：`visual_spec.md` 的勾勾時長 320ms →
+300ms（實際走 `kCheckDrawDuration`），以及本文件的 main hash。
 
 ## 下一個大型 milestone 的候選池
 
-在兩個 gate 完成前只保留候選，不排序、不開分支：
+兩個 gate 已關閉，可以開始選；但**選定前仍不開分支**，也不要同時啟動多個：
 
 1. 兔咪待機生命感
 2. 每日回歸／開 App 的歡迎感
@@ -108,9 +115,8 @@ Codex 不得在實體 iPhone／iPad 安裝或執行 App；模擬器證據可由 
 4. 每日報到／零食回饋的 CG 一致性
 5. 全 App 音效與安靜語言
 
-Gate 2 完成後，使用原始只讀審查與當時的可見產品狀態，依「可察覺程度 × 改善幅度
-× 成本／風險」選出唯一下一個 milestone。`roadmap.md` 的功能排序不能取代這次品牌
-判斷。
+選的時候要用原始只讀審查與**當下**的可見產品狀態，依「可察覺程度 × 改善幅度 ×
+成本／風險」選出唯一下一個 milestone。`roadmap.md` 的功能排序不能取代這次品牌判斷。
 
 ## 現階段禁止事項
 
@@ -121,16 +127,38 @@ Gate 2 完成後，使用原始只讀審查與當時的可見產品狀態，依�
 - 不依賴聊天記憶決定下一步；必須先更新本文件。
 - 不把 `roadmap.md` 尚未同步的舊「四時段首頁 pilot」當成下一步；
   `four_period_background_plan.md` 已記錄首頁及喝水、計時、家庭推廣完成。
+- 不把 One-Habit Hero 留下的三項觀察（anticipation 可見度、half 靜音層級、
+  連打時的口頭存在感）自動升格成下一個 milestone。它們是使用者實機使用後才決定
+  要不要處理的微調，不是已核准的工作項目。
 
 ## AI 分工（現行）
 
 - **總控**：維持方向、判斷風險、產生下一個唯一 Prompt。
 - **Opus 5**：架構設計與唯一主要實作者。
-- **GPT-5.6 Sol**：獨立唯讀審查、品質驗收、決定能否合併。
+- **獨立 Reviewer**：唯讀審查、品質驗收、決定能否合併。
 - 每個 milestone 使用獨立工作對話與 feature branch。
 - 同一 milestone 的 blocker 回原 Opus 對話。
-- Sol 與 Opus 不得同時修改同一分支。
+- Reviewer 與 Opus 不得同時修改同一分支。
 - Creative Proof 的最終品牌裁決者是使用者，不是任何模型。
+
+### 2026-08-04 分工變更
+
+原本由 Codex CLI 擔任總控、GPT-5.6 Sol 擔任獨立 Reviewer。Codex 的 token 額度用盡，
+**總控職責改由 Opus 5 兼任**，與實作者同一個模型。
+
+這個合併有代價，記下來以免之後忘記為什麼要補：**獨立 Reviewer 這一角目前是空的。**
+Sol 的價值不在更聰明，在沒看過實作者的推理過程；同一個對話自審會沿用當初說服
+自己的理由，這是結構問題，不是更用力就能補的。
+
+因此在選定下一個實作型 milestone 時，必須先決定 Reviewer 怎麼補，選項依獨立性排序：
+
+1. 使用者手動觸發 `/code-review ultra`（多 agent 雲端審查，計費，實作者不能自己叫）。
+2. 由實作者開一個乾淨 subagent，只餵 diff 與文件、不餵設計理由。比自審好，但仍是
+   同一個模型家族，共通盲點看不到。
+3. 明確接受降級——**僅限沒有 correctness 風險的工作**（例如純文件的 Bible
+   Extraction 就是這一類，Gate 2 即以此方式完成）。
+
+不得在沒有講清楚採用哪一項的情況下，讓實作者自己宣布通過技術 gate。
 
 ## 每次 milestone 後如何更新本文件
 
