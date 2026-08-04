@@ -27,6 +27,21 @@
 - `card`（ambient 16/0.10 + contact 4/0.08）：浮起卡用。
 - `flat`（5/0.06）：完成/退場卡用。
 
+## 圓角階梯
+
+浮出層愈大、圓角愈大。四格都在 theme 或 token 供應，**頁面不要自己寫**：
+
+| 層 | 圓角 | 來源 |
+|---|---|---|
+| 彈出選單 | 14 | `main.dart` `popupMenuTheme` |
+| 卡片 | 18 | `AppCardStyle.radius` |
+| 底部面板 | **20** | `AppCardStyle.sheetRadius` → `bottomSheetTheme` |
+| 對話框 | 22 | `main.dart` `dialogTheme` |
+
+底部面板這一格是 2026-08-04 才補上的：在那之前沒有 theme 預設，32 個
+`showModalBottomSheet` 裡 19 個各自手寫圓角、其餘吃 Material 預設，
+全 app 同時存在 28／24／20／16 四種。新增面板不寫 `shape` 就是對的。
+
 ## 卡片（AppCardStyle）
 
 - 圓角 **18**。

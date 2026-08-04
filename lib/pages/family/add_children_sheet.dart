@@ -96,7 +96,7 @@ Future<List<ChildInput>?> showAddChildrenSheet(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) => Padding(

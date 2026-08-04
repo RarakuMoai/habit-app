@@ -369,6 +369,22 @@ class _MyAppState extends State<MyApp> {
             borderRadius: BorderRadius.circular(22),
           ),
         ),
+        // 底部面板過去是唯一沒有 theme 預設的浮出層：32 個
+        // showModalBottomSheet 裡 19 個各自手寫圓角，其餘 13 個吃 Material 的
+        // 預設，全 app 因此同時存在 28／24／20／16 四種圓角。
+        //
+        // 20 不是新發明的數字，是既有階梯上本來就該有的一格，也是 18 個呼叫端
+        // 已經在用的值：popup 14 → 卡片 18 → **面板 20** → 對話框 22。
+        // 定在這裡之後，新增面板不寫 shape 就是對的。
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: const Color(0xFFFFFDF9),
+          surfaceTintColor: Colors.transparent,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppCardStyle.sheetRadius),
+            ),
+          ),
+        ),
       ),
       // 動態字體護欄：版面大量使用固定高度膠囊／導覽列，放大不設限一定破版。
       // clamp 到 1.0–1.3：仍尊重系統放大（可讀性 +30%），但不會炸版；

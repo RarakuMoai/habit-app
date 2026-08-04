@@ -94,6 +94,15 @@ abstract final class AppShadows {
 abstract final class AppCardStyle {
   static const double radius = 18;
 
+  /// 底部面板的上緣圓角。
+  ///
+  /// 圓角是一道階梯，浮出層愈大、圓角愈大：
+  /// popup 14 → 卡片 18 → **面板 20** → 對話框 22。
+  /// 面板這一格過去沒有 token 也沒有 theme 預設，32 個呼叫端裡 19 個各自手寫，
+  /// 全 app 同時存在 28／24／20／16 四種。定在這裡之後由
+  /// `main.dart` 的 `bottomSheetTheme` 統一供應，呼叫端不必再寫 shape。
+  static const double sheetRadius = 20;
+
   /// 未完成卡片的髮絲線邊框，給輪廓一點精緻度。
   static Border get hairline => Border.all(color: const Color(0x0A46342B));
 }

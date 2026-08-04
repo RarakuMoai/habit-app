@@ -385,7 +385,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       builder: (ctx) => DecoratedBox(
         decoration: const BoxDecoration(
           color: AppSurfaces.card,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           top: false,
@@ -471,7 +471,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       clipBehavior: Clip.antiAlias,
       builder: (ctx) => StatefulBuilder(
@@ -564,7 +564,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       clipBehavior: Clip.antiAlias,
       builder: (ctx) => StatefulBuilder(
@@ -1817,7 +1817,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: AppSurfaces.card,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
                     color: kGameAccent.withValues(alpha: 0.18),
