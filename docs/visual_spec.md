@@ -75,6 +75,25 @@
 角色為什麼要這樣反應見 [`tumi_character_guide.md`](tumi_character_guide.md)
 的「演出節奏」。
 
+### 啟動接縫（2026-08-05 U1 定案）
+
+原生啟動畫面（iOS `LaunchScreen.storyboard`）在 Flutter 引擎起來之前就顯示，
+**它是使用者看到的第一幀**。專案原本用 Flutter 樣板附的 1×1 空白圖，所以那段
+時間畫面上什麼都沒有——app 的第一印象是一片白。
+
+- **兩層共用的元素必須在同一個位置。** 原生層的圖由
+  [`scripts/gen_launch_image.py`](../scripts/gen_launch_image.py) 從
+  `_StartupSplash` 的規格產生，不是手繪也不是一次性產物；改 `_StartupSplash`
+  的版面時重跑它。驗收方式是實拍兩層各一幀、量同一個元素的中心差，**目標 0px**。
+- **只在 Flutter 層出現的東西要是「加法」，不能是「變化」。** 標題與進度條在
+  接手時長出來，讀成「醒過來」；但同一個元素在兩層長得不一樣（例如字型 fallback
+  造成的跳字）就會讀成故障。中文標題因此**刻意不進原生層**——Nunito 沒有中日韓
+  字，runtime 走系統 fallback，離線工具湊不出一樣的字。
+- storyboard 的 imageView 要 `scaleAspectFill` 並釘住四邊。`contentMode="center"`
+  搭配 1×1 的圖等於整個原生層什麼都沒有——那正是原本的狀況。
+- ⚠️ **空白期長度只能用 profile／release 量**：iOS 不支援模擬器 profile，
+  模擬器只證明接縫存在與否，不證明時間。
+
 ## 間距 / 留白
 
 - 全部走 **4pt 網格**：卡距 12、區段間隔 20、清單邊距 16。
