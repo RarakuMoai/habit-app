@@ -124,6 +124,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   static const Duration _sceneIdleDelay = Duration(seconds: 20);
   Timer? _sceneIdleTimer;
   bool _sceneIdle = false;
+
+  // 兔咪先睡著，演出跑完才凍結場景。順序反過來的話，換立繪與 Zzz 泡泡需要的
+  // 幀已經被停掉，畫面會直接跳成靜止——那正是「像當機」的來源。
+  static const Duration _dozeSettleDelay = Duration(milliseconds: 2600);
+  Timer? _dozeSettleTimer;
+  // 目前停在打瞌睡（閒置驅動，不是進度推導）。任何真正的事件都會蓋掉它。
+  bool _mascotDozing = false;
   // 追蹤本頁是否為當前可見分頁（外層 TickerMode），切回來時喚醒場景。
   bool _wasVisible = true;
   // 單一場景動畫時鐘：空氣層與完成特效共享（20fps；§5.2）。
@@ -133,6 +140,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // 有互動：取消計時、若正凍結則喚醒，並重排下一次閒置。
   void _markSceneActive() {
     _sceneIdleTimer?.cancel();
+    _dozeSettleTimer?.cancel();
     _sceneClock.start();
     if (_sceneIdle) {
       setState(() => _sceneIdle = false);
@@ -144,8 +152,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // 的分鐘級單次 repaint 維持正確），兔咪演出由 TickerMode/paused 一起凍結。
   void _goSceneIdle() {
     if (!mounted || _sceneIdle) return;
-    _sceneClock.stop();
-    setState(() => _sceneIdle = true);
+    // 先睡著：換 sleep 立繪 + Zzz 泡泡。優先度只有 5，正在播的任何事件都蓋得過，
+    // 所以不會打斷打卡演出。
+    if (!_mascotDozing) {
+      _mascotDozing = true;
+      _applyPersona(MascotContext.dozeOff, withVoice: false);
+    }
+    // 演出跑完才真的停下來省電。
+    _dozeSettleTimer?.cancel();
+    _dozeSettleTimer = Timer(_dozeSettleDelay, () {
+      if (!mounted || _sceneIdle) return;
+      _sceneClock.stop();
+      setState(() => _sceneIdle = true);
+    });
   }
 
   @override
@@ -217,6 +236,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       MascotPersona.idleBaseline = null;
     }
     _sceneIdleTimer?.cancel();
+    _dozeSettleTimer?.cancel();
     // 收掉排程與**仍然由 Home 擁有的**全域兔咪狀態。dispose 不能 setState，
     // 所以走不依賴 rebuild 的那條路；資料一律不動，收據不符則整段 no-op。
     _cancelCompletionSchedules();
@@ -1476,6 +1496,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 這裡刻意**不先**取消既有的 expiry：這次點擊可能被優先度擋下來，
     // 先取消就會讓舊台詞失去自己原本剩餘的壽命。
     if (!_reduceMotion) _celebCtrl.forward(from: 0);
+    // 睡著時碰它＝叫醒，不是問「你今天怎麼樣」。揉眼剛醒的姿勢由 persona 的
+    // 回神計時交棒回會眨眼的中性待機，不需要在這裡再排一次。
+    if (_mascotDozing) {
+      _applyPersona(MascotContext.wakeUp, withVoice: false);
+      setState(() => _mascotReactionTick++);
+      return;
+    }
     final ctx = _baselineMascotContext;
     // 進度中的情境改用帶件數的具體回應：使用者主動點兔咪等於在問
     // 「你怎麼看今天？」，這時給得出數字才有被看見的實感。
@@ -1554,25 +1581,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// 純由今天進度推導的立繪，不含任何 transient 演出。
   /// 演出結束後要回到的就是這張——不是開 app 的中性臉。
   ///
-  /// **待機姿的已知限制（2026-08-04 查證，不要重複踩）：**
+  /// 演出結束後兔咪要停在的樣子——**由今天的進度推導**，不是開 app 的中性臉。
   ///
-  /// 閉眼是反應不是狀態——笑眼掛著當待機姿不能眨眼，看起來像貼紙。照這條原則，
-  /// 過半的 `smile` 應該換成睜眼立繪。立繪本身是個 2×2（見 [MascotEmotion]）：
+  /// 這裡曾經改成一律回 `neutralFront`（為了讓待機一定會眨眼），**但那條路
+  /// 走不通，不要再試一次**：演出收尾是把狀態「清回 baseline」，所以 baseline
+  /// 一旦與進度無關，全完成的慶祝一結束兔咪就掉回中性，`happy` 完全留不住。
+  /// `home_completion_test` 有 26 項在守這件事。
   ///
-  ///  | | 睜眼（適合待機） | 閉眼（只適合反應） |
-  ///  |---|---|---|
-  ///  | 手垂・平靜 | `neutralFront` | `smile` |
-  ///  | 手胸前・振奮 | `expect` | `happy` |
+  /// 真正的衝突是素材面的：**目前只有 `neutralFront` 有閉眼差分**，所以
+  /// 「待機一定會眨眼」與「待機姿承載今天的進度」現階段只能二選一。要兩者兼得
+  /// 需要 `tumi_expect_blink.png`，以及一張睜眼版的「安心」立繪取代過半的
+  /// `smile`（閉眼笑掛著當狀態就是一張不會眨眼的貼紙）。
   ///
-  /// **但零素材換不動。** 泛用睜眼立繪只有兩張，而兩張都已經有主人：
-  /// `neutralFront` 是空狀態，`expect` 是「一點進度就期待」——那是角色指南
-  /// 寫死的人設（「很容易被使用者的小行動喚醒⋯⋯從想睡變期待」）。把過半也改成
-  /// `expect` 的話，跨過一半時姿勢完全沒變化，`halfDone` 的交棒訊號會整個消失
-  /// （`home_completion_test` 的「收尾要安靜交棒給較高層級的 baseline」正是守這個）。
-  ///
-  /// 所以過半維持 `smile`，直到有一張**睜眼版的「安心」立繪**為止。
-  /// 0 進度的 `sleep` 與全完成的 `happy` 閉眼是對的：那是今天的兩個結局，
-  /// 睡著與心滿意足本來就閉眼。
+  /// 在那之前，閒置與甦醒這兩個特殊狀態改由明確事件驅動，不再靠進度推導：
+  /// 閒置太久 → [MascotContext.dozeOff]（睡著＋Zzz），碰它 → [MascotContext.wakeUp]。
   String get _baselineMascotAsset {
     if (habits.isEmpty) return MascotEmotion.neutralFront.assetPath;
 
@@ -2831,6 +2853,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     bool force = false,
     bool holds = true,
   }) {
+    // 任何非打瞌睡的寫入都代表兔咪已經不在睡了（完成、撤銷、被叫醒⋯⋯）。
+    // 放在單一出口清，就不必在每個呼叫端記得。
+    if (ctx != MascotContext.dozeOff) _mascotDozing = false;
     final quiet = silent || silentBeatFor != null;
     // 「中間拍不覆寫別人」的把關**不在這裡**：只看 origin 擋不掉更新的
     // Home 寫入（撤銷也是 Home）。改由呼叫端拿弧線收據做嚴格

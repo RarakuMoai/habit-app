@@ -230,4 +230,39 @@ void main() {
       );
     });
   });
+
+  // 閒置太久 → 兔咪睡著（Zzz）；碰它 → 揉眼剛醒 → 交棒回待機。
+  // 兩個都是背景狀態不是事件：不出文字、不出聲、優先度最低。
+  group('打瞌睡與甦醒', () {
+    test('打瞌睡＝睡姿＋Zzz；剛醒＝wake、不冒符號', () {
+      expect(
+        MascotLines.emotionFor(MascotContext.dozeOff),
+        MascotEmotion.sleep,
+      );
+      expect(
+        EmotionBubble.forContext(MascotContext.dozeOff),
+        EmotionBubble.zzz,
+      );
+      expect(MascotLines.emotionFor(MascotContext.wakeUp), MascotEmotion.wake);
+      expect(
+        EmotionBubble.forContext(MascotContext.wakeUp),
+        isNull,
+        reason: 'Zzz 已經在打瞌睡那一段講完了，醒來要安靜',
+      );
+    });
+
+    test('兩者都不出文字', () {
+      for (final ctx in [MascotContext.dozeOff, MascotContext.wakeUp]) {
+        expect(MascotLines.speaksFor(ctx), isFalse, reason: ctx.name);
+        expect(MascotLines.linesFor(ctx), isNotEmpty, reason: '池子仍要備著');
+      }
+    });
+
+    test('睡著的呼吸比剛醒的慢而深', () {
+      final asleep = MascotEmotion.sleep.idleBreath;
+      final woken = MascotEmotion.wake.idleBreath;
+      expect(asleep.halfCycle, greaterThan(woken.halfCycle));
+      expect(asleep.depth, greaterThan(woken.depth));
+    });
+  });
 }

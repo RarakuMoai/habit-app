@@ -280,6 +280,10 @@ enum MascotContext {
   diceMascotWin,
   diceMascotLoss,
   diceTie,
+  // 太久沒動靜：兔咪等著等著打瞌睡（Zzz 泡泡，不出聲也不出文字）
+  dozeOff,
+  // 從打瞌睡被喚醒：揉眼剛醒，隨即回到會眨眼的中性待機
+  wakeUp,
   // 還沒有任何習慣時（空狀態）
   emptyHabits,
   // 喝水高量提醒（目前 >=4L/day）：兔咪驚訝 + 溫和提示，
@@ -326,6 +330,8 @@ enum EmotionBubble {
         return EmotionBubble.sweat;
       case MascotContext.notStarted:
       case MascotContext.night:
+      // 閒置打瞌睡：Zzz 就是這一段的全部語言，不出文字也不出聲
+      case MascotContext.dozeOff:
         return EmotionBubble.zzz;
       // 喝水過量用歪頭疑問「溫柔提醒」，泡泡就不能是警示用的驚嘆號，
       // 否則表情與符號反著走
@@ -341,6 +347,8 @@ enum EmotionBubble {
       case MascotContext.focusStarted:
       case MascotContext.openApp:
       case MascotContext.emptyHabits:
+      // 剛醒不冒符號：Zzz 已經在打瞌睡那一段講完了，醒來要安靜地回到日常
+      case MascotContext.wakeUp:
         return null;
     }
   }
@@ -358,6 +366,9 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
   MascotContext.undone: MascotEmotion.sad,
   MascotContext.night: MascotEmotion.night,
   MascotContext.tapReaction: MascotEmotion.neutralFront,
+  // 閒置打瞌睡／被喚醒：兩張本來就存在的立繪，這裡只是給它們正式的觸發點
+  MascotContext.dozeOff: MascotEmotion.sleep,
+  MascotContext.wakeUp: MascotEmotion.wake,
   MascotContext.headPet: MascotEmotion.smile,
   // 充電爆發：雙手高舉雀躍，正好接住「蓄力→放開」的演出弧線
   MascotContext.energize: MascotEmotion.popHappy,
@@ -385,6 +396,10 @@ const Map<MascotContext, MascotEmotion> _defaultEmotion = {
 const Map<MascotContext, List<String>> _lines = {
   // ── 打開 app / 一般招呼 ──
   MascotContext.openApp: ['嗯...你來了。', '啊，是你。', '剛剛在打瞌睡。', '醒了醒了。'],
+  // 打瞌睡與剛醒都不出文字（speaksFor 回 false），Zzz 泡泡就是全部的語言。
+  // 池子仍然要備著：之後若決定讓它們開口，內容已經照人設寫好。
+  MascotContext.dozeOff: ['有點睏了。', '瞇一下下。', '眼皮有點重。'],
+  MascotContext.wakeUp: ['嗯，我醒著。', '啊，你回來了。', '剛剛瞇了一下。'],
 
   // ── 專注計時開始／重新進入專注 ──
   MascotContext.focusStarted: ['好，先專心一下。', '時間開始了，慢慢來。', '先做這一小段就好。'],
@@ -560,6 +575,9 @@ class MascotLines {
       case MascotContext.tapReaction:
       case MascotContext.headPet:
       case MascotContext.energize:
+      // 閒置與甦醒是環境狀態不是事件，冒 Zzz 泡泡就夠，出文字會變吵
+      case MascotContext.dozeOff:
+      case MascotContext.wakeUp:
       case MascotContext.diceMascotWin:
       case MascotContext.diceMascotLoss:
       case MascotContext.diceTie:
@@ -1048,9 +1066,11 @@ class MascotPersona {
       case MascotContext.emptyHabits:
       case MascotContext.overhydration:
         return SfxCue.tumiQuestion;
-      // 睡著中不出聲
+      // 睡著中不出聲；打瞌睡與剛醒同理，那是背景狀態不是事件
       case MascotContext.notStarted:
       case MascotContext.night:
+      case MascotContext.dozeOff:
+      case MascotContext.wakeUp:
         return null;
     }
   }
@@ -1082,6 +1102,9 @@ class MascotPersona {
       case MascotContext.diceMascotLoss:
       case MascotContext.diceTie:
         return 6;
+      // 閒置與甦醒是背景狀態，任何真正的事件都該蓋過它們
+      case MascotContext.dozeOff:
+      case MascotContext.wakeUp:
       case MascotContext.tapReaction:
       case MascotContext.openApp:
       case MascotContext.focusStarted:
