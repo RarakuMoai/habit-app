@@ -18,6 +18,7 @@ import 'pages/timer_page.dart';
 import 'pages/wardrobe_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
+import 'utils/app_feedback.dart';
 import 'utils/app_restart.dart';
 import 'utils/app_style.dart';
 import 'utils/audio_asset_cache.dart';
@@ -1390,6 +1391,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     // 匿名統計：只記真的切過去（重按同分頁不算開啟）。
     if (index != _currentIndex) {
       unawaited(UsageStats.bump(UsageEvents.tab(tabs[index].id)));
+      // 分頁切換是全 app 最高頻的操作，過去完全沒有回饋——按下去只有畫面
+      // 瞬間換掉，手上沒有任何確認。給一次 selection 觸覺補上那個確認。
+      //
+      // **刻意不出聲**：一天要按幾十次的東西加音效會很快變成噪音，
+      // 「事件愈常發生愈要留白」（見 tumi_dialogue_catalog 執行規則 7）。
+      // 重按同一個分頁也不發，那不是一次切換。
+      playHaptic(HapticLevel.selection);
     }
     setState(() => _currentIndex = index);
   }

@@ -1,0 +1,108 @@
+// 導覽與確認的回饋語言。
+//
+// 守的是「什麼該出聲、什麼只該震、什麼要安靜」這條規則，不是某個 cue 的音量：
+// 高頻導覽只給觸覺（一天按幾十次，出聲會變噪音）、app 主動擋在前面的確認框
+// 開啟時提醒一次、取消走統一的收回語彙、確認刻意不發（讓真正發生的那件事出聲，
+// 避免同一個動作連響兩聲）。
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_app/utils/app_feedback.dart';
+import 'package:habit_app/utils/sfx_service.dart';
+import 'package:habit_app/widgets/app_dialogs.dart';
+
+import 'l10n_test_app.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late List<(SfxCue?, HapticLevel)> events;
+
+  setUp(() {
+    events = [];
+    debugFeedbackSink = (cue, haptic) => events.add((cue, haptic));
+  });
+  tearDown(() => debugFeedbackSink = null);
+
+  group('確認框', () {
+    Future<void> openConfirm(
+      WidgetTester tester, {
+      required void Function(bool) onResult,
+    }) async {
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () async {
+                    final ok = await showAppConfirmDialog(
+                      context,
+                      title: '刪除',
+                      message: '確定要刪除嗎？',
+                    );
+                    onResult(ok);
+                  },
+                  child: const Text('開啟'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('開啟'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('開啟時只給一次 selection 觸覺，不出聲', (tester) async {
+      await openConfirm(tester, onResult: (_) {});
+      expect(events, [(null, HapticLevel.selection)]);
+    });
+
+    testWidgets('取消走 cancel 的收回語彙', (tester) async {
+      bool? result;
+      await openConfirm(tester, onResult: (r) => result = r);
+      events.clear();
+
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      expect(result, isFalse);
+      expect(events, [(SfxCue.cancel, HapticLevel.selection)]);
+    });
+
+    testWidgets('確認刻意不發：讓真正發生的那件事自己出聲', (tester) async {
+      bool? result;
+      await openConfirm(tester, onResult: (r) => result = r);
+      events.clear();
+
+      await tester.tap(find.text('確定'));
+      await tester.pumpAndSettle();
+
+      expect(result, isTrue);
+      expect(
+        events,
+        isEmpty,
+        reason: '在這裡先響一次，會讓同一個動作連響兩聲',
+      );
+    });
+  });
+
+  group('回饋語言的分工', () {
+    test('高頻導覽用 selection：它是觸覺裡最輕的一級', () {
+      // 分頁切換用的就是這一級。比 light／medium 輕，一天按幾十次才不會累。
+      expect(
+        HapticLevel.values.indexOf(HapticLevel.selection),
+        lessThan(HapticLevel.values.indexOf(HapticLevel.light)),
+      );
+      expect(
+        HapticLevel.values.indexOf(HapticLevel.light),
+        lessThan(HapticLevel.values.indexOf(HapticLevel.medium)),
+      );
+    });
+
+    test('playHaptic 不帶任何音效', () {
+      playHaptic(HapticLevel.selection);
+      expect(events, [(null, HapticLevel.selection)]);
+    });
+  });
+}
