@@ -230,7 +230,7 @@ Future<void> showAddDeductionSheet(
                     onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(4),
+                      LengthLimitingTextInputFormatter(kFamilyPointsMaxDigits),
                     ],
                     decoration: InputDecoration(
                       labelText: l10n.dsCustomPoints,
@@ -391,7 +391,7 @@ Future<void> showEditDeductionSheet(
                 textInputAction: TextInputAction.done,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
+                  LengthLimitingTextInputFormatter(kFamilyPointsMaxDigits),
                 ],
                 onChanged: (_) => setS(() {}),
                 onSubmitted: (_) => dismissFamilyNumberKeyboard(),

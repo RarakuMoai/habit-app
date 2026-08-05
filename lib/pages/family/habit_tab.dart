@@ -275,7 +275,9 @@ class _HabitTabState extends State<HabitTab> {
           final cups = _activeRepeatableCompletionsToday(habit);
           final completions = _repeatableCompletionsToday(habit);
           final reversals = _reversalsByCompletionId;
-          final progress = goal <= 0 ? 0.0 : (cups.length / goal).clamp(0.0, 1.0);
+          final progress = goal <= 0
+              ? 0.0
+              : (cups.length / goal).clamp(0.0, 1.0);
           final reached = cups.length >= goal;
 
           Future<void> setGoal(int next) async {
@@ -961,7 +963,9 @@ class _HabitTabState extends State<HabitTab> {
                       onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(4),
+                        LengthLimitingTextInputFormatter(
+                          kFamilyPointsMaxDigits,
+                        ),
                       ],
                       decoration: InputDecoration(
                         labelText: isAdd
@@ -1241,6 +1245,7 @@ class _HabitItem extends StatefulWidget {
   final VoidCallback onCheckIn;
   final VoidCallback? onUndo;
   final VoidCallback? onShowHistory;
+
   /// 有值時，可多次習慣的主按鈕改成「喝水去」並打開喝水面板
   /// （目前只有「今日多喝水」會帶）。
   final VoidCallback? onOpenWater;

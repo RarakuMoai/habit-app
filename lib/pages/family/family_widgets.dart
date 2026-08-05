@@ -13,6 +13,14 @@ const familyNumberKeyboardDoneButtonKey = ValueKey<String>(
   'family-number-keyboard-done',
 );
 
+/// 家庭模式所有「分數」欄位共用的位數上限（8 位＝最多 99,999,999）。
+///
+/// 分數是一整套互通的貨幣：習慣賺的、特殊加分、扣分與獎勵兌換價要能互相對得上。
+/// 只放寬其中一邊會變成「獎勵標得起高價，但怎麼賺都到不了」，所以這個數字一律
+/// 共用，新增分數欄位時直接引用，不要再各自寫字面值。
+/// **不含分鐘欄位**（`showDurationDialog`）——那是時間不是分數，維持 4 位。
+const int kFamilyPointsMaxDigits = 8;
+
 void dismissFamilyNumberKeyboard() {
   FocusManager.instance.primaryFocus?.unfocus();
 }

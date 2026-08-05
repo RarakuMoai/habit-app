@@ -250,7 +250,9 @@ Future<Map<String, RewardPresetCfg>?> showRewardPresetSheet(
                                           inputFormatters: [
                                             FilteringTextInputFormatter
                                                 .digitsOnly,
-                                            LengthLimitingTextInputFormatter(4),
+                                            LengthLimitingTextInputFormatter(
+                                              kFamilyPointsMaxDigits,
+                                            ),
                                           ],
                                           decoration: InputDecoration(
                                             labelText: l10n.rsPointsCost,

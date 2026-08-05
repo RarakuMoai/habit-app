@@ -298,7 +298,9 @@ Future<void> showAddHabitSheet(
                           onSubmitted: (_) => dismissFamilyNumberKeyboard(),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(4),
+                            LengthLimitingTextInputFormatter(
+                              kFamilyPointsMaxDigits,
+                            ),
                           ],
                           decoration: InputDecoration(
                             hintText: l10n.hsPointsHint,
@@ -690,7 +692,7 @@ Future<void> showEditHabitSheet(
                   textInputAction: TextInputAction.done,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(4),
+                    LengthLimitingTextInputFormatter(kFamilyPointsMaxDigits),
                   ],
                   onChanged: (_) => setS(() {}),
                   onSubmitted: (_) => dismissFamilyNumberKeyboard(),

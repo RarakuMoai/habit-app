@@ -138,7 +138,9 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
                                         dismissFamilyNumberKeyboard(),
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
-                                      LengthLimitingTextInputFormatter(4),
+                                      LengthLimitingTextInputFormatter(
+                                        kFamilyPointsMaxDigits,
+                                      ),
                                     ],
                                     decoration: InputDecoration(
                                       labelText: dialogLabel,

@@ -355,7 +355,9 @@ Future<Map<String, HabitPresetCfg>?> showHabitPresetSheet(
                                           inputFormatters: [
                                             FilteringTextInputFormatter
                                                 .digitsOnly,
-                                            LengthLimitingTextInputFormatter(4),
+                                            LengthLimitingTextInputFormatter(
+                                              kFamilyPointsMaxDigits,
+                                            ),
                                           ],
                                           decoration: InputDecoration(
                                             labelText: l10n.ppsPointsOnDone,

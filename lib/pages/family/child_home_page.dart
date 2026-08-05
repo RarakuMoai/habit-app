@@ -57,9 +57,7 @@ class ChildHomePage extends StatelessWidget {
               // 轉場但**不走 theme 的 pageTransitionsTheme**，等於默默拿掉 iOS
               // 的邊緣滑回手勢。小朋友模式更需要滑得回去，改回平台路由。
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SettingsPage(),
-                ),
+                MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
               ),
             ),
           ),
