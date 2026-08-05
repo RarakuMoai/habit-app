@@ -9,7 +9,10 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> pushWith(WidgetTester tester, Route<void> Function() route) async {
+  Future<void> pushWith(
+    WidgetTester tester,
+    Route<void> Function() route,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         // 用 ThemeData.platform 指定 iOS，而不是動 debugDefaultTargetPlatform
@@ -66,10 +69,6 @@ void main() {
     await tester.dragFrom(const Offset(2, 300), const Offset(500, 0));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('inner'),
-      findsOneWidget,
-      reason: '對照組：自訂轉場沒有滑回手勢，頁面留在原地',
-    );
+    expect(find.text('inner'), findsOneWidget, reason: '對照組：自訂轉場沒有滑回手勢，頁面留在原地');
   });
 }

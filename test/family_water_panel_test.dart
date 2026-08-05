@@ -13,7 +13,10 @@ import 'l10n_test_app.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<ChildData> pumpTab(WidgetTester tester, {required String habitName}) async {
+  Future<ChildData> pumpTab(
+    WidgetTester tester, {
+    required String habitName,
+  }) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -33,7 +36,9 @@ void main() {
     });
     await tester.pumpWidget(
       l10nTestApp(
-        home: Scaffold(body: HabitTab(child: child, onPointsChanged: () {})),
+        home: Scaffold(
+          body: HabitTab(child: child, onPointsChanged: () {}),
+        ),
       ),
     );
     await tester.pumpAndSettle();

@@ -32,7 +32,9 @@ void main() {
 
   Future<void> pumpTab(WidgetTester tester, List<PointRecord> records) async {
     SharedPreferences.setMockInitialValues({
-      PrefsKeys.pointRecords: jsonEncode(records.map((r) => r.toJson()).toList()),
+      PrefsKeys.pointRecords: jsonEncode(
+        records.map((r) => r.toJson()).toList(),
+      ),
     });
     await tester.pumpWidget(
       l10nTestApp(

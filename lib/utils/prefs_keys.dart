@@ -193,8 +193,7 @@ abstract final class PrefsKeys {
   /// 小孩喝水面板的每日目標杯數（每個小孩各自一份，年齡不同喝的量不同）。
   /// 杯數本身不另外存——那是「今日多喝水」習慣今天的完成紀錄筆數，跟
   /// 「記一次」共用同一套 PointRecord，所以撤銷與時間紀錄都免費繼承。
-  static String familyWaterGoal(String childId) =>
-      'family_water_goal_$childId';
+  static String familyWaterGoal(String childId) => 'family_water_goal_$childId';
   static const pinDigits = 'pin_digits';
   static const parentPinHash = 'parent_pin_hash';
   static const parentPinQuestion = 'parent_pin_question'; // 忘記密碼救援問題（明文）

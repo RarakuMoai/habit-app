@@ -128,12 +128,7 @@ void main() {
   testWidgets('八位數分數在 SE 寬度的小孩卡不破版', (tester) async {
     SharedPreferences.setMockInitialValues({
       PrefsKeys.children: jsonEncode([
-        {
-          'id': 'child-1',
-          'name': '小兔',
-          'avatar': '🐰',
-          'points': bigPoints,
-        },
+        {'id': 'child-1', 'name': '小兔', 'avatar': '🐰', 'points': bigPoints},
       ]),
     });
     tester.view.physicalSize = const Size(375, 667);

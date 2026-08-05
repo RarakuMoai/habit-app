@@ -92,11 +92,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(
-      MascotPersona.current.value.speech,
-      greeting,
-      reason: '沒有換房間，就不該收掉',
-    );
+    expect(MascotPersona.current.value.speech, greeting, reason: '沒有換房間，就不該收掉');
 
     await drainMain(tester);
   });

@@ -357,7 +357,9 @@ class _PauseOverlay extends StatelessWidget {
                               width: 92,
                               height: 92,
                               fit: BoxFit.contain,
-                              semanticLabel: l10n.stgMascotRestSemantics(MascotName.value),
+                              semanticLabel: l10n.stgMascotRestSemantics(
+                                MascotName.value,
+                              ),
                             ),
                             Positioned(
                               right: 2,

@@ -90,11 +90,9 @@ void main() {
       await tester.tap(find.text('開啟'));
       await tester.pumpAndSettle();
 
-      expect(
-        events,
-        [(SfxCue.tap, HapticLevel.light)],
-        reason: '只留按鈕自己那一次，observer 不再疊上去',
-      );
+      expect(events, [
+        (SfxCue.tap, HapticLevel.light),
+      ], reason: '只留按鈕自己那一次，observer 不再疊上去');
     });
 
     testWidgets('引擎逐拍的觸覺不會吃掉面板的浮出觸覺', (tester) async {
@@ -106,11 +104,9 @@ void main() {
 
       await openConfirm(tester, onResult: (_) {});
 
-      expect(
-        events,
-        [(null, HapticLevel.selection)],
-        reason: '引擎發的那一下不算「使用者剛按過按鈕」，observer 照樣要發',
-      );
+      expect(events, [
+        (null, HapticLevel.selection),
+      ], reason: '引擎發的那一下不算「使用者剛按過按鈕」，observer 照樣要發');
     });
 
     testWidgets('取消走 cancel 的收回語彙', (tester) async {
@@ -134,11 +130,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(result, isTrue);
-      expect(
-        events,
-        isEmpty,
-        reason: '在這裡先響一次，會讓同一個動作連響兩聲',
-      );
+      expect(events, isEmpty, reason: '在這裡先響一次，會讓同一個動作連響兩聲');
     });
   });
 

@@ -82,7 +82,11 @@ bool _feedbackWithin(Duration window) {
 //
 // [fromUserAction] = false 用在**不是回應使用者操作**的回饋（引擎逐拍、逐幀）。
 // 那種不該被當成「剛剛有人按了按鈕」，理由見 [_lastFeedbackAt]。
-void playFeedback(SfxCue cue, {HapticLevel? haptic, bool fromUserAction = true}) {
+void playFeedback(
+  SfxCue cue, {
+  HapticLevel? haptic,
+  bool fromUserAction = true,
+}) {
   final level = haptic ?? _defaultHaptic(cue);
   if (fromUserAction) _lastFeedbackAt = DateTime.now();
   final sink = debugFeedbackSink;

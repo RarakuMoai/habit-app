@@ -89,7 +89,9 @@ class TableSummaryOverlay extends StatelessWidget {
                               width: 104,
                               height: 104,
                               fit: BoxFit.contain,
-                              semanticLabel: l10n.sumHappyMascotSemantics(MascotName.value),
+                              semanticLabel: l10n.sumHappyMascotSemantics(
+                                MascotName.value,
+                              ),
                             ),
                             const Positioned(
                               right: 74,
