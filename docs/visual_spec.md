@@ -75,6 +75,43 @@
 角色為什麼要這樣反應見 [`tumi_character_guide.md`](tumi_character_guide.md)
 的「演出節奏」。
 
+### 啟動接縫（2026-08-05 U1 定案）
+
+原生啟動畫面（iOS `LaunchScreen.storyboard`）在 Flutter 引擎起來之前就顯示，
+**它是使用者看到的第一幀**。專案原本用 Flutter 樣板附的 1×1 空白圖，所以那段
+時間畫面上什麼都沒有——app 的第一印象是一片白。
+
+- **兩層共用的元素必須在同一個位置。** 原生層的圖由
+  [`scripts/gen_launch_image.py`](../scripts/gen_launch_image.py) 從
+  `_StartupSplash` 的規格產生，不是手繪也不是一次性產物；改 `_StartupSplash`
+  的版面時重跑它。驗收方式是實拍兩層各一幀、量同一個元素的中心差。
+- ⚠️ **「0px」是校準機型（14 Pro Max）的數字，不是全機型成立。**
+  原生層是一張整頁圖走 `scaleAspectFill`，元素尺寸**跟著螢幕縮放**；
+  Flutter 層的圓固定 138pt。所以螢幕愈偏離基準比例，兩層的圓就差愈多：
+
+  | 機型 | 原生圓徑 | 徑差 | 圓心差 |
+  |---|--:|--:|--:|
+  | 14 Pro Max（基準） | 138.0 | 0% | 0.0pt |
+  | iPhone 15／16 | 126.2 | −8.6% | 2.4pt |
+  | iPhone SE 3 | 120.3 | −12.8% | 6.1pt |
+  | iPad 10.9" | 263.2 | +90.7% | −15.2pt |
+
+  兔咪任何機型都沒有被切到，而且相對於改版前（整片白）每個機型都變好了，
+  所以這是「贏得不完整」不是回歸。但 iPad 上原生兔咪接近 Flutter 的兩倍大，
+  **跟下一條規則在非基準機型上互相牴觸**。要真正修好的方向是原生層改用
+  不隨螢幕縮放的元素（storyboard 放固定尺寸的置中 imageView 疊在漸層 view 上，
+  而不是整頁圖 aspectFill）——那是另一個 milestone 的量體。
+- 同軸的小事：`_StartupSplash` 在 `MaterialApp.builder` 的 textScaler clamp
+  （1.0–1.3）底下，系統字放到最大時 Column 變高，Flutter 那顆圓再往上跑約 5pt。
+- **只在 Flutter 層出現的東西要是「加法」，不能是「變化」。** 標題與進度條在
+  接手時長出來，讀成「醒過來」；但同一個元素在兩層長得不一樣（例如字型 fallback
+  造成的跳字）就會讀成故障。中文標題因此**刻意不進原生層**——Nunito 沒有中日韓
+  字，runtime 走系統 fallback，離線工具湊不出一樣的字。
+- storyboard 的 imageView 要 `scaleAspectFill` 並釘住四邊。`contentMode="center"`
+  搭配 1×1 的圖等於整個原生層什麼都沒有——那正是原本的狀況。
+- ⚠️ **空白期長度只能用 profile／release 量**：iOS 不支援模擬器 profile，
+  模擬器只證明接縫存在與否，不證明時間。
+
 ## 間距 / 留白
 
 - 全部走 **4pt 網格**：卡距 12、區段間隔 20、清單邊距 16。
