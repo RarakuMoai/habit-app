@@ -1390,6 +1390,16 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     // 匿名統計：只記真的切過去（重按同分頁不算開啟）。
     if (index != _currentIndex) {
       unawaited(UsageStats.bump(UsageEvents.tab(tabs[index].id)));
+      // 切分頁時收掉冷啟動問候。它刻意沒有期限（會停到下一次互動，見
+      // [MascotPersona.resetToOpening]），但「換一個房間」不該讓兔咪把同一句話
+      // 再說一次——實拍在首頁與衣櫃頁同時掛著同一句「啊，是你。」跟著走。
+      //
+      // **只收 opening 來源的。** 事件台詞（打卡、撤銷⋯⋯）有自己的租約與期限，
+      // 跨頁行為由 One-Habit Hero 那套擁有權機制管，不歸這裡。
+      // 走 compare-and-clear：中間若有人換過台詞就整段 no-op，不會誤收別人的。
+      if (MascotPersona.speechOrigin == MascotStateOrigin.opening) {
+        MascotPersona.clearSpeechIfLease(MascotPersona.speechLease);
+      }
     }
     setState(() => _currentIndex = index);
   }
