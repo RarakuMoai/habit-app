@@ -246,7 +246,12 @@ debug 時序不足以代表 release。留給有實機驗證條件時再做。
 實作的是**接縫**不是載入畫面——那一頁本身是好的。原生啟動圖改由
 `scripts/gen_launch_image.py` 從 `_StartupSplash` 的規格產生，storyboard 從
 `contentMode="center"`（配 1×1 空白圖等於沒有）改成 aspect fill 釘四邊。
-實測接縫位移 **0px**（原生與 Flutter 兩層的兔咪圓心都在 y=1313px）。
+
+接縫位移 **0px，但那是 14 Pro Max 的數字**（獨立審查 H-2 指出原本沒標注）。
+原生層是整頁圖走 aspectFill、元素跟著螢幕縮放，Flutter 層固定 138pt，所以
+iPhone 15/16 徑差 −8.6%、SE −12.8%、iPad +90.7%。兔咪任何機型都沒被切到，
+相對於改版前的整片白每個機型都變好，所以是「贏得不完整」不是回歸。
+機型表與真正的修法方向記在 `visual_spec.md` §啟動接縫。
 
 ⬜ **待實機**：空白期的實際長度。iOS 不支援模擬器 profile／release，
 模擬器只證明接縫存在與否、不證明時間。
@@ -262,6 +267,31 @@ debug 時序不足以代表 release。留給有實機驗證條件時再做。
   這次沒拍到它們出現，但一旦出現會是全 app 唯一的 Material 藍。
 - ⚠️ **debug 的空白期不代表 release**：AOT 啟動快得多，實際長度必須用
   profile／release 量，不能拿 debug 的秒數當結論。
+
+## 獨立技術 gate（2026-08-05）
+
+由一個乾淨的 Opus 5 對話冷讀三條分支（prompt 明講「作者與總控是同一個模型、
+之前沒有任何獨立審查」，要求優先相信自己跑出來的證據）。
+
+**三條全部 APPROVE，沒有任何 BLOCK。** reviewer 自己跑：analyze 全乾淨、
+tab-weight 802/802、greeting-life 797/797、first-glance 794/794；
+`polish/idle-life` 依指示未審，污染檢查通過。
+
+六項 hardening，其中**四項是在指出作者講的話與事實不符**。已處理五項：
+
+| 項 | 內容 | 處理 |
+|---|---|---|
+| H-1 | 節拍器逐拍觸覺會吃掉面板浮出觸覺（BPM ≥273 必然） | ✅ `48f3f90` 加 `fromUserAction`，含守門測試 |
+| H-2 | 「接縫 0px」沒標注是校準機型 | ✅ `ed67e9e` + 本文件 |
+| H-3 | observer 覆蓋率依賴「沒有巢狀 Navigator」的隱含前提 | ✅ `48f3f90` 寫進 doc comment |
+| H-4 | `clearSpeechIfLease` 的 lease 比對恆真，註解宣稱的保護不存在 | ✅ `6fdbaca` 註解改成事實 |
+| H-5 | `bottomSheetTheme` 同時改了 18 個面板的底色；一張浮動卡被誤歸類 | ✅ `48f3f90` 卡片改回 18；底色範圍寫進 visual_spec。**⬜ 家庭頁那批面板待使用者眼睛過一次** |
+| H-6 | U2 仍缺可見證據 | ⬜ 照 reviewer 給的條件在模擬器試三次未重現，停止追。技術面 reviewer 已用四個反例補強 |
+
+**合併順序（reviewer 在 clone 實際模擬過三種順序）：**
+`first-glance` → `tab-weight` → `greeting-life`。前者與另兩條零重疊；後兩條
+必然在 `main.dart` `_onTabTapped` 同一個 hunk 衝突，解法是兩塊都留。
+合併後 main 應為 794 + 9 + 3 = 806 項，數字不對就代表合併弄丟了東西。
 
 ## 下一個大型 milestone 的候選池
 
