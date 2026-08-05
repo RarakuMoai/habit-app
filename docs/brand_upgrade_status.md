@@ -17,7 +17,7 @@
 | 技術驗收 | 獨立 Opus 5 冷讀三條全部 APPROVE；合併後 `flutter analyze` 0 issues、`flutter test` **806/806**（＝ 794 + 9 + 3，與審查者預測一致，合併沒弄丟東西） |
 | Creative 驗收 | One-Habit Hero、U1 皆為使用者裁決 **KEEP** |
 | Production blocker | 0 |
-| 當前階段 | **沒有進行中的分支。** 待選下一個大型 milestone |
+| 當前階段 | UI 軌道 **U3「等待的樣子」**（`polish/quiet-wait`）。Reviewer 已指定：收尾時由使用者手動觸發 `/code-review ultra` |
 | 未結的尾巴 | H-5 家庭頁面板底色待使用者眼睛過一次；U1 空白期長度待實機；觸覺強度待實機；BGM ducking 未做 |
 
 Hash 與測試數是 2026-08-05 的核對結果；未來 main 前進時應更新，不得把舊 hash
@@ -275,7 +275,11 @@ iPhone 15/16 徑差 −8.6%、SE −12.8%、iPad +90.7%。兔咪任何機型都�
   （暖色漸層＋兔咪＋標題＋進度條）。**品牌載入畫面本身沒問題，問題是它前面那段
   什麼都沒有的空白。** 修的是接縫，不是重做載入畫面。
 - `main.dart` 與 `home_page.dart` 各有一個裸 `CircularProgressIndicator` fallback。
-  這次沒拍到它們出現，但一旦出現會是全 app 唯一的 Material 藍。
+  這次沒拍到它們出現。~~一旦出現會是全 app 唯一的 Material 藍。~~
+  **2026-08-05 修正：這句話是錯的。** `ThemeData` 沒有 `progressIndicatorTheme`，
+  那些 spinner 走 `colorScheme.primary`，而 seed `#FF7043` 派生出來的 primary 是
+  `#8F4C37` 磚紅棕，不是藍。真正的問題不是色相跑掉，是那個顏色在
+  `visual_spec.md` 裡根本不存在。詳見下方 U3。
 - ⚠️ **debug 的空白期不代表 release**：AOT 啟動快得多，實際長度必須用
   profile／release 量，不能拿 debug 的秒數當結論。
 
@@ -298,6 +302,33 @@ Branch `polish/greeting-life`（最終 `6fdbaca`，2 個 commit），merge `2d68
 `_onTabTapped` 在啟動時不會被呼叫（索引直接指派），所以那不是本改動造成的。
 審查者依同一條件在模擬器試三次同樣沒重現（H-6），技術面改以四個反例測試補強。
 **真實手感待實機。**
+
+### Milestone U3：等待的樣子（2026-08-05 開設）
+
+| 欄位 | 內容 |
+|---|---|
+| **情緒目標** | 進到每一個房間的那一下，等待要讀成「燈正在亮起來」，不是「系統在轉圈」。U1 修的是門口，U3 是同一件事往屋內延伸。 |
+| **範圍** | 全 app 的等待狀態視覺語言：把已核准的 `_StartupLoadingBar` 語彙收進 theme 層，讓各頁自動繼承。 |
+| **非目標** | **不加兔咪到等待畫面**（會踩到已暫停的 idle-life 與素材缺口）；不做骨架屏；不改任何載入的實際工作（那是效能題）；不動啟動畫面（U1 已定案）；不動空狀態（那是另一件事）。 |
+| **驗收證據** | 同尺寸同條件的前後對照。等待狀態是瞬間畫面，用 widget test 直接把各狀態算成 PNG 做 A/B，**不靠手動抓模擬器的瞬間**——U1 的教訓就是手挑時間點會抓錯錨點。 |
+| **退出方式** | 獨立 branch，只動 theme 與各頁的等待分支，可整條丟棄。 |
+
+#### 只讀審查結果（2026-08-05）
+
+| 類別 | 數量 | 現況 |
+|---|--:|---|
+| 整頁／整個分頁的開場等待 | 16 | 一律 `Center(child: CircularProgressIndicator())` |
+| 按鈕內的忙碌指示 | 1 | `habit_tab.dart` 的 14×14、`strokeWidth: 2` |
+| dev 專用 | 1 | `dev_test_page.dart`，不列入 |
+
+- `ThemeData` **沒有** `progressIndicatorTheme`，所以那 17 處走
+  `colorScheme.primary` = **`#8F4C37`**（seed `#FF7043` 派生的磚紅棕）。
+  它不刺眼，但它是一個在 `visual_spec.md` 裡完全不存在的顏色。
+  16 處裡只有 `profile_edit_page` 一處自己傳了 `color: _accent`。
+- **等待長什麼樣子這件事，這個 app 已經設計過了**：`_StartupLoadingBar`
+  ——圓角橫條、5px、暖橘 `#FF8A65`、白 78% 底——U1 剛驗收過。
+  **它只被用過一次，就在啟動畫面。** 所以 U3 不是發明等待畫面，
+  是把已核准的語彙從門口延伸到其餘房間。
 
 ## 獨立技術 gate（2026-08-05）
 
