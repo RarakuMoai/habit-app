@@ -385,7 +385,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       builder: (ctx) => DecoratedBox(
         decoration: const BoxDecoration(
           color: AppSurfaces.card,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           top: false,
@@ -471,7 +471,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       clipBehavior: Clip.antiAlias,
       builder: (ctx) => StatefulBuilder(
@@ -564,7 +564,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       clipBehavior: Clip.antiAlias,
       builder: (ctx) => StatefulBuilder(
@@ -1817,7 +1817,9 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: AppSurfaces.card,
-                borderRadius: BorderRadius.circular(24),
+                // 這是四角全圓、內縮 16 的浮動**卡片**，不是面板上緣——
+                // 圓角階梯上屬於卡片那一格（18），不是面板那一格（20）。
+                borderRadius: BorderRadius.circular(AppCardStyle.radius),
                 boxShadow: [
                   BoxShadow(
                     color: kGameAccent.withValues(alpha: 0.18),

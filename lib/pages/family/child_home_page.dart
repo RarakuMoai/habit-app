@@ -53,23 +53,12 @@ class ChildHomePage extends StatelessWidget {
             child: _GlassIconButton(
               icon: Icons.settings_outlined,
               tooltip: AppLocalizations.of(context).chSettings,
+              // 這裡原本是自訂 PageRouteBuilder + SlideTransition，看起來像系統
+              // 轉場但**不走 theme 的 pageTransitionsTheme**，等於默默拿掉 iOS
+              // 的邊緣滑回手勢。小朋友模式更需要滑得回去，改回平台路由。
               onPressed: () => Navigator.of(context).push(
-                PageRouteBuilder<void>(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      const SettingsPage(),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                        const begin = Offset(1.0, 0.0);
-                        const end = Offset.zero;
-                        final tween = Tween(
-                          begin: begin,
-                          end: end,
-                        ).chain(CurveTween(curve: Curves.easeInOut));
-                        return SlideTransition(
-                          position: animation.drive(tween),
-                          child: child,
-                        );
-                      },
+                MaterialPageRoute<void>(
+                  builder: (_) => const SettingsPage(),
                 ),
               ),
             ),

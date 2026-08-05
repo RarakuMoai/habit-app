@@ -7,11 +7,15 @@
 import 'package:flutter/material.dart';
 import 'package:habit_app/l10n/app_localizations.dart';
 
-Widget l10nTestApp({required Widget home}) {
+Widget l10nTestApp({
+  required Widget home,
+  List<NavigatorObserver> navigatorObservers = const [],
+}) {
   return MaterialApp(
     locale: const Locale('zh', 'TW'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
+    navigatorObservers: navigatorObservers,
     home: home,
   );
 }

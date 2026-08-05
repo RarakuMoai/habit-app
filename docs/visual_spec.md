@@ -27,6 +27,29 @@
 - `card`（ambient 16/0.10 + contact 4/0.08）：浮起卡用。
 - `flat`（5/0.06）：完成/退場卡用。
 
+## 圓角階梯
+
+浮出層愈大、圓角愈大。四格都在 theme 或 token 供應，**頁面不要自己寫**：
+
+| 層 | 圓角 | 來源 |
+|---|---|---|
+| 彈出選單 | 14 | `main.dart` `popupMenuTheme` |
+| 卡片 | 18 | `AppCardStyle.radius` |
+| 底部面板 | **20** | `AppCardStyle.sheetRadius` → `bottomSheetTheme` |
+| 對話框 | 22 | `main.dart` `dialogTheme` |
+
+底部面板這一格是 2026-08-04 才補上的：在那之前沒有 theme 預設，32 個
+`showModalBottomSheet` 裡 19 個各自手寫圓角、其餘吃 Material 預設，
+全 app 同時存在 28／24／20／16 四種。新增面板不寫 `shape` 就是對的。
+
+`bottomSheetTheme` **同時供應底色**（暖白 `#FFFDF9`，與 popup／dialog 同一套
+卡面語彙）。所以那 18 個原本吃 Material 預設的面板，底色一併從 seed 推出來的
+`#FFF1ED` 換成 `#FFFDF9`；另外 13 個自己傳 `backgroundColor` 的不受影響。
+
+**分格看的是元素類別不是位置。** 四角全圓、帶陰影的浮動卡走卡片那一格（18），
+即使它是從底部彈出來的（例：`table_setup_panel` 的鍵盤上方浮動卡）。
+面板那一格（20）只給「上緣兩角圓、貼齊畫面底部」的 modal sheet。
+
 ## 卡片（AppCardStyle）
 
 - 圓角 **18**。

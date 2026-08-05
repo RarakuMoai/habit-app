@@ -8,7 +8,9 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/sfx_service.dart';
 
 /// 對話框「取消」類動作鈕（次要視覺）。
 /// [label] 不傳時用通用「取消」；[onPressed] 預設 pop(null)；
@@ -30,6 +32,12 @@ Widget dialogCancelAction(
 /// 標準確認框：標題 + 訊息 + 取消/確認。回傳 true = 使用者按下確認。
 /// [confirmLabel]／[cancelLabel] 不傳時用通用「確定」／「取消」。
 /// [danger] = true 時確認鈕用暖磚紅（刪除、清空類）。
+/// 回饋語言：
+/// - **開啟**不在這裡發。所有蓋在內容上的東西統一由 [PopupFeedbackObserver]
+///   給一次 selection 觸覺，一個規則一個實作，新增面板不會漏掉。
+/// - **取消**走 [SfxCue.cancel]，全 app 統一的收回、退場語彙。
+/// - **確認刻意不發**：按下確認之後真正發生的那件事會自己出聲（刪除、清空、
+///   儲存各有各的回饋），在這裡先響一次會變成同一個動作連響兩聲。
 Future<bool> showAppConfirmDialog(
   BuildContext context, {
   required String title,
@@ -47,7 +55,10 @@ Future<bool> showAppConfirmDialog(
         dialogCancelAction(
           ctx,
           label: cancelLabel,
-          onPressed: () => Navigator.pop(ctx, false),
+          onPressed: () {
+            playFeedback(SfxCue.cancel);
+            Navigator.pop(ctx, false);
+          },
         ),
         TextButton(
           onPressed: () => Navigator.pop(ctx, true),

@@ -18,6 +18,7 @@ import 'pages/timer_page.dart';
 import 'pages/wardrobe_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
+import 'utils/app_feedback.dart';
 import 'utils/app_restart.dart';
 import 'utils/app_style.dart';
 import 'utils/audio_asset_cache.dart';
@@ -272,6 +273,9 @@ class _MyAppState extends State<MyApp> {
       // 掛上，拿不到 AppLocalizations。這是 i18n 遷移的第一個範例。
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
+      // 對話框／底部面板出現時的統一觸覺。掛在這裡而不是各個 showXxx 呼叫端，
+      // 新增面板就不會有人忘記加。詳見 PopupFeedbackObserver。
+      navigatorObservers: [PopupFeedbackObserver()],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -363,6 +367,22 @@ class _MyAppState extends State<MyApp> {
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(22),
+          ),
+        ),
+        // 底部面板過去是唯一沒有 theme 預設的浮出層：32 個
+        // showModalBottomSheet 裡 19 個各自手寫圓角，其餘 13 個吃 Material 的
+        // 預設，全 app 因此同時存在 28／24／20／16 四種圓角。
+        //
+        // 20 不是新發明的數字，是既有階梯上本來就該有的一格，也是 18 個呼叫端
+        // 已經在用的值：popup 14 → 卡片 18 → **面板 20** → 對話框 22。
+        // 定在這裡之後，新增面板不寫 shape 就是對的。
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: const Color(0xFFFFFDF9),
+          surfaceTintColor: Colors.transparent,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppCardStyle.sheetRadius),
+            ),
           ),
         ),
       ),
@@ -1390,6 +1410,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     // 匿名統計：只記真的切過去（重按同分頁不算開啟）。
     if (index != _currentIndex) {
       unawaited(UsageStats.bump(UsageEvents.tab(tabs[index].id)));
+      // 分頁切換是全 app 最高頻的操作，過去完全沒有回饋——按下去只有畫面
+      // 瞬間換掉，手上沒有任何確認。給一次 selection 觸覺補上那個確認。
+      //
+      // **刻意不出聲**：一天要按幾十次的東西加音效會很快變成噪音，
+      // 「事件愈常發生愈要留白」（見 tumi_dialogue_catalog 執行規則 7）。
+      // 重按同一個分頁也不發，那不是一次切換。
+      playHaptic(HapticLevel.selection);
     }
     setState(() => _currentIndex = index);
   }
