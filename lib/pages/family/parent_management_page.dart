@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
+import '../../widgets/app_waiting.dart';
 import '../settings_page.dart';
 import 'add_children_sheet.dart';
 import 'deduction_sheets.dart';
@@ -504,7 +505,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
           ],
         ),
         body: !_loaded
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppPageWaiting()
             : Column(
                 children: [
                   if (widget.noPinWarning && !_pinWarnDismissed)

@@ -28,6 +28,7 @@ import '../utils/story_store.dart';
 import '../utils/usage_stats.dart';
 import '../utils/weight_records.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/app_waiting.dart';
 import '../widgets/four_period_background.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
@@ -2633,7 +2634,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppPageWaiting());
     }
     final colors = _sceneColors;
     final sceneProgress = habits.isEmpty ? 0.0 : doneCount / habits.length;

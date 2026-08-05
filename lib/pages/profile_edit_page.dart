@@ -12,6 +12,7 @@ import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
+import '../widgets/app_waiting.dart';
 import '../widgets/birthday_picker.dart';
 
 class ProfileEditPage extends StatefulWidget {
@@ -827,7 +828,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         ),
       ),
       body: !_loaded
-          ? const Center(child: CircularProgressIndicator(color: _accent))
+          ? const AppPageWaiting()
           : Column(
               children: [
                 Expanded(

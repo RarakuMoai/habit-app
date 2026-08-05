@@ -62,6 +62,20 @@ abstract final class AppSurfaces {
   static const Color dragHandle = Color(0xFFDCCFC2);
 }
 
+/// 等待狀態的顏色（見 `docs/visual_spec.md` §等待）。
+///
+/// 這組值原本只活在啟動畫面的載入條裡。U3 把它升成 token：全 app 的等待
+/// 共用同一盞燈，使用者才讀得出「還是同一個地方，只是還沒亮完」。
+abstract final class AppWaiting {
+  /// 進度條本身：暖橘。**刻意不隨時段配色變動**——時段色說的是「現在幾點」，
+  /// 等待說的是「東西還沒好」，兩件事疊在同一個元素上就都讀不出來。
+  static const Color bar = Color(0xFFFF8A65);
+
+  /// 底軌：白 78%（＝ `Colors.white.withValues(alpha: 0.78)`）。
+  /// 半透明是刻意的，讓它在啟動的暖漸層與各頁的 `#F7F3EF` 上都只是淡一階。
+  static const Color track = Color(0xC7FFFFFF);
+}
+
 /// 卡片陰影：暖棕雙層。
 abstract final class AppShadows {
   static const Color _brown = Color(0xFF8D6E63);

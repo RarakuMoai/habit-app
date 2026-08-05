@@ -47,6 +47,10 @@
   "@commonSave": {
     "description": "表單儲存鈕（基本資料頁底部大按鈕、救援問題對話框等）。"
   },
+  "commonLoading": "載入中",
+  "@commonLoading": {
+    "description": "等待畫面的無障礙標籤，畫面上不顯示文字，只給螢幕閱讀器唸。翻譯時用目標語言最平常的「載入中」說法即可，不要加語氣或角色口吻——這裡不是兔咪在說話。"
+  },
   "commonSkip": "略過",
   "@commonSkip": {
     "description": "可跳過流程的次要鈕（例如首次設定密碼後引導設救援問題時）。"

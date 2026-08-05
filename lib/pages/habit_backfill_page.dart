@@ -21,6 +21,7 @@ import '../utils/prefs_keys.dart';
 import '../utils/water_entries.dart';
 import '../utils/water_habit_link.dart';
 import '../utils/weight_records.dart';
+import '../widgets/app_waiting.dart';
 
 bool _isWeightLinkedHabit(String? name) => isWeightHabitName(name);
 
@@ -252,7 +253,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppPageWaiting();
     }
     return Column(
       children: [

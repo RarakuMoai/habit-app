@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
+import '../../widgets/app_waiting.dart';
 import 'family_models.dart';
 import 'family_store.dart';
 
@@ -251,7 +252,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppPageWaiting();
     }
 
     final filtered = _filtered;

@@ -9,6 +9,7 @@ import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
+import '../../widgets/app_waiting.dart';
 import '../../widgets/habit_ui.dart';
 import '../../widgets/water_bottle.dart';
 import 'family_auth.dart';
@@ -1065,7 +1066,7 @@ class _HabitTabState extends State<HabitTab> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppPageWaiting();
     }
 
     final today = todayStr();

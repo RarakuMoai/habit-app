@@ -14,6 +14,7 @@ import '../utils/mascot.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../widgets/app_waiting.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -136,7 +137,7 @@ class _FamilyPageState extends State<FamilyPage> {
         },
       ),
       body: !_loaded
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppPageWaiting()
           : Stack(
               children: [
                 // 場景背景：延伸到 AppBar 後面，高度跟首頁同一套「寬度錨點」

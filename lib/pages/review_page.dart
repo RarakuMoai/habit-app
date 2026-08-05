@@ -21,6 +21,7 @@ import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/review_stats.dart';
 import '../utils/units.dart';
+import '../widgets/app_waiting.dart';
 import 'habit_backfill_page.dart';
 
 const Color _accent = Color(0xFFFF8A50);
@@ -214,7 +215,7 @@ class _ReviewPageState extends State<ReviewPage> {
           ),
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppPageWaiting()
             : Column(
                 children: [
                   _buildCoinWalletCard(),

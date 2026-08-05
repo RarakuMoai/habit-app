@@ -19,6 +19,7 @@ import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 import '../utils/weight_records.dart';
+import '../widgets/app_waiting.dart';
 import '../widgets/birthday_picker.dart';
 import '../widgets/habit_ui.dart';
 import '../widgets/hold_repeat_button.dart';
@@ -1322,7 +1323,7 @@ class _WeightPageState extends State<WeightPage> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppPageWaiting());
     }
 
     final today = _todayString();

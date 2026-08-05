@@ -12,6 +12,7 @@ import '../utils/app_style.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/app_waiting.dart';
 import 'family/parent_pin_recovery.dart';
 
 class DataDeletionPage extends StatefulWidget {
@@ -313,7 +314,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     if (!_loaded || !_authorized) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.dataDeletionTitle), centerTitle: true),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const AppPageWaiting(),
       );
     }
     return Scaffold(

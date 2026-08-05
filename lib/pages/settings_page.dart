@@ -15,6 +15,7 @@ import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/app_waiting.dart';
 import '../widgets/settings_ui.dart';
 import 'advanced_settings_page.dart';
 import 'dev_test_page.dart';
@@ -424,7 +425,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 24),
               ],
             )
-          : const Center(child: CircularProgressIndicator()),
+          : const AppPageWaiting(),
     );
   }
 }

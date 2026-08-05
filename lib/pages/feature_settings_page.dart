@@ -11,6 +11,7 @@ import '../utils/prefs_keys.dart';
 import '../utils/tab_catalog.dart';
 import '../utils/water_habit_link.dart';
 import '../utils/weight_records.dart';
+import '../widgets/app_waiting.dart';
 
 // 功能開關頁：集中管理各頁籤的顯示開關
 class FeatureSettingsPage extends StatefulWidget {
@@ -236,7 +237,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 ),
               ],
             )
-          : const Center(child: CircularProgressIndicator()),
+          : const AppPageWaiting(),
     );
   }
 }

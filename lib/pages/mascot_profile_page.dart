@@ -23,6 +23,7 @@ import '../utils/prefs_keys.dart';
 import '../utils/story_store.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
+import '../widgets/app_waiting.dart';
 import 'profile_edit_page.dart';
 import 'review_page.dart';
 
@@ -592,7 +593,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
               ],
             )
           else
-            const Center(child: CircularProgressIndicator()),
+            const AppPageWaiting(),
         ],
       ),
     );

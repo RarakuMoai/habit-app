@@ -43,6 +43,7 @@ import 'utils/usage_stats.dart';
 import 'utils/wardrobe_store.dart';
 import 'utils/water_habit_link.dart';
 import 'utils/weight_records.dart';
+import 'widgets/app_waiting.dart';
 import 'widgets/footprint_coin_reward_overlay.dart';
 
 void main() {
@@ -328,6 +329,14 @@ class _MyAppState extends State<MyApp> {
         ),
         // 分隔線統一暖沙色，設定頁等處的裸 Divider 不再是冷灰。
         dividerTheme: const DividerThemeData(color: AppSurfaces.divider),
+        // 等待的顏色也走 token。沒有這一格時，任何沒指定顏色的 indicator 都會
+        // 拿 seed 派生的 colorScheme.primary（#8F4C37 磚紅棕）——那個顏色在
+        // visual_spec 裡不存在，只是剛好從 seed 算出來的。
+        // 形狀由 AppLoadingBar 決定；這裡只保證漏網的 indicator 至少是暖橘。
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: AppWaiting.bar,
+          linearTrackColor: AppWaiting.track,
+        ),
         // SnackBar 統一暖棕底 + 米白字 + floating，取代預設黑灰浮條。
         snackBarTheme: SnackBarThemeData(
           backgroundColor: const Color(0xFF4E342E),
@@ -502,29 +511,13 @@ class _StartupSplashState extends State<_StartupSplash>
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const SizedBox(width: 96, child: _StartupLoadingBar()),
+                    const AppLoadingBar(),
                   ],
                 ),
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StartupLoadingBar extends StatelessWidget {
-  const _StartupLoadingBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(99),
-      child: LinearProgressIndicator(
-        minHeight: 5,
-        backgroundColor: Colors.white.withValues(alpha: 0.78),
-        color: const Color(0xFFFF8A65),
       ),
     );
   }
@@ -1438,7 +1431,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppPageWaiting());
     }
 
     final tabs = _tabs;

@@ -18,6 +18,7 @@ import '../utils/story_store.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/app_waiting.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -396,7 +397,7 @@ class _WardrobePageState extends State<WardrobePage>
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppPageWaiting());
     }
     return Scaffold(
       extendBodyBehindAppBar: true,
