@@ -3,7 +3,7 @@
 > 這是會持續更新的執行狀態，不是長期產品聖經。品牌升級的固定規則看
 > [`brand_upgrade_operating_system.md`](brand_upgrade_operating_system.md)。
 >
-> 最後核對：2026-08-04，repository `main`。
+> 最後核對：2026-08-05，repository `main`。
 
 ## 現行總控狀態
 
@@ -11,18 +11,16 @@
 |---|---|
 | Repository | `/Users/yayoi991331/habit-app` |
 | Remote | `https://github.com/RarakuMoai/habit-app.git` |
-| main／origin/main | `8081a33bba1fd1515b54fc3fb6f04f2513d642d5` |
+| main／origin/main | `2d689acc9a93835c7d52f187d3a2a1af758078a3` |
 | 品牌升級前的可追溯程式基準 | `4994742196e9acf5b42e45b6aee43251a8e6c79d`（尚未建立 tag；影像基準見下方 Creative Proof） |
-| 最近完成 milestone | `One-Habit Hero`（技術 gate 與 Creative gate 皆已通過） |
-| Feature 最終 commit | `203788f53d19c30e53523c4e8309fd9b553098c0` |
-| Merge commit | `6c5f4ba1c0588131e18f759525d592f3edbefafb` |
-| 技術驗收 | Sol APPROVE；merge 前後 `flutter analyze` 0 issues、`flutter test` 794/794 |
-| Creative 驗收 | 2026-08-04 使用者裁決 **KEEP** |
+| 最近完成 milestone | UI 軌道 U1「第一眼」＋ 兩批一致性修補（三條分支已全部合併） |
+| 技術驗收 | 獨立 Opus 5 冷讀三條全部 APPROVE；合併後 `flutter analyze` 0 issues、`flutter test` **806/806**（＝ 794 + 9 + 3，與審查者預測一致，合併沒弄丟東西） |
+| Creative 驗收 | One-Habit Hero、U1 皆為使用者裁決 **KEEP** |
 | Production blocker | 0 |
-| 當前階段 | UI 軌道 U1 Creative gate 已過（`polish/first-glance`）；三條分支都待技術 gate |
-| 下一個大型 milestone | 上述兩條完成審查前不再開新的 |
+| 當前階段 | **沒有進行中的分支。** 待選下一個大型 milestone |
+| 未結的尾巴 | H-5 家庭頁面板底色待使用者眼睛過一次；U1 空白期長度待實機；觸覺強度待實機；BGM ducking 未做 |
 
-Hash 與測試數是 2026-08-04 的核對結果；未來 main 前進時應更新，不得把舊 hash
+Hash 與測試數是 2026-08-05 的核對結果；未來 main 前進時應更新，不得把舊 hash
 誤認成必須回退的固定目標。
 
 ## 已完成並合併
@@ -105,6 +103,19 @@ allDone、快速連打、Undo、Reduced Motion 各錄前後對照。
 檔頭時間軸。同時修正兩處文件與程式不同步：`visual_spec.md` 的勾勾時長 320ms →
 300ms（實際走 `kCheckDrawDuration`），以及本文件的 main hash。
 
+### UI 軌道 U1 與兩批一致性修補（2026-08-05 合併）
+
+三條互不相干的分支，依審查者實測過的順序合併，各自保留 merge commit、未 squash：
+
+| 分支 | 內容 | Feature 最終 commit | Merge commit |
+|---|---|---|---|
+| `polish/first-glance` | U1 開 App 第一眼的接縫（3 commits） | `ed67e9e` | `2e8618d` |
+| `polish/tab-weight` | 介面回饋與導覽一致性（5 commits） | `48f3f90` | `24f6f0e` |
+| `polish/greeting-life` | 問候留在說出口的那一頁（2 commits） | `6fdbaca` | `2d689ac` |
+
+後兩條如預期在 `main.dart` `_onTabTapped` 同一個 hunk 衝突，兩塊都留。
+合併後 `flutter analyze` 0 issues、`flutter test` 806/806。細節見下方各自章節。
+
 ## 進行中：兔咪待機生命感
 
 > **2026-08-04 暫停。使用者決定先回到 main 的行為，這條分支不 merge。**
@@ -184,10 +195,10 @@ reviewer 沒看過實作者的推理過程本來就是它的價值來源，只�
 
 在那兩張圖到位之前，這個 milestone 沒有能站得住的做法。
 
-## 進行中：介面回饋與導覽
+## 已合併：介面回饋與導覽（一致性修補批次）
 
-Branch `polish/tab-weight`（從 `ed6a1fd` 開出）。**技術 gate 未過，不得 merge。**
-與 `polish/idle-life` 互不相干，可以分開審。
+Branch `polish/tab-weight`（從 `ed6a1fd` 開出），2026-08-05 經獨立技術 gate 後
+合併（`24f6f0e`）。與 `polish/idle-life` 互不相干，當初分開審。
 
 只讀審查的數字（2026-08-04）：
 
@@ -239,9 +250,9 @@ debug 時序不足以代表 release。留給有實機驗證條件時再做。
 | **驗收證據** | 冷啟動連拍前後對照，至少涵蓋原生第一幀、Flutter 接手幀、交棒幀。**必須用 profile／release build 量**。 |
 | **退出方式** | 獨立 branch，只動啟動素材與接縫，可整條丟棄。 |
 
-**狀態：** branch `polish/first-glance`（`d0670da`，2 個 commit）。
-2026-08-05 使用者裁決 **KEEP**；Bible extraction 已完成（`visual_spec.md` §啟動接縫）。
-**技術 gate 未過，不得 merge。**
+**狀態：已結案。** branch `polish/first-glance`（最終 `ed67e9e`，3 個 commit）。
+2026-08-05 使用者裁決 **KEEP**；Bible extraction 已完成（`visual_spec.md` §啟動接縫）；
+獨立技術 gate APPROVE 後合併（`2e8618d`）。
 
 實作的是**接縫**不是載入畫面——那一頁本身是好的。原生啟動圖改由
 `scripts/gen_launch_image.py` 從 `_StartupSplash` 的規格產生，storyboard 從
@@ -268,6 +279,26 @@ iPhone 15/16 徑差 −8.6%、SE −12.8%、iPad +90.7%。兔咪任何機型都�
 - ⚠️ **debug 的空白期不代表 release**：AOT 啟動快得多，實際長度必須用
   profile／release 量，不能拿 debug 的秒數當結論。
 
+### Milestone U2：問候的壽命（已合併，Creative gate 以「事實錯誤」豁免）
+
+| 欄位 | 內容 |
+|---|---|
+| **情緒目標** | 兔咪打一次招呼就好。牠應該像在房間裡陪著你，不是每換一個房間就重講一次同一句話。 |
+| **範圍** | 只動 opening 來源的台詞租約，在切分頁時 compare-and-clear。 |
+| **非目標** | 不動姿勢與泡泡；不動事件台詞（打卡／撤銷有自己的租約，跨頁行為歸 One-Habit Hero 的擁有權機制）；不動「問候本身無期限」這個被換日不變量拿來當探針的設計。 |
+
+Branch `polish/greeting-life`（最終 `6fdbaca`，2 個 commit），merge `2d689ac`。
+
+只讀審查掃到的事實：首頁與衣櫃頁**同時**掛著同一句「啊，是你。」——`resetToOpening`
+的註解明寫「冷啟動的問候沒有期限」，而切分頁不算互動，所以那句話跟著使用者走遍每一頁。
+這是**一致性事實錯誤**，不是品味題，因此比照修補批次以技術 gate 結案。
+
+⚠️ **模擬器前後對照沒有成立，這點不要之後又拿去當已驗證的證據：**當日個人化問候
+橫幅會先把 openApp 那句收掉（catalog 規則 1），兩次啟動路徑不同，重現不了原始畫面。
+`_onTabTapped` 在啟動時不會被呼叫（索引直接指派），所以那不是本改動造成的。
+審查者依同一條件在模擬器試三次同樣沒重現（H-6），技術面改以四個反例測試補強。
+**真實手感待實機。**
+
 ## 獨立技術 gate（2026-08-05）
 
 由一個乾淨的 Opus 5 對話冷讀三條分支（prompt 明講「作者與總控是同一個模型、
@@ -293,9 +324,20 @@ tab-weight 802/802、greeting-life 797/797、first-glance 794/794；
 必然在 `main.dart` `_onTabTapped` 同一個 hunk 衝突，解法是兩塊都留。
 合併後 main 應為 794 + 9 + 3 = 806 項，數字不對就代表合併弄丟了東西。
 
+✅ **2026-08-05 已依此順序合併並推送**（`2e8618d` → `24f6f0e` → `2d689ac`）。
+衝突如預期只有那一個 hunk，兩塊都留。合併後 `flutter analyze` 0 issues、
+`flutter test` **806/806**，數字對上，沒有弄丟東西。
+
+合併後仍未關的兩項：
+
+- ⬜ **H-5 家庭頁那批面板**：`bottomSheetTheme` 一改就影響 18 個面板的底色，
+  程式面已收斂，但**要使用者親眼看過家庭頁那幾個面板才算結案**。
+- ⬜ **H-6**：已停止追（見上表），不再列為工作項目。
+
 ## 下一個大型 milestone 的候選池
 
-兩個 gate 已關閉，可以開始選；但**選定前仍不開分支**，也不要同時啟動多個：
+所有進行中的分支都已結案，工作台是空的，可以開始選；但**選定前仍不開分支**，
+也不要同時啟動多個。開工前必須先講清楚 Reviewer 怎麼補（見 §AI 分工的三個選項）：
 
 1. 兔咪待機生命感
 2. 每日回歸／開 App 的歡迎感
