@@ -7,6 +7,8 @@
 // 為什麼是橫條不是轉圈：轉圈是「系統在忙」的通用符號，走的是 Material 預設
 // 的形狀與 seed 派生色，跟這個 app 的暖色手繪世界沒有關係。橫條是這個 app
 // 自己已經畫過的東西。
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
@@ -44,19 +46,64 @@ class AppLoadingBar extends StatelessWidget {
   }
 }
 
-/// 整頁／整個分頁還沒載完時的等待畫面：置中的一條 [AppLoadingBar]。
+/// 整頁／整個分頁還沒載完時的等待畫面：置中的一條 [AppLoadingBar]，
+/// 而且**慢到值得說一聲時才亮**。
 ///
-/// **只放進度條，不放兔咪。** 這些等待多半只有幾個 frame，讓角色閃現一下再
-/// 消失會變成雜訊；而且兔咪要在等待時做什麼是待機生命感那條線的題目，
-/// 不在這裡決定。
+/// 這些頁讀的是本機 prefs，實測多半只等一幀就載完了。若無條件顯示，使用者
+/// 看到的不是「燈亮起來」而是閃一下就沒了——一閃而過的東西讀起來就是故障感，
+/// 正好與這個 milestone 想要的相反。所以先靜靜等 [_appearAfter]，過了門檻才
+/// 淡入：快的載入從頭到尾什麼都不出現，慢的才看得到燈。
+///
+/// **只放進度條，不放兔咪。** 讓角色閃現一下再消失會變成雜訊；而且兔咪要在
+/// 等待時做什麼是待機生命感那條線的題目，不在這裡決定。
 ///
 /// 不自帶 [Scaffold]：呼叫端本來就有自己的骨架（有的還帶 AppBar），
 /// 這裡多包一層會在載完的瞬間換掉整個 Scaffold，反而多一次跳動。
-class AppPageWaiting extends StatelessWidget {
+class AppPageWaiting extends StatefulWidget {
   const AppPageWaiting({super.key});
+
+  /// 低於這個門檻的等待完全不顯示。200ms 是「還沒來得及被讀成停頓」與
+  /// 「久到需要交代一聲」的分界。
+  static const Duration _appearAfter = Duration(milliseconds: 200);
+
+  /// 淡入時長。硬切一樣是閃，只是慢了 200ms 才閃；淡入才讀得出「亮起來」。
+  static const Duration _fadeIn = Duration(milliseconds: 180);
+
+  @override
+  State<AppPageWaiting> createState() => _AppPageWaitingState();
+}
+
+class _AppPageWaitingState extends State<AppPageWaiting> {
+  Timer? _timer;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(AppPageWaiting._appearAfter, () {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: AppLoadingBar());
+    // Reduce Motion 只拿掉淡入這段動畫，不改「什麼時候該出現」——門檻是語意
+    // （這次等待久不久），不是裝飾。
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return Center(
+      child: AnimatedOpacity(
+        opacity: _visible ? 1 : 0,
+        duration: reduceMotion ? Duration.zero : AppPageWaiting._fadeIn,
+        curve: Curves.easeOut,
+        child: const AppLoadingBar(),
+      ),
+    );
   }
 }

@@ -12,50 +12,124 @@ import 'l10n_test_app.dart';
 
 /// U3「等待的樣子」的守門測試。
 ///
-/// 要守的事實是「全 app 的等待是同一盞燈」。這件事有兩面：真的跑起來時畫面上
-/// 出現的是那條共用的燈（行為測試），以及**之後沒有人再各自寫一顆裸 spinner**
-/// （原始碼掃描）。只有前者的話，新頁面照樣可以偷偷長出第十七種等待，
-/// 而且全部測試都會是綠的。
+/// 要守的事實有三件：真的跑起來時畫面上出現的是那條共用的燈；**快的載入從頭到尾
+/// 不亮**（一閃而過讀起來就是故障感，正好與這個 milestone 想要的相反）；
+/// 以及之後沒有人再各自寫一顆裸 spinner。
+///
+/// 最後那條靠原始碼掃描，不是多此一舉：只有行為測試的話，新頁面照樣可以偷偷
+/// 長出第十七種等待，而且全部測試都會是綠的。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('跑起來時出現的是共用的等待條', () {
-    // ⚠️ 斷言的位置是「pumpWidget 之後、下一個 pump 之前」，不是隨便挑的：
-    // 這些頁讀的是本機 prefs，等待狀態實際上**只存在第一幀**，再 pump 一次
-    // 就已經載完了。多 pump 一次就會抓到 findsNothing 而誤以為壞掉。
-    testWidgets('家庭頁載入中', (tester) async {
+  /// 讀出等待條**實際畫出來**的不透明度。
+  ///
+  /// 不能讀 `AnimatedOpacity.opacity`：那是目標值，淡入還沒跑完就已經是 1，
+  /// 會把「正在亮」誤判成「亮完了」。要看它內部 FadeTransition 的當下值。
+  double renderedOpacity(WidgetTester tester) {
+    return tester
+        .widget<FadeTransition>(
+          find.descendant(
+            of: find.byType(AppPageWaiting),
+            matching: find.byType(FadeTransition),
+          ),
+        )
+        .opacity
+        .value;
+  }
+
+  group('慢到值得說一聲時才亮', () {
+    testWidgets('門檻前完全不亮', (tester) async {
+      await tester.pumpWidget(
+        l10nTestApp(home: const Scaffold(body: AppPageWaiting())),
+      );
+
+      expect(renderedOpacity(tester), 0);
+      await tester.pump(const Duration(milliseconds: 199));
+      expect(renderedOpacity(tester), 0, reason: '門檻沒到就不該開始亮');
+
+      await tester.pumpWidget(const SizedBox()); // 收掉待處理的 timer
+    });
+
+    testWidgets('過了門檻才淡入，而且是漸亮不是硬切', (tester) async {
+      await tester.pumpWidget(
+        l10nTestApp(home: const Scaffold(body: AppPageWaiting())),
+      );
+
+      await tester.pump(const Duration(milliseconds: 210));
+      expect(renderedOpacity(tester), 0, reason: '剛過門檻，淡入才要開始');
+
+      await tester.pump(const Duration(milliseconds: 90));
+      final mid = renderedOpacity(tester);
+      expect(mid, greaterThan(0));
+      expect(mid, lessThan(1), reason: '硬切一樣是閃，只是慢了 200ms 才閃');
+
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(renderedOpacity(tester), 1);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Reduce Motion 拿掉淡入，但門檻照舊', (tester) async {
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: const MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: Scaffold(body: AppPageWaiting()),
+          ),
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 199));
+      expect(renderedOpacity(tester), 0, reason: '門檻是語意，不是裝飾，不該被拿掉');
+
+      await tester.pump(const Duration(milliseconds: 10));
+      await tester.pump();
+      expect(renderedOpacity(tester), 1, reason: '不淡入，過門檻就到位');
+
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('跑起來時用的是共用的等待條', () {
+    // 這兩頁讀的是本機 prefs，實測**只等一幀**就載完——正是門檻要擋掉的那種。
+    // 所以斷言的重點不是「有沒有這個 widget」，而是「它從頭到尾沒有亮過」。
+    testWidgets('家庭頁載得夠快，燈從頭到尾不亮', (tester) async {
       SharedPreferences.setMockInitialValues({});
       await tester.pumpWidget(l10nTestApp(home: const FamilyPage()));
 
-      expect(find.byType(AppLoadingBar), findsOneWidget);
+      expect(find.byType(AppPageWaiting), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(renderedOpacity(tester), 0);
 
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.byType(AppLoadingBar), findsNothing); // 載完就收掉
+      expect(find.byType(AppPageWaiting), findsNothing); // 載完就收掉
     });
 
-    testWidgets('設定頁載入中', (tester) async {
+    testWidgets('設定頁同理', (tester) async {
       SharedPreferences.setMockInitialValues({});
       await tester.pumpWidget(l10nTestApp(home: const SettingsPage()));
 
-      expect(find.byType(AppLoadingBar), findsOneWidget);
+      expect(find.byType(AppPageWaiting), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(renderedOpacity(tester), 0);
 
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.byType(AppLoadingBar), findsNothing);
+      expect(find.byType(AppPageWaiting), findsNothing);
     });
 
     testWidgets('等待條有無障礙標籤，不是一個沒有語意的色塊', (tester) async {
       await tester.pumpWidget(
         l10nTestApp(home: const Scaffold(body: AppPageWaiting())),
       );
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       final indicator = tester.widget<LinearProgressIndicator>(
         find.byType(LinearProgressIndicator),
       );
       expect(indicator.semanticsLabel, isNotEmpty);
       expect(indicator.color, AppWaiting.bar);
+
+      await tester.pumpWidget(const SizedBox());
     });
   });
 
