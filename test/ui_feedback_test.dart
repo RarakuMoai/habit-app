@@ -97,6 +97,22 @@ void main() {
       );
     });
 
+    testWidgets('引擎逐拍的觸覺不會吃掉面板的浮出觸覺', (tester) async {
+      // 節拍器由節拍迴圈逐拍發觸覺，跟使用者按了什麼無關。它若蓋掉「最近有
+      // 回饋」的時戳，observer 就會誤判成「這個面板是某個按鈕打開的」而跳過
+      // ——BPM 273 以上拍距小於 220ms，浮出觸覺會永遠消失。
+      playHaptic(HapticLevel.selection, fromUserAction: false);
+      events.clear();
+
+      await openConfirm(tester, onResult: (_) {});
+
+      expect(
+        events,
+        [(null, HapticLevel.selection)],
+        reason: '引擎發的那一下不算「使用者剛按過按鈕」，observer 照樣要發',
+      );
+    });
+
     testWidgets('取消走 cancel 的收回語彙', (tester) async {
       bool? result;
       await openConfirm(tester, onResult: (r) => result = r);

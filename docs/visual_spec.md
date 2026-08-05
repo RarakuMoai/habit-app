@@ -42,6 +42,14 @@
 `showModalBottomSheet` 裡 19 個各自手寫圓角、其餘吃 Material 預設，
 全 app 同時存在 28／24／20／16 四種。新增面板不寫 `shape` 就是對的。
 
+`bottomSheetTheme` **同時供應底色**（暖白 `#FFFDF9`，與 popup／dialog 同一套
+卡面語彙）。所以那 18 個原本吃 Material 預設的面板，底色一併從 seed 推出來的
+`#FFF1ED` 換成 `#FFFDF9`；另外 13 個自己傳 `backgroundColor` 的不受影響。
+
+**分格看的是元素類別不是位置。** 四角全圓、帶陰影的浮動卡走卡片那一格（18），
+即使它是從底部彈出來的（例：`table_setup_panel` 的鍵盤上方浮動卡）。
+面板那一格（20）只給「上緣兩角圓、貼齊畫面底部」的 modal sheet。
+
 ## 卡片（AppCardStyle）
 
 - 圓角 **18**。

@@ -422,7 +422,12 @@ class _MetronomeTimerState extends State<MetronomeTimer>
       _currentBeat.value = beatInBar;
       final isAccent = _accent && _pulseCount > 1 && beatInBar == 0;
       if (_haptic) {
-        playHaptic(isAccent ? HapticLevel.medium : HapticLevel.selection);
+        // 逐拍觸覺不是回應使用者操作，不能讓它蓋掉「剛剛有人按了按鈕」的時戳
+        // ——否則節拍器跑著的時候開面板就收不到浮出觸覺（BPM 273 以上必然）。
+        playHaptic(
+          isAccent ? HapticLevel.medium : HapticLevel.selection,
+          fromUserAction: false,
+        );
       }
     }
   }

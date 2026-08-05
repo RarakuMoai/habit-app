@@ -58,11 +58,16 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
 @visibleForTesting
 void Function(SfxCue? cue, HapticLevel haptic)? debugFeedbackSink;
 
-/// 最近一次回饋的時刻。
+/// 最近一次**由使用者操作觸發**的回饋時刻。
 ///
 /// **只給 [PopupFeedbackObserver] 判斷「這個面板是不是某個已經自己出過回饋的
 /// 按鈕打開的」用，不是全域節流。** 打卡連打那種情境每一次完成都必須各自發，
 /// 全域節流會直接吃掉第二次的音效與觸覺。
+///
+/// 「由使用者操作觸發」這個限定是必要的，不是修飾語：引擎逐拍／逐幀發的回饋
+/// （節拍器就是）跟使用者按了什麼完全無關，讓它蓋這個時戳，observer 就會把
+/// 「剛剛有人按了按鈕」誤判成真。BPM 273 以上拍距小於 220ms，面板浮出的觸覺
+/// 會永遠被吃掉。所以那種呼叫端要傳 `fromUserAction: false`。
 DateTime? _lastFeedbackAt;
 
 @visibleForTesting
@@ -73,10 +78,13 @@ bool _feedbackWithin(Duration window) {
   return at != null && DateTime.now().difference(at) < window;
 }
 
-// 播音效並配對觸覺回饋
-void playFeedback(SfxCue cue, {HapticLevel? haptic}) {
+// 播音效並配對觸覺回饋。
+//
+// [fromUserAction] = false 用在**不是回應使用者操作**的回饋（引擎逐拍、逐幀）。
+// 那種不該被當成「剛剛有人按了按鈕」，理由見 [_lastFeedbackAt]。
+void playFeedback(SfxCue cue, {HapticLevel? haptic, bool fromUserAction = true}) {
   final level = haptic ?? _defaultHaptic(cue);
-  _lastFeedbackAt = DateTime.now();
+  if (fromUserAction) _lastFeedbackAt = DateTime.now();
   final sink = debugFeedbackSink;
   if (sink != null) {
     sink(cue, level);
@@ -86,9 +94,10 @@ void playFeedback(SfxCue cue, {HapticLevel? haptic}) {
   playHaptic(level);
 }
 
-// 只發觸覺（無音效的輕互動：chip 選取、開關切換等）
-void playHaptic(HapticLevel level) {
-  _lastFeedbackAt = DateTime.now();
+// 只發觸覺（無音效的輕互動：chip 選取、開關切換等）。
+// [fromUserAction] 的意思見 [playFeedback]。
+void playHaptic(HapticLevel level, {bool fromUserAction = true}) {
+  if (fromUserAction) _lastFeedbackAt = DateTime.now();
   final sink = debugFeedbackSink;
   if (sink != null) {
     sink(null, level);
@@ -114,6 +123,13 @@ void playHaptic(HapticLevel level) {
 ///
 /// 一般的頁面推送（`MaterialPageRoute`）**不是** `PopupRoute`，不會觸發：
 /// 換頁本來就有轉場可看，不需要再震一下。
+///
+/// ⚠️ **覆蓋率有一個隱含前提：repo 裡沒有巢狀 Navigator。**
+/// `showModalBottomSheet` 的 `useRootNavigator` 預設是 `false`（`showDialog`
+/// 是 `true`），所以掛在 `MaterialApp` 上的 observer 只收得到根 Navigator 的
+/// route。目前全 repo 沒有任何 `Navigator(` 建構、也沒有覆寫
+/// `useRootNavigator`，所以成立；哪天有人加了分頁內導覽之類的巢狀 Navigator，
+/// 那個子樹底下的面板會**安靜地**失去浮出觸覺。
 ///
 /// [_recentWindow] 內剛發過回饋就跳過：有些面板是由已經播過 `tap` 的按鈕打開的
 /// （實測 67 個開啟點裡有 14 個是這樣），連著震兩下手感是壞的。這個窗口只擋
