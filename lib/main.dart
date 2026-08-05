@@ -1396,7 +1396,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       //
       // **只收 opening 來源的。** 事件台詞（打卡、撤銷⋯⋯）有自己的租約與期限，
       // 跨頁行為由 One-Habit Hero 那套擁有權機制管，不歸這裡。
-      // 走 compare-and-clear：中間若有人換過台詞就整段 no-op，不會誤收別人的。
+      //
+      // 用 clearSpeechIfLease 是因為它**只清台詞、不動姿勢與泡泡**，不是因為
+      // lease 比對在這裡保護了什麼——當場讀當場傳，比對恆真，永遠不會 no-op。
+      // 這兩行在同一個同步語句裡，Dart 也不會有人插進來。真正的守衛是上面那個
+      // origin 判斷。
       if (MascotPersona.speechOrigin == MascotStateOrigin.opening) {
         MascotPersona.clearSpeechIfLease(MascotPersona.speechLease);
       }
