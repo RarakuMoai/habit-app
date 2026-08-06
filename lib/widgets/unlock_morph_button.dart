@@ -264,7 +264,8 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     } else {
       envelope = 1 - Curves.easeInCubic.transform((p - 0.86) / 0.14); // 屏住
     }
-    return math.sin(p * math.pi * 13) * _kShakeMaxAngle * envelope;
+    // 實拍回饋：13 個半週期在 720ms 內太急躁，讀成「抖」不是「掙脫」。減半。
+    return math.sin(p * math.pi * 6.5) * _kShakeMaxAngle * envelope;
   }
 
   /// 搖晃的橫向位移（px）。
@@ -282,7 +283,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     } else {
       envelope = 1 - Curves.easeInCubic.transform((p - 0.86) / 0.14);
     }
-    return math.sin(p * math.pi * 13) * 2.6 * envelope;
+    return math.sin(p * math.pi * 6.5) * 2.6 * envelope;
   }
 
   /// 演出期間整組放大，否則搖晃與光爆在 17px 上都讀不出來。
@@ -290,8 +291,12 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
   double _stageScaleAt(double t) {
     const rampIn = 0.10;
     if (t < rampIn) return 1 + 0.55 * Curves.easeOut.transform(t / rampIn);
-    if (t < kUnlockMorphAt) return 1.55;
-    final p = (t - kUnlockMorphAt) / (1 - kUnlockMorphAt);
+    if (t < kUnlockImpactAt) return 1.55;
+    // ⚠️ 縮放**必須在 morph 開始前收乾淨**。放在 morph 期間收的話，圖示已經
+    // 換成「加入」了還在縮，看起來就是「加入圖示從左邊跑到右邊」——實機抓到的
+    // 殘留位移就是這一段。收在落定段（彈開→morph）裡，那時注意力還在鎖上。
+    final p = ((t - kUnlockImpactAt) / (kUnlockMorphAt - kUnlockImpactAt))
+        .clamp(0.0, 1.0);
     return 1.55 - 0.55 * Curves.easeInOutCubic.transform(p);
   }
 
@@ -322,6 +327,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
         icon: Icons.lock_rounded, // 闔上的鎖：語意要和「尚未擁有」一致
         color: widget.color,
         onTap: widget.onLockedTap,
+        labelWidget: _fixedLabel(widget.lockedLabel),
       );
     }
     if (_ctrl.isCompleted || !_ctrl.isAnimating && _ctrl.value == 0) {
@@ -330,6 +336,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
         icon: widget.unlockedIcon,
         color: widget.color,
         onTap: widget.onUnlockedTap,
+        labelWidget: _fixedLabel(widget.unlockedLabel),
       );
     }
 
@@ -410,7 +417,9 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return Opacity(
       opacity: Curves.easeOut.transform(((p - 0.26) / 0.13).clamp(0.0, 1.0)),
       child: Transform.scale(
-        scale: 0.62 + 0.38 * q,
+        // 彈入幅度刻意小：量過 0.62 起跳會讓圖示左緣再滑約 6px，讀成「加入
+        // 出現後還在跑」。留一點點長出來的感覺就好。
+        scale: 0.88 + 0.12 * q,
         child: Icon(widget.unlockedIcon, size: 17, color: widget.color),
       ),
     );
@@ -449,7 +458,12 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: widget.color.withValues(alpha: 0.42 * p),
+              // 光暈同理：白光帶一點色偏，不是純主色
+              color: Color.lerp(
+                Colors.white,
+                widget.color,
+                0.25,
+              )!.withValues(alpha: 0.55 * p),
               blurRadius: 10 + 8 * p,
               spreadRadius: 1 + 2 * p,
             ),
@@ -466,36 +480,87 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
   ///
   /// 兩段都留在 Stack 裡是為了**撐住寬度**（換手時按鈕不能忽寬忽窄，
   /// 外層 FittedBox 會跟著重算縮放而抖動），但任何一幀只有一段看得見。
-  Widget _label(double t, bool reduce) {
-    final style = TextStyle(
-      color: widget.color,
-      fontSize: 12.5,
-      fontWeight: FontWeight.w900,
+  /// 量一段文字在目前 textScaler 下的寬度。
+  ///
+  /// 需要它是因為兩段標籤寬度不同，而演出結束會交回**靜態**按鈕——靜態按鈕的
+  /// 寬度是「加入」的寬。如果動畫期間用兩段疊出來的最大寬，交接那一幀內容就會
+  /// 忽然變窄、置中重算，圖示看起來像從左邊跳到右邊。
+  double _measure(String text, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler:
+          MediaQuery.maybeOf(context)?.textScaler ?? TextScaler.noScaling,
+    )..layout();
+    return tp.width;
+  }
+
+  /// **文字與圖示徹底分開**：標籤槽一律固定成兩段文字的較寬者。
+  ///
+  /// 這是使用者實機抓到「解鎖時圖示往右靠」的根治法。`Transform` 本身不影響
+  /// 版面，真正的耦合在這裡——Row 是置中的，標籤一變窄整排就重新置中，圖示
+  /// 跟著被推。之前用寬度插值只是把「跳」變成「滑」，動還是動。
+  ///
+  /// 槽寬在**靜態兩態與演出期間完全一致**，所以圖示從頭到尾一格都不動；
+  /// 只有這個元件這樣做，其他 14 處 MiniActionButton 不受影響。
+  double get _slotWidth {
+    final style = _labelStyle;
+    return math.max(
+      _measure(widget.lockedLabel, style),
+      _measure(widget.unlockedLabel, style),
     );
+  }
+
+  TextStyle get _labelStyle => TextStyle(
+    color: widget.color,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w900,
+  );
+
+  Widget _fixedLabel(String text) => SizedBox(
+    width: _slotWidth,
+    child: Center(
+      child: Text(text, style: _labelStyle, softWrap: false, maxLines: 1),
+    ),
+  );
+
+  Widget _label(double t, bool reduce) {
     final p = reduce
         ? (t >= 0.67 ? 1.0 : 0.0)
         : ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
     // 硬切點：之前只有舊標籤，之後只有新標籤。中間沒有重疊區。
-    const handover = 0.26; // 實拍：0.42 讓整顆鈕淡了 250ms，空窗太長
-    // 舊的走得快、新的來得更快：實拍在交棒點附近有約 100ms 整顆鈕都很淡。
+    const handover = 0.26;
     final lockedOpacity = p < handover
         ? 1 - Curves.easeIn.transform(p / handover)
         : 0.0;
     final unlockedOpacity = p < handover
         ? 0.0
         : Curves.easeOut.transform(((p - handover) / 0.16).clamp(0.0, 1.0));
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Opacity(
-          opacity: lockedOpacity,
-          child: Text(widget.lockedLabel, style: style),
-        ),
-        Opacity(
-          opacity: unlockedOpacity,
-          child: Text(widget.unlockedLabel, style: style),
-        ),
-      ],
+    return SizedBox(
+      width: _slotWidth,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Opacity(
+            opacity: lockedOpacity,
+            child: Text(
+              widget.lockedLabel,
+              style: _labelStyle,
+              softWrap: false,
+              maxLines: 1,
+            ),
+          ),
+          Opacity(
+            opacity: unlockedOpacity,
+            child: Text(
+              widget.unlockedLabel,
+              style: _labelStyle,
+              softWrap: false,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -511,40 +576,84 @@ class _UnlockBurstPainter extends CustomPainter {
 
   const _UnlockBurstPainter({required this.progress, required this.color});
 
+  /// 光的顏色。兩次實拍換來的結論：
+  ///
+  /// 1. 整組用元件主色畫 → 讀成「幾條藍線」，不是光。
+  /// 2. 改成接近白的高亮 → **按鈕底本來就是淺色，白光整個消失。**
+  ///
+  /// 淺底上要讓光讀得出來靠的是**飽和度與明度差**，不是白。所以光芒與環用
+  /// 提亮加飽和後的主色（比按鈕上的圖示更亮更豔），只有最中心的爆閃留白，
+  /// 負責那一下 bloom。
+  Color _ray(double a) {
+    final h = HSLColor.fromColor(color);
+    return h
+        .withLightness((h.lightness + 0.18).clamp(0.0, 1.0))
+        .withSaturation((h.saturation + 0.35).clamp(0.0, 1.0))
+        .toColor()
+        .withValues(alpha: a.clamp(0.0, 1.0));
+  }
+
+  Color _core(double a) => Color.lerp(
+    Colors.white,
+    color,
+    0.12,
+  )!.withValues(alpha: a.clamp(0.0, 1.0));
+
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
     final p = progress.clamp(0.0, 1.0);
     final fade = 1 - Curves.easeIn.transform(p);
 
-    // 擴散環：第二版加太粗，配上輻條整個讀成「船舵」。細而快才像光。
-    // 實拍：擴到 1.05w 時整圈溢出按鈕，讀成大泡泡不是光。收在按鈕內。
-    final ringR = size.width * (0.55 + 0.5 * Curves.easeOutCubic.transform(p));
+    // ① 核心閃光：彈開瞬間最亮，衰減得比什麼都快。這一下才是「亮起來」。
+    final flash = 1 - Curves.easeOutQuart.transform(p);
+    if (flash > 0.01) {
+      canvas.drawCircle(
+        c,
+        size.width * (0.42 + 0.5 * p),
+        Paint()
+          ..color = _core(0.95 * flash)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3 + 6 * p),
+      );
+    }
+
+    // ② 擴散環：細、亮、收在按鈕內。
     canvas.drawCircle(
       c,
-      ringR,
+      size.width * (0.55 + 0.5 * Curves.easeOutCubic.transform(p)),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.3 * fade + 0.2
-        ..color = color.withValues(alpha: 0.6 * fade),
+        ..strokeWidth = 1.5 * fade + 0.25
+        ..color = _ray(0.85 * fade),
     );
 
-    // 放射光芒：從鎖身邊緣往外抽，長度先長後收
-    // ⚠️ 實拍教訓：輻條**不能穿過鎖身**。第二版 inner 只有 0.38w，粗輻條壓在
-    // 鎖上，整個圖形讀成船舵／十字準星而不是光。一律從鎖的外緣才開始畫。
-    const rays = 6;
+    // ③ 光芒：**長度不等、明暗不等**，而且各自錯開時間點才會閃。
+    //    等長等亮的放射線讀起來像機械圖示，不像光。
+    const rays = 7;
+    const lens = [1.0, 0.55, 0.85, 0.45, 1.0, 0.62, 0.8];
+    const phase = [0.0, 0.18, 0.06, 0.24, 0.02, 0.14, 0.1];
     final reach = Curves.easeOutCubic.transform(p);
-    final inner = size.width * (0.66 + 0.26 * reach);
-    final outer = inner + size.width * 0.26 * (1 - Curves.easeIn.transform(p));
-    final rayPaint = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 1.2 * fade + 0.2
-      ..color = color.withValues(alpha: 0.7 * fade);
     for (var i = 0; i < rays; i++) {
-      // 錯開半格，讓光芒不要正對著鎖的上下左右（那樣讀起來像十字準星）
+      // 錯開起跑：有的先衝出去、有的慢半拍，整體讀成閃爍而不是齊步走
+      final lp = ((p - phase[i]) / (1 - phase[i])).clamp(0.0, 1.0);
+      if (lp <= 0) continue;
+      final lf = 1 - Curves.easeInQuad.transform(lp);
+      final inner = size.width * (0.66 + 0.26 * reach);
+      final outer =
+          inner +
+          size.width * 0.30 * lens[i] * (1 - Curves.easeIn.transform(lp));
+      if (outer <= inner) continue;
+      // 半格錯開，避免正對上下左右而讀成十字準星
       final a = (i + 0.5) * (math.pi * 2 / rays);
       final d = Offset(math.cos(a), math.sin(a));
-      canvas.drawLine(c + d * inner, c + d * outer, rayPaint);
+      canvas.drawLine(
+        c + d * inner,
+        c + d * outer,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 1.7 * lf + 0.3
+          ..color = _ray(1.0 * lf),
+      );
     }
   }
 
