@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/logical_date.dart';
 import '../../utils/prefs_keys.dart';
 import 'family_models.dart';
 
@@ -20,10 +21,35 @@ class PointRecordContext {
   });
 }
 
-// 本週一到週日的日期字串集合
-Set<String> currentWeekDateSet() {
-  final now = DateTime.now();
-  final monday = now.subtract(Duration(days: now.weekday - 1));
+// ── 家庭模式的「今天」 ──
+//
+// 家庭模式**跟隨設定頁的換日時間**（`LogicalDate`），與習慣／喝水／體重同一條線。
+//
+// 為什麼：**登記的人是大人，不是小孩。** 小孩的家事不會在凌晨做，但大人很可能
+// 忙到過午夜才想起要幫小孩補登。固定午夜換日的話，00:30 按下去會算成隔天——
+// 習慣卡重置、當天的紀錄補不進去。換日線（預設 4:00）正是為這個族群存在的。
+//
+// ⚠️ 這三個函式必須**成套**使用同一個換日時間，不能只改其中一個：
+// 積分紀錄的日期是 `nowStr()` 寫的，查詢走
+// `record.time.split(' ').first == todayStr()` 比對日期前綴。兩邊用不同基準的話，
+// 凌晨記錄後會查不到自己剛寫進去的那筆（卡片顯示「今天還沒有紀錄」，分數卻已經加了）。
+//
+// 時間部分刻意維持**真實時鐘**：00:30 記的就顯示 00:30，只是歸屬到前一個邏輯日。
+// 這與首頁習慣的語意一致。
+//
+// 換日時間讀 `LogicalDate.notifier`（全 app 廣播，由 `LogicalDayCoordinator`
+// 在啟動時與設定頁存檔時同步）。參數只給測試注入用。
+
+int _dayStart(int? override) => override ?? LogicalDate.notifier.value;
+
+// 今日日期字串（yyyy-MM-dd），依換日設定。
+String todayStr({DateTime? now, int? dayStartHour}) =>
+    LogicalDate.stringFor(now ?? DateTime.now(), _dayStart(dayStartHour));
+
+// 本週一到週日的日期字串集合（以邏輯日的「今天」為基準推算週一）。
+Set<String> currentWeekDateSet({DateTime? now, int? dayStartHour}) {
+  final today = LogicalDate.dayOf(now ?? DateTime.now(), _dayStart(dayStartHour));
+  final monday = today.subtract(Duration(days: today.weekday - 1));
   return List.generate(7, (i) {
     final d = monday.add(Duration(days: i));
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -36,33 +62,16 @@ int weeklyCount(ChildHabit habit) {
   return habit.weeklyDates.where(weekSet.contains).length;
 }
 
-// 今日日期字串（yyyy-MM-dd）。
-//
-// ⚠️ 家庭模式**刻意用真實日曆日**，不跟隨設定頁的換日時間（LogicalDate）。
-// 換日設定的用途是「大人夜貓族睡前補登自己的習慣」（見 logical_date.dart），
-// 小孩的家事、作業、刷牙不會在凌晨三點才記，日曆日對家長更直覺。
-//
-// 另一個不能單獨改的理由：積分紀錄的時間是 nowStr() 存的真實時間，查詢走
-// `record.time.split(' ').first == date` 比對日期前綴。只把這裡改成邏輯日，
-// 凌晨 0-4 點記錄後會查不到自己剛寫進去的那筆（卡片顯示「今天還沒有紀錄」，
-// 分數卻已經加了）。要改就得 todayStr / currentWeekDateSet / nowStr 成套改，
-// 且屬於資料語意變更。
-String todayStr() {
-  final now = DateTime.now();
-  return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-}
-
 // 產生唯一 ID（毫秒時間戳 + 隨機後綴，避免同毫秒碰撞）
 String genId() =>
     '${DateTime.now().millisecondsSinceEpoch}_${Object().hashCode}';
 
-// 格式化現在時間為 yyyy-MM-dd HH:mm
-String nowStr() {
-  final now = DateTime.now();
-  final date =
-      '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+// 格式化為 `yyyy-MM-dd HH:mm`：日期是邏輯日，時間是真實時鐘。
+String nowStr({DateTime? now, int? dayStartHour}) {
+  final at = now ?? DateTime.now();
+  final date = LogicalDate.stringFor(at, _dayStart(dayStartHour));
   final time =
-      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
   return '$date $time';
 }
 

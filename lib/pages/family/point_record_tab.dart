@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
+import '../../utils/logical_date.dart';
 import '../../widgets/app_waiting.dart';
 import 'family_models.dart';
 import 'family_store.dart';
@@ -180,8 +181,9 @@ class _PointRecordTabState extends State<PointRecordTab> {
   }
 
   List<PointRecord> get _filtered {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    // 「今天」跟著換日設定走，與 todayStr()／nowStr() 同一個基準。用日曆日的話，
+    // 凌晨補登的那筆會落在邏輯日的今天，卻被「本週／本月」篩選當成隔天。
+    final today = LogicalDate.dayOf(DateTime.now(), LogicalDate.notifier.value);
 
     return _records.where((r) {
       final dateStr = r.time.split(' ').first;
@@ -193,7 +195,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
         case 'week':
           return !day.isBefore(today.subtract(const Duration(days: 6)));
         case 'month':
-          return dt.year == now.year && dt.month == now.month;
+          return dt.year == today.year && dt.month == today.month;
         case 'custom':
           final r = _customRange;
           if (r == null) return false;
