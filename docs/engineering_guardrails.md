@@ -32,6 +32,20 @@
 - `PrefsKeys.logicalDayJournal` 是冪等的 commit marker，不是跨多個
   SharedPreferences key 的 transaction。它擋住連勝這種累加運算；其餘步驟都要寫成
   可重跑的冪等覆寫。
+- **哪些跟換日線、哪些不跟**（弄錯會產生對不上的日期）：
+
+  | 跟隨換日設定 | 刻意用真實日曆日 |
+  |---|---|
+  | 習慣、喝水、體重 | **金幣發獎判重**（`CoinService`） |
+  | **家庭模式**（2026-08-06 起） | |
+
+  金幣不跟的理由：使用者只要在午夜前後來回切換日設定，就能讓「今天」字串跳動
+  而重複領獎。家庭模式改為跟隨的理由：**登記的人是大人**，大人會忙到過午夜才
+  幫小孩補登，午夜換日會把那筆算成隔天。
+- 家庭的 `todayStr()`／`nowStr()`／`currentWeekDateSet()`（`family_store.dart`）
+  **必須成套用同一個換日時間**。積分紀錄查詢走
+  `record.time.split(' ').first == todayStr()` 比對日期前綴，兩邊基準不同會出現
+  「卡片說今天還沒有紀錄，分數卻已經加了」。`test/family_logical_day_test.dart` 在守。
 
 ## 音訊
 
