@@ -7,15 +7,14 @@
 >
 > | 項目 | 判定 | 不補會怎樣 |
 > |---|---|---|
-> | 0 造型驗證 spike | ⭐ **最優先** | 商業模式的唯一未驗證假設 |
-> | 3 零食圖 | ✅ **該補** | emoji 與 CG 風格在同一顆按鈕上衝突 |
-> | 4 繪本圖 | ✅ **該補** | 借用的場景圖跟事件內容對不上 |
-> | 5 前導說明圖 | ✅ 該補 | 使用者不知道那三個功能是什麼 |
-> | 2 兔咪拿印章 | 🔸 錦上添花 | 現在是「歡呼兔咪＋印章動畫」兩個元素，實機看起來不錯 |
-> | 1 摸頭 bliss | ❌ **不需要** | fallback 到 smile 笑眼，看起來已經像享受 |
+> | §0 造型一致性驗證 | ⭐ **最優先** | 商業模式的唯一未驗證假設 |
+> | §2 零食圖 ×3 | ✅ **該補** | emoji 與 CG 風格在同一顆按鈕上衝突 |
+> | §3 繪本回憶圖 ×4 | ✅ **該補** | 借用的場景圖跟事件內容對不上 |
+> | §4 前導說明圖 ×3 | ✅ 該補 | 使用者不知道那三個功能是什麼 |
+> | §1 兔咪拿印章 | 🔸 錦上添花 | 現在是「歡呼兔咪＋印章動畫」兩個元素，實機看起來不錯 |
 >
-> 生圖走**手動 ChatGPT**（用既有訂閱額度，零成本，見 `roadmap.md` §3c）。
-> 最後更新：2026-07-25。
+> 生圖走**手動 ChatGPT**（用既有訂閱額度，零成本）。
+> 最後更新：2026-08-06（移除已判定不需要的摸頭 bliss）。
 
 ## 通用規格
 
@@ -45,93 +44,16 @@ Do not redraw the whole image. Local edit only. 不重繪，只局部修改。
 
 ---
 
-## 1. 摸頭瞇眼差分 `tumi_pet_bliss.png` ❌ 不需要
+## 1. 兔咪拿印章 `tumi_stamp.png` 🔸 錦上添花
 
-**2026-07-25 重新評估：這張不用生。**
+報到卡蓋章時可用的差分。**現在的「歡呼兔咪＋印章動畫」實機看起來已經不錯**，
+補了是加分不是修補。真要補時規格照 §通用規格，底圖用 `tumi_cheer.png`，
+只加手持印章、不改臉。
 
-摸頭時 `interact(headPet)` 會把表情切成 `smile`（手垂＋笑眼），而笑眼本來就是
-彎的 ∪ 形——**看起來已經很像被摸到瞇眼享受**。補 bliss 只差在情緒層次
-（開心 vs 融化），卻要讓**未來每一套造型都多生一張**（造型＝core 的完整鏡像）。
+> 已移除：摸頭瞇眼差分 `tumi_pet_bliss.png`（2026-07-25 判定不需要——
+> fallback 到 `smile` 的笑眼看起來已經像瞇眼享受，補它卻要讓每套造型多生一張）。
 
-划不來。除非哪天覺得摸頭的反應真的不夠，再回來看這節。
-
-以下 prompt 保留備用：
-
-- **底圖**：`assets/mascot/core/tumi_smile.png`（手垂＋笑眼）
-- **難度**：低。只改眼睛。
-
-```text
-Use case: identity-preserve / precise-object-edit
-Input images: Image 1: edit target, approved Tumi base PNG (tumi_smile.png).
-
-Primary request: Create a "blissful squint" variant — the rabbit is being petted
-on the head and is enjoying it, eyes narrowed into contented curves.
-
-Critical instruction: Do not redraw the whole image. Local edit only.
-不重繪，只局部修改。
-
-Local change: Change ONLY the eyes. Turn the current smiling eyes into softer,
-more relaxed blissful squints — slightly flatter curves, a touch more closed,
-reading as "melting into the touch". Optionally add the faintest upward tilt at
-the outer eye corners. Nothing else moves.
-
-Preserve: Tumi's identity, face shape, the nearly mouthless design (the small
-pink Y-shaped nose/mouth mark must stay EXACTLY as-is), ear shape and angle,
-arm position (hanging down), body proportions, silhouette, CG rendering style,
-lighting, color palette, camera framing, 1024x1024 canvas, transparent background.
-
-Avoid: full redraw, restyling, new outfit, new props, background, any change to
-the mouth/nose mark, fake blink overlays, extra facial features, blush changes,
-watermark, text.
-
-Output: PNG variant, 1024x1024, transparent background, consistent with Image 1.
-```
-
-**補上後**：檔案丟 `assets/mascot/core/`，把 `lib/utils/mascot.dart` 的
-`_petBlissReady` 改成 `true` 即全表情生效。
-
----
-
-## 2. 兔咪拿印章 `tumi_stamp.png` 🔸 錦上添花
-
-- **用途**：每日報到卡的主視覺。現在暫用歡呼姿 `tumi_streak.png`，
-  補上後可讓兔咪與印章道具合體，不再是兩個分開的元素。
-- **底圖**：`assets/mascot/core/tumi_streak.png`（雙手高舉雀躍）
-- **難度**：**高**——要加道具且處理手部接觸。若生不出來就維持現狀，這不是必要素材。
-
-```text
-Use case: identity-preserve / precise-object-edit
-Input images: Image 1: edit target, approved Tumi base PNG (tumi_streak.png).
-
-Primary request: The rabbit is holding a small wooden-handle stamp in one paw,
-as if it just finished stamping a paw print on a check-in card.
-
-Critical instruction: Do not redraw the whole image. Local edit only.
-不重繪，只局部修改。
-
-Local change: Add a small wooden-handle rubber stamp held in ONE raised paw.
-The stamp is a simple illustrated prop: light wood handle (#C89158 to #96652F),
-dark brown base (#8A5A2B to #6E4A1F), with a hint of gold ink (#D79A2F) on the
-stamping face. Adjust ONLY the gripping paw so the contact reads naturally.
-Keep the other arm exactly as it is.
-
-Preserve: Tumi's identity, face shape, the nearly mouthless design (pink Y mark
-unchanged), eyes and expression, ear shape and angle, body proportions,
-silhouette, CG rendering style, lighting direction, color palette, camera
-framing, 1024x1024 canvas, transparent background.
-
-Avoid: full redraw, restyling, new outfit, background, changing the facial
-expression, adding a check-in card or paper, sparkles or effects (all effects
-are drawn in Flutter), watermark, text.
-
-Output: PNG variant, 1024x1024, transparent background, consistent with Image 1.
-```
-
-**補上後**：改 `lib/pages/login_streak_page.dart` 的 `_mascotAsset` 常數。
-
----
-
-## 3. 零食圖 ×3
+## 2. 零食圖 ×3
 
 - **用途**：報到卡的 CTA。現在用 emoji（🍪🥕🎂）頂著，跟 CG 風格有落差。
 - **規格**：512×512 PNG 透明背景，**三張同一組**（同光向、同筆觸、同比例）。
@@ -165,7 +87,7 @@ Output: three separate PNG files, transparent background.
 
 ---
 
-## 4. 繪本回憶圖 ×4
+## 3. 繪本回憶圖 ×4
 
 - **用途**：四個回憶事件的整頁插圖。**現在暫借場景圖**，程式有 `TODO(story-art)`。
 - **規格**：1122×1402 WebP q95（同四時段場景規格）
@@ -173,7 +95,7 @@ Output: three separate PNG files, transparent background.
 
 **我的建議：這四張不要畫兔咪。**
 
-理由：畫兔咪進場景等於新的角色繪製，會有跨圖一致性風險（roadmap §3b 標記
+理由：畫兔咪進場景等於新的角色繪製，會有跨圖一致性風險（`roadmap.md` §造型系統標記
 的唯一技術風險）。繪本的情感由旁白承載就夠——而且「空景 ＋ 兔咪的獨白」
 反而更有回憶感，像在看牠記得的畫面。
 
@@ -209,7 +131,7 @@ Output: 1122x1402 image.
 
 ---
 
-## 5. 前導功能說明圖 ×3
+## 4. 前導功能說明圖 ×3
 
 - **用途**：前導的喝水／計時／家庭三頁。目前只問「要不要開」，沒說那是什麼。
 - **規格**：建議 800×800 PNG 透明背景（實際版面確認後可調）
@@ -281,8 +203,7 @@ expect／smile／happy／popHappy／streak／sad／night／invite／question）�
 2. spike 過了 → 決定要不要改路由支援差分
 3. 量產完整造型（12 張，或改路由後 14 張）
 
-第 1 節的摸頭瞇眼差分（`tumi_pet_bliss.png`）只影響**原始造型**，跟造型量產
-互不阻擋，兩邊可以並行。
+（摸頭瞇眼差分已於 2026-07-25 判定不需要，不在這個順序裡。）
 
 ---
 
@@ -290,9 +211,9 @@ expect／smile／happy／popHappy／streak／sad／night／invite／question）�
 
 **這不是素材需求，是風險驗證。** 你的內容供給計畫（一套造型＝一次上新）
 建立在一個沒驗證過的假設上：**AI 能跨 13 張圖維持同一隻兔咪、同一套衣服。**
-`roadmap.md` §3b 自己也標了這是唯一技術風險。
+`roadmap.md` §造型系統自己也標了這是唯一技術風險。
 
-做不到的話，訂閱要賣什麼得重想——所以**在投入 i18n 那種幾週的工程之前，
+做不到的話，訂閱要賣什麼得重想——所以**在投入任何幾週量體的工程之前，
 先花一小時把這件事試出來**。
 
 ### 怎麼驗
