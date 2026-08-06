@@ -48,7 +48,10 @@ String todayStr({DateTime? now, int? dayStartHour}) =>
 
 // 本週一到週日的日期字串集合（以邏輯日的「今天」為基準推算週一）。
 Set<String> currentWeekDateSet({DateTime? now, int? dayStartHour}) {
-  final today = LogicalDate.dayOf(now ?? DateTime.now(), _dayStart(dayStartHour));
+  final today = LogicalDate.dayOf(
+    now ?? DateTime.now(),
+    _dayStart(dayStartHour),
+  );
   final monday = today.subtract(Duration(days: today.weekday - 1));
   return List.generate(7, (i) {
     final d = monday.add(Duration(days: i));

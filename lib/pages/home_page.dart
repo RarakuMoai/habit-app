@@ -271,6 +271,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// 跨日重置兔咪時暫時忽略「兔咪有動作」→ 喚醒場景的連動。
   bool _suppressSceneWake = false;
 
+  /// 使用者今天主動碰過兔咪（點擊／摸頭）。
+  ///
+  /// **有動作就醒來**（見 `docs/tumi_dialogue_catalog.md` §互動之後回到哪）：
+  /// 反應演出收尾會回到 baseline，而零進度的 baseline 是 `notStarted` ＝ 睡眠，
+  /// 所以原本點一下兔咪，三秒後牠就睡著了。碰過之後改用中性臉。
+  ///
+  /// 只換**立繪**，情境仍是 `notStarted`（台詞照舊）。夜晚不受影響。
+  /// 跨日重置會清掉（見 [_applyNewDayNeutral]）——新的一天還沒被碰過。
+  bool _mascotAwakened = false;
+
   /// 載入 / 重新載入習慣。重複呼叫安全：進行中會合併；同一個 Future 直到
   /// 期間累積的最後一次補跑也完成才返回。
   Future<void> loadHabits() {
@@ -769,6 +779,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final receipt = settlement.settledReceipt;
     if (receipt == null) return;
     settlement.neutralDone = true;
+    _mascotAwakened = false; // 新的一天還沒被碰過，回到打瞌睡等你
     _suppressSceneWake = true;
     try {
       if (MascotPersona.clearStateIfClaim(receipt, assetPath: asset)) {
@@ -1477,6 +1488,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // 這裡刻意**不先**取消既有的 expiry：這次點擊可能被優先度擋下來，
     // 先取消就會讓舊台詞失去自己原本剩餘的壽命。
     if (!_reduceMotion) _celebCtrl.forward(from: 0);
+    _mascotAwakened = true; // 有動作就醒來：這次演出收尾不再掉回打瞌睡
     final ctx = _baselineMascotContext;
     // 進度中的情境改用帶件數的具體回應：使用者主動點兔咪等於在問
     // 「你怎麼看今天？」，這時給得出數字才有被看見的實感。
@@ -1536,6 +1548,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _onMascotHeadPet() {
+    _mascotAwakened = true; // 同上：摸頭也是使用者的動作
     MascotPersona.interact(MascotContext.headPet);
   }
 
@@ -1570,8 +1583,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (ratio > 0) return MascotEmotion.expect.assetPath;
 
     final hour = sceneHourNow().floor();
-    return hour >= 22 || hour < 6
-        ? MascotEmotion.night.assetPath
+    if (hour >= 22 || hour < 6) return MascotEmotion.night.assetPath;
+    // 有動作就醒來：碰過之後零進度不再打瞌睡，改用會眨眼的中性臉。
+    // 睡眠姿保留給「這一天還沒被碰過」＝「懶懶等你」，而不是「被吵醒又睡回去」。
+    return _mascotAwakened
+        ? MascotEmotion.neutralFront.assetPath
         : MascotEmotion.sleep.assetPath;
   }
 
@@ -1608,6 +1624,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @visibleForTesting
   MascotContext get debugBaselineMascotContext => _baselineMascotContext;
+
+  /// 演出結束後會回到的立繪。`test/mascot_wake_on_tap_test.dart` 用它驗
+  /// 「有動作就醒來」——那條規則只換立繪、不換情境，所以測 context 看不出來。
+  @visibleForTesting
+  String get debugBaselineMascotAsset => _baselineMascotAsset;
 
   void toggleHabit(int index) {
     // reload 進行中：畫面上還是上一份清單，index 可能已經對不上，落地也會被

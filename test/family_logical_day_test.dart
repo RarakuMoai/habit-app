@@ -15,7 +15,7 @@ import 'package:habit_app/utils/logical_date.dart';
 
 void main() {
   // 8/5 23:00 = 睡前登記；8/6 00:30 = 過了午夜才想起要補登。
-  final beforeMidnight = DateTime(2026, 8, 5, 23, 0);
+  final beforeMidnight = DateTime(2026, 8, 5, 23);
   final afterMidnight = DateTime(2026, 8, 6, 0, 30);
   const dayStart = LogicalDate.defaultHour; // 4
 
@@ -25,11 +25,7 @@ void main() {
       final after = todayStr(now: afterMidnight, dayStartHour: dayStart);
 
       expect(before, '2026-08-05');
-      expect(
-        after,
-        before,
-        reason: '00:30 必須仍算 8/5，否則習慣卡會重置、補登落到隔天',
-      );
+      expect(after, before, reason: '00:30 必須仍算 8/5，否則習慣卡會重置、補登落到隔天');
     });
 
     test('過了換日線（04:00 之後）才換日', () {
@@ -38,7 +34,7 @@ void main() {
         '2026-08-05',
       );
       expect(
-        todayStr(now: DateTime(2026, 8, 6, 4, 0), dayStartHour: dayStart),
+        todayStr(now: DateTime(2026, 8, 6, 4), dayStartHour: dayStart),
         '2026-08-06',
       );
     });
@@ -50,8 +46,8 @@ void main() {
         beforeMidnight,
         afterMidnight,
         DateTime(2026, 8, 6, 3, 59),
-        DateTime(2026, 8, 6, 4, 0),
-        DateTime(2026, 8, 6, 12, 0),
+        DateTime(2026, 8, 6, 4),
+        DateTime(2026, 8, 6, 12),
       ]) {
         final recorded = nowStr(now: at, dayStartHour: dayStart);
         expect(
@@ -63,14 +59,23 @@ void main() {
     });
 
     test('nowStr 的時間部分維持真實時鐘', () {
-      expect(nowStr(now: afterMidnight, dayStartHour: dayStart), '2026-08-05 00:30');
+      expect(
+        nowStr(now: afterMidnight, dayStartHour: dayStart),
+        '2026-08-05 00:30',
+      );
     });
 
     test('本週集合以邏輯日推算，00:30 仍屬於上一個邏輯日所在的那一週', () {
       // 8/5 是週三，所以那一週是 8/3(一)–8/9(日)。
-      final week = currentWeekDateSet(now: afterMidnight, dayStartHour: dayStart);
+      final week = currentWeekDateSet(
+        now: afterMidnight,
+        dayStartHour: dayStart,
+      );
 
-      expect(week, contains(todayStr(now: afterMidnight, dayStartHour: dayStart)));
+      expect(
+        week,
+        contains(todayStr(now: afterMidnight, dayStartHour: dayStart)),
+      );
       expect(week.length, 7);
       expect(week, contains('2026-08-03'));
       expect(week, contains('2026-08-09'));
