@@ -23,6 +23,7 @@ import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/reorder_jiggle.dart';
+import '../widgets/unlock_morph_button.dart';
 import 'home/room_metrics.dart';
 import 'memory_book_reader.dart';
 
@@ -294,7 +295,8 @@ class _WardrobePageState extends State<WardrobePage>
     );
     if (!mounted) return;
     if (result == PurchaseResult.success) {
-      playFeedback(SfxCue.unlock);
+      // 解鎖音刻意**不在這裡**播：衝擊點要對齊鎖真的彈開的那一幀，
+      // 由 [UnlockMorphButton] 在 impact 觸發（見該檔說明）。
       _toast(_l10n.wdUnlockedTrack(track.title));
     } else {
       _reportPurchaseFail(result);
@@ -1132,7 +1134,7 @@ class _OutfitCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _PrimaryMiniButton(
+                MiniActionButton(
                   label: selected
                       ? AppLocalizations.of(context).wdApplied
                       : owned
@@ -1146,7 +1148,7 @@ class _OutfitCard extends StatelessWidget {
                       ? Icons.check_rounded
                       : owned
                       ? Icons.checkroom_rounded
-                      : Icons.lock_open_rounded,
+                      : Icons.lock_rounded, // 未擁有＝鎖著
                   color: kWardrobeAccent,
                   enabled: !selected,
                   onTap: owned ? onWear : onBuy,
@@ -2573,7 +2575,7 @@ class _TrackGridCard extends StatelessWidget {
     String? previewingId,
   ) {
     if (previewing) {
-      return _PrimaryMiniButton(
+      return MiniActionButton(
         label: AppLocalizations.of(context).wdStop,
         icon: Icons.stop_rounded,
         color: kMusicAccent,
@@ -2581,7 +2583,7 @@ class _TrackGridCard extends StatelessWidget {
       );
     }
     if (previewingId == null && isCurrent) {
-      return _PrimaryMiniButton(
+      return MiniActionButton(
         label: AppLocalizations.of(context).wdPlaying,
         icon: Icons.graphic_eq_rounded,
         color: kMusicAccent,
@@ -2589,7 +2591,7 @@ class _TrackGridCard extends StatelessWidget {
         onTap: () {},
       );
     }
-    return _PrimaryMiniButton(
+    return MiniActionButton(
       label: AppLocalizations.of(context).wdPreview,
       icon: Icons.play_arrow_rounded,
       color: kMusicAccent,
@@ -2598,21 +2600,9 @@ class _TrackGridCard extends StatelessWidget {
   }
 
   Widget _actionButton(BuildContext context) {
-    if (!owned) {
-      return _PrimaryMiniButton(
-        label: unlockLabel(
-          AppLocalizations.of(context),
-          track.unlockType,
-          track.coinPrice,
-        ),
-        icon: Icons.lock_open_rounded,
-        color: kMusicAccent,
-        onTap: onBuy,
-      );
-    }
-    if (inPlaylist) {
+    if (owned && inPlaylist) {
       // 已在清單 → 可移除（清單只剩一首時停用，防沒歌）。
-      return _PrimaryMiniButton(
+      return MiniActionButton(
         label: removable
             ? AppLocalizations.of(context).wdRemove
             : AppLocalizations.of(context).wdAdded,
@@ -2622,11 +2612,20 @@ class _TrackGridCard extends StatelessWidget {
         onTap: onRemoveFromPlaylist,
       );
     }
-    return _PrimaryMiniButton(
-      label: AppLocalizations.of(context).wdAdd,
-      icon: Icons.playlist_add_rounded,
+    // 未擁有 → 闔上的鎖；買下來的那一刻 [UnlockMorphButton] 會把「鎖被打開」
+    // 演出來，收尾停在「加入」。已擁有未加入時它就是一顆普通的加入鈕。
+    return UnlockMorphButton(
+      owned: owned,
+      lockedLabel: unlockLabel(
+        AppLocalizations.of(context),
+        track.unlockType,
+        track.coinPrice,
+      ),
+      unlockedLabel: AppLocalizations.of(context).wdAdd,
+      unlockedIcon: Icons.playlist_add_rounded,
       color: kMusicAccent,
-      onTap: onAddToPlaylist,
+      onLockedTap: onBuy,
+      onUnlockedTap: onAddToPlaylist,
     );
   }
 
@@ -2836,21 +2835,21 @@ class _TrackDetailSheet extends StatelessWidget {
 
   // 第二顆按鈕：未擁有→購買；已擁有未加入→加入；已加入非目前→設為目前；
   // 已是目前→停用顯示「目前播放中」。
-  _PrimaryMiniButton _actionButton(BuildContext context) {
+  MiniActionButton _actionButton(BuildContext context) {
     if (!owned) {
-      return _PrimaryMiniButton(
+      return MiniActionButton(
         label: unlockLabel(
           AppLocalizations.of(context),
           track.unlockType,
           track.coinPrice,
         ),
-        icon: Icons.lock_open_rounded,
+        icon: Icons.lock_rounded, // 未擁有＝鎖著
         color: kMusicAccent,
         onTap: onBuy,
       );
     }
     if (!inPlaylist) {
-      return _PrimaryMiniButton(
+      return MiniActionButton(
         label: AppLocalizations.of(context).wdAddToPlaylist,
         icon: Icons.playlist_add_rounded,
         color: kMusicAccent,
@@ -2858,14 +2857,14 @@ class _TrackDetailSheet extends StatelessWidget {
       );
     }
     if (!isCurrent) {
-      return _PrimaryMiniButton(
+      return MiniActionButton(
         label: AppLocalizations.of(context).wdSetCurrent,
         icon: Icons.play_arrow_rounded,
         color: kMusicAccent,
         onTap: onSetCurrent,
       );
     }
-    return _PrimaryMiniButton(
+    return MiniActionButton(
       label: AppLocalizations.of(context).wdCurrentlyPlaying,
       icon: Icons.graphic_eq_rounded,
       color: kMusicAccent,
@@ -3002,7 +3001,7 @@ class _TrackDetailSheet extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _PrimaryMiniButton(
+                            child: MiniActionButton(
                               label: previewing
                                   ? AppLocalizations.of(context).wdStopPreview
                                   : activeNow
@@ -3386,56 +3385,6 @@ class _AttributionNote extends StatelessWidget {
           fontSize: 11,
           height: 1.35,
           fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _PrimaryMiniButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _PrimaryMiniButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: enabled ? color.withValues(alpha: 0.11) : const Color(0xFFF4EEE8),
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(13),
-        child: Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 17, color: enabled ? color : AppInk.faint),
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: enabled ? color : AppInk.faint,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
