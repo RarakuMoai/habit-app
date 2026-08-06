@@ -21,6 +21,7 @@ import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/scene_rooms.dart';
 import '../widgets/scroll_continuation_area.dart';
+import '../widgets/sheet_drag_handle.dart';
 import '../widgets/timer_mode_frame.dart';
 import '../widgets/timer_ring_painter.dart';
 import 'home/room_metrics.dart';
@@ -1243,22 +1244,13 @@ class _TimerPageState extends State<TimerPage>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      const SheetDragHandle(),
                       Flexible(
                         child: ScrollContinuationArea(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Center(
-                                child: Container(
-                                  width: 40,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8DDD4),
-                                    borderRadius: BorderRadius.circular(99),
-                                  ),
-                                ),
-                              ),
                               const SizedBox(height: 14),
                               Row(
                                 children: [

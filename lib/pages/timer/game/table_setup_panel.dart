@@ -17,6 +17,7 @@ import '../../../utils/sfx_service.dart';
 import '../../../widgets/app_dialogs.dart';
 import '../../../widgets/hold_repeat_button.dart';
 import '../../../widgets/reorder_jiggle.dart';
+import '../../../widgets/sheet_drag_handle.dart';
 import 'table_store.dart';
 import 'table_timer_models.dart';
 import 'table_timer_theme.dart';
@@ -393,14 +394,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppSurfaces.dragHandle,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              SheetDragHandle(),
               const SizedBox(height: 14),
               Text(
                 title,
@@ -662,14 +656,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 4),
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppSurfaces.dragHandle,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            child: SheetDragHandle(),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
@@ -1835,14 +1822,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppSurfaces.dragHandle,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
+                      SheetDragHandle(),
                       const SizedBox(height: 14),
                       Text(
                         title,

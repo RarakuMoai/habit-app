@@ -15,6 +15,7 @@ import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/sfx_service.dart';
+import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/timer_mode_frame.dart';
 import 'game/dice_tray.dart';
 import 'game/table_setup_panel.dart';
@@ -140,14 +141,7 @@ class _GameTimerState extends State<GameTimer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8DDD4),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
+              SheetDragHandle(),
               const SizedBox(height: 14),
               Text(
                 _l10n.gtPlayersCountTitle,
@@ -259,17 +253,7 @@ class _GameTimerState extends State<GameTimer> {
                   child: Stack(
                     alignment: Alignment.topCenter,
                     children: [
-                      Positioned(
-                        top: 10,
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8DDD4),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                        ),
-                      ),
+                      Positioned(top: 10, child: SheetDragHandle()),
                       Positioned(
                         top: 0,
                         right: 6,

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
+import '../../widgets/sheet_drag_handle.dart';
 import 'family_models.dart';
 import 'family_presets.dart';
 import 'family_store.dart';
@@ -64,16 +65,7 @@ Future<void> showAddHabitSheet(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppSurfaces.dragHandle,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
+                Center(child: SheetDragHandle()),
                 const SizedBox(height: 16),
                 Text(
                   l10n.hsAddTitle,
@@ -648,16 +640,7 @@ Future<void> showEditHabitSheet(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppSurfaces.dragHandle,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
+                Center(child: SheetDragHandle()),
                 const SizedBox(height: 16),
                 Text(
                   l10n.hsEditTitle,

@@ -15,6 +15,7 @@ import '../../utils/sfx_service.dart';
 import '../../utils/timer_mutex.dart';
 import '../../utils/wake_guard.dart';
 import '../../widgets/scroll_continuation_area.dart';
+import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/timer_mode_frame.dart';
 
 // 節拍器主色（跟專注暖橘、運動青綠明顯區分）
@@ -1179,22 +1180,13 @@ class _MetronomeTimerState extends State<MetronomeTimer>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const SheetDragHandle(),
                     Flexible(
                       child: ScrollContinuationArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Center(
-                              child: Container(
-                                width: 40,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE8DDD4),
-                                  borderRadius: BorderRadius.circular(99),
-                                ),
-                              ),
-                            ),
                             const SizedBox(height: 14),
                             Row(
                               children: [

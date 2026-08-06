@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
+import '../../widgets/sheet_drag_handle.dart';
 import 'family_presets.dart';
 import 'family_widgets.dart';
 
@@ -40,14 +41,7 @@ Future<Map<String, int>?> showFamilyPresetSubSheet(
           children: [
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppSurfaces.dragHandle,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              child: SheetDragHandle(),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),

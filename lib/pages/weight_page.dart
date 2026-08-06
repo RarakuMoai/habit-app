@@ -26,6 +26,7 @@ import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/sheet_drag_handle.dart';
 import 'home/room_metrics.dart';
 
 class WeightPage extends StatefulWidget {
@@ -944,22 +945,13 @@ class _WeightPageState extends State<WeightPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const SheetDragHandle(),
                         Flexible(
                           child: SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Center(
-                                  child: Container(
-                                    width: 40,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE8DDD4),
-                                      borderRadius: BorderRadius.circular(99),
-                                    ),
-                                  ),
-                                ),
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
@@ -1170,14 +1162,7 @@ class _WeightPageState extends State<WeightPage> {
           children: [
             const SizedBox(height: 8),
             // 把手指示條
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppInk.faint.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetDragHandle(),
             const SizedBox(height: 8),
             ListTile(
               leading: const Icon(

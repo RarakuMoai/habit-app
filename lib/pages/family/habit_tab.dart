@@ -11,6 +11,7 @@ import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
 import '../../widgets/app_waiting.dart';
 import '../../widgets/habit_ui.dart';
+import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/water_bottle.dart';
 import 'family_auth.dart';
 import 'family_models.dart';
@@ -299,14 +300,7 @@ class _HabitTabState extends State<HabitTab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppSurfaces.dragHandle,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+                    SheetDragHandle(),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -543,14 +537,7 @@ class _HabitTabState extends State<HabitTab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppSurfaces.dragHandle,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+                    SheetDragHandle(),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -773,16 +760,7 @@ class _HabitTabState extends State<HabitTab> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppSurfaces.dragHandle,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
+                  Center(child: SheetDragHandle()),
                   const SizedBox(height: 16),
                   Text(
                     _l10n.htSpecialPoints,

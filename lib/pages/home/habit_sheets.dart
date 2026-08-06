@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/input_formatters.dart';
 import '../../widgets/app_dialogs.dart';
+import '../../widgets/sheet_drag_handle.dart';
 import 'home_presets.dart';
 import 'home_widgets.dart';
 
@@ -48,14 +49,7 @@ Future<Map<String, PresetConfig>?> showHabitPresetSheet(
           children: [
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppSurfaces.dragHandle,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              child: SheetDragHandle(),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
@@ -513,16 +507,7 @@ Future<void> showEditHabitSheet(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppSurfaces.dragHandle,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              Center(child: SheetDragHandle()),
               const SizedBox(height: 16),
               Text(
                 l10n.hsEditTitle,
@@ -809,16 +794,7 @@ Future<void> showAddHabitSheet(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppSurfaces.dragHandle,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              Center(child: SheetDragHandle()),
               const SizedBox(height: 16),
               Text(
                 l10n.hsAddTitle,

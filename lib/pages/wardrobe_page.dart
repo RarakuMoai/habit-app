@@ -23,6 +23,7 @@ import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/reorder_jiggle.dart';
+import '../widgets/sheet_drag_handle.dart';
 import '../widgets/unlock_morph_button.dart';
 import 'home/room_metrics.dart';
 import 'memory_book_reader.dart';
@@ -2890,16 +2891,7 @@ class _TrackDetailSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8DDD4),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
+              Center(child: SheetDragHandle()),
               const SizedBox(height: 12),
               // 全圖 16:9 hero（不裁切）＋ 右上關閉鈕。標題/作者另用 app 文字（可翻譯），
               // 不依賴燒進圖裡的字。

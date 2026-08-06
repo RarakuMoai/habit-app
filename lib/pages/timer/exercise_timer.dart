@@ -19,6 +19,7 @@ import '../../utils/timer_mutex.dart';
 import '../../utils/wake_guard.dart';
 import '../../widgets/hold_repeat_button.dart';
 import '../../widgets/scroll_continuation_area.dart';
+import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/timer_mode_frame.dart';
 import '../../widgets/timer_ring_painter.dart';
 
@@ -1860,22 +1861,13 @@ class ExerciseTimerState extends State<ExerciseTimer>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const SheetDragHandle(),
                     Flexible(
                       child: ScrollContinuationArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Center(
-                              child: Container(
-                                width: 40,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE8DDD4),
-                                  borderRadius: BorderRadius.circular(99),
-                                ),
-                              ),
-                            ),
                             const SizedBox(height: 14),
                             // 標題：圖示 + 名稱 + 說明 + 關閉
                             Row(
