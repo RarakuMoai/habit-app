@@ -1010,6 +1010,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     _reorderGeneration = generation;
     setState(() => _editMode = true);
+    // 排序需要看得到清單。面板還開著（兔咪場景佔著上半）時自動把卡片拉起來，
+    // 否則使用者得先自己收面板才拖得動。
+    //
+    // openValue 的語意反直覺：**1.0 = 卡片下移、場景全露；0.0 = 卡片拉起蓋住
+    // 場景**。所以「展開清單」是往 0 收。
+    if (MascotPanelPrefs.openValue.value > 0.02) {
+      MascotPanelPrefs.requestSettle(0);
+    }
     _jiggleCtrl.repeat();
     playFeedback(SfxCue.tap);
   }

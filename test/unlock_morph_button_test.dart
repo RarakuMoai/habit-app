@@ -109,21 +109,29 @@ void main() {
     expect(find.text('加入'), findsOneWidget);
   });
 
-  testWidgets('解鎖音落在鎖彈開那一刻，而且只播一次', (tester) async {
+  testWidgets('兩聲各自落在自己的動作上，而且都只播一次', (tester) async {
     await pumpButton(tester);
     purchase();
     await tester.pump();
 
-    // 衝擊點之前：還沒出聲
-    await tester.pump(kUnlockTotal * (kUnlockImpactAt - 0.10));
-    expect(cues, isEmpty, reason: '購買完成不是衝擊點，鎖真的彈開才是');
+    // 搖晃開始 → 搖晃音；此時解鎖音還不能出現
+    await tester.pump(kUnlockTotal * (kUnlockShakeAt + 0.02));
+    expect(cues, [SfxCue.tumiCharge], reason: '鎖開始掙扎才出這一聲');
+
+    // 衝擊點之前：解鎖音還沒響
+    await tester.pump(kUnlockTotal * (kUnlockImpactAt - kUnlockShakeAt - 0.10));
+    expect(
+      cues,
+      isNot(contains(SfxCue.unlock)),
+      reason: '購買完成不是衝擊點，鎖真的彈開才是',
+    );
 
     await tester.pump(kUnlockTotal * 0.15);
-    expect(cues, [SfxCue.unlock]);
+    expect(cues, [SfxCue.tumiCharge, SfxCue.unlock]);
 
-    // 演完不會再補一次
+    // 演完不會再補
     await tester.pump(kUnlockTotal);
-    expect(cues, [SfxCue.unlock]);
+    expect(cues, [SfxCue.tumiCharge, SfxCue.unlock]);
   });
 
   testWidgets('Reduce Motion：不搖不縮放，但語意與音效都留著', (tester) async {
@@ -146,7 +154,11 @@ void main() {
 
     await tester.pump(kUnlockTotalReduced);
     expect(find.byIcon(Icons.playlist_add_rounded), findsOneWidget);
-    expect(cues, [SfxCue.unlock], reason: '音效是事實回饋，不隨動畫一起關掉');
+    expect(
+      cues,
+      [SfxCue.unlock],
+      reason: '解鎖音是事實回饋要留著；搖晃音描述的是不會發生的動作，該省略',
+    );
   });
 
   testWidgets('一開始就已擁有 → 靜態加入鈕，不演出、不出聲', (tester) async {
