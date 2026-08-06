@@ -8,7 +8,7 @@
 // anticipation → impact → recovery：
 //
 //   蓄力(180ms) → 掙脫般搖晃(720ms，伴隨搖晃音) → **彈開**(解鎖音＋觸覺＋光爆)
-//   → 光影餘韻與落定(400ms) → 化成「加入」(600ms)。總長 1900ms。
+//   → 光影餘韻與落定(400ms) → 化成「加入」(420ms)。總長 1720ms。
 //
 // **衝擊點對齊看得到的那一幀**（鎖真的彈開的瞬間），不是購買完成的那一刻——
 // 所以音效由這個元件在 impact 播，`_buyTrack` 不再自己播，否則會提早半秒。
@@ -93,7 +93,7 @@ class MiniActionButton extends StatelessWidget {
   }
 }
 
-// ── 解鎖演出的時間軸（總長 1900ms）─────────────────────────
+// ── 解鎖演出的時間軸（總長 1720ms）─────────────────────────
 //
 // 這些是**唯一**的真相來源；測試 import 它們，不要在別處另寫一組數字。
 //
@@ -110,22 +110,22 @@ const Duration kUnlockShake = Duration(milliseconds: 720);
 const Duration kUnlockSettle = Duration(milliseconds: 400);
 
 /// 化成「加入」圖示。**接力不重疊**：鎖先縮走，圖示才長出來。
-const Duration kUnlockMorph = Duration(milliseconds: 600);
+const Duration kUnlockMorph = Duration(milliseconds: 420);
 
 /// 完整演出長度。
-const Duration kUnlockTotal = Duration(milliseconds: 1900);
+const Duration kUnlockTotal = Duration(milliseconds: 1720);
 
 /// Reduce Motion 版：只保留語意上的三段換圖，不做位移與縮放。
 const Duration kUnlockTotalReduced = Duration(milliseconds: 420);
 
 /// 搖晃開始（＝搖晃音的觸發點）在整條弧線上的位置。
-const double kUnlockShakeAt = 180 / 1900;
+const double kUnlockShakeAt = 180 / 1720;
 
 /// 鎖彈開（＝衝擊點）在整條弧線上的位置。
-const double kUnlockImpactAt = 900 / 1900;
+const double kUnlockImpactAt = 900 / 1720;
 
 /// 開始化成「加入」的位置。
-const double kUnlockMorphAt = 1300 / 1900;
+const double kUnlockMorphAt = 1300 / 1720;
 
 /// 搖晃的最大角度（弧度）。約 9°，再大就從「掙脫」變成「壞掉」。
 const double _kShakeMaxAngle = 0.16;
@@ -297,15 +297,17 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
 
   /// 彈開瞬間的光爆進度（0→1 後結束）。
   double _burstAt(double t) {
-    const span = 0.34; // 實拍只看得到 2 幀，拉長
+    const span = 0.12; // 實拍：0.17 仍然賴到 1283ms，比彈開本身還久
     if (t < kUnlockImpactAt || t > kUnlockImpactAt + span) return 0;
     return (t - kUnlockImpactAt) / span;
   }
 
   /// 彈開後停留的柔光暈（比光爆長，負責「成就感的餘韻」）。
   double _afterglowAt(double t) {
-    if (t < kUnlockImpactAt || t > kUnlockMorphAt) return 0;
-    final p = (t - kUnlockImpactAt) / (kUnlockMorphAt - kUnlockImpactAt);
+    // 實拍：撐到 morph 起點太久，光暈跟接下來的換手打架。收在一半。
+    final end = kUnlockImpactAt + (kUnlockMorphAt - kUnlockImpactAt) * 0.55;
+    if (t < kUnlockImpactAt || t > end) return 0;
+    final p = (t - kUnlockImpactAt) / (end - kUnlockImpactAt);
     return p < 0.25
         ? Curves.easeOut.transform(p / 0.25)
         : 1 - Curves.easeIn.transform((p - 0.25) / 0.75);
@@ -392,9 +394,9 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
       return Icon(Icons.lock_open_rounded, size: 17, color: widget.color);
     }
     final p = ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
-    if (p < 0.45) {
-      // 開著的鎖縮小淡出（交棒）
-      final q = p / 0.45;
+    if (p < 0.26) {
+      // 開著的鎖縮小淡出（交棒要快，慢了就是一段沒東西看的空白）
+      final q = p / 0.26;
       return Opacity(
         opacity: 1 - Curves.easeIn.transform(q),
         child: Transform.scale(
@@ -404,9 +406,9 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
       );
     }
     // 目標圖示長出來（接棒）
-    final q = Curves.easeOutBack.transform(((p - 0.45) / 0.55).clamp(0.0, 1.0));
+    final q = Curves.easeOutBack.transform(((p - 0.26) / 0.74).clamp(0.0, 1.0));
     return Opacity(
-      opacity: Curves.easeOut.transform(((p - 0.45) / 0.35).clamp(0.0, 1.0)),
+      opacity: Curves.easeOut.transform(((p - 0.26) / 0.13).clamp(0.0, 1.0)),
       child: Transform.scale(
         scale: 0.62 + 0.38 * q,
         child: Icon(widget.unlockedIcon, size: 17, color: widget.color),
@@ -474,13 +476,14 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
         ? (t >= 0.67 ? 1.0 : 0.0)
         : ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
     // 硬切點：之前只有舊標籤，之後只有新標籤。中間沒有重疊區。
-    const handover = 0.42;
+    const handover = 0.26; // 實拍：0.42 讓整顆鈕淡了 250ms，空窗太長
+    // 舊的走得快、新的來得更快：實拍在交棒點附近有約 100ms 整顆鈕都很淡。
     final lockedOpacity = p < handover
         ? 1 - Curves.easeIn.transform(p / handover)
         : 0.0;
     final unlockedOpacity = p < handover
         ? 0.0
-        : Curves.easeOut.transform((p - handover) / (1 - handover));
+        : Curves.easeOut.transform(((p - handover) / 0.16).clamp(0.0, 1.0));
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -514,26 +517,29 @@ class _UnlockBurstPainter extends CustomPainter {
     final p = progress.clamp(0.0, 1.0);
     final fade = 1 - Curves.easeIn.transform(p);
 
-    // 擴散環：實拍第一版太細太大，讀起來像刮痕。收小範圍、加粗。
-    final ringR = size.width * (0.46 + 0.62 * Curves.easeOutCubic.transform(p));
+    // 擴散環：第二版加太粗，配上輻條整個讀成「船舵」。細而快才像光。
+    // 實拍：擴到 1.05w 時整圈溢出按鈕，讀成大泡泡不是光。收在按鈕內。
+    final ringR = size.width * (0.55 + 0.5 * Curves.easeOutCubic.transform(p));
     canvas.drawCircle(
       c,
       ringR,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.6 * fade + 0.4
-        ..color = color.withValues(alpha: 0.75 * fade),
+        ..strokeWidth = 1.3 * fade + 0.2
+        ..color = color.withValues(alpha: 0.6 * fade),
     );
 
     // 放射光芒：從鎖身邊緣往外抽，長度先長後收
-    const rays = 6; // 8 道在小尺寸下糊成一團，減少但加粗
+    // ⚠️ 實拍教訓：輻條**不能穿過鎖身**。第二版 inner 只有 0.38w，粗輻條壓在
+    // 鎖上，整個圖形讀成船舵／十字準星而不是光。一律從鎖的外緣才開始畫。
+    const rays = 6;
     final reach = Curves.easeOutCubic.transform(p);
-    final inner = size.width * (0.38 + 0.26 * reach);
-    final outer = inner + size.width * 0.34 * (1 - Curves.easeIn.transform(p));
+    final inner = size.width * (0.66 + 0.26 * reach);
+    final outer = inner + size.width * 0.26 * (1 - Curves.easeIn.transform(p));
     final rayPaint = Paint()
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.4 * fade + 0.3
-      ..color = color.withValues(alpha: 0.85 * fade);
+      ..strokeWidth = 1.2 * fade + 0.2
+      ..color = color.withValues(alpha: 0.7 * fade);
     for (var i = 0; i < rays; i++) {
       // 錯開半格，讓光芒不要正對著鎖的上下左右（那樣讀起來像十字準星）
       final a = (i + 0.5) * (math.pi * 2 / rays);

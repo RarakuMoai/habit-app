@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dev/motion_preview_page.dart';
 import 'l10n/app_localizations.dart';
 import 'pages/family_page.dart';
 import 'pages/home_page.dart';
@@ -240,6 +241,10 @@ class _MyAppState extends State<MyApp> {
   }
 
   Widget _buildHome() {
+    // 動效預覽台：--dart-define=MOTION_PREVIEW=1 直接開在這一頁，省掉進衣櫃、
+    // 捲清單、過確認框那一串——錄影抽格時才抓得穩同一段。
+    // kDevToolsEnabled 閘門，正式版這個常數恆為 false。
+    if (kMotionPreviewRequested) return const MotionPreviewPage();
     final testStartAtHome = widget.startAtHome;
     if (testStartAtHome != null) {
       return testStartAtHome ? const MainPage() : const OnboardingPage();
