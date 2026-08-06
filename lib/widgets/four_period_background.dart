@@ -1,4 +1,4 @@
-// 四時段完整背景（docs/four_period_background_plan.md 的核心元件）。
+// 四時段完整背景（docs/engineering_guardrails.md §視覺 的核心元件）。
 //
 // 設計：一個房間一天 = 四張「同畫布同構圖」的完整 CG（晨/晝/暮/夜），
 // 環境光影（天色、窗光、檯燈、長影）全部由圖本身承擔；Flutter 只做

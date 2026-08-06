@@ -184,7 +184,7 @@ class _TimerPageState extends State<TimerPage>
   AppLocalizations get _l10n => AppLocalizations.of(context);
 
   // 各格方案的預設名（l10n）。只在「沒存過名字」與「恢復初始值」時使用，
-  // 使用者存過的名字照原樣顯示，不做即時翻譯（見 docs/i18n_migration.md）。
+  // 使用者存過的名字照原樣顯示，不做即時翻譯（見 docs/engineering_guardrails.md §i18n）。
   String _defaultProfileName(int index) => switch (index) {
     0 => _l10n.focusProfileClassic,
     1 => _l10n.focusProfileDeep,

@@ -20,7 +20,7 @@ import 'family_widgets.dart';
 import 'preset_pick_sheet.dart';
 
 /// 接喝水面板的習慣名稱。與首頁的 `waterHabitName` 一樣是用名稱當識別鍵
-/// （見 docs/i18n_migration.md「刻意不遷」第 1 節）——家長把習慣改成別的
+/// （見 docs/engineering_guardrails.md §i18n 刻意不遷第 1 類）——家長把習慣改成別的
 /// 名字就不再連動，這是目前 preset 沒有穩定 id 的已知限制。
 const String kFamilyWaterHabitName = '今日多喝水';
 

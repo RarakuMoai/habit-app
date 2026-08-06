@@ -1,4 +1,4 @@
-// 四時段場景的單一時間引擎（docs/four_period_background_plan.md）。
+// 四時段場景的單一時間引擎（docs/engineering_guardrails.md §視覺）。
 //
 // 全 App 的場景時段（早晨/白天/黃昏/夜晚）只從這裡讀：
 //   SceneTimeController.instance.state

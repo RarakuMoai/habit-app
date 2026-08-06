@@ -7,9 +7,10 @@
 
 - 產品方向、優先順序：讀 `docs/roadmap.md`。程式現況以 repo 為準；roadmap 是策略，
   不是已完成功能清單。
-- 品牌升級、體驗打磨或 AI 分工驗收：先讀 `docs/brand_upgrade_operating_system.md`
-  的長期規則，再讀 `docs/brand_upgrade_status.md` 的現行 gate；不得跳過尚未完成的
-  gate。
+- **視覺或體驗要做成什麼樣：直接問使用者，不從文件推導。** 這裡刻意沒有常駐的
+  「品牌升級方向」文件——2026-08-06 移除，因為那份文件只寫了原則沒寫目標，
+  結果是產出一堆使用者感覺不到的微調。目標由使用者當場給，做完用實機截圖給
+  使用者裁決。技術護欄仍以 `docs/engineering_guardrails.md` 為準。
 - 兔咪性格、說話原則：讀 `docs/tumi_character_guide.md`（含「三種聲音」規則）。
 - **調整兔咪的對話或反應行為**（台詞、表情、泡泡、語音、觸發條件、優先度）：
   先讀 `docs/tumi_dialogue_catalog.md` 的事件總表，**先進表再寫程式**；改完

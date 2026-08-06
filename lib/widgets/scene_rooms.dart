@@ -1,5 +1,5 @@
 // 有窗房間註冊表：每個房間的四時段圖組＋光源幾何＋空氣層幾何，
-// 單一真相來源（docs/four_period_background_plan.md 的推廣形態）。
+// 單一真相來源（docs/engineering_guardrails.md §視覺 的推廣形態）。
 //
 // 新增房間的流程：
 //   1. 依 asset_convention 補四張同畫布同構圖的時段圖（WebP q95）。

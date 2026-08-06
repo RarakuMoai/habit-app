@@ -1,16 +1,14 @@
 // 場景效能探針：以 10 秒為一個視窗，統計 UI(build) / raster 幀時間的
 // 平均、P95、最大值與超出 16.7ms 預算的幀數，印成 [SCENE_PERF] log。
 //
-// 用途：記錄舊程式光影場景的效能基準；四時段完整背景遷移完成後可連同
-// docs/scene_perf_baseline.md 一起移除。
-// 效能基準與後續各 Phase 的前後對照。沒有幀時（例如閒置凍結、切到別的
-// 分頁、App 退背景）也會印「0 frames」視窗，用來證明場景真的停在 0fps。
+// 用途：量測場景改動前後的效能差。沒有幀時（例如閒置凍結、切到別的分頁、
+// App 退背景）也會印「0 frames」視窗，用來證明場景真的停在 0fps。
 //
 // 啟用方式（預設完全不編入行為，正式版零成本）：
 //   flutter run --profile --dart-define=SCENE_PERF=1
 //
 // 注意：debug 模式數據只能做相對比較，上線判斷一律以 profile/release
-// 實機數據為準（見計劃書 §7／§9）。
+// 實機數據為準（見 docs/engineering_guardrails.md §視覺）。
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';

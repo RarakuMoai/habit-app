@@ -19,7 +19,7 @@ String clampHabitName(String raw) =>
 //
 // 12 這個數字的依據（2026-07-26 實測 iPhone SE 320pt 寬）：最吃緊的
 // 「{name}的夥伴檔案」AppBar 標題可容納中文 11 字，12 半寬單位留了將近
-// 一倍的邊際。詳見 docs/i18n_migration.md。
+// 一倍的邊際。
 const int kMascotNameMaxUnits = 12;
 
 // 全寬（East Asian Wide／Fullwidth）字位的主要 Unicode 區段。

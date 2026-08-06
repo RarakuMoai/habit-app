@@ -27,7 +27,7 @@ import '../widgets/mascot_scene.dart';
 //
 // name 沒有走 l10n：這些名稱選取後會直接存成習慣名，而首頁的去重與
 // 喝水／體重連動判定都比對它（見 kHomePresets）。翻譯會讓連動失效。
-// 詳見 docs/i18n_migration.md 的跳過清單。
+// 詳見 docs/engineering_guardrails.md §i18n 刻意不遷。
 const List<({String emoji, String name, bool freq})> _kOnboardingHabits = [
   (emoji: '🦷', name: '刷牙', freq: false),
   (emoji: '🧹', name: '整理環境', freq: false),

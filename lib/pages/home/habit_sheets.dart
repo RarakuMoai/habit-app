@@ -13,7 +13,7 @@ const Color _kWaterLinkedAccent = Color(0xFF42A5F5);
 const Color _kWeightLinkedAccent = Color(0xFF7E57C2);
 
 // preset 名稱是「已存習慣的識別鍵」（去重、喝水／體重連動判定都比對它），
-// 不能翻譯，否則換語言後連動會失效。詳見 docs/i18n_migration.md 的跳過清單。
+// 不能翻譯，否則換語言後連動會失效。詳見 docs/engineering_guardrails.md §i18n 刻意不遷。
 Color _linkedAccentForPreset(HomePreset preset) =>
     preset.name == '體重紀錄' ? _kWeightLinkedAccent : _kWaterLinkedAccent;
 

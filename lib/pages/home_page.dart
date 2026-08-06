@@ -84,7 +84,7 @@ class HomePage extends StatefulWidget {
 }
 
 // 喝水 preset 的名稱同時是「已存習慣的識別鍵」：喝水頁連動靠比對它，
-// 所以不能翻譯（見 docs/i18n_migration.md 的跳過清單）。
+// 所以不能翻譯（見 docs/engineering_guardrails.md §i18n 刻意不遷）。
 const String _kWaterHabitPresetName = '喝足夠的水';
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
