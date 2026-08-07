@@ -492,11 +492,18 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
         ? (t >= 0.67 ? 1.0 : 0.0)
         : ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
     const handover = 0.26;
-    final wp = reduce
-        ? p
-        : Curves.easeInOut.transform(
-            ((p - (handover - 0.06)) / 0.12).clamp(0.0, 1.0),
-          );
+    // 寬度在 handover 那一點**硬切**，不做插值。
+    //
+    // 內容寬一變，置中的 Row 就重新置中，圖示跟著平移。插值版本（窗口
+    // p∈[0.20,0.32]）讓這段平移橫跨圖示換手的前後，於是前半段淡出的鎖在滑、
+    // 後半段淡入的「加入」也在滑——使用者回報「加入的圖案好像有位置變動」
+    // 就是後半段那一截。
+    //
+    // 而 p == handover 這一幀，兩個圖示的透明度**剛好都是 0**：
+    //   鎖：  1 - easeIn(0.26/0.26) = 0
+    //   加入：easeOut((0.26-0.26)/0.13) = 0
+    // 在沒有東西看得見的那一幀換寬度，位移就不存在於視覺上。
+    final wp = reduce ? p : (p < handover ? 0.0 : 1.0);
     return ui.lerpDouble(
       _measure(widget.lockedLabel, _labelStyle),
       _measure(widget.unlockedLabel, _labelStyle),
@@ -526,11 +533,18 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     //
     // handover(0.26) 這一點舊標籤剛淡完、新標籤還沒進場，圖示也正在接力，
     // 三者都是空的，寬度在這裡快速換完就不會被看見。
-    final wp = reduce
-        ? p
-        : Curves.easeInOut.transform(
-            ((p - (handover - 0.06)) / 0.12).clamp(0.0, 1.0),
-          );
+    // 寬度在 handover 那一點**硬切**，不做插值。
+    //
+    // 內容寬一變，置中的 Row 就重新置中，圖示跟著平移。插值版本（窗口
+    // p∈[0.20,0.32]）讓這段平移橫跨圖示換手的前後，於是前半段淡出的鎖在滑、
+    // 後半段淡入的「加入」也在滑——使用者回報「加入的圖案好像有位置變動」
+    // 就是後半段那一截。
+    //
+    // 而 p == handover 這一幀，兩個圖示的透明度**剛好都是 0**：
+    //   鎖：  1 - easeIn(0.26/0.26) = 0
+    //   加入：easeOut((0.26-0.26)/0.13) = 0
+    // 在沒有東西看得見的那一幀換寬度，位移就不存在於視覺上。
+    final wp = reduce ? p : (p < handover ? 0.0 : 1.0);
     final w = ui.lerpDouble(
       _measure(widget.lockedLabel, _labelStyle),
       _measure(widget.unlockedLabel, _labelStyle),
