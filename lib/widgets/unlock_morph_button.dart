@@ -385,6 +385,12 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
         // 用 Stack 疊在按鈕之上、IgnorePointer 不吃手勢；按鈕本身完全不必知道
         // 有光效存在，兩者徹底分開。
         return Stack(
+          // ⚠️ **必須 passthrough。** 預設的 StackFit.loose 會把寬度約束放鬆，
+          // 按鈕就從「填滿父層給的寬度」掉回「內容有多寬就多寬」——實測框體
+          // 在演出期間縮掉 40%（418px → 250px），而靜態分支沒包 Stack 所以
+          // 正常，於是看起來就是「框體大小一直在變」。
+          // passthrough 讓按鈕收到與 Stack 相同的約束，框體才會全程固定。
+          fit: StackFit.passthrough,
           clipBehavior: Clip.none,
           children: [
             button,
