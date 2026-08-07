@@ -21,6 +21,7 @@
 // 一併省略，因為那一聲是在描述一個不會發生的動作。
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -495,14 +496,19 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return tp.width;
   }
 
-  /// **文字與圖示徹底分開**：標籤槽一律固定成兩段文字的較寬者。
+  /// **文字與圖示徹底分開**：標籤槽固定成兩段文字的較寬者，**而且文字靠左貼齊**。
   ///
   /// 這是使用者實機抓到「解鎖時圖示往右靠」的根治法。`Transform` 本身不影響
   /// 版面，真正的耦合在這裡——Row 是置中的，標籤一變窄整排就重新置中，圖示
   /// 跟著被推。之前用寬度插值只是把「跳」變成「滑」，動還是動。
   ///
-  /// 槽寬在**靜態兩態與演出期間完全一致**，所以圖示從頭到尾一格都不動；
-  /// 只有這個元件這樣做，其他 14 處 MiniActionButton 不受影響。
+  /// ⚠️ 第一版把文字**置中**在固定槽裡，結果短的「加入」被推到槽中央，
+  /// 圖示與文字之間空出一大塊（使用者：「空位太多」）。改成靠左貼齊之後，
+  /// **圖示到文字的間距永遠是同一個 5px**，多出來的寬度統一留在右側。
+  ///
+  /// 代價：整組內容因此不是嚴格置中，而是固定偏左約 (maxW - thisW) / 2。
+  /// 這三件事（圖示不動 ／ 間距固定 ／ 內容置中）數學上不可能同時成立，
+  /// 因為文字寬度會變。取捨結果是放掉「嚴格置中」——那是三者中最不明顯的一項。
   double get _slotWidth {
     final style = _labelStyle;
     return math.max(
@@ -519,7 +525,8 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
 
   Widget _fixedLabel(String text) => SizedBox(
     width: _slotWidth,
-    child: Center(
+    child: Align(
+      alignment: Alignment.centerLeft,
       child: Text(text, style: _labelStyle, softWrap: false, maxLines: 1),
     ),
   );
@@ -539,7 +546,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return SizedBox(
       width: _slotWidth,
       child: Stack(
-        alignment: Alignment.center,
+        alignment: Alignment.centerLeft,
         children: [
           Opacity(
             opacity: lockedOpacity,
@@ -576,85 +583,91 @@ class _UnlockBurstPainter extends CustomPainter {
 
   const _UnlockBurstPainter({required this.progress, required this.color});
 
-  /// 光的顏色。兩次實拍換來的結論：
-  ///
-  /// 1. 整組用元件主色畫 → 讀成「幾條藍線」，不是光。
-  /// 2. 改成接近白的高亮 → **按鈕底本來就是淺色，白光整個消失。**
-  ///
-  /// 淺底上要讓光讀得出來靠的是**飽和度與明度差**，不是白。所以光芒與環用
-  /// 提亮加飽和後的主色（比按鈕上的圖示更亮更豔），只有最中心的爆閃留白，
-  /// 負責那一下 bloom。
-  Color _ray(double a) {
-    final h = HSLColor.fromColor(color);
-    return h
-        .withLightness((h.lightness + 0.18).clamp(0.0, 1.0))
-        .withSaturation((h.saturation + 0.35).clamp(0.0, 1.0))
-        .toColor()
-        .withValues(alpha: a.clamp(0.0, 1.0));
-  }
-
-  Color _core(double a) => Color.lerp(
-    Colors.white,
-    color,
-    0.12,
-  )!.withValues(alpha: a.clamp(0.0, 1.0));
-
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
     final p = progress.clamp(0.0, 1.0);
-    final fade = 1 - Curves.easeIn.transform(p);
+    if (p <= 0) return;
 
-    // ① 核心閃光：彈開瞬間最亮，衰減得比什麼都快。這一下才是「亮起來」。
+    // ⚠️ 前三版都是用 drawLine ＋ alpha 畫的，所以讀起來就是「幾條線」。
+    // 光之所以看起來像光，靠的是**加法混色**：重疊處會累積、過曝到白。
+    // 整段光效因此畫在一個 saveLayer 裡，用 BlendMode.plus 疊加，
+    // 而且形狀一律是徑向漸層（軟邊）而不是實心筆畫。
+    final bounds = Rect.fromCircle(center: c, radius: size.width * 2.4);
+    canvas.saveLayer(bounds, Paint());
+
     final flash = 1 - Curves.easeOutQuart.transform(p);
+    final fade = 1 - Curves.easeInOutCubic.transform(p);
+
+    // ① 亮核 bloom：中心過曝的那一下。
     if (flash > 0.01) {
+      final r = size.width * (0.5 + 0.9 * Curves.easeOutCubic.transform(p));
       canvas.drawCircle(
         c,
-        size.width * (0.42 + 0.5 * p),
+        r,
         Paint()
-          ..color = _core(0.95 * flash)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3 + 6 * p),
+          ..blendMode = BlendMode.plus
+          ..shader = RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.95 * flash),
+              color.withValues(alpha: 0.55 * flash),
+              color.withValues(alpha: 0),
+            ],
+            stops: const [0, 0.35, 1],
+          ).createShader(Rect.fromCircle(center: c, radius: r)),
       );
     }
 
-    // ② 擴散環：細、亮、收在按鈕內。
+    // ② 衝擊環：用漸層做出「內外都柔、中間亮」的環，不是描邊。
+    final ringR = size.width * (0.6 + 1.15 * Curves.easeOutCubic.transform(p));
+    final ringW = (0.30 * fade + 0.06).clamp(0.02, 0.5);
     canvas.drawCircle(
       c,
-      size.width * (0.55 + 0.5 * Curves.easeOutCubic.transform(p)),
+      ringR,
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5 * fade + 0.25
-        ..color = _ray(0.85 * fade),
+        ..blendMode = BlendMode.plus
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0),
+            Colors.white.withValues(alpha: 0.85 * fade),
+            color.withValues(alpha: 0),
+          ],
+          stops: [(1 - ringW).clamp(0.0, 1.0), 1 - ringW / 2, 1.0],
+        ).createShader(Rect.fromCircle(center: c, radius: ringR)),
     );
 
-    // ③ 光芒：**長度不等、明暗不等**，而且各自錯開時間點才會閃。
-    //    等長等亮的放射線讀起來像機械圖示，不像光。
+    // ③ 光芒：兩端漸淡的細長光條，長度與起跑時間各自不同 → 讀成閃爍。
     const rays = 7;
     const lens = [1.0, 0.55, 0.85, 0.45, 1.0, 0.62, 0.8];
-    const phase = [0.0, 0.18, 0.06, 0.24, 0.02, 0.14, 0.1];
-    final reach = Curves.easeOutCubic.transform(p);
+    const phase = [0.0, 0.16, 0.05, 0.22, 0.02, 0.12, 0.09];
     for (var i = 0; i < rays; i++) {
-      // 錯開起跑：有的先衝出去、有的慢半拍，整體讀成閃爍而不是齊步走
       final lp = ((p - phase[i]) / (1 - phase[i])).clamp(0.0, 1.0);
       if (lp <= 0) continue;
       final lf = 1 - Curves.easeInQuad.transform(lp);
-      final inner = size.width * (0.66 + 0.26 * reach);
-      final outer =
-          inner +
-          size.width * 0.30 * lens[i] * (1 - Curves.easeIn.transform(lp));
+      final reach = Curves.easeOutCubic.transform(lp);
+      final inner = size.width * (0.62 + 0.5 * reach);
+      final outer = inner + size.width * 0.5 * lens[i] * lf;
       if (outer <= inner) continue;
-      // 半格錯開，避免正對上下左右而讀成十字準星
       final a = (i + 0.5) * (math.pi * 2 / rays);
       final d = Offset(math.cos(a), math.sin(a));
+      final p1 = c + d * inner;
+      final p2 = c + d * outer;
       canvas.drawLine(
-        c + d * inner,
-        c + d * outer,
+        p1,
+        p2,
         Paint()
+          ..blendMode = BlendMode.plus
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = 1.7 * lf + 0.3
-          ..color = _ray(1.0 * lf),
+          ..strokeWidth = 2.2 * lf + 0.3
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2)
+          ..shader = ui.Gradient.linear(p1, p2, [
+            Colors.white.withValues(alpha: 0.9 * lf),
+            color.withValues(alpha: 0),
+          ]),
       );
     }
+
+    canvas.restore();
   }
 
   @override
