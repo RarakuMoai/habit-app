@@ -8,7 +8,7 @@
 // anticipation → impact → recovery：
 //
 //   蓄力(180ms) → 掙脫般搖晃(720ms，伴隨搖晃音) → **彈開**(解鎖音＋觸覺＋光爆)
-//   → 光影餘韻與落定(400ms) → 化成「加入」(680ms，其中淡入約 500ms)。總長 1980ms。
+//   → 光影餘韻與落定(400ms) → 交叉淡入成「加入」(500ms)。總長 1920ms。
 //
 // **衝擊點對齊看得到的那一幀**（鎖真的彈開的瞬間），不是購買完成的那一刻——
 // 所以音效由這個元件在 impact 播，`_buyTrack` 不再自己播，否則會提早半秒。
@@ -94,7 +94,7 @@ class MiniActionButton extends StatelessWidget {
   }
 }
 
-// ── 解鎖演出的時間軸（總長 1980ms）─────────────────────────
+// ── 解鎖演出的時間軸（總長 1920ms）─────────────────────────
 //
 // 這些是**唯一**的真相來源；測試 import 它們，不要在別處另寫一組數字。
 //
@@ -111,22 +111,24 @@ const Duration kUnlockShake = Duration(milliseconds: 720);
 const Duration kUnlockSettle = Duration(milliseconds: 400);
 
 /// 化成「加入」圖示。**接力不重疊**：鎖先縮走，圖示才長出來。
-const Duration kUnlockMorph = Duration(milliseconds: 680);
+/// 化成「加入」。鎖淡出與「加入」淡入**同時進行**（0.5 秒），寬度也在同一個
+/// 窗口內一起變 —— 全部同步才讀成一次完整的過渡，而不是幾件事各跳各的。
+const Duration kUnlockMorph = Duration(milliseconds: 620);
 
 /// 完整演出長度。
-const Duration kUnlockTotal = Duration(milliseconds: 1980);
+const Duration kUnlockTotal = Duration(milliseconds: 1920);
 
 /// Reduce Motion 版：只保留語意上的三段換圖，不做位移與縮放。
 const Duration kUnlockTotalReduced = Duration(milliseconds: 420);
 
 /// 搖晃開始（＝搖晃音的觸發點）在整條弧線上的位置。
-const double kUnlockShakeAt = 180 / 1980;
+const double kUnlockShakeAt = 180 / 1920;
 
 /// 鎖彈開（＝衝擊點）在整條弧線上的位置。
-const double kUnlockImpactAt = 900 / 1980;
+const double kUnlockImpactAt = 900 / 1920;
 
 /// 開始化成「加入」的位置。
-const double kUnlockMorphAt = 1300 / 1980;
+const double kUnlockMorphAt = 1300 / 1920;
 
 /// 搖晃的最大角度（弧度）。約 9°，再大就從「掙脫」變成「壞掉」。
 const double _kShakeMaxAngle = 0.16;
@@ -367,7 +369,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
                         angle: _shakeAngleAt(t),
                         child: Transform.scale(
                           scale: _scaleAt(t),
-                          child: _iconRelay(t),
+                          child: _iconCross(t, reduce),
                         ),
                       ),
                     ),
@@ -418,35 +420,30 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
   /// 第一版是三張疊著交叉淡入，結果鎖與「加入」兩個形狀不同的字形會在中途
   /// 各自半透明地疊在一起——實機看起來就是「有幾幀怪怪的、圖案缺一塊」。
   /// 改成接力之後：鎖先縮走並消失，目標圖示才從小長回來，中間沒有重疊區。
-  Widget _iconRelay(double t) {
+  /// 圖示：彈開前是闔鎖，彈開後開鎖與「加入」**交叉淡入**。
+  ///
+  /// 兩者同時進行是使用者指定的；淡入拉到 0.5 秒之後，任一幀的重疊都很輕，
+  /// 不會再出現先前那種「圖案缺一塊」的對撞感。
+  Widget _iconCross(double t, bool reduce) {
     if (t < kUnlockImpactAt) {
       return Icon(Icons.lock_rounded, size: 17, color: widget.color);
     }
-    if (t < kUnlockMorphAt) {
+    final c = _crossAt(t, reduce);
+    if (c <= 0) {
       return Icon(Icons.lock_open_rounded, size: 17, color: widget.color);
     }
-    final p = ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
-    if (p < 0.26) {
-      // 開著的鎖縮小淡出（交棒要快，慢了就是一段沒東西看的空白）
-      final q = p / 0.26;
-      return Opacity(
-        opacity: 1 - Curves.easeIn.transform(q),
-        child: Transform.scale(
-          scale: 1 - 0.35 * Curves.easeIn.transform(q),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Opacity(
+          opacity: (1 - c).clamp(0.0, 1.0),
           child: Icon(Icons.lock_open_rounded, size: 17, color: widget.color),
         ),
-      );
-    }
-    // 目標圖示長出來（接棒）
-    final q = Curves.easeOutBack.transform(((p - 0.26) / 0.74).clamp(0.0, 1.0));
-    return Opacity(
-      opacity: Curves.easeOut.transform(((p - 0.26) / 0.13).clamp(0.0, 1.0)),
-      child: Transform.scale(
-        // 彈入幅度刻意小：量過 0.62 起跳會讓圖示左緣再滑約 6px，讀成「加入
-        // 出現後還在跑」。留一點點長出來的感覺就好。
-        scale: 0.88 + 0.12 * q,
-        child: Icon(widget.unlockedIcon, size: 17, color: widget.color),
-      ),
+        Opacity(
+          opacity: c.clamp(0.0, 1.0),
+          child: Icon(widget.unlockedIcon, size: 17, color: widget.color),
+        ),
+      ],
     );
   }
 
@@ -486,24 +483,23 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
   /// 文字寬度不同。前一版放掉「置中」，結果是整組偏左、看起來沒對齊；改成
   /// 放掉「圖示不動」——但把那一次位移**壓在彈開的 120ms 內完成**，那時
   /// 注意力在鎖彈開與光上，等「加入」浮出來時版面早就定住了。
+  /// 交叉淡入的進度 0→1，佔 morph 的前 500ms。
+  ///
+  /// 圖示、標籤與寬度**全部**用這一個數字驅動：使用者要的是「解鎖淡出的同時
+  /// 加入淡入」，而一旦兩者重疊，就沒有「看不見的那一幀」可以把寬度變化藏
+  /// 進去了。所以三件事一起走同一條曲線——同步的變化讀成一次過渡，
+  /// 各走各的才讀成跳動。
+  double _crossAt(double t, bool reduce) {
+    if (reduce) return t >= 0.67 ? 1 : 0;
+    const fadeMs = 500.0;
+    final span = fadeMs / kUnlockMorph.inMilliseconds;
+    final p = ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
+    return (p / span).clamp(0.0, 1.0);
+  }
+
   /// 這一幀標籤的寬度。`_label` 與星芒光源共用同一個算式，兩者才不會對不上。
   double _labelWidthAt(double t, bool reduce) {
-    final p = reduce
-        ? (t >= 0.67 ? 1.0 : 0.0)
-        : ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
-    const handover = 0.26;
-    // 寬度在 handover 那一點**硬切**，不做插值。
-    //
-    // 內容寬一變，置中的 Row 就重新置中，圖示跟著平移。插值版本（窗口
-    // p∈[0.20,0.32]）讓這段平移橫跨圖示換手的前後，於是前半段淡出的鎖在滑、
-    // 後半段淡入的「加入」也在滑——使用者回報「加入的圖案好像有位置變動」
-    // 就是後半段那一截。
-    //
-    // 而 p == handover 這一幀，兩個圖示的透明度**剛好都是 0**：
-    //   鎖：  1 - easeIn(0.26/0.26) = 0
-    //   加入：easeOut((0.26-0.26)/0.13) = 0
-    // 在沒有東西看得見的那一幀換寬度，位移就不存在於視覺上。
-    final wp = reduce ? p : (p < handover ? 0.0 : 1.0);
+    final wp = Curves.easeInOut.transform(_crossAt(t, reduce));
     return ui.lerpDouble(
       _measure(widget.lockedLabel, _labelStyle),
       _measure(widget.unlockedLabel, _labelStyle),
@@ -511,54 +507,22 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     )!;
   }
 
+  /// 標籤：**交叉淡入**——舊的淡出的同時新的淡入，兩段重疊。
+  ///
+  /// 先前是「接力」（舊的完全淡完新的才進場），為的是避免「解鎖 50」與
+  /// 「加入」半透明疊在一起讀成壞掉的字。但使用者實看之後要的是同時淡入淡出，
+  /// 而且時間拉長到 0.5 秒——拉長之後兩段重疊的時間雖然變長，每一幀的重疊
+  /// 程度反而更緩和，不再是快速對撞。
   Widget _label(double t, bool reduce) {
-    final p = reduce
-        ? (t >= 0.67 ? 1.0 : 0.0)
-        : ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
-    const handover = 0.26;
-    final lockedOpacity = p < handover
-        ? 1 - Curves.easeIn.transform(p / handover)
-        : 0.0;
-    // 「加入」的淡入刻意拉長：短促地跳出來讀起來像閃現，慢慢浮出來才像
-    // 「東西被換上去了」。走完整個 morph 剩餘段。
-    final unlockedOpacity = p < handover
-        ? 0.0
-        : Curves.easeOutCubic.transform((p - handover) / (1 - handover));
-
-    // ⚠️ 寬度只能在**兩段文字都看不見的那一瞬間**改。
-    //
-    // 上一版排在彈開瞬間，但舊標籤要到 morph 才開始淡出——槽先縮、字還在，
-    // 「解鎖 50」就被裁成「解鎖 5」「解鎖」，持續約 400ms。那是使用者說
-    // 「整個亂掉」的主因。
-    //
-    // handover(0.26) 這一點舊標籤剛淡完、新標籤還沒進場，圖示也正在接力，
-    // 三者都是空的，寬度在這裡快速換完就不會被看見。
-    // 寬度在 handover 那一點**硬切**，不做插值。
-    //
-    // 內容寬一變，置中的 Row 就重新置中，圖示跟著平移。插值版本（窗口
-    // p∈[0.20,0.32]）讓這段平移橫跨圖示換手的前後，於是前半段淡出的鎖在滑、
-    // 後半段淡入的「加入」也在滑——使用者回報「加入的圖案好像有位置變動」
-    // 就是後半段那一截。
-    //
-    // 而 p == handover 這一幀，兩個圖示的透明度**剛好都是 0**：
-    //   鎖：  1 - easeIn(0.26/0.26) = 0
-    //   加入：easeOut((0.26-0.26)/0.13) = 0
-    // 在沒有東西看得見的那一幀換寬度，位移就不存在於視覺上。
-    final wp = reduce ? p : (p < handover ? 0.0 : 1.0);
-    final w = ui.lerpDouble(
-      _measure(widget.lockedLabel, _labelStyle),
-      _measure(widget.unlockedLabel, _labelStyle),
-      wp,
-    )!;
-
+    final c = _crossAt(t, reduce);
     return SizedBox(
-      width: w,
+      width: _labelWidthAt(t, reduce),
       child: Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
           Opacity(
-            opacity: lockedOpacity,
+            opacity: (1 - c).clamp(0.0, 1.0),
             child: Text(
               widget.lockedLabel,
               style: _labelStyle,
@@ -567,7 +531,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
             ),
           ),
           Opacity(
-            opacity: unlockedOpacity,
+            opacity: c.clamp(0.0, 1.0),
             child: Text(
               widget.unlockedLabel,
               style: _labelStyle,
