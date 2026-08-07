@@ -161,6 +161,42 @@ void main() {
     );
   });
 
+  testWidgets('交叉淡入期間兩段文字完全不位移', (tester) async {
+    // 使用者實機回報：「解鎖變成加入的交界處發生文字縮排，單純的淡出淡入不應該
+    // 位移」。根因是標籤槽逐幀縮窄，把 Text 一起夾著重新排版——實測「解鎖 50」
+    // 的文字框在 520ms 內被兩側擠掉 37pt。修法是讓文字用自然寬度對齊槽中心。
+    await pumpButton(tester);
+    purchase();
+    await tester.pump();
+
+    Rect? lockedAt;
+    Rect? unlockedAt;
+    for (var ms = 0; ms <= kUnlockTotal.inMilliseconds; ms += 20) {
+      if (ms > 0) await tester.pump(const Duration(milliseconds: 20));
+      for (final entry in {
+        '解鎖 30': (Rect? r) => lockedAt = r,
+        '加入': (Rect? r) => unlockedAt = r,
+      }.entries) {
+        final finder = find.text(entry.key);
+        if (finder.evaluate().isEmpty) continue;
+        final rect = tester.getRect(finder.first);
+        final seen = entry.key == '解鎖 30' ? lockedAt : unlockedAt;
+        if (seen == null) {
+          entry.value(rect);
+        } else {
+          expect(
+            rect,
+            seen,
+            reason: '「${entry.key}」在 ${ms}ms 移動了：$seen → $rect。'
+                '淡出淡入不該帶動排版',
+          );
+        }
+      }
+    }
+    expect(lockedAt, isNotNull);
+    expect(unlockedAt, isNotNull);
+  });
+
   testWidgets('一開始就已擁有 → 靜態加入鈕，不演出、不出聲', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

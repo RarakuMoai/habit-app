@@ -466,15 +466,15 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     fontWeight: FontWeight.w900,
   );
 
-  /// 量一段文字在目前 textScaler 下的寬度。
-  double _measure(String text, TextStyle style) {
+  /// 量一段文字在目前 textScaler 下的自然尺寸（不受任何約束）。
+  Size _measure(String text, TextStyle style) {
     final tp = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
       textScaler:
           MediaQuery.maybeOf(context)?.textScaler ?? TextScaler.noScaling,
     )..layout();
-    return tp.width;
+    return tp.size;
   }
 
   /// 標籤：自然寬度、內容維持置中，圖示到文字的間距固定。
@@ -498,11 +498,23 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
   }
 
   /// 這一幀標籤的寬度。`_label` 與星芒光源共用同一個算式，兩者才不會對不上。
+  ///
+  /// ⚠️ 寬度**刻意比交叉淡入晚一半才開始動**（淡出過半 → 演出結束，約 370ms）。
+  ///
+  /// 槽寬只有一個作用：讓 Row 重新置中，也就是把圖示送到它最終的位置。而圖示
+  /// 一旦走完，它的右緣會壓進「解鎖 50」左緣約 14pt——兩段文字現在是釘死的，
+  /// 這個重疊躲不掉。躲不掉就讓它發生在**舊標籤已經看不見**的時候：延後起跑
+  /// 之後，實測要到舊標籤剩不到兩成才開始有重疊，全程讀不到「圖示壓到字」。
   double _labelWidthAt(double t, bool reduce) {
-    final wp = Curves.easeInOut.transform(_crossAt(t, reduce));
+    final start = kUnlockMorphAt + (1 - kUnlockMorphAt) * 0.40; // 淡出過半
+    final wp = Curves.easeInOutCubic.transform(
+      reduce
+          ? _crossAt(t, reduce)
+          : ((t - start) / (1 - start)).clamp(0.0, 1.0),
+    );
     return ui.lerpDouble(
-      _measure(widget.lockedLabel, _labelStyle),
-      _measure(widget.unlockedLabel, _labelStyle),
+      _measure(widget.lockedLabel, _labelStyle).width,
+      _measure(widget.unlockedLabel, _labelStyle).width,
       wp,
     )!;
   }
@@ -515,31 +527,42 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
   /// 程度反而更緩和，不再是快速對撞。
   Widget _label(double t, bool reduce) {
     final c = _crossAt(t, reduce);
+    final locked = _measure(widget.lockedLabel, _labelStyle);
+    final unlocked = _measure(widget.unlockedLabel, _labelStyle);
     return SizedBox(
+      // 槽寬逐幀變 → Row 重新置中 → 圖示平滑地走到它最終的位置。
       width: _labelWidthAt(t, reduce),
+      // ⚠️ 高度必須寫死，`_fadingLabel` 的 OverflowBox 才有有限的高度可用
+      //（Row 的交叉軸是不設限的，不給高度會拿到 Infinity 而炸掉）。
+      height: math.max(locked.height, unlocked.height),
       child: Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          Opacity(
-            opacity: (1 - c).clamp(0.0, 1.0),
-            child: Text(
-              widget.lockedLabel,
-              style: _labelStyle,
-              softWrap: false,
-              maxLines: 1,
-            ),
-          ),
-          Opacity(
-            opacity: c.clamp(0.0, 1.0),
-            child: Text(
-              widget.unlockedLabel,
-              style: _labelStyle,
-              softWrap: false,
-              maxLines: 1,
-            ),
-          ),
+          _fadingLabel(widget.lockedLabel, 1 - c),
+          _fadingLabel(widget.unlockedLabel, c),
         ],
+      ),
+    );
+  }
+
+  /// 一段照自然寬度排版、對齊槽中心的淡入淡出文字。
+  ///
+  /// ⚠️ **OverflowBox 是這裡的重點，不是可有可無的包裝。** 少了它，`Text` 會被
+  /// 逐幀縮窄的槽夾住重新排版：實測「解鎖 50」的文字框在 520ms 內被兩側擠掉
+  /// 37pt（62.5 → 25.4），左緣往右推、右邊整個溢出去——看起來就是文字在縮排。
+  /// 使用者說得對，單純的淡出淡入不該有位移，會動是因為**排版被拖下水**了。
+  ///
+  /// 給了無限寬之後兩段文字都用自然尺寸、對齊槽中心，而槽中心
+  ///（＝`(按鈕寬 + 圖示寬 + 間距) / 2`）與標籤寬度無關、**恆定不變**，
+  /// 所以兩段文字全程都釘在原地。
+  Widget _fadingLabel(String text, double opacity) {
+    return Opacity(
+      opacity: opacity.clamp(0.0, 1.0),
+      child: OverflowBox(
+        // maxWidth 無限＝照自然寬度排版；對齊預設就是置中，正是要的。
+        maxWidth: double.infinity,
+        child: Text(text, style: _labelStyle, softWrap: false, maxLines: 1),
       ),
     );
   }
