@@ -91,7 +91,7 @@ class _MotionPreviewPageState extends State<MotionPreviewPage>
     if (ms < 180) return '蓄力';
     if (ms < 900) return '搖晃';
     if (ms < 1300) return '彈開/餘韻';
-    if (ms < 1720) return '化成加入';
+    if (ms < 1980) return '化成加入';
     return '完成';
   }
 
@@ -120,47 +120,68 @@ class _MotionPreviewPageState extends State<MotionPreviewPage>
                 ),
               ),
             ),
-            const SizedBox(height: 28),
-            // 原尺寸：這是使用者實際會看到的大小，調動效一律以它為準。
-            _labelled('原尺寸（實際大小）', 1),
-            const SizedBox(height: 24),
-            // 放大版：同一個元件放大檢視細節，不改任何參數。
-            _labelled('放大 3× （只為了看細節）', 3),
+            const SizedBox(height: 20),
+            // 四個方案並排，同一時刻一起播 → 可以直接比。
+            // 上排原尺寸（使用者實際看到的），下排放大 2.4× 看細節。
+            for (final v in UnlockFx.values) ...[
+              _variant(v),
+              const SizedBox(height: 10),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _labelled(String caption, double zoom) {
+  static const _fxNames = {
+    UnlockFx.notes: 'A 音符（解鎖的是音樂，讓音符自己出場）',
+    UnlockFx.keyhole: 'B 鎖孔漏光（暖光只從鎖孔斜射，像推開門）',
+    UnlockFx.wash: 'C 水彩暈染（顏色在紙上化開，貼繪本媒材）',
+    UnlockFx.mechanical: 'D 純機械（不放光與粒子，只有重量）',
+  };
+
+  Widget _variant(UnlockFx fx) {
     return Column(
       children: [
         Text(
-          caption,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF8C7A6E)),
+          _fxNames[fx]!,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF453229),
+          ),
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 44.0 * zoom,
-          child: Transform.scale(
-            scale: zoom,
-            child: Center(
-              child: SizedBox(
-                width: 140,
-                child: UnlockMorphButton(
-                  owned: _owned,
-                  lockedLabel: '解鎖 50',
-                  unlockedLabel: '加入',
-                  unlockedIcon: Icons.playlist_add_rounded,
-                  color: const Color(0xFF4A6FA5),
-                  onLockedTap: () {},
-                  onUnlockedTap: () {},
-                ),
-              ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [_stage(fx, 1), const SizedBox(width: 10), _stage(fx, 1.7)],
+        ),
+      ],
+    );
+  }
+
+  Widget _stage(UnlockFx fx, double zoom) {
+    return SizedBox(
+      width: 150 * zoom,
+      height: 44 * zoom,
+      child: Transform.scale(
+        scale: zoom,
+        child: Center(
+          child: SizedBox(
+            width: 140,
+            child: UnlockMorphButton(
+              owned: _owned,
+              fx: fx,
+              lockedLabel: '解鎖 50',
+              unlockedLabel: '加入',
+              unlockedIcon: Icons.playlist_add_rounded,
+              color: const Color(0xFF4A6FA5),
+              onLockedTap: () {},
+              onUnlockedTap: () {},
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

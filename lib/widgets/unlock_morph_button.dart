@@ -8,7 +8,7 @@
 // anticipation → impact → recovery：
 //
 //   蓄力(180ms) → 掙脫般搖晃(720ms，伴隨搖晃音) → **彈開**(解鎖音＋觸覺＋光爆)
-//   → 光影餘韻與落定(400ms) → 化成「加入」(420ms)。總長 1720ms。
+//   → 光影餘韻與落定(400ms) → 化成「加入」(680ms，其中淡入約 500ms)。總長 1980ms。
 //
 // **衝擊點對齊看得到的那一幀**（鎖真的彈開的瞬間），不是購買完成的那一刻——
 // 所以音效由這個元件在 impact 播，`_buyTrack` 不再自己播，否則會提早半秒。
@@ -94,7 +94,7 @@ class MiniActionButton extends StatelessWidget {
   }
 }
 
-// ── 解鎖演出的時間軸（總長 1720ms）─────────────────────────
+// ── 解鎖演出的時間軸（總長 1980ms）─────────────────────────
 //
 // 這些是**唯一**的真相來源；測試 import 它們，不要在別處另寫一組數字。
 //
@@ -111,25 +111,46 @@ const Duration kUnlockShake = Duration(milliseconds: 720);
 const Duration kUnlockSettle = Duration(milliseconds: 400);
 
 /// 化成「加入」圖示。**接力不重疊**：鎖先縮走，圖示才長出來。
-const Duration kUnlockMorph = Duration(milliseconds: 420);
+const Duration kUnlockMorph = Duration(milliseconds: 680);
 
 /// 完整演出長度。
-const Duration kUnlockTotal = Duration(milliseconds: 1720);
+const Duration kUnlockTotal = Duration(milliseconds: 1980);
 
 /// Reduce Motion 版：只保留語意上的三段換圖，不做位移與縮放。
 const Duration kUnlockTotalReduced = Duration(milliseconds: 420);
 
 /// 搖晃開始（＝搖晃音的觸發點）在整條弧線上的位置。
-const double kUnlockShakeAt = 180 / 1720;
+const double kUnlockShakeAt = 180 / 1980;
 
 /// 鎖彈開（＝衝擊點）在整條弧線上的位置。
-const double kUnlockImpactAt = 900 / 1720;
+const double kUnlockImpactAt = 900 / 1980;
 
 /// 開始化成「加入」的位置。
-const double kUnlockMorphAt = 1300 / 1720;
+const double kUnlockMorphAt = 1300 / 1980;
 
 /// 搖晃的最大角度（弧度）。約 9°，再大就從「掙脫」變成「壞掉」。
 const double _kShakeMaxAngle = 0.16;
+
+/// 解鎖瞬間的視覺方案。
+///
+/// 前六版全是「放射光芒＋擴散環」——那是**任何** App 的解鎖特效都會長成的樣子，
+/// 跟這個產品的世界沒有關係。這裡改成四個各自紮根於主題的方向，讓使用者挑：
+/// 兔咪好習慣是手繪繪本風的陪伴 App，這一刻解鎖的是**音樂盒裡的一首曲子**。
+enum UnlockFx {
+  /// 音符：鎖開了，幾個音符飄出來散掉。解鎖的是音樂，就讓音樂自己出場。
+  notes,
+
+  /// 鎖孔漏光：暖光**只從鎖孔那一點**斜射出來，像推開一扇門看見亮著的房間。
+  /// 有方向、不對稱，貼房間檯燈的暖調。
+  keyhole,
+
+  /// 水彩暈染：顏色像水彩在紙上化開，順著按鈕漫過去。貼手繪繪本的媒材。
+  wash,
+
+  /// 純機械：不放任何粒子與光。鎖環彈開、鎖身因重量沉一下、影子跟著跳。
+  /// 唯一的「特效」是重量本身。
+  mechanical,
+}
 
 /// 「尚未擁有 → 已擁有」時播一段解鎖演出的動作鈕。
 ///
@@ -156,6 +177,9 @@ class UnlockMorphButton extends StatefulWidget {
   /// 已擁有時點下去（加入清單）。
   final VoidCallback onUnlockedTap;
 
+  /// 解鎖瞬間的視覺方案。
+  final UnlockFx fx;
+
   const UnlockMorphButton({
     super.key,
     required this.owned,
@@ -165,6 +189,7 @@ class UnlockMorphButton extends StatefulWidget {
     required this.color,
     required this.onLockedTap,
     required this.onUnlockedTap,
+    this.fx = UnlockFx.notes,
   });
 
   @override
@@ -401,6 +426,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
                     progress: _burstAt(t),
                     glow: _afterglowAt(t),
                     color: widget.color,
+                    fx: widget.fx,
                   ),
                 ),
               ),
@@ -559,130 +585,168 @@ class _UnlockBurstPainter extends CustomPainter {
   final double glow;
 
   final Color color;
+  final UnlockFx fx;
 
   const _UnlockBurstPainter({
     required this.progress,
     required this.glow,
     required this.color,
+    required this.fx,
   });
+
+  /// 光源＝鎖的位置（按鈕左側圖示中心），不是按鈕正中央。
+  /// 光要從「東西被打開的地方」出來，從正中央發光讀起來像按鈕自己在亮。
+  Offset _origin(Size s) => Offset(8 + 17 / 2, s.height / 2);
 
   @override
   void paint(Canvas canvas, Size size) {
     final p = progress.clamp(0.0, 1.0);
     if (p <= 0 && glow <= 0) return;
+    switch (fx) {
+      case UnlockFx.notes:
+        _paintNotes(canvas, size, p);
+      case UnlockFx.keyhole:
+        _paintKeyhole(canvas, size, p);
+      case UnlockFx.wash:
+        _paintWash(canvas, size, p);
+      case UnlockFx.mechanical:
+        _paintMechanical(canvas, size, p);
+    }
+  }
 
-    // 光源在鎖的位置（按鈕左側的圖示中心），不是按鈕正中央——光要從**東西
-    // 被打開的地方**射出來，從中間發光讀起來像按鈕自己在亮。
-    final c = Offset(8 + 17 / 2, size.height / 2);
+  // ── A. 音符 ──────────────────────────────────────────────
+  //
+  // 解鎖的是一首曲子，就讓音符自己出場。三個音符從鎖孔飄出，各自不同的
+  // 起跑時間、飄升高度與側偏，最後淡掉。沒有光、沒有環。
+  void _paintNotes(Canvas canvas, Size size, double p) {
+    final o = _origin(size);
+    const glyphs = ['♪', '♫', '♪'];
+    const delay = [0.0, 0.18, 0.36];
+    const dx = [-4.0, 7.0, 2.0];
+    const rise = [26.0, 32.0, 21.0];
+    const sizes = [13.0, 11.0, 9.5];
+    for (var i = 0; i < 3; i++) {
+      final lp = ((p - delay[i]) / (1 - delay[i])).clamp(0.0, 1.0);
+      if (lp <= 0) continue;
+      final up = Curves.easeOutCubic.transform(lp);
+      // 飄升時左右擺一下，像被氣流帶著
+      final sway = math.sin(lp * math.pi * 1.6) * 5;
+      final a = lp < 0.25
+          ? lp / 0.25
+          : 1 - Curves.easeInCubic.transform((lp - 0.25) / 0.75);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: glyphs[i],
+          style: TextStyle(
+            fontSize: sizes[i],
+            color: color.withValues(alpha: (0.85 * a).clamp(0.0, 1.0)),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(
+        canvas,
+        o + Offset(dx[i] + sway - tp.width / 2, -up * rise[i] - tp.height / 2),
+      );
+    }
+  }
+
+  // ── B. 鎖孔漏光 ──────────────────────────────────────────
+  //
+  // 光**只從鎖孔那一點**斜射出去，像推開一扇門看見裡面亮著。刻意不對稱、
+  // 有方向，色調偏暖（房間檯燈那種），不是白。
+  void _paintKeyhole(Canvas canvas, Size size, double p) {
+    final o = _origin(size);
     final rect = Offset.zero & size;
-    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(13));
+    final warm = Color.lerp(color, const Color(0xFFFFD9A0), 0.75)!;
+    final fade = 1 - Curves.easeInOutCubic.transform(p);
+    canvas.saveLayer(rect.inflate(20), Paint());
+    canvas.clipRRect(RRect.fromRectAndRadius(rect, const Radius.circular(13)));
+    // 一束往右上斜的光錐
+    final reach = Curves.easeOutCubic.transform(p);
+    final path = Path()
+      ..moveTo(o.dx, o.dy)
+      ..lineTo(o.dx + size.width * 1.2 * reach, o.dy - size.height * 0.95)
+      ..lineTo(o.dx + size.width * 1.2 * reach, o.dy + size.height * 0.55)
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = ui.Gradient.linear(
+          o,
+          Offset(o.dx + size.width * reach, o.dy),
+          [warm.withValues(alpha: 0.5 * fade), warm.withValues(alpha: 0)],
+        )
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+    // 鎖孔本身的一點高光
+    canvas.drawCircle(
+      o,
+      4.5 + 3 * reach,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..color = warm.withValues(alpha: 0.7 * fade)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+    canvas.restore();
+  }
 
-    canvas.saveLayer(rect.inflate(24), Paint());
-    canvas.save();
-    canvas.clipRRect(rr); // 光被按鈕形狀切住 → 讀成「表面被照亮」
-
-    // ① 表面被照亮：一層沿著 pill 擴散的柔光，這是「光影渲染」的主體。
-    if (glow > 0) {
-      final r = size.width * (0.35 + 0.85 * glow);
-      canvas.drawRect(
-        rect,
+  // ── C. 水彩暈染 ──────────────────────────────────────────
+  //
+  // 顏色像水彩在紙上化開，從鎖的位置順著按鈕漫過去，邊緣不規則。
+  // 貼手繪繪本的媒材，而不是螢幕發光的媒材。
+  void _paintWash(Canvas canvas, Size size, double p) {
+    final o = _origin(size);
+    final rect = Offset.zero & size;
+    canvas.saveLayer(rect, Paint());
+    canvas.clipRRect(RRect.fromRectAndRadius(rect, const Radius.circular(13)));
+    final spread = Curves.easeOutCubic.transform(p);
+    final fade = p < 0.35
+        ? p / 0.35
+        : 1 - Curves.easeInCubic.transform((p - 0.35) / 0.65);
+    // 三團大小不一、圓心略偏的暈，疊起來邊緣就不規則
+    const cx = [0.0, 14.0, 6.0];
+    const cy = [0.0, -3.0, 5.0];
+    const rr = [1.0, 0.72, 0.55];
+    for (var i = 0; i < 3; i++) {
+      final c = o + Offset(cx[i] * spread, cy[i]);
+      final r = size.width * (0.18 + 0.85 * spread) * rr[i];
+      canvas.drawCircle(
+        c,
+        r,
         Paint()
-          ..blendMode = BlendMode.plus
-          ..shader = RadialGradient(
-            colors: [
-              Colors.white.withValues(alpha: 0.20 * glow),
-              Color.lerp(
-                Colors.white,
-                color,
-                0.5,
-              )!.withValues(alpha: 0.22 * glow),
-              color.withValues(alpha: 0),
-            ],
-            stops: const [0, 0.45, 1],
-          ).createShader(Rect.fromCircle(center: c, radius: r)),
+          ..color = color.withValues(alpha: 0.16 * fade)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6 + 10 * spread),
       );
     }
-
-    if (p > 0) {
-      final flash = 1 - Curves.easeOutQuart.transform(p);
-      final fade = 1 - Curves.easeInOutCubic.transform(p);
-
-      // ② 過曝亮核
-      if (flash > 0.01) {
-        final r = size.height * (0.5 + 1.5 * Curves.easeOutCubic.transform(p));
-        canvas.drawRect(
-          rect,
-          Paint()
-            ..blendMode = BlendMode.plus
-            ..shader = RadialGradient(
-              colors: [
-                Colors.white.withValues(alpha: 0.42 * flash),
-                color.withValues(alpha: 0.18 * flash),
-                color.withValues(alpha: 0),
-              ],
-              stops: const [0, 0.4, 1],
-            ).createShader(Rect.fromCircle(center: c, radius: r)),
-        );
-      }
-
-      // ③ 衝擊環：現在有整顆按鈕的寬度可以走，才看得到它擴出去。
-      final ringR =
-          size.height * (0.55 + 2.6 * Curves.easeOutCubic.transform(p));
-      final ringW = (0.22 * fade + 0.05).clamp(0.02, 0.5);
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..blendMode = BlendMode.plus
-          ..shader = RadialGradient(
-            colors: [
-              color.withValues(alpha: 0),
-              Colors.white.withValues(alpha: 0.5 * fade),
-              color.withValues(alpha: 0),
-            ],
-            stops: [(1 - ringW).clamp(0.0, 1.0), 1 - ringW / 2, 1.0],
-          ).createShader(Rect.fromCircle(center: c, radius: ringR)),
-      );
-    }
-
     canvas.restore();
+  }
 
-    // ④ 光芒射出按鈕之外（不裁切），讓它不只是「裡面亮」。
-    if (p > 0) {
-      const rays = 7;
-      const lens = [1.0, 0.55, 0.85, 0.45, 1.0, 0.62, 0.8];
-      const phase = [0.0, 0.16, 0.05, 0.22, 0.02, 0.12, 0.09];
-      for (var i = 0; i < rays; i++) {
-        final lp = ((p - phase[i]) / (1 - phase[i])).clamp(0.0, 1.0);
-        if (lp <= 0) continue;
-        final lf = 1 - Curves.easeInQuad.transform(lp);
-        final reach = Curves.easeOutCubic.transform(lp);
-        final inner = size.height * (0.30 + 0.45 * reach);
-        final outer = inner + size.height * 0.75 * lens[i] * lf;
-        if (outer <= inner) continue;
-        final a = (i + 0.5) * (math.pi * 2 / rays);
-        final d = Offset(math.cos(a), math.sin(a));
-        final p1 = c + d * inner;
-        final p2 = c + d * outer;
-        canvas.drawLine(
-          p1,
-          p2,
-          Paint()
-            ..blendMode = BlendMode.plus
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = 1.9 * lf + 0.3
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6)
-            ..shader = ui.Gradient.linear(p1, p2, [
-              Colors.white.withValues(alpha: 0.62 * lf),
-              color.withValues(alpha: 0),
-            ]),
-        );
-      }
-    }
-
-    canvas.restore();
+  // ── D. 純機械 ────────────────────────────────────────────
+  //
+  // 不放任何粒子與光。唯一的「特效」是重量：鎖身彈開的那一下，底下的接觸影
+  // 跟著壓扁又回彈。安靜到極點，但看得出東西真的動了。
+  void _paintMechanical(Canvas canvas, Size size, double p) {
+    final o = _origin(size);
+    final punch = p < 0.22
+        ? Curves.easeOut.transform(p / 0.22)
+        : 1 - Curves.easeOutCubic.transform((p - 0.22) / 0.78);
+    if (punch <= 0) return;
+    final w = 13.0 + 9 * punch;
+    final h = 2.2 + 1.0 * punch;
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(o.dx, o.dy + 11), width: w, height: h),
+      Paint()
+        ..color = color.withValues(alpha: 0.22 * punch)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+    );
   }
 
   @override
   bool shouldRepaint(_UnlockBurstPainter old) =>
-      old.progress != progress || old.glow != glow || old.color != color;
+      old.progress != progress ||
+      old.glow != glow ||
+      old.color != color ||
+      old.fx != fx;
 }
