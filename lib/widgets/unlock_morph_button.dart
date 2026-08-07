@@ -402,6 +402,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
                     progress: _burstAt(t),
                     glow: _afterglowAt(t),
                     color: widget.color,
+                    labelWidth: _labelWidthAt(t, reduce),
                   ),
                 ),
               ),
@@ -485,6 +486,24 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
   /// 文字寬度不同。前一版放掉「置中」，結果是整組偏左、看起來沒對齊；改成
   /// 放掉「圖示不動」——但把那一次位移**壓在彈開的 120ms 內完成**，那時
   /// 注意力在鎖彈開與光上，等「加入」浮出來時版面早就定住了。
+  /// 這一幀標籤的寬度。`_label` 與星芒光源共用同一個算式，兩者才不會對不上。
+  double _labelWidthAt(double t, bool reduce) {
+    final p = reduce
+        ? (t >= 0.67 ? 1.0 : 0.0)
+        : ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
+    const handover = 0.26;
+    final wp = reduce
+        ? p
+        : Curves.easeInOut.transform(
+            ((p - (handover - 0.06)) / 0.12).clamp(0.0, 1.0),
+          );
+    return ui.lerpDouble(
+      _measure(widget.lockedLabel, _labelStyle),
+      _measure(widget.unlockedLabel, _labelStyle),
+      wp,
+    )!;
+  }
+
   Widget _label(double t, bool reduce) {
     final p = reduce
         ? (t >= 0.67 ? 1.0 : 0.0)
@@ -571,10 +590,14 @@ class _UnlockBurstPainter extends CustomPainter {
 
   final Color color;
 
+  /// 這一幀標籤的實際寬度。用來反推圖示中心在哪。
+  final double labelWidth;
+
   const _UnlockBurstPainter({
     required this.progress,
     required this.glow,
     required this.color,
+    required this.labelWidth,
   });
 
   /// 星星的暖黃。與足跡幣同一個金黃家族，不用元件主色——星星就是要跳出來。
@@ -656,8 +679,21 @@ class _UnlockBurstPainter extends CustomPainter {
     1.0,
   ];
 
-  /// 光源＝鎖頭位置（按鈕左側圖示中心），不是按鈕正中央。
-  Offset _origin(Size s) => Offset(8 + 17 / 2, s.height / 2);
+  /// 光源＝**鎖頭的實際位置**。
+  ///
+  /// ⚠️ 第一版寫死成 `8 + 17/2`（假設圖示貼齊按鈕左緣），但 MiniActionButton
+  /// 的內容是 `MainAxisAlignment.center` **置中**的，圖示實際在
+  /// `(按鈕寬 - 內容寬)/2 + 圖示寬/2`——140pt 的按鈕上差了約 24px，整團星星
+  /// 因此偏在鎖的左邊。
+  ///
+  /// 內容寬會隨標籤變（演出中還會逐幀插值），所以這裡不能是常數，必須每幀
+  /// 用當下的 [labelWidth] 反推。
+  Offset _origin(Size s) {
+    const iconSize = 17.0;
+    const gap = 5.0;
+    final contentWidth = iconSize + gap + labelWidth;
+    return Offset((s.width - contentWidth) / 2 + iconSize / 2, s.height / 2);
+  }
 
   /// 五角星路徑。
   Path _star(Offset c, double r, double rotation) {
