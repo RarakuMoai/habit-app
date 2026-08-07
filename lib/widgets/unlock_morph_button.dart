@@ -492,10 +492,18 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
         ? 0.0
         : Curves.easeOutCubic.transform((p - handover) / (1 - handover));
 
+    // ⚠️ 寬度只能在**兩段文字都看不見的那一瞬間**改。
+    //
+    // 上一版排在彈開瞬間，但舊標籤要到 morph 才開始淡出——槽先縮、字還在，
+    // 「解鎖 50」就被裁成「解鎖 5」「解鎖」，持續約 400ms。那是使用者說
+    // 「整個亂掉」的主因。
+    //
+    // handover(0.26) 這一點舊標籤剛淡完、新標籤還沒進場，圖示也正在接力，
+    // 三者都是空的，寬度在這裡快速換完就不會被看見。
     final wp = reduce
         ? p
         : Curves.easeInOut.transform(
-            ((t - kUnlockImpactAt) / 0.07).clamp(0.0, 1.0),
+            ((p - (handover - 0.06)) / 0.12).clamp(0.0, 1.0),
           );
     final w = ui.lerpDouble(
       _measure(widget.lockedLabel, _labelStyle),
@@ -576,7 +584,7 @@ class _UnlockBurstPainter extends CustomPainter {
           ..blendMode = BlendMode.plus
           ..shader = RadialGradient(
             colors: [
-              Colors.white.withValues(alpha: 0.55 * glow),
+              Colors.white.withValues(alpha: 0.20 * glow),
               Color.lerp(
                 Colors.white,
                 color,
@@ -602,8 +610,8 @@ class _UnlockBurstPainter extends CustomPainter {
             ..blendMode = BlendMode.plus
             ..shader = RadialGradient(
               colors: [
-                Colors.white.withValues(alpha: 0.95 * flash),
-                color.withValues(alpha: 0.45 * flash),
+                Colors.white.withValues(alpha: 0.42 * flash),
+                color.withValues(alpha: 0.18 * flash),
                 color.withValues(alpha: 0),
               ],
               stops: const [0, 0.4, 1],
@@ -622,36 +630,17 @@ class _UnlockBurstPainter extends CustomPainter {
           ..shader = RadialGradient(
             colors: [
               color.withValues(alpha: 0),
-              Colors.white.withValues(alpha: 0.9 * fade),
+              Colors.white.withValues(alpha: 0.5 * fade),
               color.withValues(alpha: 0),
             ],
             stops: [(1 - ringW).clamp(0.0, 1.0), 1 - ringW / 2, 1.0],
           ).createShader(Rect.fromCircle(center: c, radius: ringR)),
       );
-
-      // ④ 掃過表面的一道亮邊：解鎖的「刷」一下。
-      final sweep = Curves.easeOutCubic.transform(p);
-      final x = -size.width * 0.4 + size.width * 1.8 * sweep;
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..blendMode = BlendMode.plus
-          ..shader = ui.Gradient.linear(
-            Offset(x - size.width * 0.22, 0),
-            Offset(x + size.width * 0.22, size.height),
-            [
-              color.withValues(alpha: 0),
-              Colors.white.withValues(alpha: 0.5 * fade),
-              color.withValues(alpha: 0),
-            ],
-            [0.0, 0.5, 1.0],
-          ),
-      );
     }
 
     canvas.restore();
 
-    // ⑤ 光芒射出按鈕之外（不裁切），讓它不只是「裡面亮」。
+    // ④ 光芒射出按鈕之外（不裁切），讓它不只是「裡面亮」。
     if (p > 0) {
       const rays = 7;
       const lens = [1.0, 0.55, 0.85, 0.45, 1.0, 0.62, 0.8];
@@ -674,10 +663,10 @@ class _UnlockBurstPainter extends CustomPainter {
           Paint()
             ..blendMode = BlendMode.plus
             ..strokeCap = StrokeCap.round
-            ..strokeWidth = 2.6 * lf + 0.4
+            ..strokeWidth = 1.9 * lf + 0.3
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6)
             ..shader = ui.Gradient.linear(p1, p2, [
-              Colors.white.withValues(alpha: 0.9 * lf),
+              Colors.white.withValues(alpha: 0.62 * lf),
               color.withValues(alpha: 0),
             ]),
         );
