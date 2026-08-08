@@ -18,6 +18,8 @@ HapticLevel _defaultHaptic(SfxCue cue) => switch (cue) {
   SfxCue.tap => HapticLevel.light,
   SfxCue.cancel => HapticLevel.selection,
   SfxCue.unlock => HapticLevel.light,
+  // 搖晃本身不給觸覺，留給彈開那一下——連續震動會把衝擊點的存在感吃掉。
+  SfxCue.lockRattle => HapticLevel.none,
   SfxCue.loginStreakIntro => HapticLevel.none,
   SfxCue.footprintStamp => HapticLevel.medium,
   SfxCue.footprintCoinAbsorb => HapticLevel.none,

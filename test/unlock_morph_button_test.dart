@@ -143,7 +143,7 @@ void main() {
 
     // 搖晃開始 → 搖晃音；此時解鎖音還不能出現
     await tester.pump(kUnlockTotal * (kUnlockShakeAt + 0.02));
-    expect(cues, [SfxCue.tumiCharge], reason: '鎖開始掙扎才出這一聲');
+    expect(cues, [SfxCue.lockRattle], reason: '鎖開始掙扎才出這一聲');
 
     // 衝擊點之前：解鎖音還沒響
     await tester.pump(kUnlockTotal * (kUnlockImpactAt - kUnlockShakeAt - 0.10));
@@ -154,11 +154,11 @@ void main() {
     );
 
     await tester.pump(kUnlockTotal * 0.15);
-    expect(cues, [SfxCue.tumiCharge, SfxCue.unlock]);
+    expect(cues, [SfxCue.lockRattle, SfxCue.unlock]);
 
     // 演完不會再補
     await tester.pump(kUnlockTotal);
-    expect(cues, [SfxCue.tumiCharge, SfxCue.unlock]);
+    expect(cues, [SfxCue.lockRattle, SfxCue.unlock]);
   });
 
   testWidgets('Reduce Motion：不搖不縮放，但語意與音效都留著', (tester) async {

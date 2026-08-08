@@ -9,7 +9,7 @@ import 'prefs_keys.dart';
 /// 播到舊檔。每次原地替換任何音訊資產時，遞增 [currentVersion]，新版第一次
 /// 冷啟動便會清一次音訊快取。成功後才記錄版本，失敗時下次啟動會再重試。
 class AudioAssetCache {
-  static const int currentVersion = 7;
+  static const int currentVersion = 8; // 2026-08-08 換掉 sfx_unlock.wav
 
   static Future<bool> ensureCurrent(
     SharedPreferences prefs, {

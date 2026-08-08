@@ -11,8 +11,16 @@ enum SfxCue {
   success('assets/sounds/sfx_success.wav', 0.95),
   complete('assets/sounds/sfx_complete.wav', 1.0),
   cancel('assets/sounds/sfx_cancel.wav', 0.9),
-  // 衣櫃購買／回憶揭曉：溫暖木質起音＋短促星光尾音。
-  unlock('assets/sounds/sfx_unlock.wav', 0.85),
+  // 衣櫃購買／回憶揭曉／骰子開盤：仙塵般的星光碎音（mixkit fairy arcade
+  // sparkle，裁掉 0.86s 之後的靜音尾）。舊檔實際輸出只有 -39.7 dBFS，比其他
+  // 音效整整輕 10dB，解鎖那一聲幾乎聽不到；換檔時一併把係數拉進 -28 dBFS 的
+  // 常規區間。
+  unlock('assets/sounds/sfx_unlock.wav', 0.44),
+  // 鎖掙脫時的金屬碰撞。**不是單發音效**——六次撞擊分別對齊
+  // `_shakeAngleAt` 的六次最大偏轉（55/166/277/388/498/609ms），
+  // 撞擊聲要落在看得到的轉向瞬間才會讀成「鎖在掙脫」。要改疏密就重跑
+  // `docs/pending_assets.md` 記錄的生成方式，不要在播放端做重複排程。
+  lockRattle('assets/sounds/sfx_lock_rattle.wav', 0.62),
   // 每日足跡幣：Mixkit 揭曉樂句 → 紙面蓋章 → 柔和吸入 → 逐枚入袋。
   // intro 裁掉原檔前 50ms 空白；stamp 是使用者挑選的原檔裁成單一撞擊；
   // tick 由原始 MP3 四聲道輪替連奏。

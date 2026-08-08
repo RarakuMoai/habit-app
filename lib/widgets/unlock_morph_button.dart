@@ -362,9 +362,10 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     // 搖晃音：跟著鎖開始掙扎的那一刻起。Reduce Motion 沒有搖晃，就不放這一聲。
     if (!_shakeFired && !_reduceMotion && t >= kUnlockShakeAt) {
       _shakeFired = true;
-      // ⚠️ 佔位音效：這是「集氣」不是「鎖在掙脫」。專用音效待補，
-      //    見 docs/pending_assets.md。觸覺刻意不給——衝擊點才給。
-      playFeedback(SfxCue.tumiCharge, haptic: HapticLevel.none);
+      // 一次播完整段 rattle：檔案裡的六次撞擊已經對齊搖晃的六次最大偏轉
+      //（見 SfxCue.lockRattle）。**不要在這裡排程重複播放**——播放端做不出
+      // 那個精度，而且 just_audio 連續 play 會互相打斷。
+      playFeedback(SfxCue.lockRattle, haptic: HapticLevel.none);
     }
     if (_impactFired) return;
     if (t < (_reduceMotion ? 0.0 : kUnlockImpactAt)) return;
