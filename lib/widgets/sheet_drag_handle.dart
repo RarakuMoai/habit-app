@@ -27,6 +27,51 @@ import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 
+/// 「把手釘在頂端、其餘可捲動」的面板骨架。
+///
+/// 上面第 2 點是規則，這個元件是**讓照做比不照做省事**的那個工具。改版當時
+/// 有五個面板（家庭的新增習慣／編輯習慣／新增獎勵／編輯獎勵／扣點）把
+/// [SheetDragHandle] 塞在 `SingleChildScrollView` 的第一個 child——外觀對了，
+/// 但內容一捲把手就跟著消失，「可以往下拉關掉」的提示等於沒有。
+///
+/// 直接把巢狀改掉要動到幾百行的括號，容易改壞；所以做成同樣只吃一個 child 的
+/// 包裝：呼叫端把 `SingleChildScrollView(` 換成 `PinnedHandleSheet(`，再刪掉
+/// 原本 children 最前面的把手與間距兩行就好，**收尾括號一個都不用動**。
+///
+/// ⚠️ 需要外層有**有界的高度**才能用（`Flexible`）。底部面板都符合：
+/// `showModalBottomSheet` 即使 `isScrollControlled: true` 也會給上界。
+class PinnedHandleSheet extends StatelessWidget {
+  /// 原本放在捲動區裡的內容（通常是一個 Column）。
+  final Widget child;
+
+  /// 把手與內容之間的間距。沿用各面板原本的 16。
+  final double gap;
+
+  /// 轉給 [SheetDragHandle]：面板有未儲存輸入時傳 false。
+  final bool tapToClose;
+  final VoidCallback? onClose;
+
+  const PinnedHandleSheet({
+    super.key,
+    required this.child,
+    this.gap = 16,
+    this.tapToClose = true,
+    this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SheetDragHandle(tapToClose: tapToClose, onClose: onClose),
+        SizedBox(height: gap),
+        Flexible(child: SingleChildScrollView(child: child)),
+      ],
+    );
+  }
+}
+
 /// 把手本體的尺寸與圓角。改這裡＝改全 app。
 const double kSheetHandleWidth = 36;
 const double kSheetHandleHeight = 4;

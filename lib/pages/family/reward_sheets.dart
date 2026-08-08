@@ -56,13 +56,11 @@ Future<void> showAddRewardSheet(
             20,
             MediaQuery.of(ctx).viewInsets.bottom + 32,
           ),
-          child: SingleChildScrollView(
+          child: PinnedHandleSheet(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(child: SheetDragHandle()),
-                const SizedBox(height: 16),
                 Text(
                   l10n.rsAddTitle,
                   style: const TextStyle(
@@ -314,13 +312,11 @@ Future<void> showEditRewardSheet(
             20,
             MediaQuery.of(ctx).viewInsets.bottom + 32,
           ),
-          child: SingleChildScrollView(
+          child: PinnedHandleSheet(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(child: SheetDragHandle()),
-                const SizedBox(height: 16),
                 Text(
                   l10n.rsEditTitle,
                   style: const TextStyle(

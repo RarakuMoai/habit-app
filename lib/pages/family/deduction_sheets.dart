@@ -63,13 +63,11 @@ Future<void> showAddDeductionSheet(
             20,
             MediaQuery.of(ctx).viewInsets.bottom + 32,
           ),
-          child: SingleChildScrollView(
+          child: PinnedHandleSheet(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(child: SheetDragHandle()),
-                const SizedBox(height: 16),
                 Text(
                   l10n.dsAddTitle,
                   style: const TextStyle(
