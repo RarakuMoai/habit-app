@@ -20,6 +20,37 @@
 - 既有兔咪 PNG/CG 的差分或表情編輯：必須使用 repo skill
   `tumi-image-variants`，以核准底圖做局部修改。
 
+## UI / Motion 工程核心規則
+
+動 UI、動畫、特效或視覺微調時**一律適用**，不可違反。詳細流程見
+`docs/ui_motion_protocol.md`（開工前讀，那份短）。
+
+- **先確認真實 production 約束，不要只相信 preview、mock 或孤立的 widget。**
+  必須查明真實 parent layout、實際可用寬高、真實文案（含 l10n），以及
+  `Expanded` / `Flex` / `FittedBox` / `Stack` / `Transform` 這些會改變版面的因素。
+- **Preview 與 test harness 必須重現 production 的尺寸、約束與真實字串。**
+  約束不同就不能拿 preview 的成功證明 production 修好了。
+- **小型 UI 任務走 minimal change**：不主動重構、不擴大範圍、不碰無關的商業邏輯。
+- **視覺規格由使用者決定。** 除非被要求，不要自行設計多套特效讓使用者挑。
+  規格足以實作就直接做。
+- **一次只改一個可驗證的視覺問題。**
+- 開發期只跑相關測試，完整 suite 留到提交前的最後一關。
+
+**Two-Failure Root-Cause Rule**
+同一個可觀察的問題連續改兩次仍未真正解決 → **第三次禁止再用 offset、padding、
+alignment、duration、curve、Transform 或任何局部補償做試誤**。必須停止修改，
+改成找根因：重新確認 production 約束、parent/child 版面關係、intrinsic size、
+不同 state 下的尺寸變化、文案長度與 l10n、Expanded/Flex、FittedBox、Stack fit、
+clipping、動畫歸屬、rebuild 邊界、preview 與 production 是否一致。
+找到**能解釋所有症狀**的根因之後才能繼續改。
+
+**Evidence Before Confidence**
+- 不要因為 preview、單一測試或某個數值量測正常就宣稱問題解決了。
+- **宣告「已驗證」時必須同時寫出驗證環境的實際參數**（寬度、文案、state）。
+  「在 140pt 下量測無位移」和「無位移」是兩件事，後者會誤導使用者。
+- 使用者回報實機仍有問題 → **視為假設已被推翻**，優先回頭檢查驗證環境，
+  不要辯護原本的量測結果。
+
 ## 工作流程
 
 - 修改後做與風險相稱的檢查；Flutter 程式至少跑 `flutter analyze`，相關測試優先，

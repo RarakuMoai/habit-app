@@ -9,6 +9,9 @@
   刪除）。**需要方向時直接問使用者，不要從文件推導。**
 - **視覺或體驗要做成什麼樣：也是直接問使用者。** 這裡刻意沒有常駐的品牌方向
   文件，理由寫在 `AGENTS.md`；做完用實機截圖給使用者裁決。
+- **動 UI、動畫、特效或視覺微調：開工前讀 `docs/ui_motion_protocol.md`**（很短）。
+  不可違反的核心原則在 `AGENTS.md` 的「UI / Motion 工程核心規則」——包含
+  Two-Failure Root-Cause Rule 與 Evidence Before Confidence。
 - 兔咪性格與說話原則：`docs/tumi_character_guide.md`。
 - 動到兔咪的對話或反應（台詞／表情／泡泡／語音／觸發）：先讀
   `docs/tumi_dialogue_catalog.md` 的事件總表，先進表再寫程式。
