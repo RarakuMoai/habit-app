@@ -7,14 +7,17 @@
 // 這裡把它拉成一條有先後的弧線，節奏沿用 `docs/visual_spec.md` §動效的
 // anticipation → impact → recovery：
 //
-//   蓄力(180ms) → 掙脫般搖晃(720ms，伴隨搖晃音) → **彈開**(解鎖音＋觸覺＋光爆)
-//   → 光影餘韻與落定(400ms) → 交叉淡入成「加入」(500ms)。總長 1920ms。
+//   蓄力(180ms) → 掙脫般搖晃(720ms，伴隨搖晃音) → **彈開**(解鎖音＋觸覺＋星芒)
+//   → 鎖一邊回彈一邊淡出(520ms) → 換手 → 「加入」淡入(500ms)。總長 1920ms。
+//
+// 淡出的起點刻意就是**彈開的那一幀**：星芒炸開的同時舊內容就開始走，不會有一段
+// 「光都放完了、畫面卻還沒開始變」的空檔。
 //
 // **衝擊點對齊看得到的那一幀**（鎖真的彈開的瞬間），不是購買完成的那一刻——
 // 所以音效由這個元件在 impact 播，`_buyTrack` 不再自己播，否則會提早半秒。
 //
-// ⚠️ **演出全程沒有任何位移或縮放，只有透明度在變。** 做法是把「未購買」與
-// 「已購買」當成兩組**各自獨立排版**的內容疊在同一顆膠囊裡交叉淡入，而不是去
+// ⚠️ **兩組內容各自的位置與大小全程不變，變的只有透明度。** 做法是把「未購買」與
+// 「已購買」當成兩組**各自獨立排版**的內容疊在同一顆膠囊裡輪替，而不是去
 // 插值一份共用的版面。理由是踩出來的：共用版面時，標籤一從「50 足跡幣」換成
 // 「加入」，內容寬度就變，於是 `FittedBox` 的縮放倍率跟著變——實測 85pt 寬的
 // 鈕上是 0.70 → 1.0，整組內容連圖示帶文字放大 43%，讀起來就是「圖案往右滑才
@@ -129,12 +132,16 @@ const Duration kUnlockAnticipate = Duration(milliseconds: 180);
 /// 掙脫般的左右搖晃（振幅先漲後收），起點伴隨搖晃音。
 const Duration kUnlockShake = Duration(milliseconds: 720);
 
-/// 彈開後的光影展開與落定——成就感在這一段，不能太短。
+/// 鎖彈開後的物理餘韻：overshoot 收回、舞台放大收乾淨。
+/// 淡出**與這一段重疊**——鎖是一邊回彈一邊化掉的。
 const Duration kUnlockSettle = Duration(milliseconds: 400);
 
-/// 化成「加入」。未購買那一組淡出、已購買那一組淡入，**同時進行**（0.5 秒），
-/// 兩組都待在自己的位置上不動——這段裡唯一在變的東西就是透明度。
-const Duration kUnlockMorph = Duration(milliseconds: 620);
+/// 化成「加入」：舊內容淡出 520ms → 換手 → 新內容淡入 500ms。
+///
+/// **兩者不重疊。** 比稿實錄證實同時淡入淡出在這顆鈕上會糊掉：兩組內容的版面
+/// 差很多（未購買那組被 `FittedBox` 縮到 0.70、已購買那組是 1.0），字必然互相
+/// 穿插，中間約 280ms 讀起來是「≡+50 加入幣」。錯開之後任何一幀都只有一組東西。
+const Duration kUnlockMorph = Duration(milliseconds: 1020);
 
 /// 完整演出長度。
 const Duration kUnlockTotal = Duration(milliseconds: 1920);
@@ -148,8 +155,19 @@ const double kUnlockShakeAt = 180 / 1920;
 /// 鎖彈開（＝衝擊點）在整條弧線上的位置。
 const double kUnlockImpactAt = 900 / 1920;
 
-/// 開始化成「加入」的位置。
+/// 鎖的**物理**演出收乾淨的位置（overshoot 回到 1.0、舞台放大收回）。
+///
+/// ⚠️ 這**不是**淡出的起點，兩者現在是分開的：鎖是一邊回彈一邊化掉的。
 const double kUnlockMorphAt = 1300 / 1920;
+
+/// 舊內容開始淡出＝**鎖彈開的那一幀**。
+///
+/// 使用者指定：星芒炸開的同時舊內容就要開始走。淡出因此從 250ms 拉長到 520ms，
+/// 剛好填滿「彈開 → 換手」這一段，不會有一段空著什麼都沒在變。
+const double kUnlockFadeOutAt = kUnlockImpactAt;
+
+/// 換手點：舊內容剛好淡完，新內容從這裡開始淡入（500ms 到演出結束）。
+const double kUnlockHandoffAt = 1420 / 1920;
 
 /// 搖晃的最大角度（弧度）。約 9°，再大就從「掙脫」變成「壞掉」。
 const double _kShakeMaxAngle = 0.16;
@@ -368,8 +386,8 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
       builder: (context, _) {
         final t = _ctrl.value;
         final reduce = _reduceMotion;
-        final c = _crossAt(t, reduce);
-        final fadeOut = (1 - c).clamp(0.0, 1.0);
+        final fadeOut = _fadeOutAt(t, reduce);
+        final c = _fadeInAt(t, reduce);
 
         // 底層＝「未購買」那一組內容（會動的鎖＋原本的標籤），照它自己的版面。
         // 膠囊底色與 InkWell 由這一顆提供，所以只把**內容**調透明度，
@@ -516,16 +534,20 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return tp.size;
   }
 
-  /// 交叉淡入的進度 0→1，佔 morph 的前 500ms。
+  /// 未購買那一組的不透明度：鎖彈開的那一幀開始走，520ms 後歸零。
+  double _fadeOutAt(double t, bool reduce) {
+    if (reduce) return t >= 0.67 ? 0 : 1;
+    final p = ((t - kUnlockFadeOutAt) / (kUnlockHandoffAt - kUnlockFadeOutAt))
+        .clamp(0.0, 1.0);
+    return 1 - p;
+  }
+
+  /// 已購買那一組的不透明度：**等舊的完全走光才開始**，500ms 淡到滿。
   ///
-  /// 兩組內容**唯一**共用的東西就是這個數字：一組乘 `1-c` 淡出、另一組乘 `c`
-  /// 淡入。除此之外它們各排各的版，所以沒有任何一方會被對方拉著移動。
-  double _crossAt(double t, bool reduce) {
+  /// 這兩條窗口刻意不重疊，理由見 [kUnlockMorph]。
+  double _fadeInAt(double t, bool reduce) {
     if (reduce) return t >= 0.67 ? 1 : 0;
-    const fadeMs = 500.0;
-    final span = fadeMs / kUnlockMorph.inMilliseconds;
-    final p = ((t - kUnlockMorphAt) / (1 - kUnlockMorphAt)).clamp(0.0, 1.0);
-    return (p / span).clamp(0.0, 1.0);
+    return ((t - kUnlockHandoffAt) / (1 - kUnlockHandoffAt)).clamp(0.0, 1.0);
   }
 
   /// 未購買那一組內容的自然寬度（圖示＋間距＋標籤）。星芒光源用它反推鎖在哪。

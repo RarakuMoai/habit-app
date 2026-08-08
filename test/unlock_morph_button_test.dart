@@ -109,8 +109,14 @@ void main() {
       reason: '搖晃是「還沒掙脫」，這時不能已經開了',
     );
 
-    // 越過衝擊點：鎖彈開
-    await tester.pump(kUnlockTotal * (kUnlockImpactAt + 0.05));
+    // 剛越過衝擊點：鎖彈開。
+    // ⚠️ 只能往前跨一點點——淡出從衝擊點那一幀就開始了，跨太多鎖已經半透明，
+    // 這條測的是「有沒有換成開著的鎖」，不該被淡出干擾。
+    await tester.pump(
+      kUnlockTotal * kUnlockImpactAt -
+          kUnlockAnticipate +
+          const Duration(milliseconds: 30),
+    );
     expect(visible(tester, Icons.lock_open_rounded), isTrue);
 
     // 演完：化成加入圖示
@@ -170,6 +176,54 @@ void main() {
       [SfxCue.unlock],
       reason: '解鎖音是事實回饋要留著；搖晃音描述的是不會發生的動作，該省略',
     );
+  });
+
+  testWidgets('淡出從鎖彈開那一幀就開始，而且兩段淡入淡出不重疊', (tester) async {
+    // 使用者定的節奏：「鑰匙鎖打開特效的那個時間點就要進入淡出」——不能等光都
+    // 放完了畫面才開始變。而兩段刻意錯開的理由見 kUnlockMorph 的說明：同時淡
+    // 入淡出時兩組內容會互相穿插，實錄有約 280ms 讀成「≡+50 加入幣」。
+    await pumpButton(tester, lockedLabel: '50 足跡幣');
+    purchase();
+    await tester.pump();
+
+    /// 某段文字這一幀的實際不透明度（找不到＝還沒建出來，視為 0）。
+    double alpha(String text) {
+      final finder = find.text(text);
+      if (finder.evaluate().isEmpty) return 0;
+      return tester
+          .widgetList<Opacity>(
+            find.ancestor(of: finder.first, matching: find.byType(Opacity)),
+          )
+          .fold<double>(1, (a, o) => a * o.opacity);
+    }
+
+    var sawFadeOutStart = false;
+    var elapsed = 0;
+    while (elapsed < kUnlockTotal.inMilliseconds) {
+      await tester.pump(const Duration(milliseconds: 20));
+      elapsed += 20;
+      final out = alpha('50 足跡幣');
+      final into = alpha('加入');
+
+      if (elapsed <= 880) {
+        expect(out, 1.0, reason: '彈開之前舊內容必須全不透明（${elapsed}ms）');
+      }
+      if (elapsed >= 1000 && elapsed <= 1300) {
+        // 彈開後 100~400ms：淡出必須已經在走，但還沒走完
+        expect(
+          out,
+          allOf(lessThan(1.0), greaterThan(0.0)),
+          reason: '淡出沒有跟著彈開一起開始（${elapsed}ms，alpha=$out）',
+        );
+        sawFadeOutStart = true;
+      }
+      expect(
+        out > 0.02 && into > 0.02,
+        isFalse,
+        reason: '${elapsed}ms 兩組同時看得見（舊 $out／新 $into）→ 會糊在一起',
+      );
+    }
+    expect(sawFadeOutStart, isTrue);
   });
 
   testWidgets('演出全程沒有位移或縮放，而且淡入的就是最終樣貌', (tester) async {
