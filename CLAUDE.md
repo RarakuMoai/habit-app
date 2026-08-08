@@ -30,6 +30,7 @@
   `.agents/skills/tumi-image-variants/SKILL.md`。**那是 Codex 的 skill 目錄，
   我不能用 Skill 工具呼叫它，要自己 Read 那份檔案再照做。**
   一律以核准底圖做局部修改，不重繪整張。
-- `AGENTS.md` 對 Codex 的「禁止碰實體 iPhone／iPad」不適用於我；但開模擬器或
-  `flutter run` 前要先問使用者。
+- `AGENTS.md` 對 Codex 的「禁止碰實體 iPhone／iPad」不適用於我。**開 iOS 模擬器
+  與 `flutter run` 也不必先問**（2026-08-08 解禁）——動效與版面這類東西不跑起來
+  就驗不了，該開就開。實體裝置仍由使用者自己處理。
 - 長期偏好、決策記錄與踩雷寫在自動記憶（`MEMORY.md`），本檔不重複。

@@ -136,6 +136,14 @@ class _MotionPreviewPageState extends State<MotionPreviewPage>
     );
   }
 
+  /// 音樂盒小卡上這顆鈕的**實際**寬度（14PM：兩欄格線 → 卡片內距 → 兩鈕平分）。
+  ///
+  /// ⚠️ 這個數字不能隨手放大。第一版預覽台用 140，結果「50 足跡幣」放得下、
+  /// `FittedBox` 不縮放，於是「內容被縮到 0.70 再長回 1.0」那個 bug 在預覽台上
+  /// 根本不會發生——我量了兩輪都說沒問題，使用者實機一看就看到圖示在滑。
+  /// **預覽台的約束不真實，驗證就是假的。**
+  static const double _kRealWidth = 84.75;
+
   Widget _stage(double zoom) {
     return SizedBox(
       width: 170 * zoom,
@@ -144,10 +152,10 @@ class _MotionPreviewPageState extends State<MotionPreviewPage>
         scale: zoom,
         child: Center(
           child: SizedBox(
-            width: 140,
+            width: _kRealWidth,
             child: UnlockMorphButton(
               owned: _owned,
-              lockedLabel: '解鎖 50',
+              lockedLabel: '50 足跡幣',
               unlockedLabel: '加入',
               unlockedIcon: Icons.playlist_add_rounded,
               color: const Color(0xFF4A6FA5),
