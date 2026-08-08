@@ -8,7 +8,7 @@
 // anticipation → impact → recovery：
 //
 //   蓄力(180ms) → 掙脫般搖晃(720ms，伴隨搖晃音) → **彈開**(解鎖音＋觸覺＋星芒)
-//   → 鎖一邊回彈一邊淡出(520ms) → 換手 → 「加入」淡入(500ms)。總長 1920ms。
+//   → 鎖一邊回彈一邊淡出(1040ms) → 換手 → 「加入」淡入(1000ms)。總長 2940ms。
 //
 // 淡出的起點刻意就是**彈開的那一幀**：星芒炸開的同時舊內容就開始走，不會有一段
 // 「光都放完了、畫面卻還沒開始變」的空檔。
@@ -119,55 +119,98 @@ class MiniButtonContent extends StatelessWidget {
   }
 }
 
-// ── 解鎖演出的時間軸（總長 1920ms）─────────────────────────
+// ── 解鎖演出的時間軸 ────────────────────────────────────
 //
 // 這些是**唯一**的真相來源；測試 import 它們，不要在別處另寫一組數字。
 //
+// ⚠️ 節拍全部以**絕對毫秒**寫在 [_Beat] 裡，比例常數一律由它推導。
+// 早期是把 `180 / 1920` 這種分數手寫在各處，改一次總長就要重算一整排，
+// 漏掉一個就是節拍錯位而且很難看出來。要調時間軸只動 [_Beat]。
+//
 // 為什麼這麼慢：第一版 1000ms 跑完，實機看起來像「閃一下就結束」。精緻感需要
-// 時間——尤其掙脫（要讀得出「它在用力」）與彈開之後的餘韻（成就感發生在那裡）。
+// 時間——尤其掙脫（要讀得出「它在用力」）與彈開之後的消散。
+
+/// 時間軸上的每一個節拍（毫秒）。
+abstract final class _Beat {
+  /// 蓄力結束＝開始搖晃（也是搖晃音的觸發點）。
+  static const shake = 180;
+
+  /// 鎖彈開＝衝擊點。解鎖音、觸覺、星芒、**以及淡出**都從這一幀起算。
+  static const impact = 900;
+
+  /// 鎖的**物理**演出收乾淨（overshoot 回到 1.0、舞台放大收回）。
+  static const lockSettled = 1300;
+
+  /// 換手：舊內容剛好淡完，新內容從同一刻開始淡入。
+  ///
+  /// ⚠️ 兩段**首尾相接、不重疊**，交界處的空洞是靠**曲線**處理的，不是靠重疊。
+  /// 這兩條路都走過：
+  /// - 線性且首尾相接 → 交界處兩邊同時趨近 0，出現一顆**完全空白的膠囊**
+  ///   （實錄 1977ms 整顆是空的）。時間拉愈長洞愈明顯。
+  /// - 讓兩段重疊 220ms 去補那個洞 → 洞補起來了，但實錄 1847ms 看得到兩組
+  ///   **半透明疊在一起的鬼影**，又回到當初否決「同時淡入淡出」的那個問題。
+  ///
+  /// 現在的做法是讓淡出用 `easeInCirc`、淡入用 `easeOutCirc`——這兩條在端點的
+  /// 斜率趨近無限大，也就是兩邊都**近乎垂直地穿過**「快看不見」的那一段，於是
+  /// 誰也不必等誰。空白縮到 20ms 以內，而且任何一幀都只有一組內容。
+  /// 一般的 easeIn/easeOut 不夠——實測仍空 60ms，多項式曲線在終點是平滑收 0 的。
+  static const handoff = 1940;
+
+  /// 演出結束。
+  static const total = 2940;
+
+  /// 星芒從炸開到散盡。
+  static const burst = 830;
+}
 
 /// 蓄力：鎖繃緊、微微縮小。
-const Duration kUnlockAnticipate = Duration(milliseconds: 180);
+const Duration kUnlockAnticipate = Duration(milliseconds: _Beat.shake);
 
 /// 掙脫般的左右搖晃（振幅先漲後收），起點伴隨搖晃音。
-const Duration kUnlockShake = Duration(milliseconds: 720);
+const Duration kUnlockShake = Duration(
+  milliseconds: _Beat.impact - _Beat.shake,
+);
 
 /// 鎖彈開後的物理餘韻：overshoot 收回、舞台放大收乾淨。
 /// 淡出**與這一段重疊**——鎖是一邊回彈一邊化掉的。
-const Duration kUnlockSettle = Duration(milliseconds: 400);
+const Duration kUnlockSettle = Duration(
+  milliseconds: _Beat.lockSettled - _Beat.impact,
+);
 
-/// 化成「加入」：舊內容淡出 520ms → 換手 → 新內容淡入 500ms。
+/// 化成「加入」：舊內容淡出 → 換手 → 新內容淡入。
 ///
 /// **兩者不重疊。** 比稿實錄證實同時淡入淡出在這顆鈕上會糊掉：兩組內容的版面
 /// 差很多（未購買那組被 `FittedBox` 縮到 0.70、已購買那組是 1.0），字必然互相
 /// 穿插，中間約 280ms 讀起來是「≡+50 加入幣」。錯開之後任何一幀都只有一組東西。
-const Duration kUnlockMorph = Duration(milliseconds: 1020);
+const Duration kUnlockMorph = Duration(
+  milliseconds: _Beat.total - _Beat.impact,
+);
 
 /// 完整演出長度。
-const Duration kUnlockTotal = Duration(milliseconds: 1920);
+const Duration kUnlockTotal = Duration(milliseconds: _Beat.total);
 
 /// Reduce Motion 版：只保留語意上的三段換圖，不做位移與縮放。
 const Duration kUnlockTotalReduced = Duration(milliseconds: 420);
 
 /// 搖晃開始（＝搖晃音的觸發點）在整條弧線上的位置。
-const double kUnlockShakeAt = 180 / 1920;
+const double kUnlockShakeAt = _Beat.shake / _Beat.total;
 
 /// 鎖彈開（＝衝擊點）在整條弧線上的位置。
-const double kUnlockImpactAt = 900 / 1920;
+const double kUnlockImpactAt = _Beat.impact / _Beat.total;
 
 /// 鎖的**物理**演出收乾淨的位置（overshoot 回到 1.0、舞台放大收回）。
 ///
-/// ⚠️ 這**不是**淡出的起點，兩者現在是分開的：鎖是一邊回彈一邊化掉的。
-const double kUnlockMorphAt = 1300 / 1920;
+/// ⚠️ 這**不是**淡出的起點，兩者是分開的：鎖是一邊回彈一邊化掉的。
+const double kUnlockMorphAt = _Beat.lockSettled / _Beat.total;
 
 /// 舊內容開始淡出＝**鎖彈開的那一幀**。
 ///
-/// 使用者指定：星芒炸開的同時舊內容就要開始走。淡出因此從 250ms 拉長到 520ms，
-/// 剛好填滿「彈開 → 換手」這一段，不會有一段空著什麼都沒在變。
+/// 使用者指定：星芒炸開的同時舊內容就要開始走，不會有一段「光都放完了、畫面卻
+/// 還沒開始變」的空檔。
 const double kUnlockFadeOutAt = kUnlockImpactAt;
 
-/// 換手點：舊內容剛好淡完，新內容從這裡開始淡入（500ms 到演出結束）。
-const double kUnlockHandoffAt = 1420 / 1920;
+/// 換手點：舊內容剛好淡完、新內容從這裡開始（理由見 `_Beat.handoff`）。
+const double kUnlockHandoffAt = _Beat.handoff / _Beat.total;
 
 /// 搖晃的最大角度（弧度）。約 9°，再大就從「掙脫」變成「壞掉」。
 const double _kShakeMaxAngle = 0.16;
@@ -344,8 +387,8 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
 
   /// 彈開瞬間的光爆進度（0→1 後結束）。
   double _burstAt(double t) {
-    // 使用者：「太短，根本看不清楚就消失」。0.12(約 240ms) → 0.42(約 830ms)。
-    const span = 0.42;
+    // 使用者：「太短，根本看不清楚就消失」。240ms → 830ms。
+    const span = _Beat.burst / _Beat.total;
     if (t < kUnlockImpactAt || t > kUnlockImpactAt + span) return 0;
     return (t - kUnlockImpactAt) / span;
   }
@@ -534,20 +577,24 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return tp.size;
   }
 
-  /// 未購買那一組的不透明度：鎖彈開的那一幀開始走，520ms 後歸零。
+  /// 未購買那一組的不透明度：鎖彈開的那一幀開始走，換手點歸零。
+  ///
+  /// `easeInCirc` 讓它**在尾端垂直掉完**（導數在終點趨近無限大），少待在「快看不見」的那一段。理由見
+  /// `_Beat.handoff`：交界處的空洞是靠曲線處理的，不是靠兩段重疊。
   double _fadeOutAt(double t, bool reduce) {
     if (reduce) return t >= 0.67 ? 0 : 1;
     final p = ((t - kUnlockFadeOutAt) / (kUnlockHandoffAt - kUnlockFadeOutAt))
         .clamp(0.0, 1.0);
-    return 1 - p;
+    return 1 - Curves.easeInCirc.transform(p);
   }
 
-  /// 已購買那一組的不透明度：**等舊的完全走光才開始**，500ms 淡到滿。
+  /// 已購買那一組的不透明度：從換手點淡到演出結束。
   ///
-  /// 這兩條窗口刻意不重疊，理由見 [kUnlockMorph]。
+  /// `easeOutCirc` 讓它**一起步就衝出來**（同一個道理，反過來），與上面那條互補。
   double _fadeInAt(double t, bool reduce) {
     if (reduce) return t >= 0.67 ? 1 : 0;
-    return ((t - kUnlockHandoffAt) / (1 - kUnlockHandoffAt)).clamp(0.0, 1.0);
+    final p = ((t - kUnlockHandoffAt) / (1 - kUnlockHandoffAt)).clamp(0.0, 1.0);
+    return Curves.easeOutCirc.transform(p);
   }
 
   /// 未購買那一組內容的自然寬度（圖示＋間距＋標籤）。星芒光源用它反推鎖在哪。

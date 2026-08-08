@@ -90,8 +90,8 @@ class _MotionPreviewPageState extends State<MotionPreviewPage>
     final ms = _elapsedMs;
     if (ms < 180) return '蓄力';
     if (ms < 900) return '搖晃';
-    if (ms < 1420) return '彈開＋淡出';
-    if (ms < 1920) return '加入淡入';
+    if (ms < 1940) return '彈開＋淡出';
+    if (ms < 2940) return '加入淡入';
     return '完成';
   }
 

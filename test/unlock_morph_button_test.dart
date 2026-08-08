@@ -6,6 +6,8 @@
 // 這組測試釘住演出的語意順序與衝擊點，不驗像素：
 // 闔鎖 → （搖晃）→ 開鎖＋音效 → 加入圖示。
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/app_feedback.dart';
@@ -178,10 +180,13 @@ void main() {
     );
   });
 
-  testWidgets('淡出從鎖彈開那一幀就開始，而且兩段淡入淡出不重疊', (tester) async {
+  testWidgets('淡出從鎖彈開那一幀就開始；不會疊字鬼影，也不會空出白膠囊', (tester) async {
     // 使用者定的節奏：「鑰匙鎖打開特效的那個時間點就要進入淡出」——不能等光都
-    // 放完了畫面才開始變。而兩段刻意錯開的理由見 kUnlockMorph 的說明：同時淡
-    // 入淡出時兩組內容會互相穿插，實錄有約 280ms 讀成「≡+50 加入幣」。
+    // 放完了畫面才開始變。
+    //
+    // 兩段幾乎不重疊（理由見 kUnlockMorph：同時淡入淡出時兩組內容互相穿插，
+    // 實錄有約 280ms 讀成「≡+50 加入幣」），但也不能完全首尾相接——那樣交界
+    // 處會空一顆膠囊出來。這條測試同時釘住這兩端。
     await pumpButton(tester, lockedLabel: '50 足跡幣');
     purchase();
     await tester.pump();
@@ -198,6 +203,7 @@ void main() {
     }
 
     var sawFadeOutStart = false;
+    var blankMs = 0;
     var elapsed = 0;
     while (elapsed < kUnlockTotal.inMilliseconds) {
       await tester.pump(const Duration(milliseconds: 20));
@@ -217,11 +223,21 @@ void main() {
         );
         sawFadeOutStart = true;
       }
+      // 不能同時看得見——那正是同時淡入淡出被否決的原因（會讀成疊字鬼影）。
       expect(
         out > 0.02 && into > 0.02,
         isFalse,
-        reason: '${elapsed}ms 兩組同時看得見（舊 $out／新 $into）→ 會糊在一起',
+        reason: '${elapsed}ms 兩組同時看得見（舊 $out／新 $into）→ 疊字鬼影',
       );
+      // 也不能空太久。線性淡化首尾相接時，交界處兩邊同時趨近 0，會空出一顆
+      // 白膠囊（實錄 1977ms 整顆是空的）；靠 easeIn／easeOut 快速通過低透明度
+      // 的區間，空白才會縮到一幀以內。
+      if (math.max(out, into) < 0.05) {
+        blankMs += 20;
+      } else {
+        blankMs = 0;
+      }
+      expect(blankMs, lessThanOrEqualTo(40), reason: '${elapsed}ms 膠囊空了太久');
     }
     expect(sawFadeOutStart, isTrue);
   });
