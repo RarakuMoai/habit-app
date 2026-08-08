@@ -26,6 +26,14 @@
 - 不手動執行通知腳本；通知交給 `.claude/settings.local.json` 的
   Stop / Notification hooks。（`AGENTS.md` 那條講的是 Codex CLI 的 notify hook。）
 - 版本、規格、價格、政策等可能過時的資訊，查最新官方來源後再回答。
+- **UI／動畫的三個硬觸發。** 全文在 `AGENTS.md`「UI / Motion 工程核心規則」，
+  這裡只放「什麼時候該停下來」——因為這三個時機都不是我會主動去翻文件的時機：
+  1. **開工前**：先算出真實 production 約束（往上追 Expanded／格線／padding／
+     FittedBox）與真實 l10n 字串，preview 與測試都用那組數字。
+  2. **同一症狀改兩次仍沒解決**：第三次禁止再調 offset／padding／curve 試誤，
+     停下來找能解釋**所有**症狀的根因（Two-Failure Root-Cause Rule）。
+  3. **回報時**：宣告「已驗證」要一併寫出驗證環境的實際參數；使用者說實機仍有
+     問題，優先懷疑驗證環境，不要辯護原本的量測結果。
 
 ## Claude 專屬差異
 
