@@ -37,21 +37,12 @@ import '../utils/app_style.dart';
 import '../utils/sfx_service.dart';
 
 /// 衣櫃／音樂盒列上的小動作鈕（原 `_PrimaryMiniButton`）。
-///
-/// [iconWidget] / [labelWidget] 給需要自己做動畫的呼叫端覆寫用；
-/// 一般情況只傳 [icon] 與 [label] 就好。
 class MiniActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
   final bool enabled;
   final VoidCallback onTap;
-
-  /// 覆寫圖示區（[UnlockMorphButton] 用來塞會動的鎖）。
-  final Widget? iconWidget;
-
-  /// 覆寫文字區（同上，用來做標籤交叉淡入）。
-  final Widget? labelWidget;
 
   const MiniActionButton({
     super.key,
@@ -60,32 +51,57 @@ class MiniActionButton extends StatelessWidget {
     required this.color,
     required this.onTap,
     this.enabled = true,
-    this.iconWidget,
-    this.labelWidget,
   });
 
   @override
   Widget build(BuildContext context) {
     final fg = enabled ? color : AppInk.faint;
+    return MiniButtonShell(
+      color: color,
+      enabled: enabled,
+      onTap: onTap,
+      child: MiniButtonContent(
+        icon: Icon(icon, size: 17, color: fg),
+        label: Text(
+          label,
+          style: TextStyle(
+            color: fg,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 小動作鈕的**外殼**：底色、圓角、InkWell。內容由呼叫端給。
+///
+/// 拆出來是為了讓 [UnlockMorphButton] 能在**同一顆膠囊**裡放兩組內容輪替。
+/// 外殼從頭到尾沒有變過，於是整段演出只建一次。
+class MiniButtonShell extends StatelessWidget {
+  final Color color;
+  final bool enabled;
+  final VoidCallback? onTap;
+  final Widget child;
+
+  const MiniButtonShell({
+    super.key,
+    required this.color,
+    required this.child,
+    this.enabled = true,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
       color: enabled ? color.withValues(alpha: 0.11) : const Color(0xFFF4EEE8),
       borderRadius: BorderRadius.circular(13),
       child: InkWell(
         onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(13),
-        child: MiniButtonContent(
-          icon: iconWidget ?? Icon(icon, size: 17, color: fg),
-          label:
-              labelWidget ??
-              Text(
-                label,
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-        ),
+        child: child,
       ),
     );
   }
@@ -259,9 +275,28 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
+  /// 兩組內容的不透明度。
+  ///
+  /// ⚠️ **刻意做成 [Animation] 交給 `FadeTransition`，而不是每幀算一個 double
+  /// 再包 `Opacity`。** 後者得把整棵樹掛在 `AnimatedBuilder` 底下逐幀重建
+  ///（Material、InkWell、Container、FittedBox、Row 全部），實測 2.9ms／幀；
+  /// `FadeTransition` 走 `RenderAnimatedOpacity`，只重畫不重建。
+  late final Animation<double> _fadeOut;
+  late final Animation<double> _fadeIn;
+  late final Animation<double> _fadeOutReduced;
+  late final Animation<double> _fadeInReduced;
+  final _curves = <CurvedAnimation>[];
+
   /// 這一輪演出是否已經播過搖晃音／衝擊音（避免 rebuild 重播）。
   bool _shakeFired = false;
   bool _impactFired = false;
+
+  /// 鎖是闔著還是開著。
+  ///
+  /// 整段演出只翻面一次，所以用 state ＋ setState 驅動，讓 [Icon] 能當成
+  /// `AnimatedBuilder` 的 `child` 被保留下來。逐幀重建 [Icon] 不便宜——它裡面
+  /// 是一整棵 `RichText`，實測光這一項就佔每幀 700µs。
+  bool _lockOpen = false;
 
   bool get _reduceMotion =>
       MediaQuery.maybeOf(context)?.disableAnimations ?? false;
@@ -276,6 +311,30 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
       ..addStatusListener((s) {
         if (s == AnimationStatus.completed && mounted) setState(() {});
       });
+
+    // 曲線的理由見 `_Beat.handoff`：交界處的空洞是靠端點斜率發散的 circ 曲線
+    // 處理的，不是靠兩段重疊。
+    _fadeOut = _curve(
+      const Interval(
+        kUnlockFadeOutAt,
+        kUnlockHandoffAt,
+        curve: Curves.easeInCirc,
+      ),
+      reversed: true,
+    );
+    _fadeIn = _curve(
+      const Interval(kUnlockHandoffAt, 1, curve: Curves.easeOutCirc),
+    );
+    // Reduce Motion：換手是**硬切**（0.66→0.67 在 420ms 上只有 4ms），
+    // 語意順序照舊，但不做看得見的淡化。
+    _fadeOutReduced = _curve(const Interval(0.66, 0.67), reversed: true);
+    _fadeInReduced = _curve(const Interval(0.66, 0.67));
+  }
+
+  Animation<double> _curve(Curve curve, {bool reversed = false}) {
+    final c = CurvedAnimation(parent: _ctrl, curve: curve);
+    _curves.add(c);
+    return reversed ? Tween<double>(begin: 1, end: 0).animate(c) : c;
   }
 
   @override
@@ -283,17 +342,23 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     super.didUpdateWidget(old);
     // 只有「沒有 → 有」才演。反向（例如資料重載）直接落到已擁有的樣子。
     if (!old.owned && widget.owned) {
-      _shakeFired = _impactFired = false;
+      _shakeFired = _impactFired = _lockOpen = false;
       _ctrl.duration = _reduceMotion ? kUnlockTotalReduced : kUnlockTotal;
       _ctrl.forward(from: 0);
     } else if (old.owned && !widget.owned) {
+      // ⚠️ 旗標要在改 value **之前**清掉。`_ctrl.value = ` 會同步通知監聽器，
+      // 而 `_maybeFireImpact` 裡有 setState——在 didUpdateWidget 期間被叫到
+      // 就會炸「setState called during build」。先清乾淨，通知進來時就沒事做。
+      _shakeFired = _impactFired = _lockOpen = false;
       _ctrl.value = 0;
-      _shakeFired = _impactFired = false;
     }
   }
 
   void _maybeFireImpact() {
     final t = _ctrl.value;
+    // 鎖翻面：整段演出只會發生一次，所以這個 setState 一輪只跑一次。
+    final open = t >= (_reduceMotion ? 0.34 : kUnlockImpactAt);
+    if (open != _lockOpen && mounted) setState(() => _lockOpen = open);
     // 搖晃音：跟著鎖開始掙扎的那一刻起。Reduce Motion 沒有搖晃，就不放這一聲。
     if (!_shakeFired && !_reduceMotion && t >= kUnlockShakeAt) {
       _shakeFired = true;
@@ -310,6 +375,9 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
 
   @override
   void dispose() {
+    for (final c in _curves) {
+      c.dispose();
+    }
     _ctrl.dispose();
     super.dispose();
   }
@@ -385,25 +453,6 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return 1.55 - 0.55 * Curves.easeInOutCubic.transform(p);
   }
 
-  /// 彈開瞬間的光爆進度（0→1 後結束）。
-  double _burstAt(double t) {
-    // 使用者：「太短，根本看不清楚就消失」。240ms → 830ms。
-    const span = _Beat.burst / _Beat.total;
-    if (t < kUnlockImpactAt || t > kUnlockImpactAt + span) return 0;
-    return (t - kUnlockImpactAt) / span;
-  }
-
-  /// 彈開後停留的柔光暈（比光爆長，負責「成就感的餘韻」）。
-  double _afterglowAt(double t) {
-    // 實拍：撐到 morph 起點太久，光暈跟接下來的換手打架。收在一半。
-    final end = kUnlockImpactAt + (kUnlockMorphAt - kUnlockImpactAt) * 0.55;
-    if (t < kUnlockImpactAt || t > end) return 0;
-    final p = (t - kUnlockImpactAt) / (end - kUnlockImpactAt);
-    return p < 0.25
-        ? Curves.easeOut.transform(p / 0.25)
-        : 1 - Curves.easeIn.transform((p - 0.25) / 0.75);
-  }
-
   @override
   Widget build(BuildContext context) {
     // 還沒買、或演出已經播完 → 一般的靜態鈕，零動畫成本。
@@ -424,139 +473,141 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
       );
     }
 
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        final t = _ctrl.value;
-        final reduce = _reduceMotion;
-        final fadeOut = _fadeOutAt(t, reduce);
-        final c = _fadeInAt(t, reduce);
+    final reduce = _reduceMotion;
 
-        // 底層＝「未購買」那一組內容（會動的鎖＋原本的標籤），照它自己的版面。
-        // 膠囊底色與 InkWell 由這一顆提供，所以只把**內容**調透明度，
-        // 不能整顆包 Opacity——那樣底色也會跟著淡掉。
-        final button = MiniActionButton(
-          label: widget.unlockedLabel,
-          icon: widget.unlockedIcon,
-          color: widget.color,
-          onTap: widget.onUnlockedTap,
-          // Reduce Motion 只留換圖：**完全不建** Transform 與光效，
-          // 而不是建了再傳 0——後者等於偏好沒有真的生效。
-          iconWidget: Opacity(
-            opacity: fadeOut,
-            child: reduce
-                ? SizedBox(width: 17, height: 17, child: _lockIcon(t, reduce))
-                : SizedBox(
-                    width: 17,
-                    height: 17,
-                    // 演出期間整組放大：17px 放不下任何動態，實拍證明搖晃與光爆
-                    // 在原尺寸下都讀不出來。收尾回到 1.0。
-                    child: Transform.scale(
-                      scale: _stageScaleAt(t),
-                      child: Transform.translate(
-                        offset: Offset(_shakeDxAt(t), 0),
-                        child: Transform.rotate(
-                          angle: _shakeAngleAt(t),
-                          child: Transform.scale(
-                            scale: _scaleAt(t),
-                            child: _lockIcon(t, reduce),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+    // ⚠️ 這裡**刻意沒有把整棵樹掛在 AnimatedBuilder 底下**。
+    //
+    // 先前是那樣做的：每一幀重建 Material、InkWell、Container、FittedBox、Row
+    // 與兩顆 Opacity，實測 2.9ms／幀（同一支 harness 的靜態基準線是 0.06ms）。
+    // 但這段演出裡逐幀在變的其實只有三樣，各自接到控制器上就好：
+    //   不透明度 → FadeTransition（RenderAnimatedOpacity，只重畫）
+    //   鎖的變形 → 只包住 17×17 圖示的小 AnimatedBuilder
+    //   星芒     → CustomPainter 的 `repaint` 參數
+    // 外殼與兩組內容因此整段演出只建一次。
+    final locked = MiniButtonContent(
+      icon: _animatedLock(reduce),
+      label: Text(
+        widget.lockedLabel,
+        style: _labelStyle,
+        softWrap: false,
+        maxLines: 1,
+      ),
+    );
+    // 上層＝「已購買」那一組內容，**自己排自己的版**（見 [MiniButtonContent]）。
+    // Positioned.fill 讓它拿到與底層完全相同的外框，於是它算出來的位置與縮放
+    // 就等於演出結束後那顆靜態鈕——淡入完不必再移動任何東西。
+    final unlocked = MiniButtonContent(
+      icon: Icon(widget.unlockedIcon, size: 17, color: widget.color),
+      label: Text(
+        widget.unlockedLabel,
+        style: _labelStyle,
+        softWrap: false,
+        maxLines: 1,
+      ),
+    );
+
+    return MiniButtonShell(
+      color: widget.color,
+      onTap: widget.onUnlockedTap,
+      child: Stack(
+        // ⚠️ **必須 passthrough。** 預設的 StackFit.loose 會把寬度約束放鬆，
+        // 內容就從「填滿父層給的寬度」掉回「內容有多寬就多寬」——實測框體
+        // 在演出期間縮掉 40%（418px → 250px），而靜態分支沒包 Stack 所以
+        // 正常，於是看起來就是「框體大小一直在變」。
+        fit: StackFit.passthrough,
+        clipBehavior: Clip.none,
+        children: [
+          FadeTransition(
+            opacity: reduce ? _fadeOutReduced : _fadeOut,
+            child: locked,
           ),
-          labelWidget: Opacity(
-            opacity: fadeOut,
-            child: Text(
-              widget.lockedLabel,
-              style: _labelStyle,
-              softWrap: false,
-              maxLines: 1,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: FadeTransition(
+                opacity: reduce ? _fadeInReduced : _fadeIn,
+                // 這一組內容自己完全不會變，只有不透明度在動。包一層
+                // RepaintBoundary 之後它變成一張留存的圖層，逐幀就只剩合成，
+                // 不必重畫文字與圖示。
+                child: RepaintBoundary(child: unlocked),
+              ),
             ),
           ),
-        );
-
-        // 上層＝「已購買」那一組內容，**自己排自己的版**（見 [MiniButtonContent]）。
-        // Positioned.fill 讓它拿到與底層完全相同的外框，於是它算出來的位置與縮放
-        // 就等於演出結束後那顆靜態鈕——淡入完不必再移動任何東西。
-        final incoming = c <= 0
-            ? null
-            : Positioned.fill(
-                child: IgnorePointer(
-                  child: Opacity(
-                    opacity: c.clamp(0.0, 1.0),
-                    child: MiniButtonContent(
-                      icon: Icon(
-                        widget.unlockedIcon,
-                        size: 17,
-                        color: widget.color,
-                      ),
-                      label: Text(
-                        widget.unlockedLabel,
-                        style: _labelStyle,
-                        softWrap: false,
-                        maxLines: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-
-        if (reduce) {
-          return Stack(
-            fit: StackFit.passthrough,
-            children: [button, ?incoming],
-          );
-        }
-        // ⚠️ 光效**鋪滿整顆按鈕**，不是關在 17px 的圖示格子裡。
-        //
-        // 前五版都畫在圖示的 17×17 裡（放大後也才 ~26px）——在那個尺寸做
-        // 「光影渲染」，實機上根本看不到。使用者連續回報「沒看到特效」，
-        // 根因不是效果不好，是**層級放錯了**。高階 App 的解鎖演出，光是打在
-        // 整張卡或整顆按鈕上的。
-        //
-        // 用 Stack 疊在按鈕之上、IgnorePointer 不吃手勢；按鈕本身完全不必知道
-        // 有光效存在，兩者徹底分開。
-        return Stack(
-          // ⚠️ **必須 passthrough。** 預設的 StackFit.loose 會把寬度約束放鬆，
-          // 按鈕就從「填滿父層給的寬度」掉回「內容有多寬就多寬」——實測框體
-          // 在演出期間縮掉 40%（418px → 250px），而靜態分支沒包 Stack 所以
-          // 正常，於是看起來就是「框體大小一直在變」。
-          // passthrough 讓按鈕收到與 Stack 相同的約束，框體才會全程固定。
-          fit: StackFit.passthrough,
-          clipBehavior: Clip.none,
-          children: [
-            button,
-            ?incoming,
+          // ⚠️ 光效**鋪滿整顆按鈕**，不是關在 17px 的圖示格子裡。
+          //
+          // 前五版都畫在圖示的 17×17 裡（放大後也才 ~26px）——在那個尺寸做
+          // 「光影渲染」，實機上根本看不到。使用者連續回報「沒看到特效」，
+          // 根因不是效果不好，是**層級放錯了**。高階 App 的解鎖演出，光是打在
+          // 整張卡或整顆按鈕上的。
+          //
+          // Reduce Motion 完全不建這一層，而不是建了再傳 0——後者等於偏好沒有
+          // 真的生效。RepaintBoundary 讓星芒的逐幀重畫不會弄髒底下的按鈕。
+          if (!reduce)
             Positioned.fill(
               child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _UnlockBurstPainter(
-                    progress: _burstAt(t),
-                    glow: _afterglowAt(t),
-                    color: widget.color,
-                    lockedContentWidth: _lockedContentWidth,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _UnlockBurstPainter(
+                      animation: _ctrl,
+                      color: widget.color,
+                      lockedContentWidth: _lockedContentWidth,
+                    ),
                   ),
                 ),
               ),
             ),
-          ],
-        );
-      },
+        ],
+      ),
     );
   }
 
-  /// 底層（未購買那一組）的鎖：彈開前闔著，彈開後打開。
+  /// 會搖、會彈開的鎖。**整段演出只有這 17×17 的一小塊在逐幀更新。**
   ///
   /// 這裡只管鎖。「加入」圖示屬於另一組內容、疊在上層自己淡入，兩者不共用
   /// 任何版面——正是這個分離讓演出全程沒有位移。
-  Widget _lockIcon(double t, bool reduce) {
-    final open = reduce ? t >= 0.34 : t >= kUnlockImpactAt;
-    return Icon(
-      open ? Icons.lock_open_rounded : Icons.lock_rounded,
+  Widget _animatedLock(bool reduce) {
+    // ⚠️ [Icon] 掛在 `AnimatedBuilder` 的 `child` 上，**不在 builder 裡建**。
+    // Icon 內部是一整棵 RichText，逐幀重建它實測要 700µs／幀；當成 child
+    // 之後只有 `_lockOpen` 翻面的那一次會重建（整段演出一次）。
+    final icon = Icon(
+      _lockOpen ? Icons.lock_open_rounded : Icons.lock_rounded,
       size: 17,
       color: widget.color,
+    );
+    // Reduce Motion 只留換圖：**完全不建** Transform 也不掛動畫。
+    if (reduce) return SizedBox(width: 17, height: 17, child: icon);
+    return SizedBox(
+      width: 17,
+      height: 17,
+      // 鎖每幀都在動，它旁邊的標籤沒有。這層邊界把鎖的重畫關在 17×17 裡，
+      // 不會連帶把整組內容（含文字）一起弄髒。
+      child: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          child: icon,
+          builder: (context, child) {
+            final t = _ctrl.value;
+            // ⚠️ 四段變形**合成成一顆 Matrix4**，不要疊四層 Transform widget。
+            // 疊起來是四個 widget ＋ 四個 RenderTransform 逐幀更新；合成之後
+            // 只有一個。數學上等價：以中心為原點，由外而內是
+            // 舞台放大 → 搖晃位移 → 旋轉 → 繃緊縮放。
+            //
+            // 舞台放大的存在理由：17px 放不下任何動態，實拍證明搖晃與光爆在
+            // 原尺寸下都讀不出來。收尾回到 1.0。
+            final stage = _stageScaleAt(t);
+            final tense = _scaleAt(t);
+            final m = Matrix4.identity()
+              ..scaleByDouble(stage, stage, 1, 1)
+              ..translateByDouble(_shakeDxAt(t), 0, 0, 1)
+              ..rotateZ(_shakeAngleAt(t))
+              ..scaleByDouble(tense, tense, 1, 1);
+            return Transform(
+              alignment: Alignment.center,
+              transform: m,
+              child: child,
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -575,26 +626,6 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
           MediaQuery.maybeOf(context)?.textScaler ?? TextScaler.noScaling,
     )..layout();
     return tp.size;
-  }
-
-  /// 未購買那一組的不透明度：鎖彈開的那一幀開始走，換手點歸零。
-  ///
-  /// `easeInCirc` 讓它**在尾端垂直掉完**（導數在終點趨近無限大），少待在「快看不見」的那一段。理由見
-  /// `_Beat.handoff`：交界處的空洞是靠曲線處理的，不是靠兩段重疊。
-  double _fadeOutAt(double t, bool reduce) {
-    if (reduce) return t >= 0.67 ? 0 : 1;
-    final p = ((t - kUnlockFadeOutAt) / (kUnlockHandoffAt - kUnlockFadeOutAt))
-        .clamp(0.0, 1.0);
-    return 1 - Curves.easeInCirc.transform(p);
-  }
-
-  /// 已購買那一組的不透明度：從換手點淡到演出結束。
-  ///
-  /// `easeOutCirc` 讓它**一起步就衝出來**（同一個道理，反過來），與上面那條互補。
-  double _fadeInAt(double t, bool reduce) {
-    if (reduce) return t >= 0.67 ? 1 : 0;
-    final p = ((t - kUnlockHandoffAt) / (1 - kUnlockHandoffAt)).clamp(0.0, 1.0);
-    return Curves.easeOutCirc.transform(p);
   }
 
   /// 未購買那一組內容的自然寬度（圖示＋間距＋標籤）。星芒光源用它反推鎖在哪。
@@ -617,23 +648,41 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
 /// 因此：**星星是實體形狀**（五角星路徑）不是光線，顏色是暖黃不是元件主色，
 /// 而且整段拉到約 830ms，讓每一顆都有被看清楚的時間。
 class _UnlockBurstPainter extends CustomPainter {
-  /// 星芒進度 0→1（0 是鎖彈開那一幀）。
-  final double progress;
-
-  /// 彈開之後鎖身的柔光 0→1→0。
-  final double glow;
+  /// 演出的進度來源。
+  ///
+  /// ⚠️ 透過 `super(repaint:)` 接上去，**而不是每幀重建一顆新的 painter**。
+  /// 這樣星芒的更新只走「重畫」，不會連帶讓 widget 樹重建。
+  final Animation<double> animation;
 
   final Color color;
 
   /// 未購買那一組內容的自然寬度。用來反推鎖在哪。
   final double lockedContentWidth;
 
-  const _UnlockBurstPainter({
-    required this.progress,
-    required this.glow,
+  _UnlockBurstPainter({
+    required this.animation,
     required this.color,
     required this.lockedContentWidth,
-  });
+  }) : super(repaint: animation);
+
+  /// 星芒進度 0→1（0 是鎖彈開那一幀）。
+  static double _burstAt(double t) {
+    // 使用者：「太短，根本看不清楚就消失」。240ms → 830ms。
+    const span = _Beat.burst / _Beat.total;
+    if (t < kUnlockImpactAt || t > kUnlockImpactAt + span) return 0;
+    return (t - kUnlockImpactAt) / span;
+  }
+
+  /// 彈開後停留的柔光暈（比光爆長，負責「成就感的餘韻」）。
+  static double _afterglowAt(double t) {
+    // 實拍：撐到鎖落定太久，光暈跟接下來的換手打架。收在一半。
+    final end = kUnlockImpactAt + (kUnlockMorphAt - kUnlockImpactAt) * 0.55;
+    if (t < kUnlockImpactAt || t > end) return 0;
+    final p = (t - kUnlockImpactAt) / (end - kUnlockImpactAt);
+    return p < 0.25
+        ? Curves.easeOut.transform(p / 0.25)
+        : 1 - Curves.easeIn.transform((p - 0.25) / 0.75);
+  }
 
   /// 星星的暖黃。與足跡幣同一個金黃家族，不用元件主色——星星就是要跳出來。
   static const _gold = Color(0xFFFFC53D);
@@ -758,8 +807,12 @@ class _UnlockBurstPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final t = animation.value;
+    final glow = _afterglowAt(t);
+    final p = _burstAt(t).clamp(0.0, 1.0);
+    // 星芒只活在 830ms 的窗口裡；其餘時間直接收工，一個 Paint 都不建。
+    if (p <= 0 && glow <= 0) return;
     final o = _origin(size);
-    final p = progress.clamp(0.0, 1.0);
 
     // 鎖身留一點暖光墊底，讓星星不是憑空出現在白紙上。
     if (glow > 0) {
@@ -812,7 +865,8 @@ class _UnlockBurstPainter extends CustomPainter {
     }
   }
 
+  // 重畫由 `repaint: animation` 驅動；這裡只需要管「換了一顆 painter」的情況。
   @override
   bool shouldRepaint(_UnlockBurstPainter old) =>
-      old.progress != progress || old.glow != glow || old.color != color;
+      old.color != color || old.lockedContentWidth != lockedContentWidth;
 }

@@ -73,17 +73,25 @@ void main() {
 
   void purchase() => setOuter(() => owned = true);
 
-  /// 某個圖示是否**看得見**（疊圖是靠 Opacity 換的，所以要看 opacity）。
+  /// 某個 widget 這一幀的實際不透明度。
+  ///
+  /// ⚠️ 兩組內容是用 `FadeTransition` 換的，**不是 `Opacity`**（為了只重畫不
+  /// 重建，見元件裡的說明）。所以要往上找 FadeTransition 並讀它的 animation，
+  /// 不能 `find.byType(Opacity)`——那樣永遠找不到，測試會假綠。
+  double alphaOf(WidgetTester tester, Finder finder) {
+    if (finder.evaluate().isEmpty) return 0;
+    return tester
+        .widgetList<FadeTransition>(
+          find.ancestor(of: finder.first, matching: find.byType(FadeTransition)),
+        )
+        .fold<double>(1, (a, f) => a * f.opacity.value);
+  }
+
+  /// 某個圖示是否看得見（靜態鈕沒有包 FadeTransition，一律視為看得見）。
   bool visible(WidgetTester tester, IconData icon) {
     final finder = find.byIcon(icon);
     if (finder.evaluate().isEmpty) return false;
-    final opacities = tester
-        .widgetList<Opacity>(
-          find.ancestor(of: finder.first, matching: find.byType(Opacity)),
-        )
-        .toList();
-    if (opacities.isEmpty) return true; // 靜態鈕沒有包 Opacity
-    return opacities.every((o) => o.opacity > 0.5);
+    return alphaOf(tester, finder) > 0.5;
   }
 
   testWidgets('尚未購買顯示「闔上」的鎖，不是打開的鎖', (tester) async {
@@ -191,16 +199,7 @@ void main() {
     purchase();
     await tester.pump();
 
-    /// 某段文字這一幀的實際不透明度（找不到＝還沒建出來，視為 0）。
-    double alpha(String text) {
-      final finder = find.text(text);
-      if (finder.evaluate().isEmpty) return 0;
-      return tester
-          .widgetList<Opacity>(
-            find.ancestor(of: finder.first, matching: find.byType(Opacity)),
-          )
-          .fold<double>(1, (a, o) => a * o.opacity);
-    }
+    double alpha(String text) => alphaOf(tester, find.text(text));
 
     var sawFadeOutStart = false;
     var blankMs = 0;
