@@ -13,15 +13,19 @@
 // **衝擊點對齊看得到的那一幀**（鎖真的彈開的瞬間），不是購買完成的那一刻——
 // 所以音效由這個元件在 impact 播，`_buyTrack` 不再自己播，否則會提早半秒。
 //
-// 圖示是**接力**不是交叉淡入：鎖與「加入」形狀差太多，兩張半透明疊在一起會讀成
-// 「圖案缺一塊」。所以鎖先縮走消失，目標圖示才從小長回來，中間沒有重疊區。
+// ⚠️ **演出全程沒有任何位移或縮放，只有透明度在變。** 做法是把「未購買」與
+// 「已購買」當成兩組**各自獨立排版**的內容疊在同一顆膠囊裡交叉淡入，而不是去
+// 插值一份共用的版面。理由是踩出來的：共用版面時，標籤一從「50 足跡幣」換成
+// 「加入」，內容寬度就變，於是 `FittedBox` 的縮放倍率跟著變——實測 85pt 寬的
+// 鈕上是 0.70 → 1.0，整組內容連圖示帶文字放大 43%，讀起來就是「圖案往右滑才
+// 定位」。兩組各排各的，每一組的位置與大小就都等於它靜態時的樣子，淡入完不必
+// 再移動任何東西，收尾切回靜態鈕也不會跳。
 //
 // Reduce Motion 走同一條語意但省略位移與縮放：鎖仍然從闔著換成打開再換成加入，
 // 解鎖音與觸覺照樣觸發（那是事實回饋），只是不搖、不縮放、不放光效——搖晃音也
 // 一併省略，因為那一聲是在描述一個不會發生的動作。
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -66,28 +70,46 @@ class MiniActionButton extends StatelessWidget {
       child: InkWell(
         onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(13),
-        child: Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                iconWidget ?? Icon(icon, size: 17, color: fg),
-                const SizedBox(width: 5),
-                labelWidget ??
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: fg,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-              ],
-            ),
-          ),
+        child: MiniButtonContent(
+          icon: iconWidget ?? Icon(icon, size: 17, color: fg),
+          label:
+              labelWidget ??
+              Text(
+                label,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 小動作鈕的**內容**（不含底色與 InkWell）。
+///
+/// 之所以要能單獨拿出來用：解鎖演出需要把「未購買」與「已購買」兩組內容疊在
+/// 同一顆膠囊裡交叉淡入，而**每一組都必須自己排自己的版**——`FittedBox` 的
+/// 縮放倍率取決於內容有多寬，兩組寬度差很多（實測 85pt 的鈕上，「50 足跡幣」
+/// 被縮到 0.70，「加入」則是 1.0）。共用一組版面就一定會有人被拉著跑。
+class MiniButtonContent extends StatelessWidget {
+  final Widget icon;
+  final Widget label;
+
+  const MiniButtonContent({super.key, required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [icon, const SizedBox(width: 5), label],
         ),
       ),
     );
@@ -110,9 +132,8 @@ const Duration kUnlockShake = Duration(milliseconds: 720);
 /// 彈開後的光影展開與落定——成就感在這一段，不能太短。
 const Duration kUnlockSettle = Duration(milliseconds: 400);
 
-/// 化成「加入」圖示。**接力不重疊**：鎖先縮走，圖示才長出來。
-/// 化成「加入」。鎖淡出與「加入」淡入**同時進行**（0.5 秒），寬度也在同一個
-/// 窗口內一起變 —— 全部同步才讀成一次完整的過渡，而不是幾件事各跳各的。
+/// 化成「加入」。未購買那一組淡出、已購買那一組淡入，**同時進行**（0.5 秒），
+/// 兩組都待在自己的位置上不動——這段裡唯一在變的東西就是透明度。
 const Duration kUnlockMorph = Duration(milliseconds: 620);
 
 /// 完整演出長度。
@@ -347,6 +368,12 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
       builder: (context, _) {
         final t = _ctrl.value;
         final reduce = _reduceMotion;
+        final c = _crossAt(t, reduce);
+        final fadeOut = (1 - c).clamp(0.0, 1.0);
+
+        // 底層＝「未購買」那一組內容（會動的鎖＋原本的標籤），照它自己的版面。
+        // 膠囊底色與 InkWell 由這一顆提供，所以只把**內容**調透明度，
+        // 不能整顆包 Opacity——那樣底色也會跟著淡掉。
         final button = MiniActionButton(
           label: widget.unlockedLabel,
           icon: widget.unlockedIcon,
@@ -354,30 +381,73 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
           onTap: widget.onUnlockedTap,
           // Reduce Motion 只留換圖：**完全不建** Transform 與光效，
           // 而不是建了再傳 0——後者等於偏好沒有真的生效。
-          iconWidget: reduce
-              ? SizedBox(width: 17, height: 17, child: _reducedIcon(t))
-              : SizedBox(
-                  width: 17,
-                  height: 17,
-                  // 演出期間整組放大：17px 放不下任何動態，實拍證明搖晃與光爆
-                  // 在原尺寸下都讀不出來。收尾回到 1.0。
-                  child: Transform.scale(
-                    scale: _stageScaleAt(t),
-                    child: Transform.translate(
-                      offset: Offset(_shakeDxAt(t), 0),
-                      child: Transform.rotate(
-                        angle: _shakeAngleAt(t),
-                        child: Transform.scale(
-                          scale: _scaleAt(t),
-                          child: _iconCross(t, reduce),
+          iconWidget: Opacity(
+            opacity: fadeOut,
+            child: reduce
+                ? SizedBox(width: 17, height: 17, child: _lockIcon(t, reduce))
+                : SizedBox(
+                    width: 17,
+                    height: 17,
+                    // 演出期間整組放大：17px 放不下任何動態，實拍證明搖晃與光爆
+                    // 在原尺寸下都讀不出來。收尾回到 1.0。
+                    child: Transform.scale(
+                      scale: _stageScaleAt(t),
+                      child: Transform.translate(
+                        offset: Offset(_shakeDxAt(t), 0),
+                        child: Transform.rotate(
+                          angle: _shakeAngleAt(t),
+                          child: Transform.scale(
+                            scale: _scaleAt(t),
+                            child: _lockIcon(t, reduce),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-          labelWidget: _label(t, reduce),
+          ),
+          labelWidget: Opacity(
+            opacity: fadeOut,
+            child: Text(
+              widget.lockedLabel,
+              style: _labelStyle,
+              softWrap: false,
+              maxLines: 1,
+            ),
+          ),
         );
-        if (reduce) return button;
+
+        // 上層＝「已購買」那一組內容，**自己排自己的版**（見 [MiniButtonContent]）。
+        // Positioned.fill 讓它拿到與底層完全相同的外框，於是它算出來的位置與縮放
+        // 就等於演出結束後那顆靜態鈕——淡入完不必再移動任何東西。
+        final incoming = c <= 0
+            ? null
+            : Positioned.fill(
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: c.clamp(0.0, 1.0),
+                    child: MiniButtonContent(
+                      icon: Icon(
+                        widget.unlockedIcon,
+                        size: 17,
+                        color: widget.color,
+                      ),
+                      label: Text(
+                        widget.unlockedLabel,
+                        style: _labelStyle,
+                        softWrap: false,
+                        maxLines: 1,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+
+        if (reduce) {
+          return Stack(
+            fit: StackFit.passthrough,
+            children: [button, ?incoming],
+          );
+        }
         // ⚠️ 光效**鋪滿整顆按鈕**，不是關在 17px 的圖示格子裡。
         //
         // 前五版都畫在圖示的 17×17 裡（放大後也才 ~26px）——在那個尺寸做
@@ -397,6 +467,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
           clipBehavior: Clip.none,
           children: [
             button,
+            ?incoming,
             Positioned.fill(
               child: IgnorePointer(
                 child: CustomPaint(
@@ -404,7 +475,7 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
                     progress: _burstAt(t),
                     glow: _afterglowAt(t),
                     color: widget.color,
-                    labelWidth: _labelWidthAt(t, reduce),
+                    lockedContentWidth: _lockedContentWidth,
                   ),
                 ),
               ),
@@ -415,50 +486,18 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     );
   }
 
-  /// 圖示的**接力**：同一時間只有一個圖示看得見。
+  /// 底層（未購買那一組）的鎖：彈開前闔著，彈開後打開。
   ///
-  /// 第一版是三張疊著交叉淡入，結果鎖與「加入」兩個形狀不同的字形會在中途
-  /// 各自半透明地疊在一起——實機看起來就是「有幾幀怪怪的、圖案缺一塊」。
-  /// 改成接力之後：鎖先縮走並消失，目標圖示才從小長回來，中間沒有重疊區。
-  /// 圖示：彈開前是闔鎖，彈開後開鎖與「加入」**交叉淡入**。
-  ///
-  /// 兩者同時進行是使用者指定的；淡入拉到 0.5 秒之後，任一幀的重疊都很輕，
-  /// 不會再出現先前那種「圖案缺一塊」的對撞感。
-  Widget _iconCross(double t, bool reduce) {
-    if (t < kUnlockImpactAt) {
-      return Icon(Icons.lock_rounded, size: 17, color: widget.color);
-    }
-    final c = _crossAt(t, reduce);
-    if (c <= 0) {
-      return Icon(Icons.lock_open_rounded, size: 17, color: widget.color);
-    }
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Opacity(
-          opacity: (1 - c).clamp(0.0, 1.0),
-          child: Icon(Icons.lock_open_rounded, size: 17, color: widget.color),
-        ),
-        Opacity(
-          opacity: c.clamp(0.0, 1.0),
-          child: Icon(widget.unlockedIcon, size: 17, color: widget.color),
-        ),
-      ],
+  /// 這裡只管鎖。「加入」圖示屬於另一組內容、疊在上層自己淡入，兩者不共用
+  /// 任何版面——正是這個分離讓演出全程沒有位移。
+  Widget _lockIcon(double t, bool reduce) {
+    final open = reduce ? t >= 0.34 : t >= kUnlockImpactAt;
+    return Icon(
+      open ? Icons.lock_open_rounded : Icons.lock_rounded,
+      size: 17,
+      color: widget.color,
     );
   }
-
-  /// Reduce Motion 的換圖：不縮放不重疊，直接接力換。
-  Widget _reducedIcon(double t) {
-    if (t < 0.34) {
-      return Icon(Icons.lock_rounded, size: 17, color: widget.color);
-    }
-    if (t < 0.67) {
-      return Icon(Icons.lock_open_rounded, size: 17, color: widget.color);
-    }
-    return Icon(widget.unlockedIcon, size: 17, color: widget.color);
-  }
-
-  /// 彈開瞬間的光爆：擴散環 ＋ 放射光芒。
 
   TextStyle get _labelStyle => TextStyle(
     color: widget.color,
@@ -477,18 +516,10 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return tp.size;
   }
 
-  /// 標籤：自然寬度、內容維持置中，圖示到文字的間距固定。
-  ///
-  /// 三件事（圖示不動 ／ 間距固定 ／ 內容置中）數學上無法同時成立，因為兩段
-  /// 文字寬度不同。前一版放掉「置中」，結果是整組偏左、看起來沒對齊；改成
-  /// 放掉「圖示不動」——但把那一次位移**壓在彈開的 120ms 內完成**，那時
-  /// 注意力在鎖彈開與光上，等「加入」浮出來時版面早就定住了。
   /// 交叉淡入的進度 0→1，佔 morph 的前 500ms。
   ///
-  /// 圖示、標籤與寬度**全部**用這一個數字驅動：使用者要的是「解鎖淡出的同時
-  /// 加入淡入」，而一旦兩者重疊，就沒有「看不見的那一幀」可以把寬度變化藏
-  /// 進去了。所以三件事一起走同一條曲線——同步的變化讀成一次過渡，
-  /// 各走各的才讀成跳動。
+  /// 兩組內容**唯一**共用的東西就是這個數字：一組乘 `1-c` 淡出、另一組乘 `c`
+  /// 淡入。除此之外它們各排各的版，所以沒有任何一方會被對方拉著移動。
   double _crossAt(double t, bool reduce) {
     if (reduce) return t >= 0.67 ? 1 : 0;
     const fadeMs = 500.0;
@@ -497,75 +528,9 @@ class _UnlockMorphButtonState extends State<UnlockMorphButton>
     return (p / span).clamp(0.0, 1.0);
   }
 
-  /// 這一幀標籤的寬度。`_label` 與星芒光源共用同一個算式，兩者才不會對不上。
-  ///
-  /// ⚠️ 寬度**刻意比交叉淡入晚一半才開始動**（淡出過半 → 演出結束，約 370ms）。
-  ///
-  /// 槽寬只有一個作用：讓 Row 重新置中，也就是把圖示送到它最終的位置。而圖示
-  /// 一旦走完，它的右緣會壓進「解鎖 50」左緣約 14pt——兩段文字現在是釘死的，
-  /// 這個重疊躲不掉。躲不掉就讓它發生在**舊標籤已經看不見**的時候：延後起跑
-  /// 之後，實測要到舊標籤剩不到兩成才開始有重疊，全程讀不到「圖示壓到字」。
-  double _labelWidthAt(double t, bool reduce) {
-    final start = kUnlockMorphAt + (1 - kUnlockMorphAt) * 0.40; // 淡出過半
-    final wp = Curves.easeInOutCubic.transform(
-      reduce
-          ? _crossAt(t, reduce)
-          : ((t - start) / (1 - start)).clamp(0.0, 1.0),
-    );
-    return ui.lerpDouble(
-      _measure(widget.lockedLabel, _labelStyle).width,
-      _measure(widget.unlockedLabel, _labelStyle).width,
-      wp,
-    )!;
-  }
-
-  /// 標籤：**交叉淡入**——舊的淡出的同時新的淡入，兩段重疊。
-  ///
-  /// 先前是「接力」（舊的完全淡完新的才進場），為的是避免「解鎖 50」與
-  /// 「加入」半透明疊在一起讀成壞掉的字。但使用者實看之後要的是同時淡入淡出，
-  /// 而且時間拉長到 0.5 秒——拉長之後兩段重疊的時間雖然變長，每一幀的重疊
-  /// 程度反而更緩和，不再是快速對撞。
-  Widget _label(double t, bool reduce) {
-    final c = _crossAt(t, reduce);
-    final locked = _measure(widget.lockedLabel, _labelStyle);
-    final unlocked = _measure(widget.unlockedLabel, _labelStyle);
-    return SizedBox(
-      // 槽寬逐幀變 → Row 重新置中 → 圖示平滑地走到它最終的位置。
-      width: _labelWidthAt(t, reduce),
-      // ⚠️ 高度必須寫死，`_fadingLabel` 的 OverflowBox 才有有限的高度可用
-      //（Row 的交叉軸是不設限的，不給高度會拿到 Infinity 而炸掉）。
-      height: math.max(locked.height, unlocked.height),
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          _fadingLabel(widget.lockedLabel, 1 - c),
-          _fadingLabel(widget.unlockedLabel, c),
-        ],
-      ),
-    );
-  }
-
-  /// 一段照自然寬度排版、對齊槽中心的淡入淡出文字。
-  ///
-  /// ⚠️ **OverflowBox 是這裡的重點，不是可有可無的包裝。** 少了它，`Text` 會被
-  /// 逐幀縮窄的槽夾住重新排版：實測「解鎖 50」的文字框在 520ms 內被兩側擠掉
-  /// 37pt（62.5 → 25.4），左緣往右推、右邊整個溢出去——看起來就是文字在縮排。
-  /// 使用者說得對，單純的淡出淡入不該有位移，會動是因為**排版被拖下水**了。
-  ///
-  /// 給了無限寬之後兩段文字都用自然尺寸、對齊槽中心，而槽中心
-  ///（＝`(按鈕寬 + 圖示寬 + 間距) / 2`）與標籤寬度無關、**恆定不變**，
-  /// 所以兩段文字全程都釘在原地。
-  Widget _fadingLabel(String text, double opacity) {
-    return Opacity(
-      opacity: opacity.clamp(0.0, 1.0),
-      child: OverflowBox(
-        // maxWidth 無限＝照自然寬度排版；對齊預設就是置中，正是要的。
-        maxWidth: double.infinity,
-        child: Text(text, style: _labelStyle, softWrap: false, maxLines: 1),
-      ),
-    );
-  }
+  /// 未購買那一組內容的自然寬度（圖示＋間距＋標籤）。星芒光源用它反推鎖在哪。
+  double get _lockedContentWidth =>
+      17 + 5 + _measure(widget.lockedLabel, _labelStyle).width;
 }
 
 /// 彈開瞬間的光爆：一圈擴散環 ＋ 八道放射光芒。
@@ -591,14 +556,14 @@ class _UnlockBurstPainter extends CustomPainter {
 
   final Color color;
 
-  /// 這一幀標籤的實際寬度。用來反推圖示中心在哪。
-  final double labelWidth;
+  /// 未購買那一組內容的自然寬度。用來反推鎖在哪。
+  final double lockedContentWidth;
 
   const _UnlockBurstPainter({
     required this.progress,
     required this.glow,
     required this.color,
-    required this.labelWidth,
+    required this.lockedContentWidth,
   });
 
   /// 星星的暖黃。與足跡幣同一個金黃家族，不用元件主色——星星就是要跳出來。
@@ -682,18 +647,26 @@ class _UnlockBurstPainter extends CustomPainter {
 
   /// 光源＝**鎖頭的實際位置**。
   ///
-  /// ⚠️ 第一版寫死成 `8 + 17/2`（假設圖示貼齊按鈕左緣），但 MiniActionButton
-  /// 的內容是 `MainAxisAlignment.center` **置中**的，圖示實際在
-  /// `(按鈕寬 - 內容寬)/2 + 圖示寬/2`——140pt 的按鈕上差了約 24px，整團星星
-  /// 因此偏在鎖的左邊。
+  /// 兩個踩過的坑，兩個都得算進去：
   ///
-  /// 內容寬會隨標籤變（演出中還會逐幀插值），所以這裡不能是常數，必須每幀
-  /// 用當下的 [labelWidth] 反推。
+  /// 1. 第一版寫死成 `8 + 17/2`（假設圖示貼齊按鈕左緣），但內容是
+  ///    `MainAxisAlignment.center` **置中**的——140pt 的按鈕上差了約 24px，
+  ///    整團星星因此偏在鎖的左邊。
+  /// 2. 第二版算了置中卻忽略 `FittedBox`：真實卡片的鈕只有約 85pt，
+  ///    「50 足跡幣」那組內容塞不下、被縮到 0.70，鎖的實際尺寸與位置都跟著變。
+  ///
+  /// 所以這裡照 `MiniButtonContent` 的排版原樣重算一次：扣掉左右 padding、
+  /// 求 `scaleDown` 倍率、再置中。
   Offset _origin(Size s) {
+    const pad = 8.0;
     const iconSize = 17.0;
-    const gap = 5.0;
-    final contentWidth = iconSize + gap + labelWidth;
-    return Offset((s.width - contentWidth) / 2 + iconSize / 2, s.height / 2);
+    final inner = s.width - pad * 2;
+    if (inner <= 0 || lockedContentWidth <= 0) {
+      return Offset(s.width / 2, s.height / 2);
+    }
+    final scale = math.min(1.0, inner / lockedContentWidth);
+    final left = pad + (inner - lockedContentWidth * scale) / 2;
+    return Offset(left + iconSize * scale / 2, s.height / 2);
   }
 
   /// 五角星路徑。

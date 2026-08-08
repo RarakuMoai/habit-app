@@ -25,9 +25,17 @@ void main() {
   late StateSetter setOuter;
   var owned = false;
 
+  /// 音樂盒小卡上這顆鈕的實際寬度（14PM，兩欄格線 + 卡片內距 + 兩鈕平分）。
+  ///
+  /// ⚠️ **測試一定要給這個寬度，不能讓它自由伸展。** 在寬鬆的版面裡
+  /// 「解鎖 30」放得下、`FittedBox` 不縮放，位移的 bug 就整個消失——上一輪
+  /// 就是這樣被騙過去：測試綠燈、實機仍在滑。真正會出事的是**放不下**的情況。
+  const kRealButtonWidth = 84.75;
+
   Future<void> pumpButton(
     WidgetTester tester, {
     bool reduceMotion = false,
+    String lockedLabel = '解鎖 30',
   }) async {
     owned = false;
     await tester.pumpWidget(
@@ -36,19 +44,22 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: Center(
-              child: StatefulBuilder(
-                builder: (context, setState) {
-                  setOuter = setState;
-                  return UnlockMorphButton(
-                    owned: owned,
-                    lockedLabel: '解鎖 30',
-                    unlockedLabel: '加入',
-                    unlockedIcon: Icons.playlist_add_rounded,
-                    color: const Color(0xFF7A5C46),
-                    onLockedTap: () {},
-                    onUnlockedTap: () {},
-                  );
-                },
+              child: SizedBox(
+                width: kRealButtonWidth,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    setOuter = setState;
+                    return UnlockMorphButton(
+                      owned: owned,
+                      lockedLabel: lockedLabel,
+                      unlockedLabel: '加入',
+                      unlockedIcon: Icons.playlist_add_rounded,
+                      color: const Color(0xFF7A5C46),
+                      onLockedTap: () {},
+                      onUnlockedTap: () {},
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -161,40 +172,53 @@ void main() {
     );
   });
 
-  testWidgets('交叉淡入期間兩段文字完全不位移', (tester) async {
-    // 使用者實機回報：「解鎖變成加入的交界處發生文字縮排，單純的淡出淡入不應該
-    // 位移」。根因是標籤槽逐幀縮窄，把 Text 一起夾著重新排版——實測「解鎖 50」
-    // 的文字框在 520ms 內被兩側擠掉 37pt。修法是讓文字用自然寬度對齊槽中心。
-    await pumpButton(tester);
+  testWidgets('演出全程沒有位移或縮放，而且淡入的就是最終樣貌', (tester) async {
+    // 使用者實機回報兩次：先是「交界處文字縮排」，再是「加入的圖案往右滑才完成
+    // 最終樣貌，我希望不要有滑動，單純最終樣貌淡入就好」。
+    //
+    // 根因是兩組內容共用一份版面：標籤從「解鎖 30」換成「加入」時內容變窄，
+    // FittedBox 的 scaleDown 倍率跟著變（85pt 的鈕上是 0.70 → 1.00），整組
+    // 連圖示帶文字放大 43%。改成兩組各排各的版之後，每一組都待在它靜態時的
+    // 位置與大小上，只有透明度在動。
+    //
+    // 這條測試釘死兩件事：演出中每個元素的 Rect 恆定，且淡入那一組的 Rect
+    // 等於演出結束後靜態鈕的 Rect（否則收尾會跳一下）。
+    await pumpButton(tester, lockedLabel: '50 足跡幣');
     purchase();
     await tester.pump();
 
-    Rect? lockedAt;
-    Rect? unlockedAt;
-    for (var ms = 0; ms <= kUnlockTotal.inMilliseconds; ms += 20) {
-      if (ms > 0) await tester.pump(const Duration(milliseconds: 20));
-      for (final entry in {
-        '解鎖 30': (Rect? r) => lockedAt = r,
-        '加入': (Rect? r) => unlockedAt = r,
-      }.entries) {
-        final finder = find.text(entry.key);
-        if (finder.evaluate().isEmpty) continue;
-        final rect = tester.getRect(finder.first);
-        final seen = entry.key == '解鎖 30' ? lockedAt : unlockedAt;
-        if (seen == null) {
-          entry.value(rect);
-        } else {
-          expect(
-            rect,
-            seen,
-            reason: '「${entry.key}」在 ${ms}ms 移動了：$seen → $rect。'
-                '淡出淡入不該帶動排版',
-          );
-        }
+    final seen = <String, Rect>{};
+    void track(String name, Finder finder, int ms) {
+      if (finder.evaluate().isEmpty) return;
+      final rect = tester.getRect(finder.first);
+      final before = seen[name];
+      if (before == null) {
+        seen[name] = rect;
+      } else {
+        expect(rect, before, reason: '$name 在 ${ms}ms 動了：$before → $rect');
       }
     }
-    expect(lockedAt, isNotNull);
-    expect(unlockedAt, isNotNull);
+
+    for (var ms = 20; ms < kUnlockTotal.inMilliseconds; ms += 20) {
+      await tester.pump(const Duration(milliseconds: 20));
+      track('舊標籤', find.text('50 足跡幣'), ms);
+      track('新標籤', find.text('加入'), ms);
+      track('加入圖示', find.byIcon(Icons.playlist_add_rounded), ms);
+    }
+    expect(seen.keys, containsAll(['舊標籤', '新標籤', '加入圖示']));
+
+    // 演完 → 靜態鈕。淡入時待的位置必須就是這裡。
+    await tester.pump(kUnlockTotal);
+    expect(
+      tester.getRect(find.text('加入')),
+      seen['新標籤'],
+      reason: '淡入的位置不等於最終位置 → 收尾會跳一下',
+    );
+    expect(
+      tester.getRect(find.byIcon(Icons.playlist_add_rounded)),
+      seen['加入圖示'],
+      reason: '淡入的圖示不等於最終圖示的位置與大小 → 就是使用者說的「往右滑」',
+    );
   });
 
   testWidgets('一開始就已擁有 → 靜態加入鈕，不演出、不出聲', (tester) async {
