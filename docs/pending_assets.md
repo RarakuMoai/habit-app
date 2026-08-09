@@ -9,13 +9,14 @@
 > |---|---|---|
 > | 0 造型驗證 spike | ⭐ **最優先** | 商業模式的唯一未驗證假設 |
 > | 3 零食圖 | ✅ **該補** | emoji 與 CG 風格在同一顆按鈕上衝突 |
-> | 4 繪本圖 | ✅ **該補** | 借用的場景圖跟事件內容對不上 |
-> | 5 前導說明圖 | ✅ 該補 | 使用者不知道那三個功能是什麼 |
+> | 6 引導頁玄關 | ⭐ **最優先** | 引導頁畫戶外草原、首頁畫室內臥室，第一印象兩個世界 |
+| 4 繪本圖 | ✅ **該補** | 借用的場景圖跟事件內容對不上 |
+> | 5 前導說明圖 | ❌ **已作廢** | 那三頁已從引導頁移除（2026-08-09） |
 > | 2 兔咪拿印章 | 🔸 錦上添花 | 現在是「歡呼兔咪＋印章動畫」兩個元素，實機看起來不錯 |
 > | 1 摸頭 bliss | ❌ **不需要** | fallback 到 smile 笑眼，看起來已經像享受 |
 >
 > 生圖走**手動 ChatGPT**（用既有訂閱額度，零成本，見 `roadmap.md` §3c）。
-> 最後更新：2026-07-25。
+> 最後更新：2026-08-09。
 
 ## 通用規格
 
@@ -209,9 +210,13 @@ Output: 1122x1402 image.
 
 ---
 
-## 5. 前導功能說明圖 ×3
+## 5. 前導功能說明圖 ×3 ❌ 已作廢（2026-08-09）
 
-- **用途**：前導的喝水／計時／家庭三頁。目前只問「要不要開」，沒說那是什麼。
+> **不用畫了。** 那三頁（喝水／計時／家庭）已從引導頁移除——連續三次同版型的
+> yes/no 加上紅色「不用了」＋二次確認，是留存暗黑模式，跟角色設定對撞。
+> 功能現在一律預設開啟，設定裡可關。以下規格保留備查，不要執行。
+
+- **用途**：（已不存在）前導的喝水／計時／家庭三頁。
 - **規格**：建議 800×800 PNG 透明背景（實際版面確認後可調）
 - **難度**：中。要「一眼看懂」，這比好看更重要。
 
@@ -248,6 +253,54 @@ Output: three separate PNG files, transparent background.
 ```
 
 **補上後**：丟 `assets/onboarding/`，在前導對應三頁的氣泡下方加圖。
+
+---
+
+## 6. ⭐ 引導頁玄關場景 ×1（最優先）
+
+- **用途**：引導頁全五頁的背景。世界觀（`docs/world_setting.md`）的「第一次
+  抵達」＝你搬進來那天敲門，兔咪慢半拍來開門，**屋子還很空**。
+- **為什麼最優先**：現在用的 `onboarding_bg_v3.png` 是**戶外草原＋遠方小屋**，
+  柔焦噴槍風；首頁是**室內臥室**，繪本蠟筆風。畫風、空間、光都對不上，
+  而第一印象只能做一次。台詞已經寫成「東西還沒擺好，先進來吧」，
+  講在一片野地上是矛盾的。
+- **規格**：**1122×1402 WebP q95**（同場景通用規格），放
+  `assets/scenes/onboarding/onboarding_entry.webp`
+- **底圖**：附 `assets/scenes/home/home_day.webp` 當風格錨——**必須是同一棟
+  屋子看得出來的木質、牆色與光**。
+
+畫什麼：從玄關往屋內看的視角。木地板、一扇剛被打開的門透進暖光、牆邊堆著
+兩三個**還沒拆的紙箱**，牆上有一塊還沒掛東西的空白、一個空書架。安靜、明亮、
+剛搬進來的感覺。**畫面下半部要留空**——兔咪立繪與對話框會壓在上面。
+
+```text
+Create a background illustration for a gentle habit-companion app.
+Attached image is an existing room from the same app — match its art direction
+exactly: warm palette, soft rounded forms, gentle shading, low contrast,
+hand-painted children's storybook feel, cozy and quiet. It must read as the
+same house, same wood tones, same wall colour, same light.
+
+Scene: the entryway of a small cottage, seen from just inside the front door,
+looking into the home. Warm daylight spills in through the open door. Against
+the wall sit two or three cardboard moving boxes, still taped shut. One wall is
+bare where pictures have not been hung yet. A small empty bookshelf stands to
+one side. The feeling is: someone moved in very recently and has not finished
+unpacking. Quiet, bright, hopeful.
+
+Requirements:
+- No characters, no rabbit, no people, no hands, no animals
+- No text, no numbers, no signage anywhere in the image
+- Keep the LOWER HALF of the image visually calm and uncluttered — character art
+  and a dialogue box will be composited over it
+- Gentle depth: the doorway light should be the brightest point
+- 1122x1402 portrait
+
+Output: one image, 1122x1402.
+```
+
+**補上後**：改 `lib/pages/onboarding_page.dart` 的 `Image.asset` 路徑
+（目前指向 `onboarding_bg_v3.png`），把舊的草原圖刪掉。四時段不需要——
+引導頁一生只走一次，固定白天即可。
 
 ---
 
