@@ -16,7 +16,12 @@ import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
 import '../utils/weight_records.dart';
 import '../widgets/audio_control_button.dart';
+import '../widgets/avg_scene.dart';
 import '../widgets/mascot_scene.dart';
+
+// ⚠️ 暫時的：AVG 對話框兩版並存，讓使用者在實機挑一版。挑定後把這個常數與
+// AvgLayout 裡沒被選中的那一版一起刪掉，不要留成永久設定。
+const AvgLayout _kAvgLayout = AvgLayout.solidBox;
 
 // 引導頁「習慣選擇」清單（喝水功能預設開啟，「喝足夠的水」在 _finish 直接加，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
@@ -48,13 +53,30 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // 畫面1：抵達（你搬進來那天敲門，兔咪慢半拍來開門）的逐句打字台詞。
-  // 走 l10n：這幾句是世界觀的第一印象，不能只有中文（見 docs/world_setting.md）。
-  List<String> get _lines => _l10n.obArrivalLines.split('|');
-  int _lineIndex = 0;
-  String _displayText = '';
+  // 畫面1：抵達（你搬進來那天敲門，兔咪慢半拍來開門）的 AVG 場景。
+  // 台詞走 l10n：這幾句是世界觀的第一印象，不能只有中文（見 docs/world_setting.md）。
+  // 四句的表情：門後應聲(wake) → 察覺是你 → 坦白自己也剛搬來 → 邀你進門(smile)。
+  static const List<String> _kArrivalEmotions = [
+    'wake',
+    'neutral_front',
+    'neutral_front',
+    'smile',
+  ];
+
+  List<AvgLine> get _arrivalLines {
+    final texts = _l10n.obArrivalLines.split('|');
+    return [
+      for (var i = 0; i < texts.length; i++)
+        AvgLine(
+          texts[i],
+          emotion: i < _kArrivalEmotions.length
+              ? _kArrivalEmotions[i]
+              : 'neutral_front',
+        ),
+    ];
+  }
+
   bool _page1Done = false;
-  Timer? _typingTimer;
 
   // 畫面2：吉祥物名稱
   final TextEditingController _mascotController = TextEditingController();
@@ -129,73 +151,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void initState() {
     super.initState();
     _nicknameController.addListener(() => setState(() {}));
-    // 等第一幀渲染完成（Offstage 預熱字形後）再啟動打字動畫
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _startTyping();
-    });
   }
 
   @override
   void dispose() {
-    _typingTimer?.cancel();
     _pageController.dispose();
     _mascotController.dispose();
     _nicknameController.dispose();
     super.dispose();
-  }
-
-  // 逐字打字效果
-  void _startTyping() {
-    if (!mounted) return;
-    if (_lineIndex >= _lines.length) {
-      setState(() => _page1Done = true);
-      return;
-    }
-    final chars = _lines[_lineIndex].characters.toList(); // 預先拆好，避免每次重建
-    var charIndex = 0;
-    setState(() => _displayText = '');
-    _typingTimer?.cancel();
-    _typingTimer = Timer.periodic(const Duration(milliseconds: 60), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (charIndex < chars.length) {
-        setState(() => _displayText = chars.take(charIndex + 1).join());
-        charIndex++;
-      } else {
-        timer.cancel();
-        _scheduleNextLine();
-      }
-    });
-  }
-
-  // 一句打完後的停頓。用 Timer（而非 Future.delayed）才能被快轉取消。
-  void _scheduleNextLine() {
-    _typingTimer?.cancel();
-    _typingTimer = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
-      _lineIndex++;
-      _startTyping();
-    });
-  }
-
-  // 點畫面快轉：整句還沒打完就先補完，已經打完則直接進下一句。
-  // 舊版必須乾等約 6 秒才會出現「繼續」，對再次安裝或看過一次的人是純等待。
-  void _skipTyping() {
-    if (_page1Done) return;
-    _playOnboardingSfx(SfxCue.tap);
-    final line = _lines[_lineIndex];
-    if (_displayText != line) {
-      _typingTimer?.cancel();
-      setState(() => _displayText = line);
-      _scheduleNextLine();
-      return;
-    }
-    _typingTimer?.cancel();
-    _lineIndex++;
-    _startTyping();
   }
 
   void _nextPage({bool playSound = true}) {
@@ -462,55 +425,48 @@ class _OnboardingPageState extends State<OnboardingPage> {
   // 四句台詞的情緒：門後應聲(wake) → 察覺是你(neutral) → 坦白自己也剛搬來
   // → 邀你進門(smile)。
   Widget _buildArrivalPage() {
-    final wakeEmotion = _page1Done
-        ? 'smile'
-        : (_lineIndex == 0
-              ? 'wake'
-              : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
-    return _mascotPage(
-      emotion: wakeEmotion,
-      onTapBackground: _skipTyping,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble(_displayText, fontSize: 18),
-          const SizedBox(height: 40),
-          // 打字完成後才出現「繼續」按鈕
-          // 打字期間提示可以點畫面快轉，打完才換成「繼續」
-          AnimatedOpacity(
-            opacity: _page1Done ? 0.0 : 1.0,
-            duration: const Duration(milliseconds: 300),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Text(
-                _l10n.obTapToContinue,
-                style: const TextStyle(fontSize: 13, color: AppInk.faint),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AvgScene(
+          background: 'assets/scenes/onboarding/onboarding_bg_v3.png',
+          lines: _arrivalLines,
+          layout: _kAvgLayout,
+          speakerName: _mascotController.text.trim().isEmpty
+              ? _l10n.mascotDefaultName
+              : _mascotController.text.trim(),
+          tapHint: _l10n.obTapToContinue,
+          onTapSound: () => _playOnboardingSfx(SfxCue.tap),
+          onFinished: () => setState(() => _page1Done = true),
+        ),
+        // 全部講完才浮出「繼續」，壓在對話框上方。講到一半就出現會催促使用者。
+        if (_page1Done)
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 152),
+                child: ElevatedButton(
+                  onPressed: _nextPage,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 48,
+                      vertical: 14,
+                    ),
+                  ),
+                  child: Text(
+                    _l10n.obContinue,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
               ),
             ),
           ),
-          AnimatedOpacity(
-            opacity: _page1Done ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 400),
-            child: ElevatedButton(
-              onPressed: _page1Done ? _nextPage : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 48,
-                  vertical: 14,
-                ),
-              ),
-              child: Text(
-                _l10n.obContinue,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1178,9 +1134,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ),
               ),
             ),
-            // 隱形預渲染所有打字文字，讓字形提前載入 GPU 圖集，避免首次顯示亂碼
+            // 隱形預渲染抵達頁的台詞，讓字形提前載入 GPU 圖集，避免首次顯示亂碼
             Offstage(
-              child: Text(_lines.join(), style: const TextStyle(fontSize: 18)),
+              child: Text(
+                _l10n.obArrivalLines,
+                style: const TextStyle(fontSize: 18),
+              ),
             ),
             PageView(
               controller: _pageController,

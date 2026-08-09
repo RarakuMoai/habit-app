@@ -28,15 +28,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('點一下繼續'), findsOneWidget);
 
-    // 點畫面左下角空白處（避開兔咪自己的點擊區與底部進度列）。
-    // 四句 × 每句最多兩下（補完當前句 → 進下一句）
+    // 點畫面推進：AVG 場景整頁吃點擊，一下補完當前句、再一下進下一句。
+    // 四句 × 每句最多兩下。
     final body = tester.getRect(find.byType(PageView));
-    final blankSpot = Offset(body.left + 12, body.bottom - 24);
-    for (var i = 0; i < 10 && find.text('繼續').evaluate().isEmpty; i++) {
+    final blankSpot = Offset(body.center.dx, body.top + 40);
+    for (var i = 0; i < 12 && find.text('繼續').evaluate().isEmpty; i++) {
       await tester.tapAt(blankSpot);
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
     }
-    expect(find.text('繼續'), findsOneWidget, reason: '點畫面應該能跳過打字動畫，不必乾等 6 秒');
+    expect(find.text('繼續'), findsOneWidget, reason: '點畫面應該能推進 AVG 台詞，不必乾等');
 
     await tester.pump(const Duration(seconds: 10));
   });
@@ -45,10 +46,16 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(l10nTestApp(home: const OnboardingPage()));
 
-    // 畫面1：等打字動畫播完（4 句 × 60ms/字 + 句間 900ms），「繼續」浮現
+    // 畫面1（AVG 場景）：點畫面推進台詞，全部講完才浮出「繼續」。
+    // 每句最多兩下（補完當前句 → 進下一句）。
     await tester.pump();
-    await tester.pump(const Duration(seconds: 9));
-    await tester.pump(const Duration(milliseconds: 500));
+    final scene = tester.getRect(find.byType(PageView));
+    final scenePoint = Offset(scene.center.dx, scene.top + 40);
+    for (var i = 0; i < 12 && find.text('繼續').evaluate().isEmpty; i++) {
+      await tester.tapAt(scenePoint);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
     expect(find.text('繼續'), findsOneWidget);
     await tapAndSettle(tester, '繼續');
 
