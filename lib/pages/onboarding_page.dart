@@ -19,10 +19,6 @@ import '../widgets/audio_control_button.dart';
 import '../widgets/avg_scene.dart';
 import '../widgets/mascot_scene.dart';
 
-// ⚠️ 暫時的：AVG 對話框兩版並存，讓使用者在實機挑一版。挑定後把這個常數與
-// AvgLayout 裡沒被選中的那一版一起刪掉，不要留成永久設定。
-const AvgLayout _kAvgLayout = AvgLayout.solidBox;
-
 // 引導頁「習慣選擇」清單（喝水功能預設開啟，「喝足夠的水」在 _finish 直接加，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
 //
@@ -76,8 +72,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
     ];
   }
 
-  bool _page1Done = false;
-
   // 畫面2：吉祥物名稱
   final TextEditingController _mascotController = TextEditingController();
   // 預設名要走 l10n，但 field initializer 拿不到 context，延到
@@ -113,7 +107,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
     })
   >
   _pages = [
-    (build: _buildArrivalPage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (
+      build: _buildArrivalPage,
+      inSubStep: _noSubStep,
+      exitSubStep: _noopSubStep,
+    ),
     (build: _buildNamePage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
     (
       build: _buildNicknamePage,
@@ -425,48 +423,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
   // 四句台詞的情緒：門後應聲(wake) → 察覺是你(neutral) → 坦白自己也剛搬來
   // → 邀你進門(smile)。
   Widget _buildArrivalPage() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        AvgScene(
-          background: 'assets/scenes/onboarding/onboarding_bg_v3.png',
-          lines: _arrivalLines,
-          layout: _kAvgLayout,
-          speakerName: _mascotController.text.trim().isEmpty
-              ? _l10n.mascotDefaultName
-              : _mascotController.text.trim(),
-          tapHint: _l10n.obTapToContinue,
-          onTapSound: () => _playOnboardingSfx(SfxCue.tap),
-          onFinished: () => setState(() => _page1Done = true),
-        ),
-        // 全部講完才浮出「繼續」，壓在對話框上方。講到一半就出現會催促使用者。
-        if (_page1Done)
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 152),
-                child: ElevatedButton(
-                  onPressed: _nextPage,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 14,
-                    ),
-                  ),
-                  child: Text(
-                    _l10n.obContinue,
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
+    return AvgScene(
+      background: 'assets/scenes/onboarding/onboarding_bg_v3.png',
+      lines: _arrivalLines,
+      speakerName: _mascotController.text.trim().isEmpty
+          ? _l10n.mascotDefaultName
+          : _mascotController.text.trim(),
+      onTapSound: () => _playOnboardingSfx(SfxCue.tap),
+      // 最後一句講完再點一下就進下一頁——沒有「繼續」按鈕。在 AVG 裡多一顆
+      // 按鈕等於告訴使用者「剛才那些點擊不算數」。
+      onFinished: _nextPage,
     );
   }
 
@@ -1085,26 +1051,30 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Scaffold(
         backgroundColor: const Color(0xFFFFF8F0),
         // 進度點指示器
-        bottomNavigationBar: Container(
-          height: 48,
-          color: const Color(0xFFFFF8F0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(_pages.length, (i) {
-              final active = i == _currentPage;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: active ? 20 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: active ? Colors.orange : Colors.orange.shade200,
-                  borderRadius: BorderRadius.circular(4),
+        // 抵達頁是敘事場景，全螢幕沉浸，不顯示進度點——那是表單步驟的語彙，
+        // 而且底部那條米色會把 AVG 對話框切斷。第二頁（第一個表單）才出現。
+        bottomNavigationBar: _currentPage == 0
+            ? null
+            : Container(
+                height: 48,
+                color: const Color(0xFFFFF8F0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(_pages.length, (i) {
+                    final active = i == _currentPage;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: active ? 20 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: active ? Colors.orange : Colors.orange.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    );
+                  }),
                 ),
-              );
-            }),
-          ),
-        ),
+              ),
         body: Stack(
           children: [
             Positioned.fill(

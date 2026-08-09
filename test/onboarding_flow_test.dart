@@ -21,43 +21,38 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
-  testWidgets('點畫面可快轉打字，不用等完整動畫', (tester) async {
+  testWidgets('AVG 場景：點畫面補完當前句，不必等逐字跑完', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(l10nTestApp(home: const OnboardingPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('點一下繼續'), findsOneWidget);
 
-    // 點畫面推進：AVG 場景整頁吃點擊，一下補完當前句、再一下進下一句。
-    // 四句 × 每句最多兩下。
+    // 第一句還在逐字中（只顯示前幾個字），點一下應該立刻補完整句。
+    const firstLine = '來了、來了⋯⋯';
+    expect(find.text(firstLine), findsNothing, reason: '剛開始不該整句就位');
+
     final body = tester.getRect(find.byType(PageView));
-    final blankSpot = Offset(body.center.dx, body.top + 40);
-    for (var i = 0; i < 12 && find.text('繼續').evaluate().isEmpty; i++) {
-      await tester.tapAt(blankSpot);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-    }
-    expect(find.text('繼續'), findsOneWidget, reason: '點畫面應該能推進 AVG 台詞，不必乾等');
+    await tester.tapAt(Offset(body.center.dx, body.top + 40));
+    await tester.pump();
+    expect(find.text(firstLine), findsOneWidget, reason: '點一下應該補完當前句');
 
     await tester.pump(const Duration(seconds: 10));
   });
 
-  testWidgets('從打字動畫一路走到最後一頁', (tester) async {
+  testWidgets('從 AVG 抵達場景一路走到最後一頁', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(l10nTestApp(home: const OnboardingPage()));
 
-    // 畫面1（AVG 場景）：點畫面推進台詞，全部講完才浮出「繼續」。
-    // 每句最多兩下（補完當前句 → 進下一句）。
+    // 畫面1（AVG 場景）：點畫面推進台詞，最後一句之後再點一下就換頁——
+    // 沒有「繼續」按鈕，整個場景只有「點畫面」一種手勢。
     await tester.pump();
     final scene = tester.getRect(find.byType(PageView));
     final scenePoint = Offset(scene.center.dx, scene.top + 40);
-    for (var i = 0; i < 12 && find.text('繼續').evaluate().isEmpty; i++) {
+    for (var i = 0; i < 14 && find.text('幫我取個名字').evaluate().isEmpty; i++) {
       await tester.tapAt(scenePoint);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
     }
-    expect(find.text('繼續'), findsOneWidget);
-    await tapAndSettle(tester, '繼續');
 
     // 畫面2：你想怎麼叫牠（預設兔咪，直接下一步）
     expect(find.text('幫我取個名字'), findsOneWidget);
