@@ -10,6 +10,8 @@
 - 品牌升級、體驗打磨或 AI 分工驗收：先讀 `docs/brand_upgrade_operating_system.md`
   的長期規則，再讀 `docs/brand_upgrade_status.md` 的現行 gate；不得跳過尚未完成的
   gate。
+- 世界觀（這是哪裡、誰住在裡面、東西為什麼存在）：讀 `docs/world_setting.md`。
+  動到場景、引導頁、劇情或金幣／造型／回憶本的語彙前必讀。
 - 兔咪性格、說話原則：讀 `docs/tumi_character_guide.md`（含「三種聲音」規則）。
 - **調整兔咪的對話或反應行為**（台詞、表情、泡泡、語音、觸發條件、優先度）：
   先讀 `docs/tumi_dialogue_catalog.md` 的事件總表，**先進表再寫程式**；改完
