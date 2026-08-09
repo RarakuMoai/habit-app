@@ -262,7 +262,10 @@ class _LoginStreakPageState extends State<LoginStreakPage>
       //（兔咪語氣：不是評分，是看見）。等級被扣到 1 的舊識認不出來，
       // 會拿到新朋友台詞，可接受。
       if (r.level > 1) return '歡迎回來。今天再一起慢慢開始。';
-      return '第一天。以後也一起慢慢來。';
+      // 這是引導頁結束後緊接著的第一個畫面。不用「慢慢來」——安慰型台詞
+      // 只留給撤銷／久違回來／夜深／連續中斷，開場用等於在安慰一個還不存在
+      // 的焦慮（見 tumi_character_guide.md 的「四種講法」）。改用「看見」講法。
+      return '第一天。我有記下來。';
     }
     if (r.level >= CoinConfig.loginMaxLevel) return '你一直有回來，我都有記得。';
     return '你今天也來了，我記得。';

@@ -26,6 +26,7 @@ import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import 'home/room_metrics.dart';
+import 'profile_edit_page.dart';
 
 class WeightPage extends StatefulWidget {
   final VoidCallback? onRecordsChanged;
@@ -1962,6 +1963,15 @@ class _WeightPageState extends State<WeightPage> {
 
   // 今日數據：體重是唯一主角；差值緊跟在下方說清楚比較基準，
   // 其餘指標收成緊湊摘要，讓面板縮小時仍能一次看完整張卡。
+  // 開基本資料編輯，回來後重讀（身高／生日／性別／活動量會改變 BMI/BMR/TDEE）
+  Future<void> _openProfileEdit() async {
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const ProfileEditPage()));
+    if (!mounted) return;
+    await _loadData();
+  }
+
   Widget _buildStatGrid(Map<String, dynamic> rec) {
     final weight = (rec['weight'] as num).toDouble();
     final fat = rec['body_fat'] != null
@@ -2047,22 +2057,41 @@ class _WeightPageState extends State<WeightPage> {
         ],
         if (hintMessage != null) ...[
           const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(
-                Icons.info_outline_rounded,
-                size: 13,
-                color: AppInk.iconFaint,
+          // 可點：直接開基本資料編輯。引導頁 2026-08-09 拿掉身體資訊頁後，
+          // 這裡是使用者補身高／生日／性別／活動量的主要入口——只顯示提示
+          // 卻沒有去處的話，BMI／BMR／TDEE 會對新使用者永遠是空的。
+          InkWell(
+            onTap: _openProfileEdit,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 13,
+                    color: AppInk.iconFaint,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      hintMessage,
+                      maxLines: 2,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppInk.faint,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 15,
+                    color: AppInk.iconFaint,
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  hintMessage,
-                  maxLines: 2,
-                  style: const TextStyle(fontSize: 11, color: AppInk.faint),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ],

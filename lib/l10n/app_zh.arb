@@ -5420,6 +5420,40 @@
       "unit": { "type": "String" }
     }
   },
+  "obArrivalLines": "來了、來了⋯⋯|啊，是你。|我也是前陣子才搬來的。|東西還沒擺好，先進來吧。",
+  "@obArrivalLines": {
+    "description": "前導頁第一頁的逐句打字台詞，用半角 | 分隔。場景：你搬進來那天敲門，兔咪慢半拍來開門，屋子還很空（見 docs/world_setting.md 的「第一次抵達」）。四句依序是：牠在門後應聲、察覺是你、坦白自己也剛搬來、邀你進門。翻譯要保留「慢半拍、話少、我們都才剛開始」的調性，不要逐字翻。"
+  },
+  "obNameBubble": "對了⋯⋯我叫{name}。\n不過你想怎麼叫我都可以。",
+  "@obNameBubble": {
+    "description": "前導頁命名頁的台詞。{name} 是兔咪的本名（mascotDefaultName）。這是全 app 唯一一次兔咪自稱名字（見 tumi_character_guide.md 的命名儀式）——牠本來就有名字，使用者取的是「想怎麼叫牠」。",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "obNameDiceHint": "想不到的話，按旁邊的骰子。",
+  "@obNameDiceHint": {
+    "description": "命名頁輸入框下方的小提示。"
+  },
+  "obNicknameBubble": "嗯⋯⋯你這樣叫我也可以。\n那你呢？以後要怎麼叫你？",
+  "@obNicknameBubble": {
+    "description": "前導頁暱稱頁的台詞。第一句是兔咪接受使用者給的叫法（命名儀式的回應），第二句才問使用者的稱呼。刻意不自稱名字。"
+  },
+  "obHabitBubble": "架子還空著。\n你想先放什麼上去？",
+  "@obHabitBubble": {
+    "description": "前導頁習慣選擇頁的台詞。呼應「屋子還很空、我們都才剛搬來」的設定，把選習慣講成往架子上放東西。"
+  },
+  "obHabitLaterHint": "之後都可以再改。",
+  "@obHabitLaterHint": {
+    "description": "習慣選擇頁的小提示：降低選擇壓力。"
+  },
+  "obDoneBubble": "好了，{nickname}。\n那⋯⋯我們開始吧。",
+  "@obDoneBubble": {
+    "description": "前導頁最後一頁的台詞。{nickname} 是使用者暱稱。刻意不用「慢慢來」——那是安慰型台詞，只留給撤銷／久違回來／夜深／連續中斷（見 tumi_character_guide.md）。",
+    "placeholders": {
+      "nickname": { "type": "String" }
+    }
+  },
   "obTapToContinue": "點一下繼續",
   "@obTapToContinue": {
     "description": "前導頁第一頁的提示：點畫面繼續。"

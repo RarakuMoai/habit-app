@@ -11,18 +11,14 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/bgm_service.dart';
 import '../utils/input_formatters.dart';
-import '../utils/lenient_date.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
-import '../utils/units.dart';
-import '../utils/user_validators.dart';
 import '../utils/weight_records.dart';
 import '../widgets/audio_control_button.dart';
-import '../widgets/birthday_picker.dart';
 import '../widgets/mascot_scene.dart';
 
-// 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
+// 引導頁「習慣選擇」清單（喝水功能預設開啟，「喝足夠的水」在 _finish 直接加，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
 //
 // name 沒有走 l10n：這些名稱選取後會直接存成習慣名，而首頁的去重與
@@ -46,19 +42,15 @@ class OnboardingPage extends StatefulWidget {
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage>
-    with WidgetsBindingObserver {
+class _OnboardingPageState extends State<OnboardingPage> {
   AppLocalizations get _l10n => AppLocalizations.of(context);
 
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // 身體資訊頁專用 scroll controller：鍵盤彈出時自動捲到底，把按鈕推到鍵盤上緣
-  // （兔咪會被擠到畫面外，但這頁欄位/按鈕優先）
-  final ScrollController _bodyInfoScrollCtrl = ScrollController();
-
-  // 畫面1：打字動畫
-  final List<String> _lines = ['嗯...你來了。', '我平常有點愛睡。', '你想開始時，我會陪你。'];
+  // 畫面1：抵達（你搬進來那天敲門，兔咪慢半拍來開門）的逐句打字台詞。
+  // 走 l10n：這幾句是世界觀的第一印象，不能只有中文（見 docs/world_setting.md）。
+  List<String> get _lines => _l10n.obArrivalLines.split('|');
   int _lineIndex = 0;
   String _displayText = '';
   bool _page1Done = false;
@@ -75,44 +67,6 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 畫面3：用戶暱稱
   final TextEditingController _nicknameController = TextEditingController();
-  String _mascotName = '';
-
-  // 畫面4/5/6：功能引導（預設開啟，按「不用了」確認後才關）
-  bool? _waterEnabled;
-  bool? _timerEnabled;
-  bool? _familyEnabled;
-
-  // 畫面7：身體資訊
-  String _gender = '';
-  // 身高（metric: cm；imperial: ft + 額外的 _heightInController 是 in）
-  final TextEditingController _heightController = TextEditingController();
-  final TextEditingController _heightInController = TextEditingController();
-  // 體重 / 目標體重（依當下單位是 kg 或 lb）
-  final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _targetWeightController = TextEditingController();
-  final TextEditingController _birthdayController = TextEditingController();
-  // FocusNode 用來讓「紅字錯誤訊息 + 兔咪比例怪」只在欄位失焦後才顯示。
-  // 還在編輯中（hasFocus）就先收起警告，避免使用者打到一半被吐槽
-  final FocusNode _heightFocus = FocusNode();
-  final FocusNode _heightInFocus = FocusNode();
-  final FocusNode _weightFocus = FocusNode();
-  final FocusNode _targetWeightFocus = FocusNode();
-  final FocusNode _birthdayFocus = FocusNode();
-  UnitSystem _unit = UnitSystem.metric;
-  DateTime? _birthday; // 生日
-  // 活動量（內部仍用久坐/輕度/中度/高度）— 跟 profile_edit_page 共用 key 與選項
-  String _activityLevel = '';
-
-  // 活動量的儲存值（water_page / weight_page 拿去算 TDEE 與每日水量時比對
-  // 這些中文字串），i18n 只換顯示標籤、不動儲存值。與 profile_edit_page 同步。
-  static const List<String> _activityLevels = ['久坐', '輕度', '中度', '高度'];
-
-  String _activityLabel(String value) => switch (value) {
-    '久坐' => _l10n.activityAlmostNone,
-    '輕度' => _l10n.activityDays1to2,
-    '中度' => _l10n.activityDays3to4,
-    _ => _l10n.activityDays5plus,
-  };
 
   // 用戶暱稱（畫面3填完後存起來）
   String _nickname = '';
@@ -120,6 +74,15 @@ class _OnboardingPageState extends State<OnboardingPage>
   // ── 頁面定義表：頁數、順序、返回鍵的子步驟邏輯都從這裡推導 ──
   // 新增/刪除頁面只要改這張表，進度點數量與換頁邊界會自動跟上。
   // inSubStep 回 true 時返回鍵先退出追問子步驟（exitSubStep）而不換頁。
+  //
+  // 五頁：抵達 → 你想怎麼叫牠 → 牠怎麼叫你 → 架子上放什麼 → 進門。
+  // 2026-08-09 從九頁砍下來，移出的東西與理由：
+  // - 喝水／專注／家庭三頁功能開關 → 預設開啟，設定裡可關。原本是連續三次
+  //   同版型的 yes/no，且「不用了」是紅色按鈕＋二次確認，那是留存暗黑模式，
+  //   跟「不責備、不催促、是邀請不是推銷」的角色設定直接對撞。
+  // - 身體資訊頁（性別／身高／體重／目標體重／生日／活動量）→ 移到體重與
+  //   喝水頁的「補上資料」卡，點了開 ProfileEditPage。原本兔咪會在 BMI 異常時
+  //   換 sad 表情評論使用者的身體，違反「不評分」。
   late final List<
     ({
       Widget Function() build,
@@ -128,33 +91,23 @@ class _OnboardingPageState extends State<OnboardingPage>
     })
   >
   _pages = [
-    (build: _buildPage1, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage2, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage3, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage4, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage5, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildFamilyPage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildArrivalPage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildNamePage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (
+      build: _buildNicknamePage,
+      inSubStep: _noSubStep,
+      exitSubStep: _noopSubStep,
+    ),
     (
       build: _buildHabitPickerPage,
       inSubStep: _noSubStep,
       exitSubStep: _noopSubStep,
     ),
-    (build: _buildPage6, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
-    (build: _buildPage7, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
+    (build: _buildDonePage, inSubStep: _noSubStep, exitSubStep: _noopSubStep),
   ];
 
   static bool _noSubStep() => false;
   static void _noopSubStep() {}
-
-  // 身體資訊頁：使用者按過一次「填寫完成」後變 true。
-  // 行為：按鈕永遠可按，按下去才檢查必填；空著的必填欄會跳「請填寫 X」紅字。
-  bool _bodyInfoSubmitAttempted = false;
-  // 各欄位「失焦過一次」= 視為輸入完畢，從那刻開始可以跳範圍/比例提示。
-  // 不等到提交才警告，讓使用者填到下一格時就看到上一格的問題。
-  bool _heightTouched = false;
-  bool _weightTouched = false;
-  bool _targetWeightTouched = false;
-  bool _birthdayTouched = false;
 
   // 習慣選擇頁：使用者勾選的習慣名稱
   final Set<String> _selectedHabits = {};
@@ -169,56 +122,13 @@ class _OnboardingPageState extends State<OnboardingPage>
     if (!_mascotDefaultApplied) {
       _mascotDefaultApplied = true;
       _mascotController.text = _l10n.mascotDefaultName;
-      _mascotName = _l10n.mascotDefaultName;
     }
   }
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _nicknameController.addListener(() => setState(() {}));
-    _heightController.addListener(() => setState(() {}));
-    _heightInController.addListener(() => setState(() {}));
-    _weightController.addListener(() => setState(() {}));
-    _targetWeightController.addListener(() => setState(() {}));
-    // 焦點變化：失焦時設 touched 旗標（= 該欄輸入完畢），rebuild 顯示對應提示
-    _heightFocus.addListener(() {
-      if (!_heightFocus.hasFocus) {
-        setState(() => _heightTouched = true);
-      } else {
-        setState(() {});
-      }
-    });
-    _heightInFocus.addListener(() {
-      if (!_heightInFocus.hasFocus) {
-        setState(() => _heightTouched = true);
-      } else {
-        setState(() {});
-      }
-    });
-    _weightFocus.addListener(() {
-      if (!_weightFocus.hasFocus) {
-        setState(() => _weightTouched = true);
-      } else {
-        setState(() {});
-      }
-    });
-    _targetWeightFocus.addListener(() {
-      if (!_targetWeightFocus.hasFocus) {
-        setState(() => _targetWeightTouched = true);
-      } else {
-        setState(() {});
-      }
-    });
-    _birthdayFocus.addListener(() {
-      if (!_birthdayFocus.hasFocus) {
-        setState(() => _birthdayTouched = true);
-      } else {
-        setState(() {});
-      }
-    });
-    _loadUnit();
     // 等第一幀渲染完成（Offstage 預熱字形後）再啟動打字動畫
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -226,49 +136,13 @@ class _OnboardingPageState extends State<OnboardingPage>
     });
   }
 
-  Future<void> _loadUnit() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() => _unit = UnitSystem.load(prefs));
-  }
-
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _typingTimer?.cancel();
     _pageController.dispose();
     _mascotController.dispose();
     _nicknameController.dispose();
-    _heightController.dispose();
-    _heightInController.dispose();
-    _weightController.dispose();
-    _targetWeightController.dispose();
-    _birthdayController.dispose();
-    _heightFocus.dispose();
-    _heightInFocus.dispose();
-    _weightFocus.dispose();
-    _targetWeightFocus.dispose();
-    _birthdayFocus.dispose();
-    _bodyInfoScrollCtrl.dispose();
     super.dispose();
-  }
-
-  // 鍵盤狀態變化時，把身體資訊頁的 scroll view 跟著捲到底
-  // ─ iOS 鍵盤動畫期間 didChangeMetrics 會連發多次（viewport 漸縮）
-  // ─ 改用 jumpTo 每次同步跳到當前 maxScrollExtent，視覺上跟鍵盤同步上來
-  //   （比 animateTo 等鍵盤動畫跑完再起一段動畫快很多）
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_bodyInfoScrollCtrl.hasClients) return;
-      final kb = MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
-      if (kb > 0) {
-        _bodyInfoScrollCtrl.jumpTo(
-          _bodyInfoScrollCtrl.position.maxScrollExtent,
-        );
-      }
-    });
   }
 
   // 逐字打字效果
@@ -355,305 +229,6 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
   }
 
-  // 從目前單位的輸入欄推回公制
-  double? _heightCm() {
-    if (_unit == UnitSystem.imperial) {
-      final ft = int.tryParse(_heightController.text.trim());
-      final inches = int.tryParse(_heightInController.text.trim());
-      if (ft == null && inches == null) return null;
-      return UnitConvert.ftInToCm(ft ?? 0, inches ?? 0);
-    }
-    return double.tryParse(_heightController.text.trim());
-  }
-
-  double? _weightKgFromCtrl(TextEditingController c) {
-    final v = double.tryParse(c.text.trim());
-    if (v == null) return null;
-    if (_unit == UnitSystem.imperial) return UnitConvert.lbToKg(v);
-    return v;
-  }
-
-  // 「Raw」版 = 不管焦點，純驗證，用於 _bodyInfoFilled 決定按鈕能不能按。
-  // 顯示版（不帶 Raw 後綴）多包一層：焦點還在欄位上就 return null，避免使用者
-  // 還在打字就被吐槽「請輸入 X 到 Y」。離開焦點才會看到提示。
-  String? get _heightErrTextRaw {
-    if (_unit == UnitSystem.imperial) {
-      if (_heightController.text.trim().isEmpty &&
-          _heightInController.text.trim().isEmpty) {
-        return null;
-      }
-      return UserValidators.heightCm(AppLocalizations.of(context), _heightCm());
-    }
-    return UserValidators.height(
-      AppLocalizations.of(context),
-      _heightController.text,
-    );
-  }
-
-  String? get _weightErrTextRaw => UserValidators.weightIn(
-    AppLocalizations.of(context),
-    _weightController.text,
-    _unit,
-  );
-  String? get _targetWeightErrTextRaw => UserValidators.targetWeightIn(
-    AppLocalizations.of(context),
-    _targetWeightController.text,
-    _unit,
-  );
-
-  // 「輸入完畢」= 該欄失焦過、或使用者按過「填寫完成」
-  bool get _heightInputFinished => _heightTouched || _bodyInfoSubmitAttempted;
-  bool get _weightInputFinished => _weightTouched || _bodyInfoSubmitAttempted;
-  bool get _targetWeightInputFinished =>
-      _targetWeightTouched || _bodyInfoSubmitAttempted;
-
-  // 兩格都「輸入完畢」+ 各自在合理範圍 + BMI 超出 → 比例異常
-  bool _isBmiPairOddRaw() {
-    final cm = _heightCm();
-    final kg = _weightKgFromCtrl(_weightController);
-    if (cm == null || kg == null) return false;
-    if (cm < UserRanges.heightMinCm || cm > UserRanges.heightMaxCm) {
-      return false;
-    }
-    if (kg < UserRanges.weightMinKg || kg > UserRanges.weightMaxKg) {
-      return false;
-    }
-    final hM = cm / 100;
-    final bmi = kg / (hM * hM);
-    return bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax;
-  }
-
-  bool get _bmiOddVisible {
-    // 任一格還在編輯就不顯示「比例異常」/ 兔咪不變 sad
-    if (_heightFocus.hasFocus ||
-        _heightInFocus.hasFocus ||
-        _weightFocus.hasFocus) {
-      return false;
-    }
-    return _heightInputFinished && _weightInputFinished && _isBmiPairOddRaw();
-  }
-
-  String? get _heightErrText {
-    // 正在編輯就不顯示（不管之前 touched 過沒，重新進來改也算「還在改」）
-    if (_heightFocus.hasFocus || _heightInFocus.hasFocus) return null;
-    if (!_heightInputFinished) return null;
-    if (_bodyInfoSubmitAttempted && !_hasHeightInput) return _l10n.obNeedHeight;
-    final raw = _heightErrTextRaw;
-    if (raw != null) return raw;
-    if (_bmiOddVisible) return _l10n.obRatioOdd;
-    return null;
-  }
-
-  String? get _weightErrText {
-    if (_weightFocus.hasFocus) return null;
-    if (!_weightInputFinished) return null;
-    if (_bodyInfoSubmitAttempted && _weightController.text.trim().isEmpty) {
-      return _l10n.obNeedWeight;
-    }
-    final raw = _weightErrTextRaw;
-    if (raw != null) return raw;
-    if (_bmiOddVisible) return _l10n.obRatioOdd;
-    return null;
-  }
-
-  String? get _targetWeightErrText {
-    if (_targetWeightFocus.hasFocus) return null;
-    if (!_targetWeightInputFinished) return null;
-    return _targetWeightErrTextRaw;
-  }
-
-  // 性別/生日是非 TextField 控制項（chip / picker），用獨立 helper 顯示紅字
-  String? get _genderError {
-    if (_bodyInfoSubmitAttempted && _gender.isEmpty) return _l10n.obNeedGender;
-    return null;
-  }
-
-  String? get _birthdayError {
-    final raw = _birthdayController.text.trim();
-    final shouldValidate =
-        _bodyInfoSubmitAttempted ||
-        _birthdayTouched ||
-        !_birthdayFocus.hasFocus;
-    if (_bodyInfoSubmitAttempted && raw.isEmpty) return _l10n.obNeedBirthday;
-    if (raw.isEmpty || !shouldValidate) return null;
-
-    final parsed = parseLenientDate(raw);
-    if (parsed == null) return _l10n.obBirthdayUnparsed;
-    return _birthdayDateError(parsed);
-  }
-
-  DateTime get _birthdayFirstDate {
-    final now = DateTime.now();
-    return DateTime(now.year - UserRanges.birthdayMaxAgeYears);
-  }
-
-  DateTime get _birthdayLastDate => DateTime.now();
-
-  String _birthdayText(DateTime value) =>
-      '${value.year}-${value.month}-${value.day}';
-
-  String? _birthdayDateError(DateTime value) {
-    if (value.isBefore(_birthdayFirstDate) ||
-        value.isAfter(_birthdayLastDate)) {
-      return _l10n.obBirthdayOutOfRange;
-    }
-    return UserValidators.birthday(AppLocalizations.of(context), value);
-  }
-
-  void _setBirthday(DateTime value) {
-    _birthday = value;
-    _birthdayController.text = _birthdayText(value);
-    _birthdayController.selection = TextSelection.collapsed(
-      offset: _birthdayController.text.length,
-    );
-  }
-
-  DateTime _birthdayPickerInitialDate() {
-    final rawDate = parseLenientDate(_birthdayController.text);
-    final candidate =
-        _birthday ?? rawDate ?? DateTime(DateTime.now().year - 20);
-    if (candidate.isBefore(_birthdayFirstDate)) return _birthdayFirstDate;
-    if (candidate.isAfter(_birthdayLastDate)) return _birthdayLastDate;
-    return candidate;
-  }
-
-  // 點生日欄 → 直接開月曆系統選日期。
-  Future<void> _openBirthdayPicker() async {
-    _playOnboardingSfx(SfxCue.tap);
-    FocusScope.of(context).unfocus();
-    final picked = await showBirthdayPicker(
-      context,
-      initial: _birthdayPickerInitialDate(),
-      firstDate: _birthdayFirstDate,
-      lastDate: _birthdayLastDate,
-      accent: Colors.orange,
-    );
-    if (picked == null || !mounted) return;
-    _playOnboardingSfx(SfxCue.success);
-    setState(() {
-      _birthdayTouched = true;
-      _setBirthday(picked);
-    });
-  }
-
-  // 觸發提交：按鈕永遠可按，按下去先檢查再決定要不要進下一步
-  void _tryFinishBodyInfo() {
-    setState(() => _bodyInfoSubmitAttempted = true);
-    if (_bodyInfoFilled) {
-      _playOnboardingSfx(SfxCue.success);
-      _nextPage(playSound: false);
-    } else {
-      _playOnboardingSfx(SfxCue.cancel);
-    }
-    // 若驗證沒過，留在本頁；setState 已觸發，紅字會跑出來
-  }
-
-  bool get _hasHeightInput {
-    if (_unit == UnitSystem.imperial) {
-      return _heightController.text.trim().isNotEmpty ||
-          _heightInController.text.trim().isNotEmpty;
-    }
-    return _heightController.text.trim().isNotEmpty;
-  }
-
-  // 建議不是錯誤訊息：身高一合理就出現，不等「填寫完成」；
-  // 比例明顯不合理時收起（統一規則見 HealthAdvice）
-  ({int low, int high, int suggest, String unit})?
-  get _targetWeightSuggestion => HealthAdvice.targetWeightSuggestion(
-    heightCm: _heightErrTextRaw == null ? _heightCm() : null,
-    weightKg: _weightErrTextRaw == null
-        ? _weightKgFromCtrl(_weightController)
-        : null,
-    system: _unit,
-  );
-
-  // 目標體重建議：依身高的健康 BMI 範圍（18.5–24），建議值取 BMI 22
-  Widget _targetWeightHint() {
-    final suggestion = _targetWeightSuggestion;
-    if (suggestion == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Icon(Icons.favorite_outline, size: 14, color: Colors.orange.shade400),
-          const SizedBox(width: 5),
-          Expanded(
-            child: Text(
-              _l10n.obHealthyWeightRange(
-                '${suggestion.low}',
-                '${suggestion.high}',
-                suggestion.unit,
-              ),
-              style: const TextStyle(fontSize: 12, color: AppInk.soft),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget? _targetWeightSuggestSuffix() {
-    final suggestion = _targetWeightSuggestion;
-    if (suggestion == null) return null;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: TextButton(
-        onPressed: () {
-          _playOnboardingSfx(SfxCue.tap);
-          setState(
-            () => _targetWeightController.text = suggestion.suggest.toString(),
-          );
-        },
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.orange.shade800,
-          backgroundColor: Colors.orange.shade50,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.orange.shade200),
-          ),
-        ),
-        child: Text(
-          _l10n.obSuggestTarget('${suggestion.suggest}', suggestion.unit),
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-        ),
-      ),
-    );
-  }
-
-  bool get _bodyInfoFilled {
-    final cm = _heightCm();
-    final kg = _weightKgFromCtrl(_weightController);
-    final hasHeight = _unit == UnitSystem.imperial
-        ? (_heightController.text.trim().isNotEmpty ||
-              _heightInController.text.trim().isNotEmpty)
-        : _heightController.text.trim().isNotEmpty;
-    if (!_gender.isNotEmpty) return false;
-    if (!hasHeight) return false;
-    if (_weightController.text.trim().isEmpty) return false;
-    if (_birthday == null) return false;
-    // 按鈕啟用判定不看焦點：使用者就算還在輸入框內，數值錯就不准進下一步
-    if (_heightErrTextRaw != null) return false;
-    if (_weightErrTextRaw != null) return false;
-    if (_targetWeightErrTextRaw != null) return false;
-    if (UserValidators.birthday(AppLocalizations.of(context), _birthday) !=
-        null) {
-      return false;
-    }
-    // BMI 比例檢查（用公制換算）
-    if (cm != null && kg != null && cm > 0) {
-      final hM = cm / 100;
-      final bmi = kg / (hM * hM);
-      if (bmi < UserRanges.bmiMin || bmi > UserRanges.bmiMax) return false;
-    }
-    return true;
-  }
-
-  // 兔咪 sad 跟對話切換，跟欄位下方紅字共用同一個顯示條件
-  bool get _bmiOddOnboarding => _bmiOddVisible;
-
   // 回上一步：若該頁正處於追問子步驟，先退回初始選項；否則回上一畫面
   void _handleBack() {
     _playOnboardingSfx(SfxCue.cancel);
@@ -692,67 +267,25 @@ class _OnboardingPageState extends State<OnboardingPage>
           ? _l10n.hpNicknameFallback
           : _nicknameController.text.trim(),
     );
-    await prefs.setBool(PrefsKeys.waterEnabled, _waterEnabled ?? false);
-    await prefs.setBool(PrefsKeys.timerEnabled, _timerEnabled ?? false);
-    await prefs.setBool(PrefsKeys.familyEnabled, _familyEnabled ?? false);
-
-    // 身體資訊
-    if (_gender.isNotEmpty) {
-      await prefs.setString(PrefsKeys.userGender, _gender);
-    }
-    final heightCm = _heightCm();
-    if (heightCm != null &&
-        heightCm >= UserRanges.heightMinCm &&
-        heightCm <= UserRanges.heightMaxCm) {
-      await prefs.setDouble(PrefsKeys.userHeight, heightCm);
-    }
-    // 體重功能預設開啟：就算使用者略過填寫也開著（之後仍可在設定關閉）
+    // 功能一律預設開啟。原本這三個是引導頁裡三頁 yes/no 問卷，現在移除了——
+    // 想關的人在設定 → 功能開關關掉，比在還沒用過時先問一輪誠實得多。
+    await prefs.setBool(PrefsKeys.waterEnabled, true);
+    await prefs.setBool(PrefsKeys.timerEnabled, true);
+    await prefs.setBool(PrefsKeys.familyEnabled, true);
     await prefs.setBool(PrefsKeys.weightTrackingEnabled, true);
-    final weightKg = _weightKgFromCtrl(_weightController);
-    if (weightKg != null &&
-        weightKg >= UserRanges.weightMinKg &&
-        weightKg <= UserRanges.weightMaxKg) {
-      await prefs.setDouble(PrefsKeys.userWeight, weightKg);
-      await upsertSavedWeightRecord(prefs, weightKg: weightKg);
-      // 有填才自動新增體重紀錄習慣
-      await _addWeightHabit(prefs);
-      await syncWeightHabitForDate(prefs);
-    }
-    final targetKg = _weightKgFromCtrl(_targetWeightController);
-    if (targetKg != null &&
-        targetKg >= UserRanges.targetWeightMinKg &&
-        targetKg <= UserRanges.targetWeightMaxKg) {
-      await prefs.setDouble(PrefsKeys.targetWeight, targetKg);
-    }
-    // 選了喝水功能 → 自動加入「喝足夠的水」習慣
-    if (_waterEnabled == true) _selectedHabits.add('喝足夠的水');
+
+    // 身體資訊（性別／身高／體重／生日／活動量）不在引導頁問了，改由體重與
+    // 喝水頁的「補上資料」卡帶到 ProfileEditPage。那些頁面本來就容許缺值。
+
+    // 喝水功能預設開啟 → 「喝足夠的水」一起放進架子上
+    _selectedHabits.add('喝足夠的水');
     // 引導頁「習慣選擇頁」勾選的習慣
     await _addPickedHabits(prefs);
-
-    // 生日以 yyyy-MM-dd 格式儲存
-    if (_birthday != null) {
-      final b = _birthday!;
-      await prefs.setString(
-        PrefsKeys.userBirthday,
-        '${b.year.toString().padLeft(4, '0')}-'
-        '${b.month.toString().padLeft(2, '0')}-'
-        '${b.day.toString().padLeft(2, '0')}',
-      );
-    }
-    // 活動量（選填）— water/weight 頁讀 user_activity_level 算 TDEE 與每日水量
-    if (_activityLevel.isNotEmpty) {
-      await prefs.setString(PrefsKeys.userActivityLevel, _activityLevel);
-    }
 
     if (!mounted) return;
     // 切換 BGM 到主 app 曲目（cross-fade）
     unawaited(BgmService.instance.play('sounds/bgm_main.m4a'));
     unawaited(Navigator.of(context).pushReplacementNamed('/home'));
-  }
-
-  // 在習慣清單自動新增體重紀錄
-  Future<void> _addWeightHabit(SharedPreferences prefs) async {
-    await ensureWeightHabit(prefs);
   }
 
   // 將習慣選擇頁勾選的習慣寫入習慣清單
@@ -875,52 +408,6 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // 選項按鈕
-  Widget _optionButton(String label, VoidCallback onTap, {Color? color}) {
-    final accent = color ?? Colors.orange;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(16),
-        shadowColor: accent.withValues(alpha: 0.22),
-        elevation: 1.5,
-        child: InkWell(
-          onTap: () {
-            _playOnboardingSfx(SfxCue.tap);
-            unawaited(_ensureOnboardingBgm());
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(16),
-          splashColor: accent.withValues(alpha: 0.10),
-          highlightColor: accent.withValues(alpha: 0.06),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: accent.withValues(alpha: 0.24)),
-              // 純色 accent 淡底（不再用 gradient，避免兩端白氣感）
-              color: accent.withValues(alpha: 0.10),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.2,
-                color: accent == Colors.orange
-                    ? Colors.orange.shade800
-                    : accent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── 畫面1：吉祥物甦醒 ──
   // 引導頁版型：兔咪固定在上方，內容在下方區域置中（可捲動）。
   // 鍵盤彈出時，有掛 scrollController 的頁面會自動捲到底（didChangeMetrics
@@ -970,8 +457,11 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  Widget _buildPage1() {
-    // 依打字進度切換情緒：第1句剛醒(wake) → 自我介紹(neutral) → 陪伴宣告(smile)
+  // ── 畫面1：抵達 ──
+  // 你搬進來那天敲門，兔咪慢半拍來開門，屋子還很空。
+  // 四句台詞的情緒：門後應聲(wake) → 察覺是你(neutral) → 坦白自己也剛搬來
+  // → 邀你進門(smile)。
+  Widget _buildArrivalPage() {
     final wakeEmotion = _page1Done
         ? 'smile'
         : (_lineIndex == 0
@@ -1036,7 +526,6 @@ class _OnboardingPageState extends State<OnboardingPage>
       _mascotController.selection = TextSelection.collapsed(
         offset: pick.length,
       );
-      _mascotName = pick;
     });
   }
 
@@ -1055,14 +544,16 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // ── 畫面2：幫吉祥物命名 ──
-  Widget _buildPage2() {
+  // ── 畫面2：你想怎麼叫牠 ──
+  // 牠本來就有名字（mascotDefaultName），你取的是「想怎麼叫牠」——所以這裡是
+  // 全 app 唯一一次兔咪自稱名字（命名儀式，見 docs/world_setting.md）。
+  Widget _buildNamePage() {
     return _mascotPage(
       emotion: 'smile',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('對了...\n你可以幫我取個名字。\n想不到的話，按旁邊骰子幫我抽一個。'),
+          _speechBubble(_l10n.obNameBubble(_l10n.mascotDefaultName)),
           const SizedBox(height: 32),
           Row(
             children: [
@@ -1097,18 +588,16 @@ class _OnboardingPageState extends State<OnboardingPage>
               _diceButton(),
             ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 10),
+          Text(
+            _l10n.obNameDiceHint,
+            style: const TextStyle(fontSize: 13, color: AppInk.faint),
+          ),
+          const SizedBox(height: 26),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                setState(
-                  () => _mascotName = _mascotController.text.trim().isEmpty
-                      ? _l10n.mascotDefaultName
-                      : _mascotController.text.trim(),
-                );
-                _nextPage();
-              },
+              onPressed: _nextPage,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 shape: RoundedRectangleBorder(
@@ -1127,14 +616,16 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // ── 畫面3：用戶暱稱 ──
-  Widget _buildPage3() {
+  // ── 畫面3：牠怎麼叫你 ──
+  // 泡泡第一句先接受上一頁你給的叫法（命名儀式的回應），第二句才問你。
+  // 刻意不自稱名字（「{name} 以後要怎麼叫你？」是在叫自己，見角色指南）。
+  Widget _buildNicknamePage() {
     return _mascotPage(
       emotion: 'expect',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('那...你呢？\n$_mascotName 以後要怎麼叫你？'),
+          _speechBubble(_l10n.obNicknameBubble),
           const SizedBox(height: 24),
           TextField(
             controller: _nicknameController,
@@ -1189,112 +680,6 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 功能引導三頁共用：預設開啟的單一問題。
   // 「好」= 開啟並前進；紅色「不用了」= 跳確認框，確定才關閉並前進。
-  Widget _featureIntroPage({
-    required String bubble,
-    required String acceptLabel,
-    required VoidCallback onAccept,
-    required String declineName,
-    required VoidCallback onDeclineConfirmed,
-  }) {
-    return _mascotPage(
-      emotion: 'neutral_front',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble(bubble),
-          const SizedBox(height: 32),
-          _optionButton(acceptLabel, onAccept),
-          _optionButton(
-            _l10n.obDecline,
-            () => _confirmDecline(declineName, onDeclineConfirmed),
-            color: Colors.red.shade400,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 按「不用了」跳確認框：確定才關閉（之後仍能在設定再開）。
-  Future<void> _confirmDecline(String name, VoidCallback onConfirmed) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(_l10n.obConfirmOffTitle(name)),
-        content: Text(_l10n.obConfirmOffMessage),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(_l10n.obKeepIt),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
-            child: Text(_l10n.obTurnOff),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      _playOnboardingSfx(SfxCue.cancel);
-      onConfirmed();
-    }
-  }
-
-  // ── 畫面4：喝水功能引導 ──
-  Widget _buildPage4() {
-    return _featureIntroPage(
-      bubble: '口渴前，我會輕輕提醒你喝水。\n先幫你開著好嗎？',
-      acceptLabel: _l10n.obWaterAccept,
-      onAccept: () {
-        setState(() => _waterEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: _l10n.obWaterFeature,
-      onDeclineConfirmed: () {
-        setState(() => _waterEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
-
-  // ── 畫面5：專注計時功能引導 ──
-  Widget _buildPage5() {
-    return _featureIntroPage(
-      bubble: '專心的時候，我幫你顧著時間。\n要先開著專注計時嗎？',
-      acceptLabel: _l10n.obFocusAccept,
-      onAccept: () {
-        setState(() => _timerEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: _l10n.obFocusFeature,
-      onDeclineConfirmed: () {
-        setState(() => _timerEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
-
-  // ── 畫面6：家庭功能引導 ──
-  Widget _buildFamilyPage() {
-    return _featureIntroPage(
-      bubble: '家裡有小朋友的話，\n我也能陪他們記小任務。\n要先開著嗎？',
-      acceptLabel: _l10n.obFocusAccept,
-      onAccept: () {
-        setState(() => _familyEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: _l10n.obFamilyFeature,
-      onDeclineConfirmed: () {
-        setState(() => _familyEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
-
-  // ── 畫面7：身體資訊（可跳過）──
-  // 結構：頂部兔咪+對話 + 可滾動欄位區 + 底部固定按鈕（避免下次再說被擠到 fold 下方）
-  // 習慣選擇頁：勾選想養成的習慣，完成後寫入習慣清單
   Widget _buildHabitPickerPage() {
     return _mascotPage(
       emotion: 'smile',
@@ -1303,8 +688,13 @@ class _OnboardingPageState extends State<OnboardingPage>
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('要不要先放幾個小習慣？\n之後都可以再改。'),
-          const SizedBox(height: 16),
+          _speechBubble(_l10n.obHabitBubble),
+          const SizedBox(height: 8),
+          Text(
+            _l10n.obHabitLaterHint,
+            style: const TextStyle(fontSize: 13, color: AppInk.faint),
+          ),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1675,359 +1065,16 @@ class _OnboardingPageState extends State<OnboardingPage>
   // iOS 純數字鍵盤沒有「完成」鍵，但因為鍵盤彈出時 _mascotPage 會
   // 把整層內容往上推（兔咪暫時被擠到畫面外），下方的「填寫完成 / 下次
   // 再說」按鈕都能點到，所以不再額外塞 suffix icon
-  Widget _onboardingNumField({
-    required TextEditingController controller,
-    required String label,
-    String? errorText,
-    Widget? suffixWidget,
-    FocusNode? focusNode,
-    // 非 null 時掛上自動補小數（只在公制欄位傳，傳該欄位的公制合理上限）
-    num? decimalMax,
-  }) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        // 公制：bodyMetricFormatter（含自動補小數，例 1708→170.8）
-        // 英制 / 無 max：維持原本 3 位整數上限
-        if (decimalMax != null)
-          bodyMetricFormatter(decimalMax)
-        else
-          maxValueFormatter(999),
-      ],
-      decoration: InputDecoration(
-        labelText: label,
-        errorText: errorText,
-        suffixIcon: suffixWidget,
-        suffixIconConstraints: const BoxConstraints(),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.orange.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.orange),
-        ),
-      ),
-    );
-  }
-
-  // imperial 模式的 ft/in 兩欄並排
-  Widget _onboardingFtInRow() {
-    InputDecoration deco(String label, String suffix) => InputDecoration(
-      labelText: label,
-      suffixText: suffix,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.orange.shade200),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.orange),
-      ),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _heightController,
-                focusNode: _heightFocus,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
-                ],
-                decoration: deco(_l10n.obHeightFt, 'ft'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _heightInController,
-                focusNode: _heightInFocus,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
-                ],
-                decoration: deco(' ', 'in'),
-              ),
-            ),
-          ],
-        ),
-        if (_heightErrText != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6, left: 4),
-            child: Text(
-              _heightErrText!,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildPage6() {
-    final bmiOdd = _bmiOddOnboarding;
-    final emotion = bmiOdd ? 'sad' : 'smile';
-    final bubbleText = bmiOdd ? '嗯…身高或體重好像需要再確認一下。' : '我可以幫你紀錄身高、體重喔！';
-
-    return _mascotPage(
-      emotion: emotion,
-      scrollController: _bodyInfoScrollCtrl,
-      // 緊湊：兔咪間距 + padding 縮小，盡量單頁能塞下完整身體資訊
-      mascotBottomSpacing: 8,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble(bubbleText),
-          const SizedBox(height: 14),
-          // 性別選擇。三顆 chip 走 Wrap：中文（男／女／不透露）在 SE 上一行
-          // 放得下，版面不變；英文（Prefer not to say）會自動折到第二行，
-          // 原本的固定 Row 在 SE 上會溢出 30px。
-          Row(
-            children: [
-              Text(
-                _l10n.genderLabel,
-                style: TextStyle(
-                  color: Colors.orange.shade800,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _genderChip('男', _l10n.genderMale),
-                    _genderChip('女', _l10n.genderFemale),
-                    _genderChip('不透露', _l10n.genderUndisclosed),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (_genderError != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, left: 4),
-              child: Text(
-                _genderError!,
-                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
-              ),
-            ),
-          // 活動量（選填）— 跟性別放一起，兩個都是 chip 選擇器，視覺一致
-          _onboardingActivitySelector(),
-          const SizedBox(height: 12),
-          // 身高（依單位顯示一格或兩格）
-          if (_unit == UnitSystem.imperial)
-            _onboardingFtInRow()
-          else
-            _onboardingNumField(
-              controller: _heightController,
-              focusNode: _heightFocus,
-              label: _l10n.obHeightCm,
-              errorText: _heightErrText,
-              decimalMax: UserRanges.heightMaxCm,
-            ),
-          const SizedBox(height: 10),
-          // 體重
-          _onboardingNumField(
-            controller: _weightController,
-            focusNode: _weightFocus,
-            label: _l10n.obWeightWithUnit(UnitFormat.weightLabel(_unit)),
-            errorText: _weightErrText,
-            // 英制(lb)不補小數
-            decimalMax: _unit == UnitSystem.imperial
-                ? null
-                : UserRanges.weightMaxKg,
-          ),
-          const SizedBox(height: 10),
-          // 目標體重（選填）
-          _onboardingNumField(
-            controller: _targetWeightController,
-            focusNode: _targetWeightFocus,
-            label: _l10n.obTargetWeightOptional(UnitFormat.weightLabel(_unit)),
-            errorText: _targetWeightErrText,
-            suffixWidget: _targetWeightSuggestSuffix(),
-            decimalMax: _unit == UnitSystem.imperial
-                ? null
-                : UserRanges.targetWeightMaxKg,
-          ),
-          _targetWeightHint(),
-          const SizedBox(height: 10),
-          // 生日：整欄可點，直接跳出月曆系統（不打字、不彈鍵盤）。
-          TextField(
-            controller: _birthdayController,
-            focusNode: _birthdayFocus,
-            readOnly: true,
-            showCursor: false,
-            onTap: _openBirthdayPicker,
-            decoration: InputDecoration(
-              labelText: _l10n.birthdayLabel,
-              hintText: _l10n.obBirthdayHint,
-              errorText: _birthdayError,
-              errorMaxLines: 2,
-              suffixIcon: const Icon(
-                Icons.calendar_today_outlined,
-                size: 18,
-                color: Colors.orange,
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              // 按鈕永遠可按，按下去才驗證。空著 / 超範圍會跳紅字提示
-              onPressed: _tryFinishBodyInfo,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: Text(
-                _l10n.obFillDone,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: _nextPage,
-            child: Text(
-              _l10n.obLaterMaybe,
-              style: const TextStyle(color: AppInk.soft),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 性別選擇按鈕
-  // value 是儲存值（跨頁邏輯比對它），label 只是顯示文字。
-  Widget _genderChip(String value, String label) {
-    final selected = _gender == value;
-    return GestureDetector(
-      onTap: () {
-        if (!selected) _playOnboardingSfx(SfxCue.tap);
-        setState(() => _gender = value);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : AppInk.soft,
-            fontSize: 14,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 活動量 chip（樣式跟 _genderChip 一致）
-  Widget _activityChip(String value) {
-    final selected = _activityLevel == value;
-    return GestureDetector(
-      onTap: () {
-        if (!selected) _playOnboardingSfx(SfxCue.tap);
-        setState(() => _activityLevel = value);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
-          ),
-        ),
-        child: Text(
-          _activityLabel(value),
-          style: TextStyle(
-            color: selected ? Colors.white : AppInk.soft,
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 活動量選擇區：用「一週運動幾天」取代抽象的輕度/中度。
-  Widget _onboardingActivitySelector() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.74),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _l10n.obActivityTitle,
-            style: TextStyle(
-              color: Colors.orange.shade800,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: _activityLevels.map(_activityChip).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── 畫面7：收尾 ──
-  Widget _buildPage7() {
+  // ── 畫面5：進門 ──
+  // 刻意不用「慢慢來」：那是安慰型台詞，只留給撤銷／久違回來／夜深／連續中斷。
+  // 開場就用等於在安慰一個還不存在的焦慮（見角色指南「四種講法」）。
+  Widget _buildDonePage() {
     return _mascotPage(
       emotion: 'pop_happy',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _speechBubble('好了，$_nickname。\n以後也一起慢慢來。', fontSize: 18),
+          _speechBubble(_l10n.obDoneBubble(_nickname), fontSize: 18),
           const SizedBox(height: 48),
           SizedBox(
             width: double.infinity,

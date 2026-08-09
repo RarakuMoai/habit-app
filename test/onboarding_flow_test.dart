@@ -29,10 +29,10 @@ void main() {
     expect(find.text('點一下繼續'), findsOneWidget);
 
     // 點畫面左下角空白處（避開兔咪自己的點擊區與底部進度列）。
-    // 三句 × 每句最多兩下（補完當前句 → 進下一句）
+    // 四句 × 每句最多兩下（補完當前句 → 進下一句）
     final body = tester.getRect(find.byType(PageView));
     final blankSpot = Offset(body.left + 12, body.bottom - 24);
-    for (var i = 0; i < 8 && find.text('繼續').evaluate().isEmpty; i++) {
+    for (var i = 0; i < 10 && find.text('繼續').evaluate().isEmpty; i++) {
       await tester.tapAt(blankSpot);
       await tester.pump();
     }
@@ -45,14 +45,14 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(l10nTestApp(home: const OnboardingPage()));
 
-    // 畫面1：等打字動畫播完（3 句 × 60ms/字 + 句間 900ms），「繼續」浮現
+    // 畫面1：等打字動畫播完（4 句 × 60ms/字 + 句間 900ms），「繼續」浮現
     await tester.pump();
-    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(seconds: 9));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('繼續'), findsOneWidget);
     await tapAndSettle(tester, '繼續');
 
-    // 畫面2：吉祥物命名（預設兔咪，直接下一步）
+    // 畫面2：你想怎麼叫牠（預設兔咪，直接下一步）
     expect(find.text('幫我取個名字'), findsOneWidget);
     await tapAndSettle(tester, '下一步');
 
@@ -61,27 +61,11 @@ void main() {
     await tester.pump();
     await tapAndSettle(tester, '下一步');
 
-    // 畫面4（喝水）：新版引導預設開啟，接受後直接前進
-    expect(find.text('好，幫我記'), findsOneWidget);
-    await tapAndSettle(tester, '好，幫我記');
-
-    // 畫面5（專注計時）
-    expect(find.text('好，開著'), findsOneWidget);
-    await tapAndSettle(tester, '好，開著');
-
-    // 畫面6（家庭）
-    expect(find.text('好，開著'), findsOneWidget);
-    await tapAndSettle(tester, '好，開著');
-
-    // 畫面7（習慣挑選）：不選任何習慣 → 按鈕顯示「略過」
+    // 畫面4（架子上放什麼）：不選任何習慣 → 按鈕顯示「略過」
     expect(find.text('略過'), findsOneWidget);
     await tapAndSettle(tester, '略過');
 
-    // 畫面8（身體資訊）：選填，直接下次再說
-    expect(find.text('下次再說'), findsOneWidget);
-    await tapAndSettle(tester, '下次再說');
-
-    // 畫面9（收尾）：到達最後一頁
+    // 畫面5（進門）：到達最後一頁
     expect(find.text('開始'), findsOneWidget);
 
     // 把 BGM/音效的一次性 timer 推完，避免 pending-timer 斷言

@@ -151,7 +151,7 @@ void main() {
       reward: const LoginReward(level: 1, amount: 5, graceUsed: false),
     );
 
-    expect(find.text('第一天。以後也一起慢慢來。'), findsOneWidget);
+    expect(find.text('第一天。我有記下來。'), findsOneWidget);
   });
 
   testWidgets('零食隨連續天數升級：里程碑日給最好的', (tester) async {
