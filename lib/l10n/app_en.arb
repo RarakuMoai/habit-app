@@ -1280,5 +1280,26 @@
   "lsGiveTreat": "Give {treat}",
 
   "mascotDefaultName": "Tumi",
-  "mascotNamePool": "Tumi|Chirpy|Dango|Mochi|Marshmallow|Snowball|Adzuki|Pudding|Boba|Mimi|Hoppy|Snowy|Bubble|Cloudy|Petal|Star|Moona|Sunny|Dewy|Sugar|Honey|Butter|Cocoa|Sesame|Tofu|Yuzu|Peachy|Chestnut|Nugget|Biscuit|Bunbun|Popo|Muffin|Pompom|Jingle|Lumi|Momo|Gummy|Fluffy|Snowdrop"
+  "mascotNamePool": "Tumi|Chirpy|Dango|Mochi|Marshmallow|Snowball|Adzuki|Pudding|Boba|Mimi|Hoppy|Snowy|Bubble|Cloudy|Petal|Star|Moona|Sunny|Dewy|Sugar|Honey|Butter|Cocoa|Sesame|Tofu|Yuzu|Peachy|Chestnut|Nugget|Biscuit|Bunbun|Popo|Muffin|Pompom|Jingle|Lumi|Momo|Gummy|Fluffy|Snowdrop",
+  "rdEntry": "Talk with {name}",
+  "@rdEntry": {"description": "首頁室友互動入口；name 為使用者設定的兔咪名字。", "placeholders": {"name": {"type": "String"}}},
+  "rdTitle": "A moment together",
+  "rdLater": "Another time",
+  "rdYourReply": "Your reply",
+  "rdRevealHint": "Tap the subtitle to show the whole line",
+  "rdHello": "I was thinking… I want to get up earlier tomorrow.",
+  "rdInvitation": "How about you? Want to start together?",
+  "rdBegin": "Yes! I’ll give it a try too.",
+  "rdRest": "Mm, I saved you a spot.",
+  "rdHomesick": "I do. But I want this place to feel like home too.",
+  "rdTogether": "It feels a little easier with you here.",
+  "rdQuiet": "Mm… let’s sit together.",
+  "rdContinue": "Keep listening",
+  "rdChooseBegin": "Let’s do one small thing",
+  "rdChooseRest": "I’ll sit with you for a bit",
+  "rdPickHabit": "Pick a small thing to do",
+  "rdAskHome": "Do you miss home?",
+  "rdChooseQuiet": "Let’s stay like this a little",
+  "rdChooseTogether": "We can take our time together",
+  "rdReturn": "Back to our day"
 }

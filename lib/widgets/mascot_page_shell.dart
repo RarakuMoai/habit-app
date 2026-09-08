@@ -48,6 +48,9 @@ class MascotPageShell extends StatefulWidget {
   /// 下方卡片內容（不需自己包白底/圓角/陰影/把手，shell 會處理）。
   final Widget child;
 
+  /// 以正式場景高度呈現互動；原場景與功能維持掛載，結束後保留原位置。
+  final Widget Function(double sceneHeight)? interactionBuilder;
+
   /// 把手 & 陰影主色，依頁面切換。
   final Color accent;
 
@@ -73,6 +76,7 @@ class MascotPageShell extends StatefulWidget {
     super.key,
     required this.scene,
     required this.child,
+    this.interactionBuilder,
     required this.accent,
     this.sceneHeight,
     this.peekHeight = 20,
@@ -253,16 +257,23 @@ class _MascotPageShellState extends State<MascotPageShell> {
                     // 拖曳面板時場景/兔咪本身不變，獨立圖層避免被連帶重繪。
                     // 彩蛋偵測層只包場景區：兩指長按觸發、指數同步給
                     // MascotStage 做單指互動互讓；功能卡展開時不觸發。
-                    child: TwoFingerEggDetector(
-                      enabled: !_anyEggOpen && openValue > 0.85,
-                      onTrigger: _openDiceDuel,
-                      // 骰子面板只蓋場景下方；骰子開著時仍允許在上方
-                      // 以三指長按切進小蛇。小蛇窗簾蓋滿後才卸骰子，無閃屏。
-                      threeFingerEnabled: !_snakeEggOpen && openValue > 0.85,
-                      onThreeFingerTrigger: _openThreeFingerEgg,
-                      child: pauseScene
-                          ? TickerMode(enabled: false, child: scene)
-                          : scene,
+                    child: Offstage(
+                      offstage: widget.interactionBuilder != null,
+                      child: TickerMode(
+                        enabled: widget.interactionBuilder == null,
+                        child: TwoFingerEggDetector(
+                          enabled: !_anyEggOpen && openValue > 0.85,
+                          onTrigger: _openDiceDuel,
+                          // 骰子面板只蓋場景下方；骰子開著時仍允許在上方
+                          // 以三指長按切進小蛇。小蛇窗簾蓋滿後才卸骰子，無閃屏。
+                          threeFingerEnabled:
+                              !_snakeEggOpen && openValue > 0.85,
+                          onThreeFingerTrigger: _openThreeFingerEgg,
+                          child: pauseScene
+                              ? TickerMode(enabled: false, child: scene)
+                              : scene,
+                        ),
+                      ),
                     ),
                   ),
                   Positioned(
@@ -270,12 +281,20 @@ class _MascotPageShellState extends State<MascotPageShell> {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: _MascotCard(
-                      accent: widget.accent,
-                      dragExtent: dragExtent,
-                      child: widget.child,
+                    child: Offstage(
+                      offstage: widget.interactionBuilder != null,
+                      child: TickerMode(
+                        enabled: widget.interactionBuilder == null,
+                        child: _MascotCard(
+                          accent: widget.accent,
+                          dragExtent: dragExtent,
+                          child: widget.child,
+                        ),
+                      ),
                     ),
                   ),
+                  if (widget.interactionBuilder case final builder?)
+                    Positioned.fill(child: builder(mascotMaxH)),
                 ],
               ),
             );

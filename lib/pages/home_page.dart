@@ -34,6 +34,7 @@ import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/roommate_dialogue.dart';
 import '../widgets/scene_air_layer.dart';
 import '../widgets/scene_clock.dart';
 import '../widgets/scene_rooms.dart';
@@ -96,6 +97,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _nickname = '';
   String mascotName0 = MascotName.fallback;
   bool yesterdayAllDone = false;
+  bool _roommateOpen = false;
+  OverlayEntry? _greetingEntry;
   // 換日線（一天從幾點開始）；loadHabits 每次顯示首頁時從 prefs 重讀。
   int _dayStartHour = LogicalDate.defaultHour;
   DateTime? onboardingDate;
@@ -156,6 +159,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     //（閒置凍結時也會更新，不會停格在舊時段）。
     SceneTimeController.instance.addListener(_handleSceneTimeChanged);
     MascotPersona.current.addListener(_handleMascotActivity);
+    CoinService.dailyRewardShowing.addListener(_onDailyRewardShowing);
     _celebCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -214,6 +218,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     SceneTimeController.instance.removeListener(_handleSceneTimeChanged);
     MascotPersona.current.removeListener(_handleMascotActivity);
+    CoinService.dailyRewardShowing.removeListener(_onDailyRewardShowing);
+    _dismissGreeting();
     if (MascotPersona.idleBaseline == _idleMascotState) {
       MascotPersona.idleBaseline = null;
     }
@@ -284,6 +290,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// 載入 / 重新載入習慣。重複呼叫安全：進行中會合併；同一個 Future 直到
   /// 期間累積的最後一次補跑也完成才返回。
   Future<void> loadHabits() {
+    _closeRoommate();
     _reloadGeneration++;
     // **重載一開始**就作廢舊演出，不等到快照真的換上去。storage 上鎖或
     // 等待期間可能有好幾百毫秒，那段時間不該再冒出舊的 impact／音效／台詞。
@@ -889,14 +896,49 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       builder: (_) => GreetingBanner(
         mascotName: mascotName0,
         message: message,
-        onDismiss: () => entry.remove(),
+        onDismiss: _dismissGreeting,
       ),
     );
+    _dismissGreeting();
+    _greetingEntry = entry;
     overlay.insert(entry);
     // 兩行情感文案 + 350ms 進場，2 秒讀不完；停留 4.5 秒，點擊仍可立即關。
     Future.delayed(const Duration(milliseconds: 4500), () {
-      if (entry.mounted) entry.remove();
+      if (identical(_greetingEntry, entry)) _dismissGreeting();
     });
+  }
+
+  void _dismissGreeting() {
+    final entry = _greetingEntry;
+    _greetingEntry = null;
+    if (entry?.mounted ?? false) entry!.remove();
+  }
+
+  void _onDailyRewardShowing() {
+    if (CoinService.dailyRewardShowing.value) _closeRoommate();
+  }
+
+  void _startRoommate() {
+    if (_roommateOpen ||
+        _mutationsBlocked ||
+        _editMode ||
+        CoinService.dailyRewardShowing.value) {
+      return;
+    }
+    _dismissGreeting();
+    _invalidateCompletionPresentation();
+    _markSceneActive();
+    playHaptic(HapticLevel.selection);
+    setState(() {
+      _mascotAwakened = true;
+      _roommateOpen = true;
+    });
+  }
+
+  void _closeRoommate() {
+    if (!_roommateOpen || !mounted) return;
+    setState(() => _roommateOpen = false);
+    _markSceneActive();
   }
 
   String _fmtDate(DateTime d) {
@@ -2693,6 +2735,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       appBar: MascotAppBar(
         accent: colors.accent,
         onSettingsReturn: () => widget.onSettingsChanged?.call(),
+        onBeforeAction: _closeRoommate,
+        extraActions: [
+          ValueListenableBuilder<bool>(
+            valueListenable: CoinService.dailyRewardShowing,
+            builder: (_, showingReward, _) => IconButton.filledTonal(
+              key: const ValueKey('roommate_entry'),
+              tooltip: _l10n.rdEntry(MascotName.value),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.92),
+                foregroundColor: colors.accent,
+              ),
+              onPressed: showingReward || _mutationsBlocked || _editMode
+                  ? null
+                  : _startRoommate,
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 21),
+            ),
+          ),
+        ],
       ),
       // 任何觸碰都視為互動：取消閒置凍結、重排計時。translucent 才不會
       // 攔掉底下卡片/兔咪的點擊。
@@ -2782,6 +2842,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         MediaQuery.of(context).size.width,
         MediaQuery.of(context).padding.top,
       ),
+      interactionBuilder: _roommateOpen
+          ? (sceneHeight) => RoommateDialogue(
+              sceneHeight: sceneHeight,
+              accent: colors.accent,
+              onClose: _closeRoommate,
+            )
+          : null,
       scene: ScaleTransition(
         scale: _celebScale,
         child: PersonaScene(
