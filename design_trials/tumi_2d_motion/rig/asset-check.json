@@ -1,0 +1,36 @@
+{
+  "base_sha256": "95b81df9721ddf54712a1d8c822e772d8a7e25036ae9ea8b15235d6987aa0f96",
+  "outside_repair_mask_changed_pixels": 0,
+  "layers": {
+    "body": {
+      "size": [
+        1024,
+        1024
+      ],
+      "alpha_extrema": [
+        0,
+        255
+      ]
+    },
+    "arm": {
+      "size": [
+        1024,
+        1024
+      ],
+      "alpha_extrema": [
+        0,
+        255
+      ]
+    },
+    "vest": {
+      "size": [
+        1024,
+        1024
+      ],
+      "alpha_extrema": [
+        0,
+        255
+      ]
+    }
+  }
+}
