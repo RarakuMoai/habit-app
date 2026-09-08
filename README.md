@@ -13,16 +13,16 @@ Flutter、Xcode 與 CocoaPods 必須另外安裝。捷徑原始碼保存在
 | 指令 | 模式 | 哪顆 App | 用途 / 特性 |
 |------|------|---------|------------|
 | **`prod`** | release | 兔咪好習慣（正式） | 每天真的用；沿用既有資料，更新不會清空 |
-| **`dev`** | release | 兔咪(測試) | 能脫離電腦獨立跑的測試版；資料獨立 |
-| **`dev debug`** | debug | 兔咪(測試)＊ | 開發用，按 **r** 熱重載／**R** 熱重啟、可一直改一直測 |
+| **`dev`** | debug | 兔咪(測試) | 開發用，按 **r** 熱重載／**R** 熱重啟；資料獨立 |
+| **`dev release`** | release | 兔咪(測試)＊ | 能脫離電腦獨立跑的測試版 |
 
-＊`dev` 和 `dev debug` 是**同一顆**測試 App（同 bundle id），只是 build 模式不同、會互相覆蓋。
-平常開發用 `dev debug`（熱重載最快）；想要一顆不接電腦也能跑的測試版就 `dev`（release）。
+＊`dev` 和 `dev release` 是**同一顆**測試 App（同 bundle id），只是 build 模式不同、會互相覆蓋。
+平常開發用 `dev`；想要一顆不接電腦也能跑的測試版就 `dev release`。
 
 - 手機上只有**兩顆** App（正式 / 測試）並排，圖示與資料都分開。
 - 從任何資料夾都能打（捷徑在 `~/.zshrc`，會自動進專案）；要指定裝置可加參數，例如 `prod -d <裝置名>`。
-- 縮寫對照：`prod` = `flutter run --release --flavor prod`、`dev` = `flutter run --release --flavor dev`、`dev debug` = `flutter run --debug --flavor dev`。
-- 舊寫法 `dev --debug` 仍可用；之後優先用 `dev debug`，比較不容易跟 Flutter mode flag 打架。
+- 縮寫對照：`prod` = `flutter run --release --flavor prod`、`dev` = `flutter run --debug --flavor dev`、`dev release` = `flutter run --release --flavor dev`。
+- 舊寫法 `dev debug`／`dev --debug` 仍可用，與 `dev` 相同；`dev --release` 與 `dev release` 相同。
 - ⚠️ **別再用沒帶 flavor 的 `flutter run`**：它會落在「正式版」那顆（蓋過去）。要測就 `dev`／`dev debug`，要更新正式版才 `prod`。
 
 ## ⚠️ 免費 Apple 帳號：每 7 天要重簽

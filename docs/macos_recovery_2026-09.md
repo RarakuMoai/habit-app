@@ -15,8 +15,9 @@
   `pubspec.lock` 未變更。
 - `~/.zprofile` 加入 Flutter 與 Homebrew 的 PATH；`~/.zshrc` 載入
   `scripts/habit-shell.zsh`。重開終端機生效。
-- 捷徑保持 README 原本行為：`prod` 正式 release、`dev` 測試 release、
-  `dev debug` 測試 debug；也支援舊寫法 `dev --debug`。
+- 初次依舊 README 將 `dev` 恢復成 release；使用者確認預期是可熱重載的
+  debug 後已修正：`prod` 正式 release、`dev` 測試 debug、`dev release` 測試 release。
+  `dev debug`／`dev --debug` 仍相容。
 - 捷徑以 mock Flutter 驗證參數、專案路徑與裝置名稱帶空白的傳遞；
   不允許另帶 `--flavor` 意外改裝另一顆 App。
 - VS Code 已安裝 Dart-Code 的 Flutter／Dart 擴充套件。

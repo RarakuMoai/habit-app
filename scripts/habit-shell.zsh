@@ -11,7 +11,7 @@ _habit_run() (
         return 2
         ;;
       --debug|--release|--profile)
-        print -u2 '模式請使用 prod、dev 或 dev debug。'
+        print -u2 '模式請使用 prod、dev 或 dev release。'
         return 2
         ;;
     esac
@@ -29,10 +29,10 @@ prod() {
 }
 
 dev() {
-  local mode=release
+  local mode=debug
   case "${1:-}" in
     debug|--debug) mode=debug; shift ;;
-    release|--release) shift ;;
+    release|--release) mode=release; shift ;;
   esac
   _habit_run dev "$mode" "$@"
 }
