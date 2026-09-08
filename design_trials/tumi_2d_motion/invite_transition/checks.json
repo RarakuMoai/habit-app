@@ -1,0 +1,39 @@
+{
+  "approved_sources_sha256": {
+    "tumi_sleep.png": "924f84a8bad3726b663cac7a216a538292145f16741cad163a5829986d9a0b3a",
+    "tumi_happy.png": "223090b50c13fe26fd01b4d73208303c2326991243774522ae2ab676ac69649a",
+    "tumi_question.png": "f3ceb3aee8312dcc0cef7516ff84a60f24abc14e4d452dcc3cb71cda55dc460c",
+    "tumi_invite.png": "2395fa2cbfff14ccc9fc1d35d8f94afa4accf74563d6bcab1032783d67e50f9b",
+    "tumi_pop_happy.png": "b3c2d25113ef2c9966c5ac551c2fc2d40378dd440a5700ba06a22226d57eafbd",
+    "tumi_streak.png": "3d1eb5383001d53fa6f4c913db2ff6a1b384ceff2b8ece5ca14348967ba9c48d",
+    "tumi_neutral_front_blink.png": "6b9f2adaf44e7844a3f8d2c56b6751c9f3f8b967dd076073932f2bcd7c23d34b",
+    "tumi_night.png": "db7b4d1d04540faf2aa0d89988e1d5aab7fba0ef816df83215d9830f0da4693e",
+    "tumi_smile.png": "756f30eb771c042e8f9efa71c31e97a6780f1d59285877760bbb42ffafd122e8",
+    "tumi_wake.png": "93a647e6718ae0baf4973bcf52432d438927864dafa1819605f9ef5db0b0e8ce",
+    "tumi_neutral_front.png": "95b81df9721ddf54712a1d8c822e772d8a7e25036ae9ea8b15235d6987aa0f96",
+    "tumi_expect.png": "97d40a94a78ba11ed269166f048cae22cbdc3335d9b069eb35080be6452d8b45",
+    "tumi_sad.png": "9f7bda235359dfef65fa68824eb7f8570d0b36d66636c4871bc72de9ec226f80"
+  },
+  "source_unchanged": true,
+  "atlas": {
+    "tile": 384,
+    "columns": 8,
+    "count": 31
+  },
+  "preview_duration_ms": 4200,
+  "gif_sampling_fps": 25,
+  "not_a_display_fps_benchmark": true,
+  "outside_repair_changed_pixels": {
+    "0": 0,
+    "1": 0
+  },
+  "endpoint_handoff_mean_rgb_difference": {
+    "start_to_progress_0001": 0.31829833984375,
+    "progress_0999_to_end": 0.27954864501953125
+  },
+  "limitations": [
+    "Exact held endpoints draw original images; this alone does not prove seamless handoff.",
+    "Forearm overlap and shoulder shading remain art-review items.",
+    "No new outfit, MI performance, whole-body rig or production integration."
+  ]
+}
