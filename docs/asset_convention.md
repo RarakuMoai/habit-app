@@ -4,7 +4,7 @@
 > 走 CG 差分路線後，所有新增 asset 都照此規範丟。
 > 實際情緒與路徑以 `lib/utils/mascot.dart` 的 `MascotEmotion` 為單一真相來源。
 
-更新日期：2026-07-13
+更新日期：2026-09-08
 
 ---
 
@@ -21,7 +21,7 @@ assets/
       tumi_<emotion>.png
       ...
   scenes/
-    home/                    # 首頁背景與同畫布透明差分
+    home/                    # 首頁四時段完整背景
     timer/
     water/
     weight/
@@ -78,7 +78,7 @@ assets/
 - 透明背景（`transparent background, isolated subject, no background`）
 - 1024×1024 正方形
 - 構圖：兔咪居中，頭頂與下巴留約 8% 邊距
-- 同一光源方向（建議右上 30°）
+- 沿用核准底圖的光源方向，不另訂新打光
 - 同一線條粗細、同一渲染風格（高品質 CG）
 - 嘴巴維持極小符號感；不要張嘴、露齒、說話口型或嘴巴動畫
 
@@ -88,8 +88,14 @@ assets/
 
 新增 asset 時的固定 SOP：
 
-1. 先用 repo skill `tumi-image-variants` 檢查核准底圖並做局部 edit。
+1. 兔咪差分使用 repo skill `tumi-image-variants` 檢查核准底圖並做局部 edit；
+   場景、圖示等其他素材依使用者指定目標製作。
 2. 照規範命名（例：`tumi_smile.png`）放進對應資料夾。
 3. 新增資料夾時更新 `pubspec.yaml`；新增情緒時同步 `MascotEmotion` 與使用情境。
-4. 跑測試並在模擬器／實機驗證身份一致性、透明邊緣與構圖。
-5. 確認後 commit + push
+4. 做與改動相稱的檢查，提供模擬器截圖；實機驗收由使用者本人處理。
+5. 提交與推送遵循 `AGENTS.md`，不在本文件重複規定。
+
+## 未使用素材
+
+目前沒有使用或很可能淘汰的素材，依 [`asset_review/README.md`](../asset_review/README.md)
+查核後移入待審區，保留原路徑與理由。等使用者審核才刪，不因檔案舊或名稱相似就移除。

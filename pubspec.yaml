@@ -125,7 +125,7 @@ flutter:
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
 
-  # 打包字型（roadmap §6 上架前待辦：取代 google_fonts 執行期下載）。
+  # 字型隨 app 打包，不在執行期下載。
   # Nunito = 全域內文/拉丁；Baloo 2 = 數字 display（AppType.digits）。
   # Baloo 2 官方只到 800，程式裡的 w900 由 Flutter 就近取 800。
   fonts:

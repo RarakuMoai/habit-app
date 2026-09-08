@@ -1,4 +1,26 @@
-# 兔咪好習慣 — 我的指令小抄
+# 兔咪好習慣
+
+Flutter 習慣陪伴 app，以 Codex／GPT-6 為主要開發工具。
+
+## 專案入口
+
+- AI 協作規則：[AGENTS.md](AGENTS.md)，依任務查閱詳細規範。
+- 產品現況與既有決策：[docs/roadmap.md](docs/roadmap.md)。
+- 待補素材：[docs/pending_assets.md](docs/pending_assets.md)。
+- 舊素材試聽／預覽與去留審核：[asset_review/README.md](asset_review/README.md)。
+- 公開上架檢查：[docs/prelaunch_audit.md](docs/prelaunch_audit.md)。
+- Mac 恢復紀錄與通知設定：[docs/macos_recovery_2026-09.md](docs/macos_recovery_2026-09.md)。
+
+`lib/` 放程式，`test/` 放測試，`assets/` 放正式素材，`scripts/` 放維護工具。
+`asset_review/` 放待本人審核的舊素材與工具，不隨 app 打包。
+模型選擇與個人工具設定留在 Codex 使用者／任務設定，不放進共用專案規則。
+
+## 保存版本與發布
+
+完成任務並通過相關檢查後，AI 會自動 commit 並 push 開發分支；未完成的實驗不自動提交。
+合併 main 與公開發布另由你確認。Web 部署設定改為手動觸發，合入 main 後生效；
+合入前遠端 main 仍可能使用舊的自動部署設定。
+細節以 [AGENTS.md](AGENTS.md) 為準。
 
 ## 重灌／換電腦後恢復捷徑
 
@@ -9,6 +31,8 @@ Flutter、Xcode 與 CocoaPods 必須另外安裝。捷徑原始碼保存在
 `scripts/habit-shell.zsh`，跟專案一起備份。
 
 ## 🚀 裝到手機（實機）— 三個指令
+
+以下指令由使用者本人操作；AI 的裝置限制見 `AGENTS.md`。
 
 | 指令 | 模式 | 哪顆 App | 用途 / 特性 |
 |------|------|---------|------------|

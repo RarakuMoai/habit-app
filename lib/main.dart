@@ -1375,7 +1375,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         label: tabLabel(context, TabIds.family),
       );
     }
-    // 衣櫃固定分頁：造型/金幣消耗是核心留存迴圈，比照習慣不可停用（roadmap §4）。
+    // 目前衣櫃比照習慣固定顯示；若產品決策調整，需同步功能開關與導覽。
     enabled[TabIds.wardrobe] = _TabItem(
       id: TabIds.wardrobe,
       page: const WardrobePage(),

@@ -1,70 +1,68 @@
-# Codex 專案入口
+# 專案協作規則
 
-保持這份檔案短小。只在任務碰到對應領域時，才讀詳細規則，避免把歷史決策與
-無關限制一次塞進工作上下文。
+以 Codex／GPT-6 為主要開發工具；本檔是專案共用入口。只讀本次任務相關文件，
+不要一次載入所有規則或把舊計畫當成新任務。
 
-## 開始工作
+## 協作方式
 
-- 產品方向、優先順序：讀 `docs/roadmap.md`。程式現況以 repo 為準；roadmap 是策略，
-  不是已完成功能清單。
-- **視覺或體驗要做成什麼樣：直接問使用者，不從文件推導。** 這裡刻意沒有常駐的
-  「品牌升級方向」文件——2026-08-06 移除，因為那份文件只寫了原則沒寫目標，
-  結果是產出一堆使用者感覺不到的微調。目標由使用者當場給，做完用實機截圖給
-  使用者裁決。技術護欄仍以 `docs/engineering_guardrails.md` 為準。
-- 兔咪性格、說話原則：讀 `docs/tumi_character_guide.md`（含「三種聲音」規則）。
-- **調整兔咪的對話或反應行為**（台詞、表情、泡泡、語音、觸發條件、優先度）：
-  先讀 `docs/tumi_dialogue_catalog.md` 的事件總表，**先進表再寫程式**；改完
-  跑 `flutter test test/mascot_test.dart`，沒進表的新情境與違規台詞都會被擋。
-- 修改單位、偏好儲存、音訊、視覺或兔咪素材前：讀
-  `docs/engineering_guardrails.md` 的對應小節。
-- 既有兔咪 PNG/CG 的差分或表情編輯：必須使用 repo skill
-  `tumi-image-variants`，以核准底圖做局部修改。
+- 回覆使用台灣繁體中文；程式識別字、指令與必要原文保留原樣。
+- 以使用者本次明確指示為準；已說清楚的需求直接做，真正缺少產品／視覺決策才問。
+- 產品與視覺目標由使用者決定。`docs/roadmap.md` 記錄現況與既有決策，
+  不代表下一步優先順序；實際功能與數值以程式為準。
+- 小型任務維持最小合理改動，不順手重構或擴大商業邏輯範圍。
 
-## UI / Motion 工程核心規則
+## 依任務讀文件
 
-動 UI、動畫、特效或視覺微調時**一律適用**，不可違反。詳細流程見
-`docs/ui_motion_protocol.md`（開工前讀，那份短）。
+| 任務 | 文件 |
+|---|---|
+| 產品背景、既有決策 | `docs/roadmap.md` |
+| UI、動畫、特效、視覺微調 | `docs/ui_motion_protocol.md`；樣式查 `docs/visual_spec.md` |
+| 單位、儲存、換日、音訊、導覽、i18n、素材整合 | `docs/engineering_guardrails.md` 對應小節 |
+| 兔咪性格、台詞、表情、泡泡、語音、觸發與優先度 | `docs/tumi_character_guide.md`、`docs/tumi_dialogue_catalog.md` |
+| 既有兔咪 PNG／CG 差分 | `.agents/skills/tumi-image-variants/SKILL.md`；資產規格查 `docs/asset_convention.md` |
+| 公開上架 | `docs/prelaunch_audit.md` |
 
-- **先確認真實 production 約束，不要只相信 preview、mock 或孤立的 widget。**
-  必須查明真實 parent layout、實際可用寬高、真實文案（含 l10n），以及
-  `Expanded` / `Flex` / `FittedBox` / `Stack` / `Transform` 這些會改變版面的因素。
-- **Preview 與 test harness 必須重現 production 的尺寸、約束與真實字串。**
-  約束不同就不能拿 preview 的成功證明 production 修好了。
-- **小型 UI 任務走 minimal change**：不主動重構、不擴大範圍、不碰無關的商業邏輯。
-- **視覺規格由使用者決定。** 除非被要求，不要自行設計多套特效讓使用者挑。
-  規格足以實作就直接做。
-- **一次只改一個可驗證的視覺問題。**
-- 開發期只跑相關測試，完整 suite 留到提交前的最後一關。
+兔咪反應變更必須先更新對話目錄的事件總表，再寫程式，並跑
+`flutter test test/mascot_test.dart`。核准兔咪底圖只做局部修改，不重繪整張。
 
-**Two-Failure Root-Cause Rule**
-同一個可觀察的問題連續改兩次仍未真正解決 → **第三次禁止再用 offset、padding、
-alignment、duration、curve、Transform 或任何局部補償做試誤**。必須停止修改，
-改成找根因：重新確認 production 約束、parent/child 版面關係、intrinsic size、
-不同 state 下的尺寸變化、文案長度與 l10n、Expanded/Flex、FittedBox、Stack fit、
-clipping、動畫歸屬、rebuild 邊界、preview 與 production 是否一致。
-找到**能解釋所有症狀**的根因之後才能繼續改。
+## UI／Motion 必守
 
-**Evidence Before Confidence**
-- 不要因為 preview、單一測試或某個數值量測正常就宣稱問題解決了。
-- **宣告「已驗證」時必須同時寫出驗證環境的實際參數**（寬度、文案、state）。
-  「在 140pt 下量測無位移」和「無位移」是兩件事，後者會誤導使用者。
-- 使用者回報實機仍有問題 → **視為假設已被推翻**，優先回頭檢查驗證環境，
-  不要辯護原本的量測結果。
+- 開工先查真實 parent layout、可用寬高、l10n 文案及 state；preview／測試必須
+  重現 production 約束，尤其 Flex、FittedBox、Stack、Transform 與 clipping。
+- 一次處理一個可驗證的視覺問題；規格足以實作就做，不自行生多套方案。
+- **同一症狀連續兩次未解決，第三次前必須找根因**，禁止再調 offset、padding、
+  alignment、duration、curve 或 Transform 補償。根因必須能解釋所有症狀。
+- 宣告驗證時寫出環境、尺寸、真實文案與 state；preview 或單一測試通過不等於
+  production 已修好。使用者說實機仍有問題，優先重查驗證環境與原假設。
+- 視覺結果提供模擬器截圖讓使用者判斷；實機截圖與手感由使用者本人確認。
 
-## 工作流程
+## 檢查與裝置
 
-- 修改後做與風險相稱的檢查；Flutter 程式至少跑 `flutter analyze`，相關測試優先，
-  準備提交前再視改動範圍跑完整 `flutter test`。
-- Codex 禁止對實體 iPhone / iPad 執行安裝、啟動或 `flutter run`（包含有線與無線）；
-  需要執行環境時只使用 Mac 上的 iOS 模擬器，實機驗證由使用者本人處理。
-- 每次 commit 後自動執行 `git push`，不需再詢問使用者；若執行環境要求外部操作
-  授權，依環境規則處理。
-- 不手動執行完工通知腳本。通知交給 Codex CLI 的 `notify` hook，避免重複通知。
-- 對可能變動的外部資訊（版本、價格、規格、政策等）直接查最新官方資料，不靠記憶猜。
+- Flutter 程式變更至少跑 `flutter analyze`；開發時優先相關測試，提交前依改動
+  範圍跑完整 `flutter test`。純文件或工具整理做相應的連結、引用與腳本檢查。
+- 提交前檢查 diff，不混入暫存檔或編譯產物。
+- 不對實體 iPhone／iPad 安裝、啟動或執行 `flutter run`（含有線與無線）；
+  AI 使用 Mac 上的 iOS 模擬器，實機驗證由使用者本人處理。
+- 音訊、啟動耗時與效能需要實機 profile／release 的結論時，清楚列為待本人驗證，
+  不用 debug／模擬器結果代替。
+- 不手動執行完工通知腳本，交給已配置的 Codex notify hook。
+- 可能變動的外部資訊查最新官方來源，不靠記憶猜。
 
-## 文件原則
+## 保存版本與發布
 
-- 長期硬規則才放入口文件；階段任務、實驗方案與一次性 prompt 留在各自文件。
-- 舊計畫保留時必須清楚標示「歷史／已完成」，不得與現行方向並列成有效指令。
-- 發現文件與程式不一致時先指出；可由 repo 證實的現況直接修正，會改變產品方向的
-  選擇再詢問使用者。
+- 任務完成、相關檢查通過後，自動 commit 本次任務的改動，並立即 push 開發分支，
+  不需再詢問。未完成的實驗不自動提交，不混入使用者或其他任務的改動。
+- 已在開發分支就沿用；若目前在 main／master 或 detached HEAD，先建立
+  `codex/<task>` 分支再提交與推送。不要為了備份直接推送 main／master。
+- 合併 main／master、公開發布與部署，只有使用者明確要求或確認後才做；
+  自動保存版本不包含發布授權。Web 部署改為手動觸發，不隨 push 發布。
+- push 失敗時保留本機 commit、說明原因，不 force push 或改寫歷史。
+  環境授權仍依環境規則。
+
+## 文件維護
+
+- 入口只放長期共用規則；詳細規範各有單一來源，以連結引用，避免複製。
+- 歷史／已完成計畫不列成待辦；確定不用且有 Git 歷史的內容可移除。
+- 未使用／疑似淘汰的素材與相關工具依 `asset_review/README.md` 處理：查明引用後
+  移入待審區、記錄原路徑與理由，等使用者審核後才刪。引用不明時只列候選，不搬動。
+- 文件與程式不一致時指出差異並修正可證實的現況；產品方向變更先問使用者。
