@@ -332,72 +332,90 @@ class _RoommateDialogueState extends State<RoommateDialogue>
                                 duration: _reduce
                                     ? Duration.zero
                                     : const Duration(milliseconds: 160),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(
-                                      AppCardStyle.radius,
-                                    ),
-                                    boxShadow: AppShadows.flat,
+                                child: _ReplyPressFeedback(
+                                  key: ValueKey(
+                                    'reply_press_${node.name}_${reply.id}',
                                   ),
-                                  child: OutlinedButton(
-                                    key: ValueKey('roommate_reply_${reply.id}'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppInk.strong,
-                                      disabledForegroundColor: AppInk.soft,
-                                      backgroundColor: AppSurfaces.card,
-                                      side: BorderSide(
-                                        color: widget.accent.withValues(
-                                          alpha: 0.28,
-                                        ),
+                                  enabled: _dialogue.ready && _canPlay,
+                                  reduceMotion: _reduce,
+                                  builder: (states, pressed) => DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(
+                                        AppCardStyle.radius,
                                       ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 20,
-                                      ),
-                                      minimumSize: const Size.fromHeight(64),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          AppCardStyle.radius,
-                                        ),
-                                      ),
+                                      boxShadow: AppShadows.flat,
                                     ),
-                                    onPressed: _dialogue.ready && _canPlay
-                                        ? () {
-                                            if (_dialogue.choose(
-                                              reply,
-                                              expectedNode: node,
-                                              l10n: l,
-                                            )) {
-                                              playHaptic(HapticLevel.selection);
-                                            }
-                                          }
-                                        : null,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.chat_bubble_outline_rounded,
-                                          size: 18,
-                                          color: widget.accent,
-                                        ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Text(
-                                            reply.label,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                    child: OutlinedButton(
+                                      key: ValueKey(
+                                        'roommate_reply_${reply.id}',
+                                      ),
+                                      statesController: states,
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppInk.strong,
+                                        disabledForegroundColor: AppInk.soft,
+                                        backgroundColor: pressed
+                                            ? Color.lerp(
+                                                AppSurfaces.card,
+                                                widget.accent,
+                                                AppPressMotion.tint,
+                                              )
+                                            : AppSurfaces.card,
+                                        side: BorderSide(
+                                          color: widget.accent.withValues(
+                                            alpha: pressed ? 0.55 : 0.28,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Icon(
-                                          reply.next == null
-                                              ? Icons.arrow_forward_rounded
-                                              : Icons.chevron_right_rounded,
-                                          size: 18,
-                                          color: widget.accent,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 20,
                                         ),
-                                      ],
+                                        minimumSize: const Size.fromHeight(64),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            AppCardStyle.radius,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: _dialogue.ready && _canPlay
+                                          ? () {
+                                              if (_dialogue.choose(
+                                                reply,
+                                                expectedNode: node,
+                                                l10n: l,
+                                              )) {
+                                                playHaptic(
+                                                  HapticLevel.selection,
+                                                );
+                                              }
+                                            }
+                                          : null,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.chat_bubble_outline_rounded,
+                                            size: 18,
+                                            color: widget.accent,
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Text(
+                                              reply.label,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Icon(
+                                            reply.next == null
+                                                ? Icons.arrow_forward_rounded
+                                                : Icons.chevron_right_rounded,
+                                            size: 18,
+                                            color: widget.accent,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -495,4 +513,77 @@ class _RoommateDialogueState extends State<RoommateDialogue>
     fontWeight: FontWeight.w600,
     color: AppInk.strong,
   );
+}
+
+/// Only reads the native button's states: no competing gesture recognizer,
+/// extra feedback call, delayed selection or enlarged layout/hit-test bounds.
+class _ReplyPressFeedback extends StatefulWidget {
+  const _ReplyPressFeedback({
+    super.key,
+    required this.enabled,
+    required this.reduceMotion,
+    required this.builder,
+  });
+
+  final bool enabled;
+  final bool reduceMotion;
+  final Widget Function(WidgetStatesController states, bool pressed) builder;
+
+  @override
+  State<_ReplyPressFeedback> createState() => _ReplyPressFeedbackState();
+}
+
+class _ReplyPressFeedbackState extends State<_ReplyPressFeedback> {
+  late final WidgetStatesController _states;
+  bool _pressed = false;
+  bool _updateQueued = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _states = WidgetStatesController()..addListener(_syncPressed);
+  }
+
+  void _syncPressed() {
+    // ButtonStyleButton may notify while rebuilding its disabled state. Read
+    // the latest value after that frame, never setState during its build.
+    if (_updateQueued) return;
+    _updateQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateQueued = false;
+      if (!mounted) return;
+      final pressed = _states.value.contains(WidgetState.pressed);
+      if (_pressed != pressed) setState(() => _pressed = pressed);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  @override
+  void dispose() {
+    _states.removeListener(_syncPressed);
+    _states.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pressed = widget.enabled && _pressed;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(
+        begin: 1,
+        end: pressed && !widget.reduceMotion ? AppPressMotion.scale : 1,
+      ),
+      duration: widget.reduceMotion || !widget.enabled
+          ? Duration.zero
+          : pressed
+          ? AppPressMotion.down
+          : AppPressMotion.release,
+      curve: AppPressMotion.curve,
+      // Paint within the original hit area; edge touches still belong to the
+      // same button while its visual contracts under the finger.
+      child: widget.builder(_states, pressed),
+      builder: (_, scale, child) =>
+          Transform.scale(scale: scale, transformHitTests: false, child: child),
+    );
+  }
 }

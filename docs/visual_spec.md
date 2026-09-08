@@ -70,6 +70,7 @@
 
 ## 動效
 
+- 室友對話選項的按壓回饋採 `AppPressMotion`：輕微內縮、底色與描邊回饋，版面與原生觸控範圍不縮小。只在按住時呈現，取消不選取；降低動態保留顏色、取消縮放。目前只套用於室友選項，尚未擴及所有按鈕。
 - 打卡勾 = 300ms easeOutCubic 路徑描繪（`_CheckDrawPainter`），列表載入不重播。
   時長是共用常數 `kCheckDrawDuration`（[`completion_timing.dart`](../lib/pages/home/completion_timing.dart)），
   卡片與編排器都只 import，**不要兩邊各寫一個數字**——勾勾畫完那一刻就是衝擊點。

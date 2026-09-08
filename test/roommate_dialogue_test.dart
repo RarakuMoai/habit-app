@@ -93,6 +93,54 @@ Future<void> _dispose(WidgetTester tester) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  testWidgets('選項按住有回饋；取消不換句、不改版面；降低動態不縮放', (tester) async {
+    _surface(tester, const Size(430, 932));
+    final voice = _Voice();
+    await tester.pumpWidget(_app(voice));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('roommate_subtitle')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    final feedback = find.byKey(const ValueKey('reply_press_hello_continue'));
+    final size = tester.getSize(feedback);
+    final position = tester.getTopLeft(feedback);
+    Transform transform() => tester.widget<Transform>(
+      find.descendant(of: feedback, matching: find.byType(Transform)).first,
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(_reply('continue')),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(transform().transform.storage[0], lessThan(1));
+    expect(transform().transformHitTests, isFalse);
+    expect(tester.getSize(feedback), size);
+    expect(tester.getTopLeft(feedback), position);
+    expect(voice.cues, hasLength(1), reason: '按住不提早選取或額外發聲');
+    await gesture.cancel();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(transform().transform.storage[0], 1);
+    expect(_reply('begin'), findsNothing);
+
+    final reducedGesture = await tester.startGesture(
+      tester.getCenter(_reply('continue')),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pump();
+    await tester.pumpWidget(_app(voice, reduced: true));
+    await tester.pump();
+    expect(transform().transform.storage[0], 1);
+    await reducedGesture.up();
+    await tester.pump();
+    expect(_reply('begin'), findsOneWidget);
+    expect(voice.cues, hasLength(2));
+    expect(tester.takeException(), isNull);
+    await _dispose(tester);
+  });
+
   testWidgets('字幕完成才接受選項；連點不能跳兩句；等候不逾時', (tester) async {
     _surface(tester, const Size(430, 932));
     final voice = _Voice();

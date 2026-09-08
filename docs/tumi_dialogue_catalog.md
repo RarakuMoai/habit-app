@@ -97,8 +97,8 @@
 | **遞零食給兔咪** | 報到卡的 CTA。按下 → 零食飛向兔咪（440ms）→ 牠收下彈一下＋歡呼 → 760ms 後關頁，足跡幣動畫接手 | 無台詞，靠動作與音效。零食隨連續天數升級：<7 天 🍪／≥7 天 🥕／里程碑 🎂 | `login_streak_page.dart` | ⬜ 待補零食圖（現用 emoji） |
 | Onboarding | 首次使用的各步驟 | 逐頁提問 ＋ 開場 3 句 ＋ 收尾 | `onboarding_page.dart` | ✅ 現行流程；舊 5 頁改版已否決 |
 | 室友對話 `roommate_beginning` | 首頁「和{name}聊聊」主動開啟；登入演出、載入或排序時不開啟 | MI 語音＋意思字幕；「一起開始／先坐一下」分支，後者可追問想家。等待回答不自動消失；結束回原功能 | `widgets/roommate_dialogue.dart`、`utils/roommate_dialogue.dart` | ✅ v1；無獎勵、無資料寫入 |
-| 2D 抬手／換裝技術試驗 | 僅獨立 debug entry 的播放／逐格控制，正式 App 無入口 | 中性臉、單手抬起再回待機；無台詞、泡泡、語音或獎勵 | `design_trials/tumi_2d_motion/rig/main.dart` | 試驗；未整合正式反應 |
-| 核准中性→邀請銜接樣品 | 僅獨立 debug entry 播放／暫停／拖曳，不影響正式事件 | 依核准起止圖抬手並返回；無台詞、泡泡、語音、換裝或獎勵 | `design_trials/tumi_2d_motion/invite_transition/main.dart` | 美術樣品；非正式動作／幀率實測 |
+| 2D 抬手／換裝技術試驗 | 僅獨立 debug entry 的播放／逐格控制，正式 App 無入口 | 中性臉、單手抬起再回待機；無台詞、泡泡、語音或獎勵 | `design_trials/tumi_2d_motion/rig/main.dart` | 已停止開發，僅保留歷史試驗 |
+| 核准中性→邀請銜接樣品 | 僅獨立 debug entry 播放／暫停／拖曳，不影響正式事件 | 依核准起止圖抬手並返回；無台詞、泡泡、語音、換裝或獎勵 | `design_trials/tumi_2d_motion/invite_transition/main.dart` | 使用者否決，已停止開發；歷史樣品 |
 | 衣櫃穿上造型 | 套用造型成功 | 「嗯...這套很好看。」 | `wardrobe_page.dart` | ✅ |
 | 衣櫃購買造型 | 購買成功 | 「謝謝你...我很喜歡。」 | `wardrobe_page.dart` | ✅ |
 | 回憶繪本 | 4 個事件各解鎖一次：第一個習慣／首次全完成／連續 7 天／離開 ≥7 天回來 | 每事件 3–4 句兔咪回憶旁白 | `story_catalog.dart` | ⬜ 待補正式回憶圖 |
