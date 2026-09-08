@@ -56,6 +56,7 @@ const bool _kHomeMascotFusionEnabled = bool.fromEnvironment(
 
 class HomePage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
+  final ValueChanged<bool>? onRoommateModeChanged;
   final bool waterHabitAutoComplete;
   final bool weightHabitAutoComplete;
   final Future<void> Function(bool)? onWaterHabitToggled;
@@ -71,6 +72,7 @@ class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     this.onSettingsChanged,
+    this.onRoommateModeChanged,
     this.waterHabitAutoComplete = false,
     this.weightHabitAutoComplete = false,
     this.onWaterHabitToggled,
@@ -933,11 +935,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _mascotAwakened = true;
       _roommateOpen = true;
     });
+    widget.onRoommateModeChanged?.call(true);
   }
 
   void _closeRoommate() {
     if (!_roommateOpen || !mounted) return;
     setState(() => _roommateOpen = false);
+    widget.onRoommateModeChanged?.call(false);
     _markSceneActive();
   }
 
@@ -2845,6 +2849,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       interactionBuilder: _roommateOpen
           ? (sceneHeight) => RoommateDialogue(
               sceneHeight: sceneHeight,
+              roomFadeHeight: math.max(
+                0,
+                roomSceneHeight(MediaQuery.of(context).size.width) -
+                    MediaQuery.of(context).padding.top -
+                    kSceneAppBarHeight -
+                    sceneHeight,
+              ),
               accent: colors.accent,
               onClose: _closeRoommate,
             )

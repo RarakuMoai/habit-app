@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/main.dart';
+import 'package:habit_app/pages/home/room_metrics.dart';
 import 'package:habit_app/pages/home_page.dart';
 import 'package:habit_app/utils/audio_settings_service.dart';
 import 'package:habit_app/utils/logical_date.dart';
@@ -53,7 +54,6 @@ Widget _app(
         padding: const EdgeInsets.only(top: 59, bottom: 34),
       ),
       child: Scaffold(
-        bottomNavigationBar: const SafeArea(child: SizedBox(height: 64)),
         body: Scaffold(
           appBar: AppBar(),
           body: TickerMode(
@@ -193,58 +193,94 @@ void main() {
     });
   }
 
-  testWidgets('真正 MainPage 首頁進出不改習慣，reload 正確關閉對話', (tester) async {
-    _surface(tester, const Size(430, 932));
-    final today = LogicalDate.stringFor(
-      DateTime.now(),
-      LogicalDate.defaultHour,
-    );
-    final saved = jsonEncode([
-      {
-        'id': 'read',
-        'name': '讀兩頁書',
-        'createdAt': today,
-        'frequency': 'daily',
-        'done': false,
-      },
-    ]);
-    SharedPreferences.setMockInitialValues({
-      'last_open_date': today,
-      'habits': saved,
-      'sfx_muted': true,
-      'coin_last_login_date': today,
+  for (final size in [const Size(430, 932), const Size(375, 667)]) {
+    testWidgets('MainPage $size 導覽恢復、背景接縫與資料保留', (tester) async {
+      _surface(tester, size);
+      tester.view.padding = FakeViewPadding(
+        top: size.width == 375 ? 20 : 59,
+        bottom: size.width == 375 ? 0 : 34,
+      );
+      addTearDown(tester.view.resetPadding);
+      final today = LogicalDate.stringFor(
+        DateTime.now(),
+        LogicalDate.defaultHour,
+      );
+      final saved = jsonEncode([
+        {
+          'id': 'read',
+          'name': '讀兩頁書',
+          'createdAt': today,
+          'frequency': 'daily',
+          'done': false,
+        },
+      ]);
+      SharedPreferences.setMockInitialValues({
+        'last_open_date': today,
+        'habits': saved,
+        'sfx_muted': true,
+        'coin_last_login_date': today,
+      });
+      StoryEvents.debugCatalog = [];
+      addTearDown(() => StoryEvents.debugCatalog = null);
+      AudioSettingsService.sfxMuted.value = true;
+      await tester.pumpWidget(const MyApp(startAtHome: true));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final home = tester.state(find.byType(HomePage)) as dynamic;
+      await home.loadHabits();
+      await tester.pump();
+      final original = find.text('讀兩頁書').evaluate().single;
+      final nav = find.byKey(const ValueKey('main_navigation'));
+      final originalNav = nav.evaluate().single;
+      await tester.tap(find.byKey(const ValueKey('roommate_entry')));
+      await tester.pump();
+      expect(find.byType(RoommateDialogue), findsOneWidget);
+      final dialogue = tester.widget<RoommateDialogue>(
+        find.byType(RoommateDialogue),
+      );
+      final panelTop =
+          tester
+              .getTopLeft(find.byKey(const ValueKey('roommate_dialogue')))
+              .dy +
+          dialogue.sceneHeight;
+      expect(
+        panelTop + dialogue.roomFadeHeight,
+        closeTo(roomSceneHeight(size.width), 0.1),
+        reason: '漸層必須在背景圖的真實底緣成為不透明，不能留下水平接縫',
+      );
+      expect(nav, findsNothing);
+      expect(
+        find.byKey(const ValueKey('main_navigation'), skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.text('讀兩頁書'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('roommate_exit')));
+      await tester.pump();
+      expect(find.text('讀兩頁書').evaluate().single, same(original));
+      expect(nav.evaluate().single, same(originalNav));
+      await tester.tap(find.byKey(const ValueKey('roommate_entry')));
+      await tester.pump();
+      expect(nav, findsNothing);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.byType(RoommateDialogue), findsNothing);
+      expect(nav, findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('roommate_entry')));
+      await tester.pump();
+      await home.loadHabits();
+      await tester.pump();
+      expect(find.byType(RoommateDialogue), findsNothing);
+      expect(nav, findsOneWidget);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('habits'), saved);
+      expect(tester.takeException(), isNull);
+      await _dispose(tester);
+      AudioSettingsService.sfxMuted.value = false;
     });
-    StoryEvents.debugCatalog = [];
-    addTearDown(() => StoryEvents.debugCatalog = null);
-    AudioSettingsService.sfxMuted.value = true;
-    await tester.pumpWidget(const MyApp(startAtHome: true));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 2));
-    for (var i = 0; i < 15; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-    final home = tester.state(find.byType(HomePage)) as dynamic;
-    await home.loadHabits();
-    await tester.pump();
-    final original = find.text('讀兩頁書').evaluate().single;
-    await tester.tap(find.byKey(const ValueKey('roommate_entry')));
-    await tester.pump();
-    expect(find.byType(RoommateDialogue), findsOneWidget);
-    expect(find.text('讀兩頁書'), findsNothing);
-    await tester.tap(find.byTooltip('稍後再聊'));
-    await tester.pump();
-    expect(find.text('讀兩頁書').evaluate().single, same(original));
-    await tester.tap(find.byKey(const ValueKey('roommate_entry')));
-    await tester.pump();
-    await home.loadHabits();
-    await tester.pump();
-    expect(find.byType(RoommateDialogue), findsNothing);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('habits'), saved);
-    expect(tester.takeException(), isNull);
-    await _dispose(tester);
-    AudioSettingsService.sfxMuted.value = false;
-  });
+  }
 
   test('控制器拒绝偽造選項與上一句 callback', () async {
     final l = await AppLocalizations.delegate.load(const Locale('zh'));

@@ -18,6 +18,9 @@ import 'scene_rooms.dart';
 /// 不另猜螢幕比例。全域 persona 與原功能頁保留，這裡只持有自己的演出與 MI。
 class RoommateDialogue extends StatefulWidget {
   final double sceneHeight;
+
+  /// 房間底圖在選項區內還剩多少高度；漸層必須在底圖結束前成為不透明。
+  final double roomFadeHeight;
   final Color accent;
   final VoidCallback onClose;
   final RoommateVoiceOutput? voice;
@@ -25,6 +28,7 @@ class RoommateDialogue extends StatefulWidget {
   const RoommateDialogue({
     super.key,
     required this.sceneHeight,
+    this.roomFadeHeight = 0,
     required this.accent,
     required this.onClose,
     this.voice,
@@ -235,128 +239,178 @@ class _RoommateDialogueState extends State<RoommateDialogue>
                   child: child,
                 ),
               ),
-              child: Material(
-                color: const Color(0xFFFFFDF9),
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(AppCardStyle.sheetRadius),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              size: 18,
-                              color: widget.accent,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                l.rdTitle,
-                                style: const TextStyle(
-                                  color: AppInk.strong,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: l.rdLater,
-                              onPressed: widget.onClose,
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: AppInk.soft,
-                                size: 20,
-                              ),
-                            ),
-                          ],
+              child: _replyPanel(l, node, replies),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 回應是房間前的獨立卡片；底部柔和漸層承接房間背景，沒有整片面板邊框。
+  /// 選項區在足夠空間時置中、字級放大時捲動，離開入口不跟著捲走。
+  Widget _replyPanel(
+    AppLocalizations l,
+    RoommateNode node,
+    List<RoommateReply> replies,
+  ) {
+    return LayoutBuilder(
+      builder: (_, panelConstraints) => DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppSurfaces.card.withValues(alpha: 0), AppSurfaces.card],
+            stops: [
+              0,
+              (widget.roomFadeHeight / panelConstraints.maxHeight).clamp(0, 1),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          child: Column(
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: (constraints.maxHeight - 32).clamp(
+                            0,
+                            double.infinity,
+                          ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              l.rdYourReply,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppInk.soft,
+                            Semantics(
+                              header: true,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Divider(
+                                      color: widget.accent.withValues(
+                                        alpha: 0.24,
+                                      ),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    flex: 3,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: Text(
+                                        l.rdYourReply,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: AppInk.soft,
+                                          letterSpacing: 1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Divider(
+                                      color: widget.accent.withValues(
+                                        alpha: 0.24,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 20),
                             for (final reply in replies) ...[
                               AnimatedOpacity(
-                                opacity: _dialogue.ready ? 1 : 0.48,
+                                opacity: _dialogue.ready ? 1 : 0.64,
                                 duration: _reduce
                                     ? Duration.zero
                                     : const Duration(milliseconds: 160),
-                                child: OutlinedButton(
-                                  key: ValueKey('roommate_reply_${reply.id}'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppInk.strong,
-                                    disabledForegroundColor: AppInk.soft,
-                                    backgroundColor: widget.accent.withValues(
-                                      alpha: 0.06,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(
+                                      AppCardStyle.radius,
                                     ),
-                                    side: BorderSide(
-                                      color: widget.accent.withValues(
-                                        alpha: 0.22,
-                                      ),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 16,
-                                    ),
-                                    minimumSize: const Size.fromHeight(56),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        AppCardStyle.radius,
-                                      ),
-                                    ),
+                                    boxShadow: AppShadows.flat,
                                   ),
-                                  onPressed: _dialogue.ready && _canPlay
-                                      ? () {
-                                          if (_dialogue.choose(
-                                            reply,
-                                            expectedNode: node,
-                                            l10n: l,
-                                          )) {
-                                            playHaptic(HapticLevel.selection);
-                                          }
-                                        }
-                                      : null,
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          reply.label,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                  child: OutlinedButton(
+                                    key: ValueKey('roommate_reply_${reply.id}'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppInk.strong,
+                                      disabledForegroundColor: AppInk.soft,
+                                      backgroundColor: AppSurfaces.card,
+                                      side: BorderSide(
+                                        color: widget.accent.withValues(
+                                          alpha: 0.28,
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
-                                      Icon(
-                                        reply.next == null
-                                            ? Icons.arrow_forward_rounded
-                                            : Icons.chevron_right_rounded,
-                                        size: 18,
-                                        color: widget.accent,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 20,
                                       ),
-                                    ],
+                                      minimumSize: const Size.fromHeight(64),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          AppCardStyle.radius,
+                                        ),
+                                      ),
+                                    ),
+                                    onPressed: _dialogue.ready && _canPlay
+                                        ? () {
+                                            if (_dialogue.choose(
+                                              reply,
+                                              expectedNode: node,
+                                              l10n: l,
+                                            )) {
+                                              playHaptic(HapticLevel.selection);
+                                            }
+                                          }
+                                        : null,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.chat_bubble_outline_rounded,
+                                          size: 18,
+                                          color: widget.accent,
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Text(
+                                            reply.label,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Icon(
+                                          reply.next == null
+                                              ? Icons.arrow_forward_rounded
+                                              : Icons.chevron_right_rounded,
+                                          size: 18,
+                                          color: widget.accent,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 14),
                             ],
-                            if (!_dialogue.ready)
-                              Text(
+                            // 留住提示的高度，字幕補全時選項不會上下挪動。
+                            Visibility(
+                              visible: !_dialogue.ready,
+                              maintainState: true,
+                              maintainAnimation: true,
+                              maintainSize: true,
+                              child: Text(
                                 l.rdRevealHint,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
@@ -364,16 +418,27 @@ class _RoommateDialogueState extends State<RoommateDialogue>
                                   color: AppInk.soft,
                                 ),
                               ),
+                            ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
-            ),
+              TextButton.icon(
+                key: const ValueKey('roommate_exit'),
+                onPressed: widget.onClose,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppInk.soft,
+                  minimumSize: const Size(48, 48),
+                ),
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: Text(l.rdLater),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

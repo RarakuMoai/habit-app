@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -537,6 +538,30 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   int _currentIndex = 0;
+  bool _roommateMode = false;
+  int _roommateModeRevision = 0;
+
+  void _onRoommateModeChanged(bool active) {
+    final revision = ++_roommateModeRevision;
+    void apply() {
+      if (!mounted ||
+          revision != _roommateModeRevision ||
+          _roommateMode == active) {
+        return;
+      }
+      setState(() => _roommateMode = active);
+    }
+
+    // 換日的 didUpdateWidget 會關閉對話，等這幀完成才更新父 Scaffold。
+    // revision 防止延後的關閉覆蓋使用者後來的新操作。
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+    } else {
+      apply();
+    }
+  }
+
   bool _waterEnabled = false;
   bool _timerEnabled = true;
   bool _weightTrackingEnabled = false;
@@ -1320,6 +1345,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         id: TabIds.habit,
         page: HomePage(
           onSettingsChanged: _loadSettings,
+          onRoommateModeChanged: _onRoommateModeChanged,
           waterHabitAutoComplete: _waterGoalReached,
           weightHabitAutoComplete: _weightHabitAutoComplete,
           onWaterHabitToggled: _handleWaterHabitToggle,
@@ -1466,10 +1492,14 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
             ),
         ],
       ),
-      bottomNavigationBar: _AdaptiveBottomNav(
-        tabs: tabs,
-        currentIndex: _currentIndex,
-        onTap: (index) => _onTabTapped(tabs, index),
+      bottomNavigationBar: Offstage(
+        offstage: _roommateMode && tabs[_currentIndex].id == TabIds.habit,
+        child: _AdaptiveBottomNav(
+          key: const ValueKey('main_navigation'),
+          tabs: tabs,
+          currentIndex: _currentIndex,
+          onTap: (index) => _onTabTapped(tabs, index),
+        ),
       ),
     );
   }
@@ -1497,6 +1527,7 @@ const double _kSingleRowNavHeight = 72;
 // 底欄用淡暖毛玻璃收邊；選中態靠低調膠囊承接彩色貼紙 icon。
 class _AdaptiveBottomNav extends StatefulWidget {
   const _AdaptiveBottomNav({
+    super.key,
     required this.tabs,
     required this.currentIndex,
     required this.onTap,
