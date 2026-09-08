@@ -62,5 +62,4 @@
 - 合併 main 與公開部署需使用者明確要求或確認；完成任務後自動 commit／push
   開發分支只保存版本，不代表發布授權。
 - GitHub Pages 的 `.github/workflows/deploy.yml` 改為 `workflow_dispatch` 手動觸發。
-  此設定需合入 main 才會取代遠端 main 的舊自動部署設定。
   執行部署前確認目標分支與版本，不在一般開發分支 push 時執行。
