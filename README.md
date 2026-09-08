@@ -1,5 +1,13 @@
 # 兔咪好習慣 — 我的指令小抄
 
+## 重灌／換電腦後恢復捷徑
+
+在專案資料夾執行 `bash scripts/setup-mac-shell.sh`，再重開終端機。
+它會把 `prod`／`dev` 加回 `~/.zshrc`，並設定 Homebrew 與
+`~/development/flutter/bin` 的 PATH；既有設定若有修改會先備份。
+Flutter、Xcode 與 CocoaPods 必須另外安裝。捷徑原始碼保存在
+`scripts/habit-shell.zsh`，跟專案一起備份。
+
 ## 🚀 裝到手機（實機）— 三個指令
 
 | 指令 | 模式 | 哪顆 App | 用途 / 特性 |
