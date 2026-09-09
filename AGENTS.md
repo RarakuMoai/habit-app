@@ -27,6 +27,7 @@
 | 單位、儲存、換日、音訊、導覽、i18n、素材整合 | `docs/engineering_guardrails.md` 對應小節 |
 | 兔咪性格、台詞、表情、泡泡、語音、觸發與優先度 | `docs/tumi_character_guide.md`、`docs/tumi_dialogue_catalog.md` |
 | 既有兔咪 PNG／CG 差分 | `.agents/skills/tumi-image-variants/SKILL.md`；資產規格查 `docs/asset_convention.md` |
+| 網頁圖片保存、瀏覽器下載／儲存視窗排查 | `docs/browser_image_download.md` |
 | 公開上架 | `docs/prelaunch_audit.md` |
 
 兔咪反應變更必須先更新對話目錄的事件總表，再寫程式，並跑
@@ -54,6 +55,7 @@
   不用 debug／模擬器結果代替。
 - 不手動執行完工通知腳本，交給已配置的 Codex notify hook。
 - 可能變動的外部資訊查最新官方來源，不靠記憶猜。
+- 電腦／瀏覽器操作首次出現結果不符或卡住時，先截圖並更新介面狀態，確認視窗、焦點與選取位置再操作；不盲目重試或先歸因於權限。下載以實際檔案可解碼為完成依據，詳細流程依上表文件。
 
 ## 保存版本與發布
 
