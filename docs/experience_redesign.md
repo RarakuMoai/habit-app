@@ -96,12 +96,32 @@ python3 scripts/review/build_experience_comparison.py /tmp/tumi-redesign-review
 
 ## 本人試用與選擇
 
-在改版工作目錄啟動 dev 版本；使用者自行執行實機安裝及操作。AI 不對實體裝置啟動 App。
+使用獨立的 `redesign` iOS flavor 安裝 **release** 測試版，主畫面名稱為「兔咪新體驗」。
+Bundle ID 是 `com.yayoi991331.habitapp.redesign`，與正式版 `.habitapp`、
+舊測試版 `.habitapp.dev` 不同，可並存且從獨立的新資料開始；不匯入或覆蓋原版資料。
+這是本機裝置測試，不是 App Store／TestFlight 發布。
+
+接上並解鎖 iPhone，在改版工作目錄由使用者本人執行下列指令；多個裝置時選自己的 iPhone。
+AI 不對實體裝置安裝或啟動 App。
 
 ```sh
 cd /Users/raraku/habit-app-redesign
-flutter run --flavor dev
+flutter run --release --flavor redesign -t lib/main.dart
 ```
+
+不要使用既有 `prod`／`dev release` 快捷指令安裝本次候選；那些仍指定原本的 App 身分，
+而且 shell 快捷指令可能固定回到原工作目錄。新 flavor 的 Debug／Profile／Release 均使用
+獨立 ID；一般 Xcode Run 預設 Debug，release 試用請使用上述完整命令。
+新 App ID 的裝置簽署由 Xcode 的開發團隊設定處理；若出現 provisioning 錯誤，保留完整錯誤
+再排查，不刪原 App 或變更舊版 ID。
+
+2026-09-10 已完成 `flutter build ios --release --flavor redesign` 的簽署建置，
+核對實際產物的名稱、Bundle ID、簽署 application identifier，並通過
+`codesign --verify --deep --strict`。三種新版配置的 ID 均獨立，原有配置的 build settings
+逐項比對未變。沒有安裝／啟動實體裝置；release 實機體驗仍待本人驗收。
+
+設定方式依 [Flutter 官方 iOS flavors 文件](https://docs.flutter.dev/deployment/flavors-ios)，
+新增 shared scheme、三種 build configurations 與 Podfile 對應。
 
 優先走「新增／完成習慣 → 開始／暫停計時 → 加水與復原 → 記體重 → 家庭任務
 → 換裝／試聽 → 回顧」一整圈。觀察主操作是否更容易找到、字是否好讀、完成回饋
