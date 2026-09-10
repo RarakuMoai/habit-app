@@ -27,6 +27,7 @@ Do not redraw the whole image. Local edit only. 不重繪，只局部修改。
 6. Avoid full repainting, style reinterpretation, new character design, new outfit, new props, background changes, fake mouth overlays, fake blink overlays, or extra facial features unless explicitly requested.
 7. Prefer a mask when the available image-editing path supports one. If no mask is available, specify the changed region precisely and ask the model to preserve all other areas as much as possible.
 8. Save outputs non-destructively with a variant filename. Do not overwrite the approved base unless the user explicitly asks.
+9. For clothing generation or lower-body clothing edits, include the fixed clothing prompt in [asset_convention.md](../../../docs/asset_convention.md#服裝下半身固定-prompt). The user stopped the unclothed lower-abdomen trials on 2026-09-10: keep the approved unclothed base, and address sagging folds or heavy crotch shadows on the outfit only. Do not resume the rejected base edits or treat them as awaiting approval.
 
 ## Prompt Template
 
