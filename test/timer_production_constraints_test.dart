@@ -34,6 +34,7 @@ Widget _productionApp(Size size, String language) {
     builder: (context, child) => MediaQuery(
       data: MediaQueryData(
         size: size,
+        viewInsets: MediaQuery.viewInsetsOf(context),
         padding: EdgeInsets.only(top: top, bottom: bottom),
         viewPadding: EdgeInsets.only(top: top, bottom: bottom),
         textScaler: const TextScaler.linear(1.3),
@@ -235,9 +236,14 @@ void main() {
             final speed = tester.getRect(
               find.byKey(const ValueKey('jog-bpm-control')),
             );
+            final settings = tester.getRect(
+              find.byKey(const ValueKey('timer-settings-action')),
+            );
+            expect(speed.center.dy, closeTo(settings.center.dy, 0.5));
+            expect(speed.right, lessThan(settings.left));
             if (room) {
-              expect(speed.left, closeTo(primary.left, 0.5));
-              expect(speed.right, closeTo(primary.right, 0.5));
+              expect(primary.top, closeTo(initialPrimary.top, 0.5));
+              expect(primary.bottom, closeTo(initialPrimary.bottom, 0.5));
             }
             for (final id in ['slower', 'faster']) {
               expect(
@@ -289,6 +295,103 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+
+  for (final language in ['zh', 'en']) {
+    for (final size in [const Size(320, 667), const Size(430, 932)]) {
+      testWidgets('${size.width.toInt()} $language BPM 精準輸入、範圍驗證與取消，鍵盤不遮確認', (
+        tester,
+      ) async {
+        SharedPreferences.setMockInitialValues({
+          PrefsKeys.exerciseSubMode: 'jog',
+        });
+        await load(tester, size, language, size.width == 430);
+        await switchMode(tester, 'exercise');
+        final prefs = await SharedPreferences.getInstance();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(TimerModeFrame)),
+        );
+        final edit = find.byKey(const ValueKey('jog-bpm-edit'));
+        await tester.ensureVisible(edit);
+        await tester.tap(edit);
+        await tester.pumpAndSettle();
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        addTearDown(tester.view.resetViewInsets);
+        // Dialog animates its padding as the native keyboard changes insets.
+        await tester.pumpAndSettle();
+        final input = find.byKey(const ValueKey('jog-bpm-input'));
+        final save = find.byKey(const ValueKey('jog-bpm-save'));
+        await tester.enterText(input, '241');
+        await tester.tap(save);
+        await tester.pump();
+        expect(
+          find.text(l10n.valRangeWithUnit(30, 240, 'BPM')),
+          findsOneWidget,
+        );
+        expect(save.hitTestable(), findsOneWidget);
+        expect(
+          tester.getRect(save).bottom,
+          lessThanOrEqualTo(size.height - 300),
+        );
+        expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), isNull);
+        await tester.enterText(input, '160');
+        await tester.tap(find.text(l10n.commonCancel));
+        await tester.pumpAndSettle();
+        expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), isNull);
+        tester.view.resetViewInsets();
+        await tester.pump();
+        await tester.ensureVisible(edit);
+        await tester.tap(edit);
+        await tester.pumpAndSettle();
+        await tester.enterText(input, '200');
+        // Keep the keyboard open while confirming. On the real page it switches
+        // a room layout to a summary and unmounts the original header control.
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pumpAndSettle();
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), 200);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+  }
+
+  testWidgets('BPM 標題膠囊長按連發、放開停止且上下限維持30到240', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.exerciseSubMode: 'jog',
+      PrefsKeys.exerciseBpm('jog'): 237,
+    });
+    await load(tester, const Size(430, 932), 'zh', true);
+    await switchMode(tester, 'exercise');
+    final prefs = await SharedPreferences.getInstance();
+    final faster = find.byKey(const ValueKey('jog-bpm-faster'));
+    final touch = await tester.startGesture(tester.getCenter(faster));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 360));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 110));
+    }
+    await touch.up();
+    await tester.pump();
+    expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), 240);
+    final slower = find.byKey(const ValueKey('jog-bpm-slower'));
+    await tester.tap(slower);
+    await tester.pump();
+    expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), 239);
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), 239);
+    await tester.tap(find.byKey(const ValueKey('jog-bpm-edit')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('jog-bpm-input')), '30');
+    await tester.tap(find.byKey(const ValueKey('jog-bpm-save')));
+    await tester.pumpAndSettle();
+    await tester.tap(slower);
+    await tester.pump();
+    expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), 30);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('430 收合超慢跑即時 BPM 與五種運動快選均在可見區', (tester) async {
     SharedPreferences.setMockInitialValues({PrefsKeys.exerciseSubMode: 'jog'});
@@ -463,7 +566,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
-  testWidgets('320 英文大字超慢跑準備與運動中，BPM 操作固定 48pt 且保留即時調整', (tester) async {
+  testWidgets('320 英文大字超慢跑準備與運動中，BPM 操作固定 44pt 且保留即時調整', (tester) async {
     SharedPreferences.setMockInitialValues({PrefsKeys.exerciseSubMode: 'jog'});
     await load(tester, const Size(320, 667), 'en', false);
     await switchMode(tester, 'exercise');
@@ -472,8 +575,8 @@ void main() {
     for (final phase in ['idle', 'work']) {
       await tester.ensureVisible(faster);
       await tester.pump();
-      expect(tester.getSize(faster), const Size(48, 48));
-      expect(tester.getSize(slower), const Size(48, 48));
+      expect(tester.getSize(faster), const Size(44, 44));
+      expect(tester.getSize(slower), const Size(44, 44));
       final prefs = await SharedPreferences.getInstance();
       final before = prefs.getInt(PrefsKeys.exerciseBpm('jog')) ?? 180;
       await tester.tap(faster);
@@ -486,16 +589,16 @@ void main() {
         await tester.tap(primary);
         await tester.pump(const Duration(milliseconds: 100));
         for (var i = 0; i < 3; i++) {
-          final status = tester.widget<TimerStatusPill>(
-            find.byType(TimerStatusPill),
-          );
+          final status =
+              tester.widget<TimerModeFrame>(find.byType(TimerModeFrame)).status
+                  as TimerStatusPill;
           if (status.stateKey.toString().contains('work')) break;
           await tester.tap(find.byIcon(Icons.skip_next_rounded).hitTestable());
           await tester.pump(const Duration(milliseconds: 100));
         }
         expect(
-          tester
-              .widget<TimerStatusPill>(find.byType(TimerStatusPill))
+          (tester.widget<TimerModeFrame>(find.byType(TimerModeFrame)).status
+                  as TimerStatusPill)
               .stateKey
               .toString(),
           contains('work'),

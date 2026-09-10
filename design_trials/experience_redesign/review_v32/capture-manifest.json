@@ -1,0 +1,158 @@
+{
+  "baseline": "6d79c63",
+  "branch": "codex/experience-redesign",
+  "environment": "Tumi Experience Review / iPhone 14 Pro Max / iOS 26.5 / redesign debug",
+  "logical_size": [
+    430,
+    932
+  ],
+  "locale": "zh",
+  "text_scale": 1.0,
+  "scene_hour": 10,
+  "reduced_motion": false,
+  "glass": true,
+  "fixture": "Synthetic in-memory records; notification permission and jog sound excluded",
+  "capture": {
+    "device": "1896C555-F577-4433-A53D-6672B15E82C9",
+    "test": "integration_test/jog_bpm_review_test.dart",
+    "flavor": "redesign",
+    "glass": true,
+    "files": [
+      "exercise-tabata-compact.png",
+      "exercise-jog-compact.png",
+      "jog-compact-step.png",
+      "jog-compact-editor.png",
+      "jog-compact-precise.png",
+      "jog-compact-preparing.png",
+      "jog-compact-running.png",
+      "jog-running-adjusted.png",
+      "jog-compact-paused.png",
+      "exercise-jog-expanded.png",
+      "jog-expanded-editor.png",
+      "jog-expanded-running.png",
+      "jog-expanded-paused.png"
+    ],
+    "test_exit_code": 0,
+    "capture_error": null,
+    "exit_code": 0
+  },
+  "images": [
+    {
+      "path": "after/exercise-tabata-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "b68094fc0625fee2dd5dac47944ac5e459454e9e097b2f0ad49f670f298e50ed",
+      "export_sha256": "75b3f5dd2878da647c6f5edd8fa8d56c3ef2056f39bac6a75c52b9551b34875e"
+    },
+    {
+      "path": "after/exercise-jog-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "a2e562650b1f492ef3fb75b0638d9fd4764494e6c66079a1aca9cec7c78c5254",
+      "export_sha256": "bdcc931f4ba205c39ecdc0e74b7b198daefd09388ca1d16f79f00ce0f623b86a"
+    },
+    {
+      "path": "after/jog-compact-step.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "2e413aa266ba724f51c767f536bff8c25796b80fb58ddbca3517c0107d292b4f",
+      "export_sha256": "86fbd7a42ba31920a78c73adf38ba76a513b698c0d216a60f7172507dbcd288d"
+    },
+    {
+      "path": "after/jog-compact-editor.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "cb617d807fa57a82a7509b27c1a51bd32647f2d7849adad8783b45c8b4fa2958",
+      "export_sha256": "b5ef26c29c1ea0c4c1294d5f75dafc7e800695d1b433cd9676307d57befc671c"
+    },
+    {
+      "path": "after/jog-compact-precise.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "6ee693956ae6ebda57599cd1a8d45d9cbfb1751e7e7cdaba1aa7ab3db4ceacc3",
+      "export_sha256": "7abc5bf5a5720ef50e08f198c236ffe22127d7ef1d289eec016b68b85c218b57"
+    },
+    {
+      "path": "after/jog-compact-preparing.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "d82a025c91601f9cc7432d398669e564f1edba2921753664b1b5397e79cd4d51",
+      "export_sha256": "13a98c63e3b4f834346ef91917dcee0866730108a9a2c1e97e8977372c4d63ec"
+    },
+    {
+      "path": "after/jog-compact-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "53ae1e7d8655c8e3e0cda529512cc3f89e66fa049595bc780b196c01afe63400",
+      "export_sha256": "f4c92cab9ab44ca7d87b29fc683ba666fe98b752bd0eea93fa51e715ace3dd2d"
+    },
+    {
+      "path": "after/jog-running-adjusted.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "0a41d60838be2df9551a31e8d860fca4b616ef22c14955c9df3378e1df9ef7a6",
+      "export_sha256": "cf8ea25b5f6ffab785bc90e29c534febb20b296790f5dbda4ce5795f88a747af"
+    },
+    {
+      "path": "after/jog-compact-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "f8268d051c53181ed9c23301c3df7aa492d42a73d9cd9806d3efb762ada295ea",
+      "export_sha256": "efc329582353931dae20a46a93622129cad7116526e4bcc6ebed9d03ceb273aa"
+    },
+    {
+      "path": "after/exercise-jog-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "9a8d0091ce49315a4654d1621885733d893b84cfc63b15c264d08fa2e23afaa3",
+      "export_sha256": "f43b9585ca9a89a20a591650f256303c89fefb41a288eda0f382c5a465eb9c01"
+    },
+    {
+      "path": "after/jog-expanded-editor.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "e7c4dd433e4915fcded5ecc97cc633e2da709af4ff466f0ef3e0f5ea564cf366",
+      "export_sha256": "c5273d45adee60b952c005af96c55161aafe9c486c217a790f53e1a75efdeaec"
+    },
+    {
+      "path": "after/jog-expanded-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "5854d14ab6fb9ad93e456f237542d8c24c9c27150eeed49ce8f1fb2d384cc58d",
+      "export_sha256": "4876c130f2080c982e156f796f3f45f187003f90707a4d0547cbc343bf824e2b"
+    },
+    {
+      "path": "after/jog-expanded-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "824bd9e963936e588268fb865a685a2f9ced1f53783da5dfcbf29dac8412c785",
+      "export_sha256": "0e3b82cc239d1f79d94d928e628e4e45f1086385fdc2ceb9a0a80d237189a8d1"
+    }
+  ]
+}

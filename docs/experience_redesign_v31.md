@@ -1,5 +1,7 @@
 # V3.1：對齊與運動計時修正
 
+> 本文件記錄 V3.1 當時結果；使用者後續回報 BPM 仍使主操作錯位，最新修正與驗收入口為 [V3.2](experience_redesign_v32.md)。
+
 基準：`6a4551c`（V3）；沿用 `codex/experience-redesign` 與獨立 `redesign` flavor。
 這輪是使用者回報 V3 仍有框內未置中、運動計時排列失衡之後的修正。
 

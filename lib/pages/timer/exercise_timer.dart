@@ -18,6 +18,7 @@ import '../../utils/sfx_service.dart';
 import '../../utils/timer_mutex.dart';
 import '../../utils/wake_guard.dart';
 import '../../widgets/hold_repeat_button.dart';
+import '../../widgets/jog_bpm_control.dart';
 import '../../widgets/scroll_continuation_area.dart';
 import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/timer_mode_frame.dart';
@@ -655,7 +656,20 @@ class ExerciseTimerState extends State<ExerciseTimer>
     }
   }
 
-  // 環內即時改 BPM：擺速每幀即時跟上；音訊循環 debounce 後重生（避免連按狂寫檔）。
+  Future<void> _editJogBpm() async {
+    final result = await showJogBpmEditor(
+      context,
+      value: _cfg.bpm,
+      color: _phaseColor,
+    );
+    // The header itself may unmount when the keyboard switches to summary mode.
+    // Own the result here, but never apply it after this timer leaves the page.
+    if (!mounted || _kind != ExerciseKind.jog || result == null) return;
+    _setBpm(result);
+    playHaptic(HapticLevel.selection);
+  }
+
+  // 即時改 BPM：擺速每幀即時跟上；音訊循環 debounce 後重生（避免連按狂寫檔）。
   void _setBpm(int v) {
     final nv = v.clamp(30, 240);
     if (nv == _cfg.bpm) return;
@@ -917,7 +931,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     if (_idle) {
       final c = _cfg;
       if (_kind == ExerciseKind.jog) {
-        return _l10n.exRingJogIdle(c.bpm, c.work ~/ 60);
+        return _l10n.minutesCount(c.work ~/ 60);
       }
       return c.loop
           ? _l10n.exRingLoop(c.work, c.rounds)
@@ -925,7 +939,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     }
     if (_finished) return _l10n.exRingFinished;
     if (_kind == ExerciseKind.jog && _phase == _ExPhase.work) {
-      return _l10n.exRingJogRunning(_cfg.bpm);
+      return _l10n.exPhaseKeepPace;
     }
     if (_phase == _ExPhase.work || _phase == _ExPhase.rest) {
       return _l10n.setOfTotal(_round, _cfg.rounds);
@@ -976,7 +990,17 @@ class ExerciseTimerState extends State<ExerciseTimer>
         ),
       ),
       quickPicker: _kindPicker(),
-      controlAccessory: _kind == ExerciseKind.jog ? _inlineBpm(color) : null,
+      headerControl: _kind == ExerciseKind.jog
+          ? Semantics(
+              label: _phaseLabel,
+              child: JogBpmControl(
+                value: _cfg.bpm,
+                color: color,
+                onChanged: _setBpm,
+                onEdit: _editJogBpm,
+              ),
+            )
+          : null,
       footer: _todaySessions > 0 ? _statsBar() : null,
       topAction: TimerSettingsAction(
         color: _exMeta[_kind]!.color,
@@ -1238,89 +1262,6 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
-  // 即時 BPM 獨立於面盤，避免縮小面盤時把加減熱區縮到 21pt。
-  Widget _inlineBpm(Color color) {
-    final bpm = _cfg.bpm;
-    Widget button(
-      IconData icon,
-      String label,
-      String id,
-      VoidCallback? onTap,
-    ) => Semantics(
-      label: label,
-      button: true,
-      enabled: onTap != null,
-      child: HoldRepeatButton(
-        key: ValueKey('jog-bpm-$id'),
-        onTrigger: onTap,
-        child: SizedBox.square(
-          dimension: 48,
-          child: Icon(
-            icon,
-            size: 20,
-            color: onTap != null ? color : AppInk.faint,
-          ),
-        ),
-      ),
-    );
-    return DecoratedBox(
-      key: const ValueKey('jog-bpm-control'),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.14)),
-      ),
-      child: SizedBox(
-        height: 48,
-        child: Row(
-          children: [
-            button(
-              Icons.remove_rounded,
-              _l10n.metroSlower,
-              'slower',
-              bpm > 30 ? () => _setBpm(bpm - 1) : null,
-            ),
-            Expanded(
-              child: Semantics(
-                label: '$bpm BPM',
-                child: ExcludeSemantics(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '$bpm',
-                        style: AppType.digits(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: color,
-                        ).copyWith(height: 1),
-                      ),
-                      Text(
-                        'BPM',
-                        style: TextStyle(
-                          fontSize: 9,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
-                          color: color,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            button(
-              Icons.add_rounded,
-              _l10n.metroFaster,
-              'faster',
-              bpm < 240 ? () => _setBpm(bpm + 1) : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildRing(double size) {
     final color = _phaseColor;
     return SizedBox(
@@ -1410,7 +1351,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                         ),
                       ),
                       SizedBox(height: size * 0.015),
-                      // 面盤只呈現時間與副標；BPM 加減在下方完整觸控列。
+                      // 面盤呈現時間與階段；BPM 已在標題列可直接調整。
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(

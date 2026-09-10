@@ -24,7 +24,7 @@ class TimerModeFrame extends StatelessWidget {
   final Widget progress;
   final Widget controls;
   final Widget? quickPicker;
-  final Widget? controlAccessory;
+  final Widget? headerControl;
   final Widget? statusLine;
   final Widget? footer;
   final Widget? topAction;
@@ -39,7 +39,7 @@ class TimerModeFrame extends StatelessWidget {
     required this.controls,
     this.compactReadout,
     this.quickPicker,
-    this.controlAccessory,
+    this.headerControl,
     this.statusLine,
     this.footer,
     this.topAction,
@@ -63,21 +63,13 @@ class TimerModeFrame extends StatelessWidget {
         Expanded(
           child: Align(
             alignment: Alignment.centerLeft,
-            child: _slot('status', status),
+            child: headerControl == null
+                ? _slot('status', status)
+                : _slot('header-control', headerControl!),
           ),
         ),
         if (topAction != null) ...[const SizedBox(width: 12), topAction!],
       ],
-    ),
-  );
-
-  Widget _accessory() => _slot(
-    'accessory',
-    Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 264),
-        child: controlAccessory!,
-      ),
     ),
   );
 
@@ -172,10 +164,13 @@ class TimerModeFrame extends StatelessWidget {
             ),
           ),
         ),
-        if (controlAccessory != null)
+        if (headerControl != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-            child: _accessory(),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _slot('header-control', headerControl!),
+            ),
           ),
         if (quickPicker != null)
           Padding(
@@ -198,7 +193,7 @@ class TimerModeFrame extends StatelessWidget {
   ) {
     // Presets keep their natural height. The stage has two stable columns:
     // the hero is centered within its column, so a smaller hero never stretches
-    // the start button. Jog speed belongs with the immediate controls.
+    // the start button. Optional quick adjustments reuse the header height.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -244,10 +239,6 @@ class TimerModeFrame extends StatelessWidget {
                                   width: double.infinity,
                                   child: actions.primaryButton(context),
                                 ),
-                                if (controlAccessory != null) ...[
-                                  const SizedBox(height: 4),
-                                  _accessory(),
-                                ],
                                 const SizedBox(height: 4),
                                 _slot('controls', actions.secondaryActions()),
                               ],
@@ -299,11 +290,6 @@ class TimerModeFrame extends StatelessWidget {
             child: controls,
           ),
         ),
-        if (controlAccessory != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-            child: _accessory(),
-          ),
         _details(),
       ],
     );

@@ -83,17 +83,18 @@ void main() {
         await settle();
         // Advance preparatory phases using actual production controls.
         for (var i = 0; i < 3; i++) {
-          final phase = tester
-              .widget<TimerStatusPill>(find.byType(TimerStatusPill))
-              .stateKey
-              .toString();
+          final phase =
+              (tester.widget<TimerModeFrame>(find.byType(TimerModeFrame)).status
+                      as TimerStatusPill)
+                  .stateKey
+                  .toString();
           if (phase.contains('work')) break;
           await tester.tap(find.byIcon(Icons.skip_next_rounded).hitTestable());
           await tester.pump(const Duration(milliseconds: 100));
         }
         expect(
-          tester
-              .widget<TimerStatusPill>(find.byType(TimerStatusPill))
+          (tester.widget<TimerModeFrame>(find.byType(TimerModeFrame)).status
+                  as TimerStatusPill)
               .stateKey
               .toString(),
           contains('work'),
