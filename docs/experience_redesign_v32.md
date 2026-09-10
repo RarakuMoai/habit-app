@@ -1,5 +1,7 @@
 # V3.2：超慢跑 BPM 精簡布局
 
+> 本文件記錄V3.2。使用者後續偏好V3.1收合分區，最新控制形狀與底部留白見 [V3.3](experience_redesign_v33.md)。
+
 基準：`6d79c63`（V3.1）；沿用 `codex/experience-redesign` 與獨立 `redesign` flavor。
 使用者回報超慢跑 BPM 仍造成錯位，希望減少占用空間，同時保留完整功能。
 

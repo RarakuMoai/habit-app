@@ -228,7 +228,8 @@ void main() {
             final frame = tester.getRect(find.byType(TimerModeFrame));
             expect(
               tester.getRect(tile).bottom,
-              lessThanOrEqualTo(frame.bottom),
+              lessThanOrEqualTo(frame.bottom - 16),
+              reason: 'exercise presets reserve a distinct navigation gap',
             );
             expectOperable(tester, reason: '$language/$kind');
           }
@@ -239,11 +240,17 @@ void main() {
             final settings = tester.getRect(
               find.byKey(const ValueKey('timer-settings-action')),
             );
-            expect(speed.center.dy, closeTo(settings.center.dy, 0.5));
-            expect(speed.right, lessThan(settings.left));
             if (room) {
-              expect(primary.top, closeTo(initialPrimary.top, 0.5));
-              expect(primary.bottom, closeTo(initialPrimary.bottom, 0.5));
+              expect(speed.top, closeTo(primary.bottom, 0.5));
+              expect(speed.left, closeTo(primary.left, 0.5));
+              expect(speed.width, closeTo(primary.width, 0.5));
+              expect(
+                find.byKey(const ValueKey('timer-joined-adjustment')),
+                findsOneWidget,
+              );
+            } else {
+              expect(speed.center.dy, closeTo(settings.center.dy, 0.5));
+              expect(speed.right, lessThan(settings.left));
             }
             for (final id in ['slower', 'faster']) {
               expect(

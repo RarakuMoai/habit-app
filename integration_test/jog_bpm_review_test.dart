@@ -20,9 +20,7 @@ class _ReviewNotifications extends FlutterLocalNotificationsPlatform {
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  testWidgets('Jog header BPM: native layout and complete controls', (
-    tester,
-  ) async {
+  testWidgets('Jog joined controls and navigation clearance', (tester) async {
     seedExperienceReview();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(PrefsKeys.exerciseMetronomeSoundOn('jog'), false);
@@ -63,6 +61,10 @@ void main() {
     await settle();
     await tester.tap(key('timer-mode-exercise'));
     await settle();
+    for (final kind in ['hiit', 'emom', 'gym']) {
+      await tester.tap(key('exercise-kind-$kind'));
+      await capture('exercise-$kind-compact');
+    }
     await tester.tap(key('exercise-kind-tabata'));
     await capture('exercise-tabata-compact');
     final primary = key('timer-primary-action');
@@ -70,11 +72,14 @@ void main() {
     await tester.tap(key('exercise-kind-jog'));
     await capture('exercise-jog-compact');
     final jog = tester.getRect(primary);
-    expect(jog.top, closeTo(baseline.top, 0.5));
-    expect(jog.bottom, closeTo(baseline.bottom, 0.5));
+    expect(jog.width, closeTo(baseline.width, 0.5));
     expect(
-      tester.getCenter(key('jog-bpm-control')).dy,
-      closeTo(tester.getCenter(key('timer-settings-action')).dy, 0.5),
+      tester.getRect(key('jog-bpm-control')).top,
+      closeTo(jog.bottom, 0.5),
+    );
+    expect(
+      tester.getRect(nav).top - tester.getRect(key('exercise-kind-jog')).bottom,
+      greaterThanOrEqualTo(16),
     );
     await tester.tap(key('jog-bpm-faster'));
     await capture('jog-compact-step');

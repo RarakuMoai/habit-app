@@ -1001,6 +1001,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
               ),
             )
           : null,
+      roomAdjustment: _kind == ExerciseKind.jog
+          ? JogBpmControl(
+              value: _cfg.bpm,
+              color: color,
+              onChanged: _setBpm,
+              onEdit: _editJogBpm,
+              embedded: true,
+            )
+          : null,
+      bottomClearance: 16,
       footer: _todaySessions > 0 ? _statsBar() : null,
       topAction: TimerSettingsAction(
         color: _exMeta[_kind]!.color,
@@ -1183,7 +1193,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
   // 快捷種類保留自然字級與點擊範圍；窄螢幕橫捲選擇，執行中仍鎖定。
   Widget _kindPicker() {
     return SizedBox(
-      height: 68,
+      height: 60,
       child: Opacity(
         opacity: (!_idle && !_finished) ? 0.45 : 1,
         child: LayoutBuilder(
@@ -1191,17 +1201,27 @@ class ExerciseTimerState extends State<ExerciseTimer>
             final width = box.maxWidth >= 380
                 ? (box.maxWidth - 36 - 24) / ExerciseKind.values.length
                 : 96.0;
-            return SingleChildScrollView(
-              key: const ValueKey('exercise-quick-presets'),
-              scrollDirection: Axis.horizontal,
+            return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                children: [
-                  for (final k in ExerciseKind.values) ...[
-                    _kindChip(k, width: width),
-                    if (k != ExerciseKind.values.last) const SizedBox(width: 6),
-                  ],
-                ],
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppSurfaces.fill,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: SingleChildScrollView(
+                  key: const ValueKey('exercise-quick-presets'),
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      for (final k in ExerciseKind.values) ...[
+                        _kindChip(k, width: width),
+                        if (k != ExerciseKind.values.last)
+                          const SizedBox(width: 4),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             );
           },
@@ -1223,17 +1243,22 @@ class ExerciseTimerState extends State<ExerciseTimer>
         curve: Curves.easeOutCubic,
         width: width,
         alignment: Alignment.center,
-        height: width == null ? null : 68,
+        height: width == null ? null : 60,
         constraints: BoxConstraints(
           minWidth: width == null ? 96 : 0,
           minHeight: 56,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: 5,
+          vertical: width == null ? 6 : 3,
+        ),
         decoration: BoxDecoration(
           color: selected
-              ? meta.color.withValues(alpha: 0.10)
-              : AppSurfaces.fill,
-          borderRadius: BorderRadius.circular(16),
+              ? (width == null
+                    ? meta.color.withValues(alpha: 0.10)
+                    : AppSurfaces.card)
+              : (width == null ? AppSurfaces.fill : Colors.transparent),
+          borderRadius: BorderRadius.circular(width == null ? 16 : 18),
           border: Border.all(
             color: selected
                 ? meta.color.withValues(alpha: 0.36)
@@ -1351,7 +1376,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                         ),
                       ),
                       SizedBox(height: size * 0.015),
-                      // 面盤呈現時間與階段；BPM 已在標題列可直接調整。
+                      // 面盤呈現時間與階段；BPM 在獨立操作區可直接調整。
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(

@@ -16,13 +16,14 @@ Future<int?> showJogBpmEditor(
   builder: (_) => _BpmEditor(value: value, color: color),
 );
 
-/// Uses the timer's existing header row; no extra row in the action column.
+/// Standalone header control, or the lower segment of compact joined controls.
 /// Values remain owned by ExerciseTimer, including live playback and persistence.
 class JogBpmControl extends StatelessWidget {
   final int value;
   final Color color;
   final ValueChanged<int> onChanged;
   final VoidCallback onEdit;
+  final bool embedded;
 
   const JogBpmControl({
     super.key,
@@ -30,6 +31,7 @@ class JogBpmControl extends StatelessWidget {
     required this.color,
     required this.onChanged,
     required this.onEdit,
+    this.embedded = false,
   });
 
   @override
@@ -55,15 +57,17 @@ class JogBpmControl extends StatelessWidget {
           ),
         );
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 196),
+      constraints: BoxConstraints(maxWidth: embedded ? double.infinity : 196),
       child: SizedBox(
         key: const ValueKey('jog-bpm-control'),
         height: 44,
         child: Material(
-          color: color.withValues(alpha: 0.06),
-          shape: StadiumBorder(
-            side: BorderSide(color: color.withValues(alpha: 0.18)),
-          ),
+          color: color.withValues(alpha: embedded ? 0.10 : 0.06),
+          shape: embedded
+              ? const RoundedRectangleBorder()
+              : StadiumBorder(
+                  side: BorderSide(color: color.withValues(alpha: 0.18)),
+                ),
           clipBehavior: Clip.antiAlias,
           child: LayoutBuilder(
             builder: (context, box) => Row(

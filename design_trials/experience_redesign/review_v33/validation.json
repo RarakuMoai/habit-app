@@ -1,0 +1,62 @@
+{
+  "date": "2026-09-10",
+  "branch": "codex/experience-redesign",
+  "baseline": "fb0dfef",
+  "visual_reference": "6d79c63",
+  "analyze": {
+    "issues": 0
+  },
+  "tests": {
+    "passed": 966,
+    "failed": 0,
+    "command": "flutter test --no-pub --reporter expanded",
+    "targeted_passed": 34
+  },
+  "native": {
+    "captures": 16,
+    "result": "passed",
+    "details": "capture-manifest.json",
+    "keyboard_note": "Flutter engine screenshots omit the system keyboard surface; native keyboard insets and confirmation after header unmount were exercised."
+  },
+  "geometry_regression": {
+    "baseline": "V3.2 fails both zh/en compact cases: option bottom 826pt, required maximum 810pt.",
+    "coverage": "Production constraints: 320x667 and 430x932, zh/en, 1.3 scale, all five exercise choices; compact joined BPM touches the primary bottom and shares its width. Native navigation clearance >=16pt.",
+    "compact_layout": {
+      "frame_height": 277.8,
+      "reserved_bottom": 16,
+      "glass_surface_top_margin": 6,
+      "visible_gap": 22,
+      "header": 44,
+      "presets": 60,
+      "main_stage": 149.8,
+      "joined_controls": 148
+    },
+    "input_coverage": "44pt BPM steps, long press, exact entry, range 30-240, cancel and confirm with keyboard open, live adjustment while running."
+  },
+  "release": {
+    "status": "built and verified",
+    "command": "flutter build ios --release --flavor redesign -t lib/main.dart",
+    "path": "build/ios/iphoneos/Runner.app",
+    "reported_size_mb": 142.5,
+    "architecture": "arm64",
+    "bundle_id": "com.yayoi991331.habitapp.redesign",
+    "display_name": "\u5154\u54aa\u65b0\u9ad4\u9a57",
+    "team_id": "6NZ675Y2MZ",
+    "signing": "Apple Development; local release testing",
+    "verification": "codesign --verify --deep --strict: exit 0 with host keychain access",
+    "glass_default": true,
+    "physical_device_installed": false,
+    "binary_sha256": {
+      "Runner": "444bd9226c7252fc633c47594745e66ddd436c4b75bceb6d4c60288f4141f8d9",
+      "Frameworks/App.framework/App": "917abb3f17667734d5cbb7a2116c5764df6ff3fc1ba030b80a4886e1b81ef83b"
+    }
+  },
+  "source_sha256": {
+    "lib/widgets/jog_bpm_control.dart": "e047da522cde15089c4ca7b0abb1b6c76f8e07e37be3765e04199978d6030267",
+    "lib/widgets/timer_mode_frame.dart": "5762031f9a5c359e91996f8c316cd545c396c52c1384376a8fa4fbf934b0e9e1",
+    "lib/pages/timer/exercise_timer.dart": "6cb3817355264363c1347e039027fdbffe853a0af196cfd0d94fdf5f254a6bf0",
+    "test/timer_production_constraints_test.dart": "27049efb8a0e980f2e54a6ffa089865a8b4ef93dfeb2fa3b550ed7184ae5a6bc",
+    "integration_test/jog_bpm_review_test.dart": "ec74fe6359b7095ca7e6a6eec06e77eaedc186a15e2e4ea355fd2726274c9248",
+    "integration_test/timer_alignment_review_test.dart": "396bd96d5f4ffeb4684519a4a8181044965c69eb0594609ab29264033fb77be0"
+  }
+}

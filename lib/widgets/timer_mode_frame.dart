@@ -25,6 +25,12 @@ class TimerModeFrame extends StatelessWidget {
   final Widget controls;
   final Widget? quickPicker;
   final Widget? headerControl;
+
+  /// Compact alternative keeps a mode-specific adjustment beside the dial.
+  final Widget? roomAdjustment;
+
+  /// Space between this scroll viewport and the app's bottom navigation.
+  final double bottomClearance;
   final Widget? statusLine;
   final Widget? footer;
   final Widget? topAction;
@@ -40,6 +46,8 @@ class TimerModeFrame extends StatelessWidget {
     this.compactReadout,
     this.quickPicker,
     this.headerControl,
+    this.roomAdjustment,
+    this.bottomClearance = 0,
     this.statusLine,
     this.footer,
     this.topAction,
@@ -54,7 +62,7 @@ class TimerModeFrame extends StatelessWidget {
   Widget _slot(String name, Widget child) =>
       KeyedSubtree(key: ValueKey('timer-mode-$name-slot'), child: child);
 
-  Widget _header() => Padding(
+  Widget _header({bool room = false}) => Padding(
     padding: const EdgeInsets.symmetric(
       horizontal: TimerModeMetrics.horizontalInset,
     ),
@@ -63,7 +71,7 @@ class TimerModeFrame extends StatelessWidget {
         Expanded(
           child: Align(
             alignment: Alignment.centerLeft,
-            child: headerControl == null
+            child: headerControl == null || (room && roomAdjustment != null)
                 ? _slot('status', status)
                 : _slot('header-control', headerControl!),
           ),
@@ -193,7 +201,7 @@ class TimerModeFrame extends StatelessWidget {
   ) {
     // Presets keep their natural height. The stage has two stable columns:
     // the hero is centered within its column, so a smaller hero never stretches
-    // the start button. Optional quick adjustments reuse the header height.
+    // the start button. Joined controls preserve the compact dial/control grouping.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -201,7 +209,7 @@ class TimerModeFrame extends StatelessWidget {
           height: height,
           child: Column(
             children: [
-              _header(),
+              _header(room: true),
               const SizedBox(height: 4),
               Expanded(
                 child: Padding(
@@ -230,19 +238,27 @@ class TimerModeFrame extends StatelessWidget {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Column(
-                              key: const ValueKey('timer-action-column'),
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  height: 52,
-                                  width: double.infinity,
-                                  child: actions.primaryButton(context),
-                                ),
-                                const SizedBox(height: 4),
-                                _slot('controls', actions.secondaryActions()),
-                              ],
-                            ),
+                            child: roomAdjustment != null
+                                ? actions.joinedAdjustmentControls(
+                                    context,
+                                    roomAdjustment!,
+                                  )
+                                : Column(
+                                    key: const ValueKey('timer-action-column'),
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        height: 52,
+                                        width: double.infinity,
+                                        child: actions.primaryButton(context),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      _slot(
+                                        'controls',
+                                        actions.secondaryActions(),
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ],
                       );
@@ -312,14 +328,25 @@ class TimerModeFrame extends StatelessWidget {
             !room &&
             constraints.maxHeight < summaryBreakpoint &&
             actions is TimerControlCluster;
-        return SingleChildScrollView(
-          key: const ValueKey('timer-mode-scroll'),
-          padding: EdgeInsets.only(top: summary || room ? 0 : 8, bottom: 4),
-          child: summary
-              ? _summary(context, actions)
-              : room
-              ? _room(context, constraints.maxHeight, actions)
-              : _full(context, constraints.maxHeight, constraints.maxWidth),
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomClearance),
+          child: SingleChildScrollView(
+            key: const ValueKey('timer-mode-scroll'),
+            padding: EdgeInsets.only(top: summary || room ? 0 : 8, bottom: 4),
+            child: summary
+                ? _summary(context, actions)
+                : room
+                ? _room(
+                    context,
+                    constraints.maxHeight - bottomClearance,
+                    actions,
+                  )
+                : _full(
+                    context,
+                    constraints.maxHeight - bottomClearance,
+                    constraints.maxWidth,
+                  ),
+          ),
         );
       },
     ),
@@ -544,6 +571,39 @@ class TimerControlCluster extends StatelessWidget {
       ),
     );
   }
+
+  /// One continuous start/speed surface, followed by the normal reset/skip row.
+  /// 52 + 44 + 4 + 48 = 148pt; no small text or reduced touch targets.
+  Widget joinedAdjustmentControls(BuildContext context, Widget adjustment) =>
+      Column(
+        key: const ValueKey('timer-action-column'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            key: const ValueKey('timer-joined-adjustment'),
+            borderRadius: BorderRadius.circular(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ColoredBox(
+                  color: accent,
+                  child: SizedBox(
+                    height: 52,
+                    width: double.infinity,
+                    child: primaryButton(context),
+                  ),
+                ),
+                adjustment,
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          KeyedSubtree(
+            key: const ValueKey('timer-mode-controls-slot'),
+            child: secondaryActions(),
+          ),
+        ],
+      );
 
   Widget secondaryActions({Widget? trailingAction}) => Row(
     children: [
