@@ -6,8 +6,14 @@ import 'package:flutter/material.dart';
 /// 親子日常的共同色盤：奶油、蜜桃與暖棕，讓每個小習慣像家的延伸。
 abstract final class AppPalette {
   static const brand = Color(0xFFB85F43);
-  static const habit = Color(0xFFC87950);
+  static const habit = Color(0xFFE88468);
+  static const habitInk = Color(0xFFA55540);
+  static const habitLight = Color(0xFFFFB887);
+  static const habitDone = Color(0xFF4A926C);
+  static const habitDoneLight = Color(0xFF69B17F);
+  static const habitDoneSurface = Color(0xFFEEFAEE);
   static const focus = Color(0xFF9270A4);
+  static const metronome = Color(0xFFB77B2C);
   static const water = Color(0xFF357E91);
   static const weight = Color(0xFFA96280);
   static const family = Color(0xFFAE7740);

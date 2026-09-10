@@ -98,7 +98,13 @@ void main() {
         expect(find.text('120:00'), findsOneWidget);
       } else {
         final hero = tester.getRect(find.byKey(const ValueKey('hero')));
-        expect(hero.width, greaterThanOrEqualTo(176));
+        expect(hero.width, greaterThanOrEqualTo(size.height < 350 ? 104 : 176));
+        if (size.width == 430 && size.height == 278) {
+          final quick = tester.getRect(
+            find.byKey(const ValueKey('timer-mode-quick-picker-slot')),
+          );
+          expect(quick.bottom, lessThanOrEqualTo(frameRect.bottom));
+        }
         expect(hero.left, greaterThanOrEqualTo(frameRect.left + 18));
       }
       final footer = find.text('統計');

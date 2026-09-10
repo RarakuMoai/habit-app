@@ -1086,18 +1086,27 @@ class _TimerPageState extends State<TimerPage>
       height: 64,
       child: Opacity(
         opacity: locked ? 0.45 : 1,
-        child: SingleChildScrollView(
-          key: const ValueKey('focus-quick-presets'),
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(
-            children: [
-              for (var i = 0; i < _profileCount; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                _profileChip(index: i, width: 104),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final fit = box.maxWidth >= 380;
+            final chipWidth = fit
+                ? (box.maxWidth - 36 - 8 * (_profileCount - 1)) / _profileCount
+                : 104.0;
+            final row = Row(
+              children: [
+                for (var i = 0; i < _profileCount; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  _profileChip(index: i, width: chipWidth),
+                ],
               ],
-            ],
-          ),
+            );
+            return SingleChildScrollView(
+              key: const ValueKey('focus-quick-presets'),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: row,
+            );
+          },
         ),
       ),
     );
@@ -1112,6 +1121,7 @@ class _TimerPageState extends State<TimerPage>
     final profile = _profiles[index];
     final selected = _selected == index;
     return GestureDetector(
+      key: ValueKey('focus-profile-$index'),
       onTap: onTap ?? () => _selectProfile(index),
       child: AnimatedContainer(
         duration: MediaQuery.disableAnimationsOf(context)
@@ -1120,9 +1130,9 @@ class _TimerPageState extends State<TimerPage>
         curve: Curves.easeOutCubic,
         width: width,
         constraints: width == null
-            ? const BoxConstraints(minWidth: 60, maxWidth: 84)
-            : null,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            ? const BoxConstraints(minWidth: 60, maxWidth: 84, minHeight: 48)
+            : const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
         decoration: BoxDecoration(
           color: selected ? accent.withValues(alpha: 0.10) : AppSurfaces.fill,
           borderRadius: BorderRadius.circular(16),

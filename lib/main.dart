@@ -1434,7 +1434,7 @@ class _AdaptiveBottomNav extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   Color _accent(String id) => switch (id) {
-    TabIds.habit => AppPalette.brand,
+    TabIds.habit => AppPalette.habit,
     TabIds.timer => AppPalette.focus,
     TabIds.water => AppPalette.water,
     TabIds.weight => AppPalette.weight,
@@ -1486,9 +1486,21 @@ class _AdaptiveBottomNav extends StatelessWidget {
                           ),
                           curve: AppMotion.curve,
                           decoration: BoxDecoration(
-                            color: selected
-                                ? accent.withValues(alpha: 0.11)
-                                : Colors.transparent,
+                            gradient: selected
+                                ? LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.white.withValues(alpha: 0.85),
+                                      accent.withValues(alpha: 0.12),
+                                    ],
+                                  )
+                                : null,
+                            border: selected
+                                ? Border.all(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                  )
+                                : null,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: ExcludeSemantics(
@@ -1515,7 +1527,10 @@ class _AdaptiveBottomNav extends StatelessWidget {
                                         fontWeight: selected
                                             ? FontWeight.w800
                                             : FontWeight.w600,
-                                        color: color,
+                                        color:
+                                            selected && tab.id == TabIds.habit
+                                            ? AppPalette.habitInk
+                                            : color,
                                       ),
                                     ),
                                   ),

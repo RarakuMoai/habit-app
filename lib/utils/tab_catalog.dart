@@ -102,8 +102,10 @@ class TabGlyph extends StatelessWidget {
       return Icon(fallbackIcon, size: size, color: fallbackColor);
     }
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 140),
-      opacity: selected ? 1.0 : 0.56,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
+      opacity: selected || MediaQuery.highContrastOf(context) ? 1.0 : 0.42,
       child: Image.asset(
         asset,
         width: size,

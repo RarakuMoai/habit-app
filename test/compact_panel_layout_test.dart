@@ -206,6 +206,15 @@ void main() {
                     '${page.$1} complete first card $cardRect in $panelRect',
               );
               if (page.$2 == WaterPage) {
+                final bottle = find.byKey(const ValueKey('water-bottle-stage'));
+                final bottleRect = tester.getRect(bottle);
+                expect(bottle.hitTestable(), findsOneWidget);
+                expect(bottleRect.top, greaterThanOrEqualTo(cardRect.top));
+                expect(bottleRect.bottom, lessThanOrEqualTo(cardRect.bottom));
+                expect(bottleRect.height, greaterThanOrEqualTo(72));
+                if (size.width == 430 && openValue == 0) {
+                  expect(bottleRect.height, greaterThanOrEqualTo(200));
+                }
                 final controls = panelRect.height < 400 || size.width < 360
                     ? find.byKey(const ValueKey('water-compact-actions'))
                     : find.text(l10n.waterCupDrank);

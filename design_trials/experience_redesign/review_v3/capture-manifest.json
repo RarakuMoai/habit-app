@@ -1,0 +1,349 @@
+{
+  "baseline": "41131ee",
+  "branch": "codex/experience-redesign",
+  "environment": "iPhone 14 Pro Max / iOS 26.5 / redesign debug",
+  "logical_size": [
+    430,
+    932
+  ],
+  "locale": "zh",
+  "text_scale": 1.0,
+  "scene_hour": 10,
+  "reduced_motion": false,
+  "glass": true,
+  "fixture": "In-memory records; notification authorization/scheduling stubbed for visual capture",
+  "note": "Native UI evidence; real-device release audio, haptics and performance remain user review",
+  "capture": {
+    "device": "1896C555-F577-4433-A53D-6672B15E82C9",
+    "test": "integration_test/experience_review_test.dart",
+    "flavor": "redesign",
+    "glass": true,
+    "files": [
+      "01-habits.png",
+      "02-timer.png",
+      "03-water.png",
+      "04-weight.png",
+      "05-family.png",
+      "06-wardrobe.png",
+      "07-settings.png",
+      "07-settings-details.png",
+      "08-review.png",
+      "09-water-expanded.png",
+      "10-water-added.png",
+      "11-invitation.png",
+      "11-roommate.png",
+      "timer-focus-compact.png",
+      "timer-exercise-compact.png",
+      "timer-metronome-compact.png",
+      "timer-game-compact.png",
+      "timer-jog-compact.png",
+      "timer-jog-adjusted.png",
+      "timer-chess-compact.png",
+      "20-habits-expanded.png",
+      "21-timer-expanded.png",
+      "22-water-expanded.png",
+      "23-weight-expanded.png",
+      "24-family-expanded.png",
+      "25-wardrobe-expanded.png",
+      "timer-game-expanded.png",
+      "timer-metronome-expanded.png",
+      "timer-exercise-expanded.png",
+      "timer-focus-expanded.png",
+      "timer-focus-running.png",
+      "timer-focus-paused.png"
+    ],
+    "test_exit_code": 0,
+    "capture_error": null,
+    "exit_code": 0
+  },
+  "images": [
+    {
+      "image": "after/01-habits.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "ee32caa8c35098acb1353f9ced1ac799d0e40121479c4c382869e2fc2a266f63",
+      "export_sha256": "8959556fa727cd1691d613a528bf3318377681da926a5a7c1a7ef070836f0e99"
+    },
+    {
+      "image": "after/02-timer.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "a0f57c90015efb786c827b8cb8b0241a505f02aec294e67d60fef01b21db0934",
+      "export_sha256": "50bd903dcdd414b2827e31a039643d29a67e6a7dd6e9d3d77fe8c642b8f1208e"
+    },
+    {
+      "image": "after/03-water.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "f8a709339219aa0a3b0040917f589cb884b06f5f7687943f1519b7d6f07cb43b",
+      "export_sha256": "1da0448e82dd9b601f5b15825e609f2dc06d4deb794d7146dabb2e0c89225b2c"
+    },
+    {
+      "image": "after/04-weight.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "2b24e41fffaa9d849d1382ab172b899bf675c30efa1211f51dfaccde99950675",
+      "export_sha256": "3f2e1f099d1a318d7fa5c13d2d0e29c0cf766539f3e291283a621bf8ac2c09f3"
+    },
+    {
+      "image": "after/05-family.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "7ec302f0662256ce2c9dda2c1946f20879a2dac8de26208a63ed48a32a2f331c",
+      "export_sha256": "03e371c707136f35207311bdcf287145dccd454437397f670cb2d940932f72a9"
+    },
+    {
+      "image": "after/06-wardrobe.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "e3178078e8c5357abe3cedf1e2f4ea6104b0af9cc8f397b052300eb9f4fa6cbe",
+      "export_sha256": "1c74f778df1950baaf01754adbadad5f177a46875c50e7eca7af7f52bd585cdc"
+    },
+    {
+      "image": "after/07-settings.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "5326aee2b4ac590568b77c633d6763cc565213b9fffe4befa942a83758d1e489",
+      "export_sha256": "a347f61246b53d766cb02f8bb5ae4bb8b2403bfed6724c0e8c7e0dab9fd6f1f6"
+    },
+    {
+      "image": "after/07-settings-details.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "aff06bd7c71848228e1be592b026cb4b02ddd8accef4e59be491b520ba92979c",
+      "export_sha256": "2fc3393c99d6c843249eee86c539d2899c0641f3821692426ac9da84e10cb2de"
+    },
+    {
+      "image": "after/08-review.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "e9384f41c79502b53698139fa5246fc6c66b4ebd8303798d8a224f341cf11cd8",
+      "export_sha256": "22b2ff13778cf84883af449c2048a153435fe1a1bd3ffc4db03a84901593fd95"
+    },
+    {
+      "image": "after/09-water-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "1eeb31438e4ca12b59de06972cfb0d07f17cb407bb8ce0a7eee17e2bc0326fb4",
+      "export_sha256": "eeda3a3c3d0fcc892907123f0bbc9b4e83faa7e740ba8c5daf01370369f595e4"
+    },
+    {
+      "image": "after/10-water-added.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "99ee9774d27f4ec1fc1e2b4571b4cb007b9fa4680b23753c25adb7fb1a933ca9",
+      "export_sha256": "36b57c1a9a24626ef460c7725aa4067f425e85cdebbb042f0e62bcb8aeba5dee"
+    },
+    {
+      "image": "after/11-invitation.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "2ba79a043ad7069b450f380d6d71dacedd9bd97ad463909ff92feb25878d55e4",
+      "export_sha256": "e21aca7f20b62e7a9f46a9573dc1992ccccb6f527444b628d79bccedfcefe650"
+    },
+    {
+      "image": "after/11-roommate.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "3faa3f17f029449378e38f957df2a11d936aa505de2881a2d6524941ff71476b",
+      "export_sha256": "50770bb3eace3f2438f50ba80686c1e325e627ba10a4e8476821649d397446f7"
+    },
+    {
+      "image": "after/timer-focus-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "5085d047078b08dd27eb6782d43ea38617058ca271ad7e36953d8f76bbbcef26",
+      "export_sha256": "1f1520198adc13ede31bebda2e6dae3d9ccd8c9cf217b0ba8112a1853e8b4f15"
+    },
+    {
+      "image": "after/timer-exercise-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "7037d57ead0e27738fe2a109df58e5f0d73279c6136d4f9aeef9e5d539c7bfc2",
+      "export_sha256": "2e0dea67b5c13099c4a0168359b8dc22294e82dd76c892412c8daad4a9091559"
+    },
+    {
+      "image": "after/timer-metronome-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "88896e1388f4211528aadf7bd4dee62670376f3385d3446e816808e11944ad49",
+      "export_sha256": "b88285b1b5771bf6a6760705e8926b36d92fa63460270177a65c58596bd684ff"
+    },
+    {
+      "image": "after/timer-game-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "58ff8ac68a165effa1ff604361d6d6c7da72a2dc098c3eb9f034c60d5f1297a2",
+      "export_sha256": "ffd59346085ace796b0be463607582c49efc733e817d22bbb6d4e82e72cc48c8"
+    },
+    {
+      "image": "after/timer-jog-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "ff4fd074540809a2ab0d2709be7c7fa7638e17b0ab5b4f4d6e9b332359518a30",
+      "export_sha256": "6ba44a0458d633606f0df1c8eacc1e816a63f4e2cc4513d00f62774b4fc4a944"
+    },
+    {
+      "image": "after/timer-jog-adjusted.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "4ebe15fdfbb9148dcccd9c1323a4084e4916914f7659b696a54a76621b961538",
+      "export_sha256": "8191de6073a7d467ee99a814f574ea0e20d246d94a6ad9384823d43e6b80b33b"
+    },
+    {
+      "image": "after/timer-chess-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "f85f7ea6d5e4d9929a778c7081cf113b2a2a979af20fe81113de59291f7a295b",
+      "export_sha256": "10b17c5e3bf97e37d53e8b2b83171f47918359b4e6477b143d6f408bfdec1422"
+    },
+    {
+      "image": "after/20-habits-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "9d8cc539acb161a769d0bf5d5440afff913ea505431d5da86e3604eaae3f4763",
+      "export_sha256": "343cfbdb29f5978170bc6654403a0e796e2bb9e4e76caa71f734c0d91243902d"
+    },
+    {
+      "image": "after/21-timer-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "fda7667d0925300f33b1064b73116592fd4705820744059592f7aec783f3c18e",
+      "export_sha256": "d06c7b99af1ea10fff68c8ec3927e11a19f830a6c1a95981f5585a0a942481f8"
+    },
+    {
+      "image": "after/22-water-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "26ac581c934a2b030e4f09c4e64998fb05fe04e4d1d084c5d4a2aad5f0dbc212",
+      "export_sha256": "d17311aaa4c353185067e989cbf096e29c1305b1dd58128f2a1756abf142ecc1"
+    },
+    {
+      "image": "after/23-weight-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "555c4d4cbbcc89434597f82d224144a7ddfa1388d987ca7ff00901baf55184cb",
+      "export_sha256": "5a80a43c7da33d279e98579d24160b19a161b6bf118aa0895752b9f6c8fefa1b"
+    },
+    {
+      "image": "after/24-family-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "4ba8a8bb502abcee3c90ca048418709508c5324978c7f71e0a0aed389defb6d9",
+      "export_sha256": "25c185fddba02681c62e24c8f003670e907e64be2105af0e1a35c9f9d3a37921"
+    },
+    {
+      "image": "after/25-wardrobe-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "6782eef9990b2bbbaccfb0f7ca7fa8d5c2bc2414e42625e3bafb2236458c816b",
+      "export_sha256": "93b3c2f1210c35eadfe8ed608074621d75e0ce9b2391a0644a062e45285d7e6b"
+    },
+    {
+      "image": "after/timer-game-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "378de554e888a0f039ddc9395754f1154e41312da6df523972e80e6e0536d379",
+      "export_sha256": "ecda3776d86508202aa62d56999f50e06c3bf9379ecf6730465c8897e1000d10"
+    },
+    {
+      "image": "after/timer-metronome-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "ea363e7e1191e9091443f1c1cf133fb12aa9efc933b11e94d00c3edb4767f80d",
+      "export_sha256": "7520661f43f9c1b23b9d8dcd8281dfbac83f38da800ca5a78311df1de589e363"
+    },
+    {
+      "image": "after/timer-exercise-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "bb1a16c63c40f83f10dc20332533d0ccf6c5430fa4e7bebaaa7066ff1af319cd",
+      "export_sha256": "09453d30ee3e8fe1bbda148ff06931dc45e4709f22e63cf92a48b255c0ccb77b"
+    },
+    {
+      "image": "after/timer-focus-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "47e3d0aa57979bc652d6fb9b77bd44107a645b63f662b928926ebc2993f6d2a4",
+      "export_sha256": "ad405b8c66808da2a3b1e12a40e9e454683c8017f2a6035822444efc453cf63e"
+    },
+    {
+      "image": "after/timer-focus-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "ac37ca96a27c3b96da280f1ec472b72944a0ab11823ccc6ddbdcd733e4ad1c0d",
+      "export_sha256": "255c70537c8652623df2b97137a180ce40165300eb6e1ce5efe1f5e4d1354bd4"
+    },
+    {
+      "image": "after/timer-focus-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "298f901a27922fb0e50d89258ab283400217591670431d49da9ae9d0c022900a",
+      "export_sha256": "e0735809078a6fa233a1c5f750dbd579ff02ffc27257235f779d8d58842bfc8a"
+    }
+  ]
+}

@@ -161,6 +161,37 @@ void main() {
     expect(tester.takeException(), isNull, reason: reason);
   }
 
+  testWidgets('430 收合超慢跑即時 BPM 與五種運動快選均在可見區', (tester) async {
+    SharedPreferences.setMockInitialValues({PrefsKeys.exerciseSubMode: 'jog'});
+    await load(tester, const Size(430, 932), 'zh', true);
+    await switchMode(tester, 'exercise');
+    final frame = tester.getRect(find.byType(TimerModeFrame));
+    for (final key in [
+      'jog-bpm-slower',
+      'jog-bpm-faster',
+      'exercise-kind-tabata',
+      'exercise-kind-hiit',
+      'exercise-kind-emom',
+      'exercise-kind-gym',
+      'exercise-kind-jog',
+    ]) {
+      final target = find.byKey(ValueKey(key));
+      expect(target.hitTestable(), findsOneWidget);
+      expect(tester.getRect(target).bottom, lessThanOrEqualTo(frame.bottom));
+      expect(tester.getSize(target).height, greaterThanOrEqualTo(44));
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final before = prefs.getInt(PrefsKeys.exerciseBpm('jog')) ?? 180;
+    await tester.tap(find.byKey(const ValueKey('jog-bpm-faster')));
+    await tester.pump();
+    expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), before + 1);
+    await tester.tap(find.byKey(const ValueKey('exercise-kind-hiit')));
+    await tester.pump();
+    expect(prefs.getString(PrefsKeys.exerciseSubMode), 'hiit');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   for (final size in [const Size(320, 667), const Size(430, 932)]) {
     for (final language in ['zh', 'en']) {
       for (final room in [true, false]) {
@@ -171,6 +202,56 @@ void main() {
             for (final mode in ['focus', 'exercise', 'metronome', 'game']) {
               await switchMode(tester, mode);
               expectOperable(tester, reason: '$size/$language/$room/$mode');
+              if (size.width == 430 && room) {
+                final frameRect = tester.getRect(find.byType(TimerModeFrame));
+                final quick = find.byKey(
+                  const ValueKey('timer-mode-quick-picker-slot'),
+                );
+                final quickRect = tester.getRect(quick);
+                expect(
+                  quickRect.bottom,
+                  lessThanOrEqualTo(frameRect.bottom),
+                  reason:
+                      '$mode quick actions must be visible without vertical scrolling',
+                );
+                final keys = switch (mode) {
+                  'focus' => [for (var i = 0; i < 4; i++) 'focus-profile-$i'],
+                  'exercise' => [
+                    'exercise-kind-tabata',
+                    'exercise-kind-hiit',
+                    'exercise-kind-emom',
+                    'exercise-kind-gym',
+                    'exercise-kind-jog',
+                  ],
+                  'game' => [
+                    'game-quick-party',
+                    'game-quick-chess',
+                    'game-quick-free',
+                  ],
+                  _ => <String>[],
+                };
+                for (final key in keys) {
+                  final target = find.byKey(ValueKey(key));
+                  final rect = tester.getRect(target);
+                  expect(target.hitTestable(), findsOneWidget, reason: key);
+                  expect(rect.height, greaterThanOrEqualTo(44), reason: key);
+                  expect(
+                    rect.left,
+                    greaterThanOrEqualTo(frameRect.left),
+                    reason: key,
+                  );
+                  expect(
+                    rect.right,
+                    lessThanOrEqualTo(frameRect.right),
+                    reason: key,
+                  );
+                  expect(
+                    rect.bottom,
+                    lessThanOrEqualTo(frameRect.bottom),
+                    reason: key,
+                  );
+                }
+              }
               if (mode == 'focus') {
                 final frame = tester.getSize(find.byType(TimerModeFrame));
                 final primary = tester.getSize(

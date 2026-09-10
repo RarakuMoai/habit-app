@@ -980,7 +980,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
         children: [
           if (_kind == ExerciseKind.jog) ...[
             _inlineBpm(color),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
           ],
           _kindPicker(),
         ],
@@ -1167,21 +1167,28 @@ class ExerciseTimerState extends State<ExerciseTimer>
   // 快捷種類保留自然字級與點擊範圍；窄螢幕橫捲選擇，執行中仍鎖定。
   Widget _kindPicker() {
     return SizedBox(
-      height: 64,
+      height: 68,
       child: Opacity(
         opacity: (!_idle && !_finished) ? 0.45 : 1,
-        child: SingleChildScrollView(
-          key: const ValueKey('exercise-quick-presets'),
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(
-            children: [
-              for (final k in ExerciseKind.values) ...[
-                _kindChip(k),
-                if (k != ExerciseKind.values.last) const SizedBox(width: 8),
-              ],
-            ],
-          ),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final width = box.maxWidth >= 380
+                ? (box.maxWidth - 36 - 24) / ExerciseKind.values.length
+                : 96.0;
+            return SingleChildScrollView(
+              key: const ValueKey('exercise-quick-presets'),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                children: [
+                  for (final k in ExerciseKind.values) ...[
+                    _kindChip(k, width: width),
+                    if (k != ExerciseKind.values.last) const SizedBox(width: 6),
+                  ],
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1191,6 +1198,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     final meta = _exMeta[k]!;
     final selected = k == _kind;
     return GestureDetector(
+      key: ValueKey('exercise-kind-${k.name}'),
       onTap: onTap ?? () => _selectKind(k),
       child: AnimatedContainer(
         duration: MediaQuery.disableAnimationsOf(context)
@@ -1198,8 +1206,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
             : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         width: width,
-        constraints: width == null ? const BoxConstraints(minWidth: 96) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        height: width == null ? null : 68,
+        constraints: BoxConstraints(
+          minWidth: width == null ? 96 : 0,
+          minHeight: 56,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
         decoration: BoxDecoration(
           color: selected
               ? meta.color.withValues(alpha: 0.10)
@@ -1218,8 +1230,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
             const SizedBox(height: 1),
             Text(
               _kindName(k),
+              textAlign: TextAlign.center,
+              maxLines: 2,
               style: TextStyle(
-                fontSize: 12.5,
+                height: 1.15,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w800,
                 color: selected ? meta.color : AppInk.strong,
               ),

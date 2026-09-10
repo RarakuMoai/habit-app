@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import '../utils/app_style.dart';
 
 /// 同一份導覽排版的兩種材質，方便在真實場景比較。
-/// NAV_GLASS 只供本輪候選比較；高對比模式一律使用實底。
-const navigationGlass = bool.fromEnvironment('NAV_GLASS');
+/// 玻璃為預設；保留實底比較開關，高對比模式一律使用實底。
+const navigationGlass = bool.fromEnvironment('NAV_GLASS', defaultValue: true);
 
 class NavigationSurface extends StatelessWidget {
   final Widget child;
@@ -24,8 +24,8 @@ class NavigationSurface extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppSurfaces.card.withValues(alpha: 0.88),
-                  AppSurfaces.fill.withValues(alpha: 0.66),
+                  Colors.white.withValues(alpha: 0.72),
+                  AppSurfaces.card.withValues(alpha: 0.48),
                 ],
               )
             : null,
@@ -41,13 +41,20 @@ class NavigationSurface extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
-        boxShadow: AppShadows.card,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x148B7665),
+            blurRadius: 22,
+            offset: Offset(0, 7),
+          ),
+          BoxShadow(color: Color(0x0CFFFFFF), blurRadius: 2, spreadRadius: 1),
+        ],
       ),
       child: ClipRRect(
         borderRadius: radius,
         child: glass
             ? BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                 child: surface,
               )
             : surface,

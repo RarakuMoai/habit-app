@@ -442,25 +442,15 @@ class _GameTimerState extends State<GameTimer> {
   // 下方快速切換：三種玩法即點即換（其他設定保留），與專注方案／
   // 運動類別的「膠囊快切」同構；人數與時間細節在 statusLine 與設定內。
   Widget _configBar() {
-    return SizedBox(
-      height: 52,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (final mode in TableGameMode.values) ...[
-                  if (mode != TableGameMode.values.first)
-                    const SizedBox(width: 8),
-                  _modeChip(mode),
-                ],
-              ],
-            ),
-          ),
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Row(
+        children: [
+          for (final mode in TableGameMode.values) ...[
+            if (mode != TableGameMode.values.first) const SizedBox(width: 8),
+            Expanded(child: _modeChip(mode)),
+          ],
+        ],
       ),
     );
   }
@@ -468,12 +458,13 @@ class _GameTimerState extends State<GameTimer> {
   Widget _modeChip(TableGameMode mode) {
     final selected = _config.mode == mode;
     return GestureDetector(
+      key: ValueKey('game-quick-${mode.name}'),
       onTap: _prefs == null ? null : () => _selectMode(mode),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        constraints: const BoxConstraints(minWidth: 76),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
         decoration: BoxDecoration(
           color: selected ? kGameAccent : Colors.white.withValues(alpha: 0.86),
           borderRadius: BorderRadius.circular(16),
@@ -499,7 +490,8 @@ class _GameTimerState extends State<GameTimer> {
             const SizedBox(height: 1),
             Text(
               mode.labelOf(_l10n),
-              maxLines: 1,
+              textAlign: TextAlign.center,
+              maxLines: 2,
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w800,

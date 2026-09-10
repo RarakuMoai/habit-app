@@ -3161,7 +3161,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               style: AppType.digits(
                 fontSize: compact ? 16 : 22,
                 fontWeight: FontWeight.w800,
-                color: AppPalette.brand,
+                color: AppPalette.habitInk,
               ),
             ),
             const SizedBox(width: 12),
@@ -3239,7 +3239,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       height: 48,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFCF8058), AppPalette.brand],
+                          colors: [AppPalette.habitLight, AppPalette.habit],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -3312,7 +3312,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     child: Ink(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
       decoration: BoxDecoration(
-        color: AppPalette.brand,
+        color: AppPalette.habit,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -3582,13 +3582,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             width: 76,
             height: 76,
             decoration: BoxDecoration(
-              color: AppPalette.brand.withValues(alpha: 0.08),
+              color: AppPalette.habit.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(28),
             ),
             child: const Icon(
               Icons.eco_outlined,
               size: 36,
-              color: AppPalette.brand,
+              color: AppPalette.habit,
             ),
           ),
           const SizedBox(height: 18),

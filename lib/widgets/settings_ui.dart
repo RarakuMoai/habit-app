@@ -25,55 +25,68 @@ class SettingsTileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SettingsGroupCard(
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 10,
-        ),
-        minTileHeight: 88,
-        horizontalTitleGap: 14,
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: iconColor.withValues(alpha: 0.12)),
-          ),
-          child: Icon(icon, color: iconColor, size: 22),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: AppInk.strong,
-          ),
-        ),
-        subtitle: subtitle == null
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: Text(
-                  subtitle!,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    height: 1.45,
-                    color: AppInk.soft,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 88),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  key: ValueKey('settings-icon-$title'),
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: iconColor.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    key: ValueKey('settings-copy-$title'),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.25,
+                          fontWeight: FontWeight.w800,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          subtitle!,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            height: 1.45,
+                            color: AppInk.soft,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              ),
-        trailing:
-            trailing ??
-            const Icon(
-              Icons.arrow_forward_rounded,
-              size: 18,
-              color: AppInk.soft,
+                const SizedBox(width: 10),
+                trailing ??
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 18,
+                      color: AppInk.soft,
+                    ),
+              ],
             ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          ),
         ),
-        onTap: onTap,
       ),
     );
   }

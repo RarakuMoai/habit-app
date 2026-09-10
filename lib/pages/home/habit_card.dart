@@ -268,7 +268,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
-            color: done ? AppPalette.successSurface : AppSurfaces.card,
+            color: done ? AppPalette.habitDoneSurface : AppSurfaces.card,
             borderRadius: cardRadius,
             border: done
                 ? Border.all(color: AppPalette.success.withValues(alpha: 0.18))
@@ -345,8 +345,8 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                         gradient: done
                                             ? LinearGradient(
                                                 colors: [
-                                                  AppPalette.success,
-                                                  AppPalette.brand,
+                                                  AppPalette.habitDoneLight,
+                                                  AppPalette.habitDone,
                                                 ],
                                                 begin: Alignment.topLeft,
                                                 end: Alignment.bottomRight,
@@ -488,7 +488,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
             color: done
-                ? AppPalette.successSurface
+                ? AppPalette.habitDoneSurface
                 : inProgress
                 ? const Color(0xFFF5F4FC)
                 : AppSurfaces.card,

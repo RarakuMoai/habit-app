@@ -1,0 +1,61 @@
+{
+  "date": "2026-09-10",
+  "branch": "codex/experience-redesign",
+  "baseline": "41131eee536437acfbc40a1f840df48dc84295b1",
+  "analyze": {
+    "command": "flutter analyze --no-pub",
+    "issues": 0
+  },
+  "tests": {
+    "command": "flutter test --no-pub --reporter expanded",
+    "passed": 955,
+    "failed": 0
+  },
+  "native_review": {
+    "screenshots": 32,
+    "result": "passed",
+    "details": "capture-manifest.json",
+    "comparison": "index.html"
+  },
+  "release": {
+    "command": "flutter build ios --release --flavor redesign -t lib/main.dart",
+    "path": "build/ios/iphoneos/Runner.app",
+    "reported_size_mb": 142.5,
+    "architecture": "arm64",
+    "bundle_id": "com.yayoi991331.habitapp.redesign",
+    "display_name": "兔咪新體驗",
+    "team_id": "6NZ675Y2MZ",
+    "signing": "Apple Development; local release testing",
+    "verification": "codesign --verify --deep --strict: exit 0 with host keychain access",
+    "glass_default": true,
+    "physical_device_installed": false,
+    "binary_sha256": {
+      "Runner": "a0059012c9fcb79453ac1aa9f1e4c0f53c0d2c17224bc90b0bd5b79b05e2e66f",
+      "Frameworks/App.framework/App": "e05655fc04753124e608c5ae1c3ff660b3ed019d08d067fc882f36d83c88ea8c"
+    }
+  },
+  "source_sha256": {
+    "lib/widgets/navigation_surface.dart": "01576e285f1480113f609f40db779e6d42c681df4c3bb33430d98cfd111a1309",
+    "lib/utils/tab_catalog.dart": "f42ee805d19769379155682fbbd2f6f632d1fc949f97024ac58c1ee62928fd5f",
+    "lib/main.dart": "be14809302bade609a96066247a5ad8b6a3d2367f973a5813029ebf81cf0a41a",
+    "lib/utils/app_style.dart": "6cc7588ac6f55f1f4d24907a8c0369594488e0d92ea8c559d0b24084ee21248e",
+    "lib/pages/home_page.dart": "e4acdfdee3a83f71def3027f6648e2d070c4b7b2fa0b1e9a26f48593340e12ad",
+    "lib/widgets/settings_ui.dart": "cf8f580bc0a150a232d23352b76be410f096ee89a585c49ac7aa87376e25515d",
+    "lib/widgets/timer_mode_frame.dart": "8becbcad1a953bd8a94595d53b40dda0ec990e6173bc18db410cd7bcd45c6acb",
+    "lib/pages/timer_page.dart": "64be7d11f473b294ed664e546ea1825dc58692fe4555a2656f5060d7921b258d",
+    "lib/pages/timer/exercise_timer.dart": "8812fb5389e2388b669e6970d600052a747d401c75386d720c2f1a772ba3601b",
+    "lib/pages/timer/metronome_timer.dart": "f97dbf16b7764fb6dfe990c2c92dd93d67e1ef2637bf47e802a349c6c811fd89",
+    "lib/pages/timer/game_timer.dart": "6728d3ccbd57e02ef1f4944bb1725b78005118557fd9f23c40f24206122724c6",
+    "lib/pages/water_page.dart": "23f19269e947928945a79fa33f913c414bddcfd9e2be4d80bb0192243ab1e639",
+    "lib/pages/home/habit_card.dart": "8304d56d7b5ae8d2099de92725ed7265d42ef169d10243abcaab6ac314fd46ca",
+    "test/timer_mode_frame_test.dart": "b0915bd72449d907b60dbeec6d5d6b203302f19521d5afdc69e0904641c00787",
+    "test/timer_production_constraints_test.dart": "a89c9500f1e19f8bc49b11491c3a63879e600a9111d1b73cbfd1b49be66c62af",
+    "test/compact_panel_layout_test.dart": "95048461b7da11822a9b1b48b00f092092017ff43bdfab699ea23e5a9cdb7487",
+    "test/settings_alignment_test.dart": "83f2dabc78056736efc2ef6a7165236e76f1df887be324fdc86879af9a2e4a1a",
+    "integration_test/experience_review_test.dart": "a3abe8dd9d1dfefb49a63b9d0601d123c8e498559d058fc17e71d9a4b971028c"
+  },
+  "remaining_user_validation": [
+    "Native iPhone release interaction and glass readability",
+    "Audio, haptics and release performance"
+  ]
+}

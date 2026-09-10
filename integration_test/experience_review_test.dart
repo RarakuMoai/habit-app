@@ -3,6 +3,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/main.dart' as app;
 import 'package:habit_app/widgets/mascot_panel.dart';
@@ -10,12 +11,19 @@ import 'package:integration_test/integration_test.dart';
 
 import 'review_fixture.dart';
 
+// UI captures do not test notification authorization or scheduling.
+class _ReviewNotifications extends FlutterLocalNotificationsPlatform {
+  @override
+  Future<void> cancel({required int id}) async {}
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets('Review all six production tabs with repeatable local fixtures', (
     tester,
   ) async {
     seedExperienceReview();
+    FlutterLocalNotificationsPlatform.instance = _ReviewNotifications();
     app.main();
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 250));
@@ -36,6 +44,8 @@ void main() {
 
     Future<void> capture(String name) async {
       await settle();
+      expect(binding.lifecycleState, AppLifecycleState.resumed, reason: name);
+      expect(binding.sendFramesToEngine, isTrue, reason: name);
       final bytes = await binding.takeScreenshot(name);
       await File('${output.path}/$name.png').writeAsBytes(bytes);
       debugPrint('REVIEW_SCREENSHOT ${output.path}/$name.png');
@@ -62,6 +72,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.byTooltip('設定').first);
     await capture('07-settings');
+    await tester.drag(find.byType(ListView).first, const Offset(0, -620));
+    await capture('07-settings-details');
     await tester.tap(find.byType(BackButton).hitTestable());
     await settle();
     await tester.tap(find.byTooltip('足跡與足跡幣').first);
@@ -100,6 +112,17 @@ void main() {
       await tester.tap(item);
       await capture('timer-$mode-compact');
     }
+    await tester.tap(find.byKey(const ValueKey('timer-mode-exercise')));
+    await settle();
+    await tester.tap(find.byKey(const ValueKey('exercise-kind-jog')));
+    await capture('timer-jog-compact');
+    await tester.tap(find.byKey(const ValueKey('jog-bpm-faster')));
+    await capture('timer-jog-adjusted');
+    await tester.tap(find.byKey(const ValueKey('timer-mode-game')));
+    await settle();
+    await tester.tap(find.byKey(const ValueKey('game-quick-chess')));
+    await capture('timer-chess-compact');
+    await tester.tap(find.byKey(const ValueKey('game-quick-party')));
     await tester.tap(find.byType(MascotToggleBar).hitTestable());
     const expanded = [
       ('習慣', '20-habits-expanded'),

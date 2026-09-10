@@ -19,7 +19,8 @@ def main():
     parser.add_argument('--device', required=True)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--test', default='integration_test/experience_review_test.dart')
-    parser.add_argument('--glass', action='store_true', help='Capture the optional frosted navigation candidate')
+    parser.add_argument('--glass', action=argparse.BooleanOptionalAction, default=True,
+                        help='Use glass navigation (default); --no-glass captures the solid comparison')
     args = parser.parse_args()
     devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'booted', '--json']))
     booted = {d['udid'] for group in devices['devices'].values() for d in group}

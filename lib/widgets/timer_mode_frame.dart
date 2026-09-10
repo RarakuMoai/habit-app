@@ -16,7 +16,7 @@ abstract final class TimerModeMetrics {
 }
 
 /// 計時以操作優先分三種資訊層級：極矮面板顯示時間摘要；房間旁有寬度時
-/// 使用大面盤；功能展開後採單欄。次要設定可以捲動，從不縮小整組觸控區。
+/// 使用大面盤；功能展開後採單欄。收合優先顯示快捷設定，說明與統計接在後面；不縮小整組觸控區。
 class TimerModeFrame extends StatelessWidget {
   final TimerHeroBuilder heroBuilder;
   final Widget? compactReadout;
@@ -46,7 +46,7 @@ class TimerModeFrame extends StatelessWidget {
   });
 
   static const double summaryBreakpoint = 350;
-  static const double roomMinHeight = 260;
+  static const double roomMinHeight = 276;
   static const double roomBreakpoint = 420;
 
   Widget _slot(String name, Widget child) =>
@@ -69,7 +69,7 @@ class TimerModeFrame extends StatelessWidget {
     ),
   );
 
-  Widget _details() => Column(
+  Widget _details({bool includeQuickPicker = true}) => Column(
     mainAxisSize: MainAxisSize.min,
     children: [
       if (statusLine != null)
@@ -83,7 +83,7 @@ class TimerModeFrame extends StatelessWidget {
             ),
           ),
         ),
-      if (quickPicker != null)
+      if (includeQuickPicker && quickPicker != null)
         Padding(
           padding: const EdgeInsets.only(top: 16),
           child: _slot('quick-picker', quickPicker!),
@@ -160,58 +160,86 @@ class TimerModeFrame extends StatelessWidget {
             ),
           ),
         ),
+        if (quickPicker != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _slot('quick-picker', quickPicker!),
+          ),
         Padding(
-          padding: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.only(top: 8),
           child: _slot('progress', progress),
         ),
-        _details(),
+        _details(includeQuickPicker: false),
       ],
     );
   }
 
   Widget _room(
     BuildContext context,
-    double width,
+    double height,
     TimerControlCluster actions,
   ) {
-    final heroSize = math.min(196.0, width - 36 - 160 - 16);
+    // Give the header and shortcuts their natural height first. The stage uses
+    // the remainder, so a 120pt jog picker gets a smaller illustration than a
+    // 64pt focus picker without moving either set of controls offscreen.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _header(),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: TimerModeMetrics.horizontalInset,
-          ),
-          child: Row(
+        SizedBox(
+          height: height,
+          child: Column(
             children: [
-              SizedBox.square(
-                key: const ValueKey('timer-hero'),
-                dimension: heroSize,
-                child: heroBuilder(context, heroSize),
-              ),
-              const SizedBox(width: 16),
+              _header(),
+              const SizedBox(height: 2),
               Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _slot('progress', progress),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 64,
-                      width: double.infinity,
-                      child: actions.primaryButton(context),
-                    ),
-                    const SizedBox(height: 12),
-                    _slot('controls', actions.secondaryActions()),
-                  ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: TimerModeMetrics.horizontalInset,
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, stage) {
+                      final heroSize = math.min(
+                        stage.maxHeight,
+                        stage.maxWidth - 172,
+                      );
+                      return Row(
+                        children: [
+                          SizedBox.square(
+                            key: const ValueKey('timer-hero'),
+                            dimension: heroSize,
+                            child: heroBuilder(context, heroSize),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  height: 52,
+                                  width: double.infinity,
+                                  child: actions.primaryButton(context),
+                                ),
+                                const SizedBox(height: 4),
+                                _slot('controls', actions.secondaryActions()),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
+              if (quickPicker != null) ...[
+                const SizedBox(height: 4),
+                _slot('quick-picker', quickPicker!),
+              ],
             ],
           ),
         ),
-        _details(),
+        const SizedBox(height: 8),
+        _slot('progress', progress),
+        _details(includeQuickPicker: false),
       ],
     );
   }
@@ -266,11 +294,11 @@ class TimerModeFrame extends StatelessWidget {
             actions is TimerControlCluster;
         return SingleChildScrollView(
           key: const ValueKey('timer-mode-scroll'),
-          padding: EdgeInsets.only(top: summary ? 0 : 8, bottom: 4),
+          padding: EdgeInsets.only(top: summary || room ? 0 : 8, bottom: 4),
           child: summary
               ? _summary(context, actions)
               : room
-              ? _room(context, constraints.maxWidth, actions)
+              ? _room(context, constraints.maxHeight, actions)
               : _full(context, constraints.maxHeight, constraints.maxWidth),
         );
       },

@@ -7,15 +7,17 @@
 
 ## 獨立改版分支（2026-09-10）
 
-`codex/experience-redesign` 目前採親子溫暖的 V2 方向，範圍、版面基準與待驗收狀態見
-[親子溫暖體驗改版 V2](experience_redesign_v2.md)；[第一版紀錄](experience_redesign.md) 保留比較。
-本分支的 `AppPalette`、`AppSurfaces`、`AppInk`、`AppCardStyle` 與 `buildAppTheme()`
-是目前實作來源：奶油、蜜桃與暖棕承接場景，保留水藍、莓粉與柔紫識別；卡片24、
-底部面板32。主導覽恢復彩色 PNG，預設暖色不透明表面，工具鈕48pt、間距8pt。
-`NAV_GLASS=true` 僅作 Flutter 霧面材質比較，不是 Apple 原生 Liquid Glass 或預設樣式。
+`codex/experience-redesign` 目前採親子溫暖的 V3 方向，詳見
+[V3：玻璃導覽與收合操作](experience_redesign_v3.md)。[V2](experience_redesign_v2.md)
+與[V1](experience_redesign.md) 保留為比較基準。
+`AppPalette`、`AppSurfaces`、`AppInk`、`AppCardStyle` 與 `buildAppTheme()` 是實作來源。
+首頁杏桃／珊瑚、完成薄荷綠；專注柔紫、節拍器暖琥珀；卡片24、底部面板32。
+主導覽預設 Flutter 玻璃材質和彩色PNG，未選中圖示0.42透明度；高對比改實底與全亮圖示。
+`NAV_GLASS=false` 可回退實底比較。這不是 Apple 原生 Liquid Glass。
+工具鈕48pt、間距8pt；計時收合主操作52pt、次要操作48pt，快捷項目優先於說明與統計。
 
 各頁依正式 parent 的收合／展開可用空間重新安排資訊，主數據與操作不得被大卡片裁掉；
-`AppPressable`、`AppMotion` 及各頁持續動畫尊重降低動態。詳細尺寸與驗證狀態只在 V2
+`AppPressable`、`AppMotion` 及各頁持續動畫尊重降低動態。詳細尺寸與驗證狀態只在 V3
 文件維護。下方保留舊版紀錄，不應把其中舊 token 或歷史通過結果套回本輪。
 
 ## 顏色

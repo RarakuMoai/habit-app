@@ -19,7 +19,7 @@ import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/timer_mode_frame.dart';
 
 // 節拍器主色（跟專注暖橘、運動青綠明顯區分）
-const Color kMetronomeAccent = AppPalette.focus;
+const Color kMetronomeAccent = AppPalette.metronome;
 
 const int _kMinBpm = 30;
 const int _kMaxBpm = 240;
