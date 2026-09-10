@@ -28,6 +28,7 @@ import '../utils/story_store.dart';
 import '../utils/usage_stats.dart';
 import '../utils/weight_records.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/app_pressable.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/four_period_background.dart';
 import '../widgets/habit_ui.dart';
@@ -3017,68 +3018,112 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     return Column(
       children: [
-        if (habits.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TweenAnimationBuilder<double>(
-                    // 打卡瞬間先按住舊值，等勾勾觸底（impact）才放開：
-                    // 進度收束是「結果」，跟輸入同拍反而讀不出因果。
-                    tween: Tween(begin: 0.0, end: _progressHold ?? progress),
-                    duration: const Duration(milliseconds: 460),
-                    curve: Curves.easeOutCubic,
-                    builder: (_, value, _) => _ProgressBar(
-                      value: value,
-                      accent: accent,
-                      glow: _glowCtrl,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _l10n.hpTodayTitle,
+                          style: const TextStyle(
+                            fontSize: 23,
+                            height: 1.2,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                            color: AppInk.strong,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          reached
+                              ? _l10n.hpTodayComplete
+                              : _l10n.hpTodaySubtitle,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.45,
+                            color: AppInk.soft,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                // 達標時數字升級成綠色膠囊＋勾，給一個小小的完成獎勵
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
+                  const SizedBox(width: 12),
+                  AppPressable(
+                    borderRadius: 18,
+                    semanticsLabel: _l10n.hsAddTitle,
+                    onPressed: _editMode ? null : _showAddHabitSheet,
+                    child: Ink(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppPalette.brand,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Icon(
+                        Icons.add_rounded,
+                        color: AppSurfaces.card,
+                        size: 25,
+                      ),
+                    ),
                   ),
-                  decoration: BoxDecoration(
-                    color: reached ? Colors.green.shade50 : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (reached) ...[
-                        Icon(
-                          Icons.check_circle_rounded,
-                          size: 13,
-                          color: Colors.green.shade500,
+                ],
+              ),
+              if (habits.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      '$displayDone',
+                      style: AppType.digits(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: AppPalette.brand,
+                      ),
+                    ),
+                    Text(
+                      ' / $displayTotal',
+                      style: AppType.digits(fontSize: 16, color: AppInk.soft),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(
+                          begin: 0.0,
+                          end: _progressHold ?? progress,
                         ),
-                        const SizedBox(width: 3),
-                      ],
-                      Text(
-                        '$displayDone / $displayTotal',
-                        style: AppType.digits(
-                          color: reached ? Colors.green.shade700 : accent,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                        duration: AppMotion.duration(
+                          context,
+                          const Duration(milliseconds: 460),
+                        ),
+                        curve: Curves.easeOutCubic,
+                        builder: (_, value, _) => _ProgressBar(
+                          value: value,
+                          accent: AppPalette.brand,
+                          glow: _glowCtrl,
                         ),
                       ),
+                    ),
+                    if (reached) ...[
+                      const SizedBox(width: 10),
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        size: 20,
+                        color: AppPalette.success,
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ],
-            ),
+            ],
           ),
-        const SizedBox(height: 8),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          child: _editMode ? _buildMoveDoneBar() : _buildAddButton(),
         ),
-        const SizedBox(height: 12),
+        if (_editMode) _buildMoveDoneBar(),
         Expanded(child: _buildHabitList()),
       ],
     );
@@ -3126,56 +3171,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAddButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _showAddHabitSheet,
-          borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.orange.withValues(alpha: 0.15),
-          highlightColor: Colors.orange.withValues(alpha: 0.08),
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFF8EC), Color(0xFFFFEFDA)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade400,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.add, size: 16, color: Colors.white),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  _l10n.hsAddTitle,
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
+  Widget _buildAddButton() => AppPressable(
+    onPressed: _showAddHabitSheet,
+    borderRadius: 18,
+    child: Ink(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      decoration: BoxDecoration(
+        color: AppPalette.brand,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.add_rounded, size: 20, color: AppSurfaces.card),
+          const SizedBox(width: 8),
+          Text(
+            _l10n.hsAddTitle,
+            style: const TextStyle(
+              color: AppSurfaces.card,
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
             ),
           ),
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 
   // 編輯模式下「新增習慣」鈕原地換成的完成鈕：外框／大小與 _buildAddButton
   // 完全一致（同 gradient／border／radius／padding），只有 icon＋文字內容不同。
@@ -3261,7 +3282,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return TweenAnimationBuilder<double>(
         key: ValueKey('anim_$name'),
         tween: Tween(begin: alreadyShown ? 1.0 : 0.0, end: 1.0),
-        duration: Duration(milliseconds: alreadyShown ? 0 : 220 + index * 55),
+        duration: Duration(
+          milliseconds: alreadyShown || _reduceMotion ? 0 : 220 + index * 55,
+        ),
         curve: Curves.easeOut,
         builder: (_, v, child) => Opacity(
           opacity: v,
@@ -3305,7 +3328,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return AnimatedBuilder(
         animation: animation,
         builder: (_, _) => Transform.scale(
-          scale: 1 + animation.value * 0.035,
+          scale: _reduceMotion ? 1 : 1 + animation.value * 0.035,
           child: Material(
             color: Colors.transparent,
             elevation: 10 * animation.value,
@@ -3377,7 +3400,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               child: HabitSectionHeader(
                 label: _l10n.htDailyHabits,
                 icon: Icons.wb_sunny_rounded,
-                color: Colors.orange,
+                color: AppPalette.habit,
                 done: dailyDoneCount,
                 total: _dailyHabits.length,
               ),
@@ -3397,7 +3420,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               child: HabitSectionHeader(
                 label: _l10n.htWeeklyHabits,
                 icon: Icons.calendar_view_week_rounded,
-                color: Colors.indigo,
+                color: AppPalette.focus,
                 done: weeklyMetCount,
                 total: _weeklyHabits.length,
               ),
@@ -3413,65 +3436,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // 空狀態：淡入＋上浮，視覺語言對齊喝水頁的「今天還沒有補水紀錄」
-  Widget _buildEmptyState() {
-    final accent = _sceneColors.accent;
-    return Center(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOut,
-        builder: (_, v, child) => Opacity(
-          opacity: v,
-          child: Transform.translate(
-            offset: Offset(0, 12 * (1 - v)),
-            child: child,
-          ),
-        ),
-        // FittedBox：兔咪面板展開時卡片高度有限，等比縮小避免 overflow
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.spa_rounded, size: 30, color: accent),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  _l10n.hpEmptyTitle,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppInk.strong,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _l10n.hpEmptySub,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    fontWeight: FontWeight.w500,
-                    color: AppInk.soft,
-                  ),
-                ),
-              ],
+  // 空狀態可捲動、不把文字整塊縮小；窄版仍保留可讀文字與主操作。
+  Widget _buildEmptyState() => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: AppPalette.brand.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: const Icon(
+              Icons.eco_outlined,
+              size: 36,
+              color: AppPalette.brand,
             ),
           ),
-        ),
+          const SizedBox(height: 18),
+          Text(
+            _l10n.hpEmptyTitle,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppInk.strong,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _l10n.hpEmptySub,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.6,
+              color: AppInk.soft,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildAddButton(),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// 一次「Home 收拾自己 →（若換日）再收成新一天中性」的交易。

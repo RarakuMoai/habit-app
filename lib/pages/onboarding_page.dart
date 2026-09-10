@@ -18,6 +18,7 @@ import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 import '../utils/weight_records.dart';
+import '../widgets/app_pressable.dart';
 import '../widgets/audio_control_button.dart';
 import '../widgets/birthday_picker.dart';
 import '../widgets/mascot_scene.dart';
@@ -331,7 +332,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     FocusScope.of(context).unfocus();
     if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 350),
+        duration: AppMotion.duration(context, AppMotion.settle),
         curve: Curves.easeInOut,
       );
       setState(() => _currentPage++);
@@ -526,7 +527,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       initial: _birthdayPickerInitialDate(),
       firstDate: _birthdayFirstDate,
       lastDate: _birthdayLastDate,
-      accent: Colors.orange,
+      accent: AppPalette.brand,
     );
     if (picked == null || !mounted) return;
     _playOnboardingSfx(SfxCue.success);
@@ -575,7 +576,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
-          Icon(Icons.favorite_outline, size: 14, color: Colors.orange.shade400),
+          Icon(Icons.favorite_outline, size: 14, color: AppPalette.brand),
           const SizedBox(width: 5),
           Expanded(
             child: Text(
@@ -605,14 +606,14 @@ class _OnboardingPageState extends State<OnboardingPage>
           );
         },
         style: TextButton.styleFrom(
-          foregroundColor: Colors.orange.shade800,
-          backgroundColor: Colors.orange.shade50,
+          foregroundColor: AppPalette.brand,
+          backgroundColor: AppSurfaces.fill,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.orange.shade200),
+            side: BorderSide(color: AppSurfaces.divider),
           ),
         ),
         child: Text(
@@ -666,7 +667,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
     if (_currentPage > 0) {
       _pageController.previousPage(
-        duration: const Duration(milliseconds: 350),
+        duration: AppMotion.duration(context, AppMotion.settle),
         curve: Curves.easeInOut,
       );
       setState(() => _currentPage--);
@@ -801,10 +802,10 @@ class _OnboardingPageState extends State<OnboardingPage>
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.88),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.orange.withValues(alpha: 0.22)),
+            border: Border.all(color: AppPalette.brand.withValues(alpha: 0.22)),
             boxShadow: [
               BoxShadow(
-                color: Colors.orange.withValues(alpha: 0.12),
+                color: AppPalette.brand.withValues(alpha: 0.12),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -815,7 +816,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             style: TextStyle(
               fontSize: fontSize,
               height: 1.38,
-              color: Colors.orange.shade900,
+              color: AppInk.strong,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -835,10 +836,10 @@ class _OnboardingPageState extends State<OnboardingPage>
                   color: Colors.white.withValues(alpha: 0.88),
                   border: Border(
                     left: BorderSide(
-                      color: Colors.orange.withValues(alpha: 0.16),
+                      color: AppPalette.brand.withValues(alpha: 0.16),
                     ),
                     top: BorderSide(
-                      color: Colors.orange.withValues(alpha: 0.16),
+                      color: AppPalette.brand.withValues(alpha: 0.16),
                     ),
                   ),
                 ),
@@ -867,7 +868,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       child: FittedBox(
         child: MascotStage(
           asset: asset,
-          accent: Colors.orange,
+          accent: AppPalette.brand,
           reactionTick: 0,
           onTap: () => _playOnboardingSfx(SfxCue.tap),
         ),
@@ -877,44 +878,39 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 選項按鈕
   Widget _optionButton(String label, VoidCallback onTap, {Color? color}) {
-    final accent = color ?? Colors.orange;
+    final accent = color ?? AppPalette.brand;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(16),
-        shadowColor: accent.withValues(alpha: 0.22),
-        elevation: 1.5,
-        child: InkWell(
-          onTap: () {
-            _playOnboardingSfx(SfxCue.tap);
-            unawaited(_ensureOnboardingBgm());
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(16),
-          splashColor: accent.withValues(alpha: 0.10),
-          highlightColor: accent.withValues(alpha: 0.06),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: accent.withValues(alpha: 0.24)),
-              // 純色 accent 淡底（不再用 gradient，避免兩端白氣感）
-              color: accent.withValues(alpha: 0.10),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.2,
-                color: accent == Colors.orange
-                    ? Colors.orange.shade800
-                    : accent,
-                fontWeight: FontWeight.w700,
+      child: AppPressable(
+        borderRadius: 20,
+        onPressed: () {
+          _playOnboardingSfx(SfxCue.tap);
+          unawaited(_ensureOnboardingBgm());
+          onTap();
+        },
+        child: Ink(
+          padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 18),
+          decoration: BoxDecoration(
+            color: AppSurfaces.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.20)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.4,
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Icon(Icons.arrow_forward_rounded, size: 19, color: accent),
+            ],
           ),
         ),
       ),
@@ -1004,7 +1000,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             child: ElevatedButton(
               onPressed: _page1Done ? _nextPage : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: AppPalette.brand,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1042,7 +1038,7 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   Widget _diceButton() {
     return Material(
-      color: Colors.orange,
+      color: AppPalette.brand,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -1084,11 +1080,11 @@ class _OnboardingPageState extends State<OnboardingPage>
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.orange.shade200),
+                      borderSide: BorderSide(color: AppSurfaces.divider),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Colors.orange),
+                      borderSide: const BorderSide(color: AppPalette.brand),
                     ),
                   ),
                 ),
@@ -1110,7 +1106,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                 _nextPage();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: AppPalette.brand,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1148,11 +1144,11 @@ class _OnboardingPageState extends State<OnboardingPage>
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.orange.shade200),
+                borderSide: BorderSide(color: AppSurfaces.divider),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Colors.orange),
+                borderSide: const BorderSide(color: AppPalette.brand),
               ),
             ),
           ),
@@ -1169,7 +1165,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                       _nextPage();
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: AppPalette.brand,
                 disabledBackgroundColor: AppInk.faint,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -1320,7 +1316,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             child: ElevatedButton(
               onPressed: _nextPage,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: AppPalette.brand,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1374,10 +1370,10 @@ class _OnboardingPageState extends State<OnboardingPage>
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.82),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.orange.shade100),
+                  border: Border.all(color: AppSurfaces.fill),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.orange.withValues(alpha: 0.10),
+                      color: AppPalette.brand.withValues(alpha: 0.10),
                       blurRadius: 18,
                       offset: const Offset(0, 8),
                     ),
@@ -1391,14 +1387,14 @@ class _OnboardingPageState extends State<OnboardingPage>
                         Icon(
                           Icons.repeat_rounded,
                           size: 15,
-                          color: Colors.orange.shade700,
+                          color: AppPalette.brand,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           _l10n.obHabitFreqTitle,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.orange.shade700,
+                            color: AppPalette.brand,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1494,7 +1490,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     return Container(
       key: ValueKey('weekly-stepper-$name'),
       decoration: BoxDecoration(
-        color: Colors.orange,
+        color: AppPalette.brand,
         borderRadius: BorderRadius.circular(14),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1559,10 +1555,10 @@ class _OnboardingPageState extends State<OnboardingPage>
       curve: Curves.easeOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: selected ? Colors.orange : Colors.white,
+        color: selected ? AppPalette.brand : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: selected ? Colors.orange : const Color(0xFFDDD0C4),
+          color: selected ? AppPalette.brand : const Color(0xFFDDD0C4),
         ),
       ),
       child: Text(
@@ -1602,15 +1598,15 @@ class _OnboardingPageState extends State<OnboardingPage>
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: selected ? Colors.orange : Colors.white,
+            color: selected ? AppPalette.brand : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected ? Colors.orange : Colors.orange.shade100,
+              color: selected ? AppPalette.brand : AppSurfaces.fill,
             ),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: Colors.orange.withValues(alpha: 0.20),
+                      color: AppPalette.brand.withValues(alpha: 0.20),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -1648,7 +1644,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.orange.withValues(alpha: 0.24),
+                              color: AppPalette.brand.withValues(alpha: 0.24),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -1657,7 +1653,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                         child: Icon(
                           Icons.check_rounded,
                           size: 14,
-                          color: Colors.orange.shade700,
+                          color: AppPalette.brand,
                         ),
                       ),
                     ),
@@ -1705,11 +1701,11 @@ class _OnboardingPageState extends State<OnboardingPage>
         fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.orange.shade200),
+          borderSide: BorderSide(color: AppSurfaces.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.orange),
+          borderSide: const BorderSide(color: AppPalette.brand),
         ),
       ),
     );
@@ -1724,11 +1720,11 @@ class _OnboardingPageState extends State<OnboardingPage>
       fillColor: Colors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.orange.shade200),
+        borderSide: BorderSide(color: AppSurfaces.divider),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.orange),
+        borderSide: const BorderSide(color: AppPalette.brand),
       ),
     );
     return Column(
@@ -1799,7 +1795,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               Text(
                 _l10n.genderLabel,
                 style: TextStyle(
-                  color: Colors.orange.shade800,
+                  color: AppPalette.brand,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1880,17 +1876,17 @@ class _OnboardingPageState extends State<OnboardingPage>
               suffixIcon: const Icon(
                 Icons.calendar_today_outlined,
                 size: 18,
-                color: Colors.orange,
+                color: AppPalette.brand,
               ),
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.orange.shade200),
+                borderSide: BorderSide(color: AppSurfaces.divider),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.orange),
+                borderSide: const BorderSide(color: AppPalette.brand),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -1905,7 +1901,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               // 按鈕永遠可按，按下去才驗證。空著 / 超範圍會跳紅字提示
               onPressed: _tryFinishBodyInfo,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: AppPalette.brand,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1941,10 +1937,10 @@ class _OnboardingPageState extends State<OnboardingPage>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
+          color: selected ? AppPalette.brand : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
+            color: selected ? AppPalette.brand : const Color(0xFFDDD0C4),
           ),
         ),
         child: Text(
@@ -1969,10 +1965,10 @@ class _OnboardingPageState extends State<OnboardingPage>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? Colors.orange : Colors.white,
+          color: selected ? AppPalette.brand : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.orange : const Color(0xFFDDD0C4),
+            color: selected ? AppPalette.brand : const Color(0xFFDDD0C4),
           ),
         ),
         child: Text(
@@ -1996,7 +1992,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.74),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.16)),
+        border: Border.all(color: AppPalette.brand.withValues(alpha: 0.16)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2004,7 +2000,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           Text(
             _l10n.obActivityTitle,
             style: TextStyle(
-              color: Colors.orange.shade800,
+              color: AppPalette.brand,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -2034,13 +2030,13 @@ class _OnboardingPageState extends State<OnboardingPage>
             child: ElevatedButton(
               onPressed: _finish,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: AppPalette.brand,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 elevation: 4,
-                shadowColor: Colors.orange.withValues(alpha: 0.4),
+                shadowColor: AppPalette.brand.withValues(alpha: 0.4),
               ),
               child: Text(
                 _l10n.obStart,
@@ -2063,7 +2059,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         alignment: Alignment.topRight,
         child: AudioControlButton(
           style: AudioControlStyle.onboarding,
-          accent: Colors.orange.shade700,
+          accent: AppPalette.brand,
           onMusicEnabled: () => unawaited(_ensureOnboardingBgm(unmute: true)),
         ),
       ),
@@ -2080,26 +2076,44 @@ class _OnboardingPageState extends State<OnboardingPage>
       // 時間/訊號/電量。強制 dark icons（深色字）才看得清楚
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFFF8F0),
-        // 進度點指示器
-        bottomNavigationBar: Container(
-          height: 48,
-          color: const Color(0xFFFFF8F0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(_pages.length, (i) {
-              final active = i == _currentPage;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: active ? 20 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: active ? Colors.orange : Colors.orange.shade200,
-                  borderRadius: BorderRadius.circular(4),
+        backgroundColor: AppSurfaces.canvas,
+        // 可讀的進度與安靜的分段軌道，包含底部安全區。
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: List.generate(
+                      _pages.length,
+                      (i) => Expanded(
+                        child: AnimatedContainer(
+                          duration: AppMotion.duration(
+                            context,
+                            AppMotion.settle,
+                          ),
+                          height: 4,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            color: i <= _currentPage
+                                ? AppPalette.brand
+                                : AppSurfaces.divider,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              );
-            }),
+                const SizedBox(width: 16),
+                Text(
+                  '${_currentPage + 1} / ${_pages.length}',
+                  style: AppType.digits(fontSize: 14, color: AppPalette.brand),
+                ),
+              ],
+            ),
           ),
         ),
         body: Stack(
@@ -2150,7 +2164,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                   child: IconButton(
                     icon: const Icon(
                       Icons.arrow_back_ios_new_rounded,
-                      color: Colors.orange,
+                      color: AppPalette.brand,
                     ),
                     onPressed: _handleBack,
                     tooltip: _l10n.obBack,

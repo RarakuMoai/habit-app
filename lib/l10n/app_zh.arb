@@ -5889,5 +5889,8 @@
   "rdAskHome": "你會想家嗎？",
   "rdChooseQuiet": "就這樣待一會",
   "rdChooseTogether": "我們一起慢慢來",
-  "rdReturn": "回到日常"
+  "rdReturn": "回到日常",
+  "hpTodayTitle": "今天的小日常",
+  "hpTodaySubtitle": "按自己的步調，一件一件來。",
+  "hpTodayComplete": "今天的心意，都留下了。"
 }

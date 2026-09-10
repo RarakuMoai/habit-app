@@ -74,12 +74,17 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
-      leadingWidth: 136,
+      leadingWidth:
+          (MediaQuery.sizeOf(context).width - 184 - extraActions.length * 48)
+              .clamp(84.0, 150.0),
       leading: Padding(
         padding: const EdgeInsets.only(left: 12),
         child: Align(
           alignment: Alignment.centerLeft,
-          child: MascotPill(label: dateStr),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: MascotPill(label: dateStr),
+          ),
         ),
       ),
       title: const SizedBox.shrink(),
@@ -144,7 +149,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF8D6E63).withValues(alpha: 0.22),
+              color: const Color(0xFF8D6E63).withValues(alpha: 0.08),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -219,13 +224,17 @@ class _CoinPillState extends State<CoinPill>
   }
 
   void _onCoinChanged() {
-    if (mounted && CoinService.presentationBalance.value == null) {
+    if (mounted &&
+        !MediaQuery.disableAnimationsOf(context) &&
+        CoinService.presentationBalance.value == null) {
       _pop.forward(from: 0);
     }
   }
 
   void _onRewardPulse() {
-    if (mounted) _pop.forward(from: 0);
+    if (mounted && !MediaQuery.disableAnimationsOf(context)) {
+      _pop.forward(from: 0);
+    }
   }
 
   @override
@@ -280,7 +289,7 @@ class _CoinBalanceButton extends StatelessWidget {
             border: Border.all(color: _reviewAmber.withValues(alpha: 0.24)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF8D6E63).withValues(alpha: 0.22),
+                color: const Color(0xFF8D6E63).withValues(alpha: 0.08),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -391,7 +400,7 @@ class MascotPill extends StatelessWidget {
         border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF8D6E63).withValues(alpha: 0.26),
+            color: const Color(0xFF8D6E63).withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),

@@ -1303,5 +1303,8 @@
   "rdAskHome": "Do you miss home?",
   "rdChooseQuiet": "Let’s stay like this a little",
   "rdChooseTogether": "We can take our time together",
-  "rdReturn": "Back to our day"
+  "rdReturn": "Back to our day",
+  "hpTodayTitle": "Your everyday",
+  "hpTodaySubtitle": "One little thing, at your own pace.",
+  "hpTodayComplete": "A little care, a day well spent."
 }

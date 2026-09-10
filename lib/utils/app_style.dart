@@ -3,7 +3,31 @@
 // 一律帶棕色調、不用純黑，跟兔咪暖色世界觀一致。
 import 'package:flutter/material.dart';
 
-/// 輕量按壓回饋。先用於室友選項；不改變版面或觸控區尺寸。
+/// 日常手帳的共同色盤。場景插畫保留自己的光線，操作介面用沉穩的墨色。
+abstract final class AppPalette {
+  static const brand = Color(0xFF396B5D);
+  static const habit = Color(0xFFB66B48);
+  static const focus = Color(0xFF79689B);
+  static const water = Color(0xFF287F91);
+  static const weight = Color(0xFFA0637C);
+  static const family = Color(0xFFAE7650);
+  static const wardrobe = Color(0xFF8D7495);
+  static const success = Color(0xFF4C8066);
+  static const successSurface = Color(0xFFEDF5EE);
+}
+
+/// 有限、可取消的介面動效；持續的角色演出仍由各自的時間軸管理。
+abstract final class AppMotion {
+  static const quick = Duration(milliseconds: 160);
+  static const settle = Duration(milliseconds: 260);
+  static const enter = Duration(milliseconds: 360);
+  static const curve = Curves.easeOutCubic;
+
+  static Duration duration(BuildContext context, Duration value) =>
+      MediaQuery.disableAnimationsOf(context) ? Duration.zero : value;
+}
+
+/// 室友選項與 AppPressable 共用的輕量按壓；不改變版面或觸控區尺寸。
 abstract final class AppPressMotion {
   // 2.5% 內縮讓長卡片看得出按下，又不碰到相鄰選項。
   static const scale = 0.975;
@@ -36,15 +60,14 @@ abstract final class AppType {
   );
 }
 
-/// 文字墨色階層（暖棕系，取代 Colors.black87 / grey 系）。
+/// 文字墨色階層：主文字深綠墨，次文字保留溫暖的紙張閱讀感。
 abstract final class AppInk {
-  /// 主要文字：深咖啡，比純黑柔和但對比足夠。
-  static const Color strong = Color(0xFF453229);
+  /// 主要文字：深綠墨，比純黑柔和但對比足夠。
+  static const Color strong = Color(0xFF343E38);
 
   /// 次要文字（說明、副標）。
-  /// 2026-07-02 從 #8C7A6E 調深一階：對白底對比 4.0 → 4.7，
-  /// 11–12px 說明字才過 WCAG AA（4.5:1）。
-  static const Color soft = Color(0xFF837161);
+  /// 紙張介面的灰綠墨色；主要資訊仍使用 strong。
+  static const Color soft = Color(0xFF72776B);
 
   /// 淡化文字（完成後劃線、停用、佔位）。低對比是刻意的——
   /// 只用在「已完成 / 停用」語意，不拿來排還需要閱讀的內容。
@@ -59,14 +82,16 @@ abstract final class AppInk {
 
 /// 表面／分隔色（暖色系，取代 Colors.white + grey.shade50~300 那組）。
 abstract final class AppSurfaces {
+  static const Color canvas = Color(0xFFF5F3EC);
+
   /// 暖白卡面（與 mascot_page_shell、popup/dialog theme 同色）。
-  static const Color card = Color(0xFFFFFDF9);
+  static const Color card = Color(0xFFFFFEFA);
 
   /// 輸入框、未選取 chip 的暖淺填色（取代 grey.shade50/100）。
-  static const Color fill = Color(0xFFF7F1EA);
+  static const Color fill = Color(0xFFF0EFE7);
 
   /// 分隔線／描邊（取代 grey.shade200/300 與預設 Divider）。
-  static const Color divider = Color(0xFFEDE4DA);
+  static const Color divider = Color(0xFFE5E5D9);
 
   /// bottom sheet 頂端拖曳把手。
   static const Color dragHandle = Color(0xFFDCCFC2);
@@ -93,14 +118,14 @@ abstract final class AppShadows {
   /// 浮起卡片：ambient（大模糊淡）+ contact（小模糊貼地）。
   static List<BoxShadow> get card => [
     BoxShadow(
-      color: _brown.withValues(alpha: 0.10),
-      blurRadius: 16,
-      offset: const Offset(0, 6),
+      color: _brown.withValues(alpha: 0.055),
+      blurRadius: 24,
+      offset: const Offset(0, 8),
     ),
     BoxShadow(
-      color: _brown.withValues(alpha: 0.08),
-      blurRadius: 4,
-      offset: const Offset(0, 1.5),
+      color: _brown.withValues(alpha: 0.035),
+      blurRadius: 3,
+      offset: const Offset(0, 1),
     ),
   ];
 
@@ -116,17 +141,11 @@ abstract final class AppShadows {
 
 /// 卡片造型常數。
 abstract final class AppCardStyle {
-  static const double radius = 18;
+  static const double radius = 24;
 
-  /// 底部面板的上緣圓角。
-  ///
-  /// 圓角是一道階梯，浮出層愈大、圓角愈大：
-  /// popup 14 → 卡片 18 → **面板 20** → 對話框 22。
-  /// 面板這一格過去沒有 token 也沒有 theme 預設，32 個呼叫端裡 19 個各自手寫，
-  /// 全 app 同時存在 28／24／20／16 四種。定在這裡之後由
-  /// `main.dart` 的 `bottomSheetTheme` 統一供應，呼叫端不必再寫 shape。
-  static const double sheetRadius = 20;
+  /// 底部面板的上緣圓角，比內容卡大一階；由 theme 統一供應。
+  static const double sheetRadius = 32;
 
   /// 未完成卡片的髮絲線邊框，給輪廓一點精緻度。
-  static Border get hairline => Border.all(color: const Color(0x0A46342B));
+  static Border get hairline => Border.all(color: const Color(0x12343E38));
 }

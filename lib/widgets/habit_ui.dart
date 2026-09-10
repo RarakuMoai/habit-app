@@ -40,13 +40,15 @@ class HabitSectionHeader extends StatelessWidget {
             child: Icon(icon, size: 15, color: color),
           ),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: color,
-              letterSpacing: 0.8,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppInk.strong,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
           if (hasCount) ...[
@@ -55,14 +57,14 @@ class HabitSectionHeader extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: allDone
-                    ? Colors.green.shade50
+                    ? AppPalette.successSurface
                     : color.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
                 '$done / $total',
                 style: AppType.digits(
-                  color: allDone ? Colors.green.shade700 : color,
+                  color: allDone ? AppPalette.success : color,
                 ),
               ),
             ),
@@ -72,7 +74,7 @@ class HabitSectionHeader extends StatelessWidget {
             Icon(
               Icons.check_circle_rounded,
               size: 14,
-              color: Colors.green.shade400,
+              color: AppPalette.success,
             ),
           ],
           // 右側漸隱細線：把標題行視覺上「收」到右緣，留出呼吸感

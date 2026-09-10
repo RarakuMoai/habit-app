@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +22,7 @@ import 'pages/weight_page.dart';
 import 'utils/app_feedback.dart';
 import 'utils/app_restart.dart';
 import 'utils/app_style.dart';
+import 'utils/app_theme.dart';
 import 'utils/audio_asset_cache.dart';
 import 'utils/audio_settings_service.dart';
 import 'utils/bgm_playlist.dart';
@@ -45,6 +45,7 @@ import 'utils/usage_stats.dart';
 import 'utils/wardrobe_store.dart';
 import 'utils/water_habit_link.dart';
 import 'utils/weight_records.dart';
+import 'widgets/app_pressable.dart';
 import 'widgets/app_waiting.dart';
 import 'widgets/footprint_coin_reward_overlay.dart';
 
@@ -296,111 +297,7 @@ class _MyAppState extends State<MyApp> {
       // 截圖工作流：--dart-define=APP_LOCALE=en 可暫時切語言驗版面
       // （同 SCENE_HOUR，走編譯期常數；kDevToolsEnabled 閘門，正式版 no-op）。
       locale: _devLocaleOverride ?? const Locale('zh', 'TW'),
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7043)),
-        useMaterial3: true,
-        fontFamily: 'Nunito',
-        scaffoldBackgroundColor: const Color(0xFFF7F3EF),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shadowColor: const Color(0x1F8D6E63),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          color: Colors.white,
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: const Color(0xFFFF7043),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
-          titleTextStyle: const TextStyle(
-            fontFamily: 'Nunito',
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: AppSurfaces.fill,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-        ),
-        // 分隔線統一暖沙色，設定頁等處的裸 Divider 不再是冷灰。
-        dividerTheme: const DividerThemeData(color: AppSurfaces.divider),
-        // 等待的顏色也走 token。沒有這一格時，任何沒指定顏色的 indicator 都會
-        // 拿 seed 派生的 colorScheme.primary（#8F4C37 磚紅棕）——那個顏色在
-        // visual_spec 裡不存在，只是剛好從 seed 算出來的。
-        // 形狀由 AppLoadingBar 決定；這裡只保證漏網的 indicator 至少是暖橘。
-        progressIndicatorTheme: const ProgressIndicatorThemeData(
-          color: AppWaiting.bar,
-          linearTrackColor: AppWaiting.track,
-        ),
-        // SnackBar 統一暖棕底 + 米白字 + floating，取代預設黑灰浮條。
-        snackBarTheme: SnackBarThemeData(
-          backgroundColor: const Color(0xFF4E342E),
-          contentTextStyle: const TextStyle(
-            fontFamily: 'Nunito',
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFFFFF6ED),
-          ),
-          actionTextColor: const Color(0xFFFFC49B),
-          behavior: SnackBarBehavior.floating,
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-        ),
-        // 彈出選單/對話框統一暖白卡面 + 暖棕陰影，跟卡片語彙一致
-        popupMenuTheme: PopupMenuThemeData(
-          color: const Color(0xFFFFFDF9),
-          surfaceTintColor: Colors.transparent,
-          elevation: 6,
-          shadowColor: const Color(0xFF8D6E63).withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        dialogTheme: DialogThemeData(
-          backgroundColor: const Color(0xFFFFFDF9),
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-          ),
-        ),
-        // 底部面板過去是唯一沒有 theme 預設的浮出層：32 個
-        // showModalBottomSheet 裡 19 個各自手寫圓角，其餘 13 個吃 Material 的
-        // 預設，全 app 因此同時存在 28／24／20／16 四種圓角。
-        //
-        // 20 不是新發明的數字，是既有階梯上本來就該有的一格，也是 18 個呼叫端
-        // 已經在用的值：popup 14 → 卡片 18 → **面板 20** → 對話框 22。
-        // 定在這裡之後，新增面板不寫 shape 就是對的。
-        bottomSheetTheme: BottomSheetThemeData(
-          backgroundColor: const Color(0xFFFFFDF9),
-          surfaceTintColor: Colors.transparent,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(AppCardStyle.sheetRadius),
-            ),
-          ),
-        ),
-      ),
+      theme: buildAppTheme(),
       // 動態字體護欄：版面大量使用固定高度膠囊／導覽列，放大不設限一定破版。
       // clamp 到 1.0–1.3：仍尊重系統放大（可讀性 +30%），但不會炸版；
       // 縮小方向不跟（本來字就不大）。
@@ -1479,7 +1376,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
               final tab = tabs[i];
               return TickerMode(
                 enabled: i == _currentIndex,
-                child: KeyedSubtree(key: ValueKey(tab.id), child: tab.page),
+                child: AppPageReveal(
+                  active: i == _currentIndex,
+                  child: KeyedSubtree(key: ValueKey(tab.id), child: tab.page),
+                ),
               );
             }),
           ),
@@ -1519,13 +1419,8 @@ class _TabItem {
   });
 }
 
-// 底部列「單排」高度。從 kBottomNavigationBarHeight(56) 加厚到 72，讓底部
-// 更穩重，也縮小與兩排(96)的落差——tab 數增減換排時的跳動較小。
-const double _kSingleRowNavHeight = 72;
-
-// 自訂底部導航：寬度夠就單排（含 6 格），窄到每格 < 54 才換兩排。
-// 底欄用淡暖毛玻璃收邊；選中態靠低調膠囊承接彩色貼紙 icon。
-class _AdaptiveBottomNav extends StatefulWidget {
+// 浮動導覽維持 72pt 的單排預留高度，房間與功能頁沿用相同約束。
+class _AdaptiveBottomNav extends StatelessWidget {
   const _AdaptiveBottomNav({
     super.key,
     required this.tabs,
@@ -1537,253 +1432,130 @@ class _AdaptiveBottomNav extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  @override
-  State<_AdaptiveBottomNav> createState() => _AdaptiveBottomNavState();
-}
+  Color _accent(String id) => switch (id) {
+    TabIds.habit => AppPalette.brand,
+    TabIds.timer => AppPalette.focus,
+    TabIds.water => AppPalette.water,
+    TabIds.weight => AppPalette.weight,
+    TabIds.family => AppPalette.family,
+    _ => AppPalette.wardrobe,
+  };
 
-class _AdaptiveBottomNavState extends State<_AdaptiveBottomNav> {
-  static const double _twoRowHeight = 48;
-  int? _pressedIndex;
-
-  @override
-  void didUpdateWidget(covariant _AdaptiveBottomNav oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_pressedIndex != null && _pressedIndex! >= widget.tabs.length) {
-      _pressedIndex = null;
-    }
-  }
-
-  void _setPressed(int? index) {
-    if (_pressedIndex == index || !mounted) return;
-    setState(() => _pressedIndex = index);
-  }
+  IconData _icon(String id) => switch (id) {
+    TabIds.habit => Icons.cottage_outlined,
+    TabIds.timer => Icons.timelapse_rounded,
+    TabIds.water => Icons.water_drop_outlined,
+    TabIds.weight => Icons.monitor_weight_outlined,
+    TabIds.family => Icons.people_outline_rounded,
+    _ => Icons.checkroom_outlined,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final selectedColor = theme.colorScheme.primary;
-    const unselectedColor = AppInk.soft;
-    final backgroundColor =
-        theme.bottomNavigationBarTheme.backgroundColor ?? theme.canvasColor;
-    final surfaceTop = Color.alphaBlend(
-      selectedColor.withValues(alpha: 0.045),
-      Colors.white,
-    );
-    final surfaceBottom = Color.alphaBlend(
-      selectedColor.withValues(alpha: 0.070),
-      backgroundColor,
-    );
-
-    final n = widget.tabs.length;
-
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: backgroundColor.withValues(alpha: 0.54),
-            gradient: LinearGradient(
-              colors: [
-                surfaceTop.withValues(alpha: 0.76),
-                surfaceBottom.withValues(alpha: 0.58),
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+    final accent = _accent(tabs[currentIndex].id);
+    return ColoredBox(
+      color: AppSurfaces.canvas.withValues(alpha: 0.97),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppSurfaces.card,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: AppSurfaces.divider),
+              boxShadow: AppShadows.card,
             ),
-            border: Border(
-              top: BorderSide(
-                color: AppSurfaces.divider.withValues(alpha: 0.72),
-                width: 0.7,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF8D6E63).withValues(alpha: 0.08),
-                blurRadius: 22,
-                offset: const Offset(0, -6),
-              ),
-              BoxShadow(
-                color: selectedColor.withValues(alpha: 0.05),
-                blurRadius: 18,
-                offset: const Offset(0, -3),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: SafeArea(
-              top: false,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  // 單排塞得下就維持單排：6 格在一般手機寬度都放得下，也比兩排飽滿；
-                  // 只有窄到每格 < 54 才退成兩排，避免小螢幕擠壓。
-                  final width = constraints.maxWidth;
-                  final isTwoRow = bottomNavUsesTwoRows(
-                    width: width,
-                    itemCount: n,
-                  );
-                  final columnCount = isTwoRow ? (n / 2).ceil() : n;
-                  final rowHeight = isTwoRow
-                      ? _twoRowHeight
-                      : _kSingleRowNavHeight;
-                  final bottomIdx = [
-                    for (var i = 0; i < (isTwoRow ? columnCount : n); i++) i,
-                  ];
-                  final topIdx = [
-                    if (isTwoRow)
-                      for (var i = columnCount; i < n; i++) i,
-                  ];
-                  final rows = isTwoRow ? [topIdx, bottomIdx] : [bottomIdx];
-                  final cellW = width / columnCount;
-
-                  Widget cell(int index) {
-                    final t = widget.tabs[index];
-                    final isSel = index == widget.currentIndex;
-                    final isPressed = index == _pressedIndex;
-                    final color = isSel ? selectedColor : unselectedColor;
-                    // 貼紙圖示是彩色的，沒法像線稿那樣靠變色標示選中；選中態
-                    // 用暖色膠囊、細邊與一點浮起感提示所在位置，避免底欄視覺過重。
-                    final indicatorAlpha = isPressed
-                        ? 0.24
-                        : (isSel ? 0.16 : 0.0);
-                    final indicatorMaxWidth = isTwoRow ? 64.0 : 76.0;
-                    final indicatorWidth = (cellW - (isSel ? 8 : 14))
-                        .clamp(isSel ? 56.0 : 50.0, indicatorMaxWidth)
-                        .toDouble();
-                    final indicatorHeight = isTwoRow
-                        ? (isSel ? 44.0 : 40.0)
-                        : (isSel ? 54.0 : 48.0);
-                    final iconSize = isTwoRow
-                        ? (isSel ? 25.5 : 23.5)
-                        : (isSel ? 29.0 : 25.5);
-                    final fontSize = isTwoRow
-                        ? (isSel ? 11.0 : 10.5)
-                        : (isSel ? 12.0 : 11.2);
-                    final labelColor = isSel
-                        ? Color.lerp(selectedColor, AppInk.strong, 0.10)!
-                        : unselectedColor.withValues(alpha: 0.82);
-                    final indicatorTopAlpha = (indicatorAlpha + 0.035)
-                        .clamp(0.0, 0.30)
-                        .toDouble();
-                    final indicatorBottomAlpha = (indicatorAlpha * 0.48)
-                        .clamp(0.0, 0.16)
-                        .toDouble();
-                    final showIndicator = isSel || isPressed;
-
-                    return SizedBox(
-                      width: cellW,
-                      height: rowHeight,
-                      child: InkWell(
-                        onTap: () => widget.onTap(index),
-                        onTapDown: (_) => _setPressed(index),
-                        onTapUp: (_) => _setPressed(null),
-                        onTapCancel: () => _setPressed(null),
-                        splashFactory: NoSplash.splashFactory,
-                        highlightColor: Colors.transparent,
-                        hoverColor: Colors.transparent,
-                        focusColor: selectedColor.withValues(alpha: 0.08),
-                        child: Center(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 120),
-                            curve: Curves.easeOutCubic,
-                            width: indicatorWidth,
-                            height: indicatorHeight,
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: selectedColor.withValues(
-                                alpha: indicatorAlpha,
-                              ),
-                              gradient: showIndicator
-                                  ? LinearGradient(
-                                      colors: [
-                                        selectedColor.withValues(
-                                          alpha: indicatorTopAlpha,
-                                        ),
-                                        selectedColor.withValues(
-                                          alpha: indicatorBottomAlpha,
-                                        ),
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                    )
-                                  : null,
-                              borderRadius: BorderRadius.circular(18),
-                              border: isSel
-                                  ? Border.all(
-                                      color: selectedColor.withValues(
-                                        alpha: 0.30,
-                                      ),
-                                    )
-                                  : null,
-                              boxShadow: isSel
-                                  ? [
-                                      BoxShadow(
-                                        color: selectedColor.withValues(
-                                          alpha: 0.13,
-                                        ),
-                                        blurRadius: 14,
-                                        offset: const Offset(0, 5),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: AnimatedSlide(
-                              duration: const Duration(milliseconds: 140),
-                              curve: Curves.easeOutCubic,
-                              offset: Offset(0, isSel ? -0.025 : 0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TabGlyph(
-                                    tabId: t.id,
-                                    fallbackIcon: t.icon,
-                                    fallbackColor: color,
-                                    size: iconSize,
-                                    selected: isSel,
-                                  ),
-                                  const SizedBox(height: 3),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: Center(
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text(
-                                          t.label,
-                                          maxLines: 1,
-                                          style: TextStyle(
-                                            fontSize: fontSize,
-                                            height: 1.0,
-                                            color: labelColor,
-                                            fontWeight: isSel
-                                                ? FontWeight.w800
-                                                : FontWeight.w500,
-                                          ),
-                                        ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final n = tabs.length;
+                final twoRows = bottomNavUsesTwoRows(
+                  width: constraints.maxWidth,
+                  itemCount: n,
+                );
+                final columns = twoRows ? (n / 2).ceil() : n;
+                final height = twoRows ? 48.0 : 60.0;
+                Widget cell(int i) {
+                  final selected = i == currentIndex;
+                  final tab = tabs[i];
+                  final color = selected ? accent : AppInk.soft;
+                  return SizedBox(
+                    width: constraints.maxWidth / columns,
+                    height: height,
+                    child: AppPressable(
+                      selected: selected,
+                      semanticsLabel: tab.label,
+                      onPressed: () => onTap(i),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 5,
+                        ),
+                        child: AnimatedContainer(
+                          duration: AppMotion.duration(
+                            context,
+                            AppMotion.settle,
+                          ),
+                          curve: AppMotion.curve,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? accent.withValues(alpha: 0.11)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: ExcludeSemantics(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _icon(tab.id),
+                                  color: color,
+                                  size: twoRows ? 19 : 23,
+                                ),
+                                const SizedBox(height: 3),
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      tab.label,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: twoRows ? 10 : 11,
+                                        height: 1.0,
+                                        fontWeight: selected
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        color: color,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                    );
-                  }
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final row in rows)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: row.map(cell).toList(),
-                        ),
-                    ],
+                    ),
                   );
-                },
-              ),
+                }
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (twoRows)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [for (var i = columns; i < n; i++) cell(i)],
+                      ),
+                    Row(
+                      children: [
+                        for (var i = 0; i < (twoRows ? columns : n); i++)
+                          cell(i),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

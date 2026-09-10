@@ -252,8 +252,8 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
     final cardRadius = BorderRadius.circular(AppCardStyle.radius);
     _syncCheckAnim(done);
 
-    // 完成卡「洩氣」壓縮（68→52）：把視覺重量讓給還沒做的事
-    final minH = done ? 52.0 : 68.0;
+    // 完成前後保留相同的掃讀高度，避免打卡時列表因收縮跳動。
+    const minH = 72.0;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -268,10 +268,10 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
-            color: done ? const Color(0xFFF1F8E9) : Colors.white,
+            color: done ? AppPalette.successSurface : AppSurfaces.card,
             borderRadius: cardRadius,
             border: done
-                ? Border.all(color: Colors.green.withValues(alpha: 0.18))
+                ? Border.all(color: AppPalette.success.withValues(alpha: 0.18))
                 : AppCardStyle.hairline,
             boxShadow: done ? AppShadows.flat : AppShadows.card,
           ),
@@ -305,12 +305,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                               // 內縮圓角色條：一般用橘；連動習慣用功能來源色。
                               // 完成狀態交給圓圈/底色表達，色條僅淡出讓位
                               Padding(
-                                padding: EdgeInsets.fromLTRB(
-                                  12,
-                                  done ? 10 : 14,
-                                  0,
-                                  done ? 10 : 14,
-                                ),
+                                padding: EdgeInsets.fromLTRB(12, 18, 0, 18),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 300),
                                   width: 4,
@@ -318,7 +313,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                     color:
                                         (widget.isLinked
                                                 ? linkedAccent
-                                                : Colors.orange.shade400)
+                                                : AppPalette.habit)
                                             .withValues(
                                               alpha: done ? 0.30 : 1.0,
                                             ),
@@ -336,7 +331,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                   titleAlignment: ListTileTitleAlignment.center,
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 12,
-                                    vertical: done ? 0 : 2,
+                                    vertical: 4,
                                   ),
                                   leading: ScaleTransition(
                                     scale: _scale,
@@ -344,14 +339,14 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                       duration: const Duration(
                                         milliseconds: 250,
                                       ),
-                                      width: done ? 28 : 34,
-                                      height: done ? 28 : 34,
+                                      width: 32,
+                                      height: 32,
                                       decoration: BoxDecoration(
                                         gradient: done
                                             ? LinearGradient(
                                                 colors: [
-                                                  Colors.green.shade400,
-                                                  Colors.green.shade500,
+                                                  AppPalette.success,
+                                                  AppPalette.brand,
                                                 ],
                                                 begin: Alignment.topLeft,
                                                 end: Alignment.bottomRight,
@@ -393,16 +388,14 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                   title: AnimatedDefaultTextStyle(
                                     duration: const Duration(milliseconds: 250),
                                     style: TextStyle(
-                                      fontSize: done ? 13.5 : 15,
+                                      fontSize: 15,
                                       height: 1.3,
                                       fontWeight: FontWeight.w600,
                                       decoration: done
                                           ? TextDecoration.lineThrough
                                           : TextDecoration.none,
                                       decorationColor: AppInk.faint,
-                                      color: done
-                                          ? AppInk.faint
-                                          : AppInk.strong,
+                                      color: done ? AppInk.soft : AppInk.strong,
                                     ),
                                     child: Text(
                                       name,
@@ -424,13 +417,15 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                                 color: linkedAccent,
                                               ),
                                               const SizedBox(width: 3),
-                                              Text(
-                                                isWeightHabitName(name)
-                                                    ? l10n.hcLinkedWeight
-                                                    : l10n.hcLinkedWater,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: linkedAccent,
+                                              Flexible(
+                                                child: Text(
+                                                  isWeightHabitName(name)
+                                                      ? l10n.hcLinkedWeight
+                                                      : l10n.hcLinkedWater,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: linkedAccent,
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -493,13 +488,13 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
             color: done
-                ? const Color(0xFFF1F8E9)
+                ? AppPalette.successSurface
                 : inProgress
                 ? const Color(0xFFF5F4FC)
-                : Colors.white,
+                : AppSurfaces.card,
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
             border: done
-                ? Border.all(color: Colors.green.withValues(alpha: 0.18))
+                ? Border.all(color: AppPalette.success.withValues(alpha: 0.18))
                 : AppCardStyle.hairline,
             boxShadow: done ? AppShadows.flat : AppShadows.card,
           ),
@@ -531,7 +526,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                               duration: const Duration(milliseconds: 300),
                               width: 4,
                               decoration: BoxDecoration(
-                                color: Colors.indigo.shade300.withValues(
+                                color: AppPalette.focus.withValues(
                                   alpha: done ? 0.30 : 1.0,
                                 ),
                                 borderRadius: BorderRadius.circular(2),
@@ -621,7 +616,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                               ),
                               decoration: BoxDecoration(
                                 color: done
-                                    ? Colors.green.shade100
+                                    ? const Color(0xFFDDEDDD)
                                     : Colors.indigo.shade50,
                                 borderRadius: BorderRadius.circular(20),
                               ),
@@ -634,7 +629,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                         : Icons.flag_rounded,
                                     size: 11,
                                     color: done
-                                        ? Colors.green.shade700
+                                        ? AppPalette.brand
                                         : Colors.indigo.shade400,
                                   ),
                                   const SizedBox(width: 3),
@@ -642,7 +637,7 @@ class _HabitCardState extends State<HabitCard> with TickerProviderStateMixin {
                                     '${widget.weeklyCount}/${widget.weeklyTarget}',
                                     style: AppType.digits(
                                       color: done
-                                          ? Colors.green.shade700
+                                          ? AppPalette.brand
                                           : Colors.indigo.shade500,
                                     ),
                                   ),
@@ -707,7 +702,7 @@ class _HoldFillPainter extends CustomPainter {
     canvas.drawCircle(
       o,
       r,
-      Paint()..color = Colors.green.withValues(alpha: alpha),
+      Paint()..color = AppPalette.success.withValues(alpha: alpha),
     );
   }
 

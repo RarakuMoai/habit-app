@@ -26,6 +26,7 @@ import 'package:flutter/material.dart';
 import '../pages/game/snake_arcade/snake_arcade_page.dart';
 import '../pages/home/room_metrics.dart';
 
+import '../utils/app_style.dart';
 import '../utils/mascot.dart';
 import 'dice_duel_panel.dart';
 import 'mascot_panel.dart';
@@ -425,16 +426,19 @@ class _MascotCard extends StatelessWidget {
       decoration: BoxDecoration(
         // 暖白卡面 + 雙層上拋陰影（ambient 大模糊淡 + contact 貼邊），
         // 讓卡片跟場景的交界更柔和精緻
-        color: const Color(0xFFFFFDF9).withValues(alpha: 0.97),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        color: AppSurfaces.canvas,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppCardStyle.sheetRadius),
+        ),
+        border: Border(top: BorderSide(color: AppSurfaces.card, width: 1.5)),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.14),
+            color: accent.withValues(alpha: 0.065),
             blurRadius: 26,
             offset: const Offset(0, -8),
           ),
           BoxShadow(
-            color: accent.withValues(alpha: 0.10),
+            color: accent.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, -2),
           ),
