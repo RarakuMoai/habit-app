@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,7 +20,16 @@ class AudioAssetCache {
     final storedVersion = prefs.getInt(PrefsKeys.audioAssetCacheVersion) ?? 0;
     if (storedVersion >= currentVersion) return false;
 
-    await (clearCache ?? AudioPlayer.clearAssetCache)();
+    try {
+      await (clearCache ?? AudioPlayer.clearAssetCache)();
+    } on PathNotFoundException catch (error) {
+      // just_audio 對尚未建立的 cache root 直接 list()。全新安裝沒有
+      // 舊快取可清，視為成功；其他路徑缺失與權限／I/O 錯誤仍向外拋出。
+      final normalized = (error.path ?? '')
+          .replaceAll('\\', '/')
+          .replaceFirst(RegExp(r'/+$'), '');
+      if (normalized.split('/').last != 'just_audio_cache') rethrow;
+    }
     await prefs.setInt(PrefsKeys.audioAssetCacheVersion, currentVersion);
     return true;
   }

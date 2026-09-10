@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
@@ -47,7 +48,7 @@ class _AudioControlButtonState extends State<AudioControlButton> {
       return;
     }
     widget.onBeforeOpen?.call();
-    unawaited(SfxService.instance.play(SfxCue.tap));
+    playHaptic(HapticLevel.selection);
 
     final buttonBox =
         _buttonKey.currentContext?.findRenderObject() as RenderBox?;
@@ -206,7 +207,7 @@ class _AudioPanelOverlay extends StatelessWidget {
           width: width,
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 360),
+            duration: AppMotion.duration(context, AppMotion.enter),
             curve: Curves.easeOutQuart,
             builder: (_, t, _) {
               final eased = Curves.easeOutCubic.transform(t);
@@ -313,12 +314,7 @@ class _AudioSettingsPanel extends StatelessWidget {
                     accent: accent,
                     valueListenable: AudioSettingsService.sfxMuted,
                     onChanged: (muted) async {
-                      if (muted) {
-                        unawaited(SfxService.instance.play(SfxCue.tap));
-                        await Future<void>.delayed(
-                          const Duration(milliseconds: 80),
-                        );
-                      }
+                      playHaptic(HapticLevel.selection);
                       await AudioSettingsService.instance.setSfxMuted(muted);
                       if (!muted) {
                         unawaited(SfxService.instance.play(SfxCue.success));
@@ -389,7 +385,7 @@ class _AudioTile extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTap: () => unawaited(onChanged(enabled)),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 170),
+              duration: AppMotion.duration(context, AppMotion.quick),
               curve: Curves.easeOutCubic,
               width: 74,
               height: 66,
@@ -410,7 +406,7 @@ class _AudioTile extends StatelessWidget {
                   Align(
                     alignment: Alignment.topLeft,
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 170),
+                      duration: AppMotion.duration(context, AppMotion.quick),
                       curve: Curves.easeOutCubic,
                       width: 30,
                       height: 30,
@@ -424,7 +420,7 @@ class _AudioTile extends StatelessWidget {
                   Align(
                     alignment: Alignment.topRight,
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 170),
+                      duration: AppMotion.duration(context, AppMotion.quick),
                       curve: Curves.easeOutCubic,
                       width: 19,
                       height: 19,

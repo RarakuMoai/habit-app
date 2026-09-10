@@ -7,10 +7,10 @@ import 'app_audio_session.dart';
 import 'audio_settings_service.dart';
 
 enum SfxCue {
-  tap('assets/sounds/sfx_tap.wav', 0.88),
-  success('assets/sounds/sfx_success.wav', 0.95),
-  complete('assets/sounds/sfx_complete.wav', 1.0),
-  cancel('assets/sounds/sfx_cancel.wav', 0.9),
+  tap('assets/sounds/sfx_diary_tap.wav', 0.72),
+  success('assets/sounds/sfx_diary_success.wav', 0.90),
+  complete('assets/sounds/sfx_diary_complete.wav', 0.95),
+  cancel('assets/sounds/sfx_diary_cancel.wav', 0.70),
   // 衣櫃購買／回憶揭曉／骰子開盤：仙塵般的星光碎音（mixkit fairy arcade
   // sparkle，裁掉 0.86s 之後的靜音尾）。舊檔實際輸出只有 -39.7 dBFS，比其他
   // 音效整整輕 10dB，解鎖那一聲幾乎聽不到；換檔時一併把係數拉進 -28 dBFS 的
@@ -74,7 +74,60 @@ enum SfxCue {
 }
 
 class SfxService {
-  SfxService._();
+  SfxService._()
+    : _playerFactory = AudioPlayer.new,
+      _configureSession = AppAudioSession.ensureConfigured,
+      _activateSession = AppAudioSession.activate {
+    _listenForMute();
+  }
+
+  @visibleForTesting
+  SfxService.forTesting({
+    required AudioPlayer Function() playerFactory,
+    required Future<void> Function() configureSession,
+    required Future<void> Function() activateSession,
+  }) : _playerFactory = playerFactory,
+       _configureSession = configureSession,
+       _activateSession = activateSession {
+    _listenForMute();
+  }
+
+  final AudioPlayer Function() _playerFactory;
+  final Future<void> Function() _configureSession;
+  final Future<void> Function() _activateSession;
+  final Map<SfxCue, int> _generations = {};
+  final Map<AudioPlayer, Future<void>> _voiceQueues = {};
+  bool _listening = false;
+  bool _disposing = false;
+
+  void _listenForMute() {
+    if (_listening) return;
+    AudioSettingsService.sfxMuted.addListener(_onMuteChanged);
+    _listening = true;
+  }
+
+  void _onMuteChanged() {
+    if (!AudioSettingsService.sfxMuted.value) return;
+    // stop 在第一個 await 前使請求失效；重新開啟音效不會復活舊操作。
+    for (final cue in SfxCue.values) {
+      unawaited(stop(cue));
+    }
+  }
+
+  Future<void> _onVoice(AudioPlayer player, Future<void> Function() action) {
+    final previous = _voiceQueues[player] ?? Future<void>.value();
+    final operation = previous.then(
+      (_) => action(),
+      onError: (Object _, StackTrace _) => action(),
+    );
+    _voiceQueues[player] = operation;
+    return operation.whenComplete(() {
+      if (identical(_voiceQueues[player], operation)) {
+        _voiceQueues.remove(player);
+      }
+    });
+  }
+
   static final SfxService instance = SfxService._();
 
   // 一般 cue 只需要一個 player；逐枚入袋聲用四聲道輪替，快速連奏時不會
@@ -85,6 +138,7 @@ class SfxService {
   Future<void>? _initializing;
 
   Future<void> init() async {
+    _listenForMute();
     if (_initialized) return;
     final pending = _initializing;
     if (pending != null) {
@@ -102,7 +156,7 @@ class SfxService {
 
   Future<void> _initialize() async {
     await AudioSettingsService.instance.init();
-    await AppAudioSession.ensureConfigured();
+    await _configureSession();
     final loaded = <SfxCue, List<AudioPlayer>>{};
     try {
       for (final cue in SfxCue.values) {
@@ -110,7 +164,7 @@ class SfxService {
         final voices = <AudioPlayer>[];
         loaded[cue] = voices;
         for (var i = 0; i < voiceCount; i++) {
-          final player = AudioPlayer();
+          final player = _playerFactory();
           voices.add(player);
           await player.setAudioSource(AudioSource.asset(cue.assetPath));
           await player.setVolume(cue.volume);
@@ -162,51 +216,87 @@ class SfxService {
     required bool loop,
     bool polyphonic = false,
   }) async {
-    if (AudioSettingsService.sfxMuted.value) return;
+    if (AudioSettingsService.sfxMuted.value || _disposing) return;
+    final generation = _generations[cue] ?? 0;
+    bool current() =>
+        !_disposing &&
+        !AudioSettingsService.sfxMuted.value &&
+        generation == (_generations[cue] ?? 0);
     try {
       if (!_initialized) await init();
+      if (!current()) return;
       final voices = _players[cue];
       if (voices == null || voices.isEmpty) return;
       final cursor = polyphonic ? (_cursors[cue] ?? 0) : 0;
       final player = voices[cursor % voices.length];
       if (polyphonic) _cursors[cue] = (cursor + 1) % voices.length;
-      // 逐枚金幣的落點間隔很短；session 在 init 與前一段吸入聲都已啟用，
-      // 不 await 平台 setActive，避免九次呼叫把節奏拖散。
-      if (polyphonic) {
-        unawaited(AppAudioSession.activate());
-      } else {
-        await AppAudioSession.activate();
-      }
-      await player.stop();
-      await player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
-      await player.seek(Duration.zero);
-      await player.setSpeed(speed.clamp(0.5, 2.0).toDouble());
-      await player.setPitch(pitch.clamp(0.5, 2.0).toDouble());
-      await player.setVolume(cue.volume * volumeScale.clamp(0.0, 1.0));
-      await player.play();
+      await _onVoice(player, () async {
+        if (!current()) return;
+        // 各聲道僅序列化準備動作。play 的 Future 要等播放結束才完成，不能
+        // 放進 queue 等待，否則 loop 會令 stop 永遠輪不到。
+        if (polyphonic) {
+          unawaited(_activateSession());
+        } else {
+          await _activateSession();
+        }
+        if (!current()) return;
+        await player.stop();
+        if (!current()) return;
+        await player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
+        if (!current()) return;
+        await player.seek(Duration.zero);
+        if (!current()) return;
+        await player.setSpeed(speed.clamp(0.5, 2.0).toDouble());
+        if (!current()) return;
+        await player.setPitch(pitch.clamp(0.5, 2.0).toDouble());
+        if (!current()) return;
+        await player.setVolume(cue.volume * volumeScale.clamp(0.0, 1.0));
+        if (!current()) return;
+        unawaited(
+          player.play().catchError((Object error) {
+            debugPrint('SFX play failed: $error');
+          }),
+        );
+      });
     } catch (e) {
       debugPrint('SFX play failed: $e');
     }
   }
 
-  /// 停掉仍在播放的單一動作音。若該音效正處於首次載入，會等載入完成後
-  /// 立刻停止，避免「提早放開蓄力」卻讓 1.08 秒集氣音繼續播完。
+  /// 先取消待播請求，立即停止現播聲音，再將 native 完成點排入聲道。
+  /// 新操作必定等 stop 完成，不會被慢回來的 native stop 誤停。
   Future<void> stop(SfxCue cue) async {
+    _generations[cue] = (_generations[cue] ?? 0) + 1;
     try {
       if (!_initialized) {
         final pending = _initializing;
         if (pending == null) return;
         await pending;
       }
+      final stops = <Future<void>>[];
       for (final player in _players[cue] ?? const <AudioPlayer>[]) {
-        await player.stop();
+        // 立即通知 native 停止現播聲音，不等慢的 session activation；
+        // 同時把完成 Future 放入 queue，下一次播放必須等它真正停好。
+        final stopped = player.stop().catchError((Object error) {
+          debugPrint('SFX stop failed: $error');
+        });
+        stops.add(_onVoice(player, () => stopped));
       }
+      await Future.wait(stops);
     } catch (e) {
       debugPrint('SFX stop failed: $e');
     }
   }
 
   Future<void> dispose() async {
+    _disposing = true;
+    if (_listening) {
+      AudioSettingsService.sfxMuted.removeListener(_onMuteChanged);
+      _listening = false;
+    }
+    for (final cue in SfxCue.values) {
+      _generations[cue] = (_generations[cue] ?? 0) + 1;
+    }
     final pending = _initializing;
     if (pending != null) {
       try {
@@ -215,6 +305,11 @@ class SfxService {
         // 初始化失敗時沒有可釋放的完整 player 集合，照常清理已知項目。
       }
     }
+    await Future.wait(
+      _voiceQueues.values.map(
+        (operation) => operation.catchError((Object _) {}),
+      ),
+    );
     for (final voices in _players.values) {
       for (final player in voices) {
         await player.dispose();
@@ -224,5 +319,6 @@ class SfxService {
     _cursors.clear();
     _initialized = false;
     _initializing = null;
+    _disposing = false;
   }
 }
