@@ -85,18 +85,18 @@ class MascotCallingCard extends StatelessWidget {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFFFFBF2), Color(0xFFFFEED3), Color(0xFFFFE2CC)],
+            colors: [AppSurfaces.card, Color(0xFFF4ECDD), Color(0xFFEDEDDC)],
             stops: [0, 0.58, 1],
           ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _kRayGold.withValues(alpha: 0.72)),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          border: Border.all(color: const Color(0xFFD9D3BB)),
           boxShadow: AppShadows.card,
         ),
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           child: InkWell(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
             splashColor: _kRayGold.withValues(alpha: 0.24),
             highlightColor: _kRayGold.withValues(alpha: 0.10),
             onTap: () {
@@ -104,7 +104,7 @@ class MascotCallingCard extends StatelessWidget {
               onTap();
             },
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
               child: Stack(
                 children: [
                   Positioned(
@@ -123,7 +123,7 @@ class MascotCallingCard extends StatelessWidget {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                    padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
                     child: Column(
                       children: [
                         Row(
@@ -232,7 +232,7 @@ class MascotCallingCard extends StatelessWidget {
                                   key: const ValueKey(
                                     'mascot-calling-card-coins',
                                   ),
-                                  color: const Color(0xFFFFD873),
+                                  color: const Color(0xFFE5D7AE),
                                   borderRadius: BorderRadius.circular(15),
                                   child: InkWell(
                                     borderRadius: BorderRadius.circular(15),
@@ -322,7 +322,7 @@ class _ProfileBackdrop extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF8EA), Color(0xFFFFF2E9), Color(0xFFF6F0FF)],
+          colors: [AppSurfaces.canvas, Color(0xFFF3F0E4), AppSurfaces.canvas],
           stops: [0, 0.56, 1],
         ),
       ),
@@ -545,7 +545,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
       backgroundColor: _kStageBase,
       appBar: AppBar(
         title: Text(pageTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-        centerTitle: true,
+        centerTitle: false,
         foregroundColor: _kNumberInk,
         iconTheme: const IconThemeData(color: _kNumberInk),
         titleTextStyle: const TextStyle(
@@ -561,7 +561,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFFFF8EA), Color(0xFFFFF0E8)],
+              colors: [AppSurfaces.canvas, AppSurfaces.canvas],
             ),
           ),
         ),
@@ -606,15 +606,15 @@ class _MascotProfilePageState extends State<MascotProfilePage>
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xEFFFFFFF), Color(0xF5FFF4E2), Color(0xF5FFE8E3)],
+          colors: [AppSurfaces.card, Color(0xFFF2EDDF), Color(0xFFEDEEDD)],
           stops: [0, 0.58, 1],
         ),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(AppCardStyle.sheetRadius),
         border: Border.all(color: _kRayGold.withValues(alpha: 0.62)),
         boxShadow: AppShadows.card,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(AppCardStyle.sheetRadius),
         child: Stack(
           children: [
             const Positioned(
@@ -701,7 +701,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         // 左側留一個跟編輯鈕等寬的位子，讓名字真正置中。
-        const SizedBox(width: 36),
+        const SizedBox(width: 44),
         Flexible(
           child: Text(
             _name,
@@ -719,12 +719,8 @@ class _MascotProfilePageState extends State<MascotProfilePage>
           onPressed: _editName,
           tooltip: _l10n.mpRename,
           padding: EdgeInsets.zero,
-          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-          icon: const Icon(
-            Icons.edit_outlined,
-            size: 19,
-            color: AppInk.iconFaint,
-          ),
+          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+          icon: const Icon(Icons.edit_outlined, size: 19, color: AppInk.soft),
         ),
       ],
     );
@@ -776,7 +772,7 @@ class _MascotProfilePageState extends State<MascotProfilePage>
       padding: const EdgeInsets.fromLTRB(14, 11, 14, 14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: Border.all(color: _kRayGold.withValues(alpha: 0.55)),
         boxShadow: AppShadows.card,
       ),

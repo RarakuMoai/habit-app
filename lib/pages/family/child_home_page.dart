@@ -28,10 +28,10 @@ class ChildHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
+    final accent = AppPalette.family;
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFFFFBF7),
+      backgroundColor: AppSurfaces.canvas,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -142,12 +142,9 @@ class _ChildHomePanelState extends State<ChildHomePanel> {
 
   // 點擊名字旁的下拉箭頭，從底部彈出切換清單
   void _showChildPicker() {
-    final primary = Theme.of(context).colorScheme.primary;
+    final primary = AppPalette.family;
     showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (_) => ListView.builder(
         shrinkWrap: true,
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -180,9 +177,10 @@ class _ChildHomePanelState extends State<ChildHomePanel> {
   Widget build(BuildContext context) {
     if (widget.children.isEmpty) return const SizedBox.shrink();
 
-    final accent = Theme.of(context).colorScheme.primary;
+    final accent = AppPalette.family;
     return DefaultTabController(
       length: 3,
+      animationDuration: AppMotion.duration(context, AppMotion.settle),
       child: Column(
         children: [
           _childHeader(accent),
@@ -214,109 +212,67 @@ class _ChildHomePanelState extends State<ChildHomePanel> {
 
   Widget _childHeader(Color accent) {
     final canSwitch = widget.children.length > 1;
-    final pointColor = Colors.amber.shade700;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
-          boxShadow: AppShadows.flat,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
-          clipBehavior: Clip.antiAlias,
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFFFF8F2)],
-              ),
-              borderRadius: BorderRadius.circular(AppCardStyle.radius),
-              border: AppCardStyle.hairline,
-            ),
-            child: InkWell(
-              onTap: canSwitch ? _showChildPicker : null,
-              splashColor: accent.withValues(alpha: 0.10),
-              highlightColor: accent.withValues(alpha: 0.05),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Row(
-                  children: [
-                    if (widget.onBack != null) ...[
-                      _PanelBackButton(onPressed: widget.onBack!),
-                      const SizedBox(width: 9),
-                    ],
-                    _HeaderAvatar(avatar: _current.avatar, accent: accent),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: AppSurfaces.card,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: canSwitch ? _showChildPicker : null,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                if (widget.onBack != null) ...[
+                  _PanelBackButton(onPressed: widget.onBack!),
+                  const SizedBox(width: 8),
+                ],
+                _HeaderAvatar(avatar: _current.avatar, accent: accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 180),
-                                  switchInCurve: Curves.easeOutCubic,
-                                  switchOutCurve: Curves.easeInCubic,
-                                  child: Text(
-                                    _current.name,
-                                    key: ValueKey(_current.id),
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: AppInk.strong,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: AppMotion.duration(
+                                context,
+                                AppMotion.quick,
+                              ),
+                              layoutBuilder: (current, previous) => Stack(
+                                alignment: Alignment.centerLeft,
+                                children: [...previous, ?current],
+                              ),
+                              child: Text(
+                                _current.name,
+                                key: ValueKey(_current.id),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppInk.strong,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
-                              if (canSwitch) ...[
-                                const SizedBox(width: 2),
-                                Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  color: accent,
-                                  size: 20,
-                                ),
-                              ],
-                            ],
+                            ),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.auto_awesome_rounded,
-                                size: 14,
-                                color: pointColor.withValues(alpha: 0.86),
-                              ),
-                              const SizedBox(width: 5),
-                              Flexible(
-                                child: Text(
-                                  AppLocalizations.of(context).famChildSubtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: AppInk.soft.withValues(alpha: 0.94),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          if (canSwitch)
+                            Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: accent,
+                              size: 20,
+                            ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    _HeaderPointBadge(
-                      points: _current.points,
-                      color: pointColor,
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      _HeaderPointBadge(points: _current.points, color: accent),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -363,8 +319,8 @@ class _HeaderPointBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 64, maxWidth: 98),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      constraints: const BoxConstraints(minWidth: 54, maxWidth: 128),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.11),
         borderRadius: BorderRadius.circular(999),
@@ -377,14 +333,17 @@ class _HeaderPointBadge extends StatelessWidget {
           Icon(Icons.stars_rounded, size: 15, color: color),
           const SizedBox(width: 4),
           Flexible(
-            child: Text(
-              '$points',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppType.digits(
-                color: color,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '$points',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.digits(
+                  color: color,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
@@ -404,11 +363,11 @@ class _ChildSegmentedTabs extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Container(
-        height: 44,
+        height: 48,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
+          color: AppSurfaces.fill,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: accent.withValues(alpha: 0.09)),
         ),
         child: TabBar(
@@ -418,8 +377,8 @@ class _ChildSegmentedTabs extends StatelessWidget {
           unselectedLabelColor: AppInk.soft,
           labelPadding: EdgeInsets.zero,
           indicator: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(13),
+            color: AppSurfaces.card,
+            borderRadius: BorderRadius.circular(16),
             boxShadow: AppShadows.flat,
           ),
           tabs: [
@@ -465,9 +424,11 @@ class _SegmentTab extends StatelessWidget {
         children: [
           Icon(icon, size: 15),
           const SizedBox(width: 4),
-          DefaultTextStyle.merge(
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Flexible(
+            child: DefaultTextStyle.merge(
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
           ),
         ],
       ),
@@ -483,7 +444,7 @@ class _PanelBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
-      dimension: 36,
+      dimension: 44,
       child: Material(
         color: const Color(0xFFF8F0EA),
         shape: const CircleBorder(),

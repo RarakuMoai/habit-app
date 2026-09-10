@@ -1,14 +1,9 @@
-// 設定頁系共用 UI：暖白卡面的入口列 / 容器卡。
-//
-// 視覺語彙對齊 app_style：暖白 AppSurfaces.card、髮絲線描邊、flat 暖棕陰影、
-// 圓角 14（設定列比內容卡略小一階，維持「工具頁」的密度）。
+// 設定頁系共用 UI：有留白的紙張卡面，標題與說明可以隨文字尺寸自然換行。
 import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
 
-const double _kSettingsRadius = 14;
-
-/// 設定頁的導航入口列：圓底 icon + 標題 + 副標 + chevron。
+/// 設定頁的導航入口列：圖示底塊、標題、說明與前進箭頭。
 class SettingsTileCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -31,34 +26,52 @@ class SettingsTileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SettingsGroupCard(
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 10,
+        ),
+        minTileHeight: 88,
+        horizontalTitleGap: 14,
         leading: Container(
-          width: 38,
-          height: 38,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             color: iconColor.withValues(alpha: 0.10),
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: iconColor.withValues(alpha: 0.12)),
           ),
-          child: Icon(icon, color: iconColor, size: 20),
+          child: Icon(icon, color: iconColor, size: 22),
         ),
         title: Text(
           title,
           style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
             color: AppInk.strong,
           ),
         ),
         subtitle: subtitle == null
             ? null
-            : Text(
-                subtitle!,
-                style: const TextStyle(fontSize: 12, color: AppInk.soft),
+            : Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.45,
+                    color: AppInk.soft,
+                  ),
+                ),
               ),
         trailing:
             trailing ??
-            const Icon(Icons.chevron_right, color: AppInk.iconFaint),
+            const Icon(
+              Icons.arrow_forward_rounded,
+              size: 18,
+              color: AppInk.soft,
+            ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(_kSettingsRadius),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
         ),
         onTap: onTap,
       ),
@@ -66,7 +79,7 @@ class SettingsTileCard extends StatelessWidget {
   }
 }
 
-/// 設定頁的容器卡：暖白底 + 髮絲線 + flat 陰影，裝任意內容
+/// 設定頁的容器卡：暖白底與髮絲線，裝任意內容
 /// （單位切換、換日時間軸這類非單純入口列的區塊）。
 class SettingsGroupCard extends StatelessWidget {
   final Widget child;
@@ -76,13 +89,13 @@ class SettingsGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppSurfaces.card,
-        borderRadius: BorderRadius.circular(_kSettingsRadius),
-        border: Border.all(color: AppSurfaces.divider),
-        boxShadow: AppShadows.flat,
+    return Material(
+      color: AppSurfaces.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        side: const BorderSide(color: AppSurfaces.divider),
       ),
+      clipBehavior: Clip.antiAlias,
       child: padding == null ? child : Padding(padding: padding!, child: child),
     );
   }

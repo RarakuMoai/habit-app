@@ -472,7 +472,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         if (!didPop) Navigator.of(context).pop(_changed);
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFFFFBF7),
+        backgroundColor: AppSurfaces.canvas,
         appBar: AppBar(
           title: Text(
             _l10n.famParentManage,
@@ -482,7 +482,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             ),
           ),
           centerTitle: true,
-          backgroundColor: const Color(0xFFFFFBF7),
+          backgroundColor: AppSurfaces.canvas,
           foregroundColor: AppInk.strong,
           elevation: 0,
           scrolledUnderElevation: 0,
@@ -532,11 +532,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.lock_open_rounded,
-            color: Colors.orange.shade700,
-            size: 20,
-          ),
+          Icon(Icons.lock_open_rounded, color: AppPalette.family, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -575,11 +571,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             tooltip: _l10n.commonClose,
             visualDensity: VisualDensity.compact,
             onPressed: () => setState(() => _pinWarnDismissed = true),
-            icon: Icon(
-              Icons.close_rounded,
-              size: 18,
-              color: Colors.orange.shade700,
-            ),
+            icon: Icon(Icons.close_rounded, size: 18, color: AppPalette.family),
           ),
         ],
       ),
@@ -587,7 +579,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   }
 
   Widget _buildEmpty() {
-    final accent = Colors.orange.shade700;
+    final accent = AppPalette.family;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
       child: Align(
@@ -615,9 +607,9 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
         .length;
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: AppCardStyle.hairline,
         boxShadow: AppShadows.flat,
@@ -628,28 +620,28 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             icon: Icons.child_care_rounded,
             label: _l10n.pmTabChildren,
             value: '${_children.length}',
-            color: Colors.orange.shade700,
+            color: AppPalette.family,
           ),
           _overviewDivider(),
           _overviewStat(
             icon: Icons.check_circle_outline,
             label: _l10n.pmTabHabits,
             value: '${_habits.length}',
-            color: Colors.green.shade700,
+            color: AppPalette.success,
           ),
           _overviewDivider(),
           _overviewStat(
             icon: Icons.remove_circle_outline,
             label: _l10n.pmTabDeductions,
             value: '${_deductions.length}',
-            color: Colors.red.shade600,
+            color: AppInk.danger,
           ),
           _overviewDivider(),
           _overviewStat(
             icon: Icons.card_giftcard_outlined,
             label: _l10n.pmTabRewards,
             value: '$assignedRewards',
-            color: Colors.amber.shade800,
+            color: AppPalette.wardrobe,
           ),
         ],
       ),
@@ -661,7 +653,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
       width: 1,
       height: 36,
       margin: const EdgeInsets.symmetric(horizontal: 10),
-      color: const Color(0x0F000000),
+      color: AppSurfaces.divider,
     );
   }
 
@@ -681,7 +673,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
             value,
             style: AppType.digits(
               color: AppInk.strong,
-              fontSize: 18,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -996,7 +988,7 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
                   _ => _l10n.pmHabitDaily,
                 }}'
                 '${habit.minutes > 0 ? _l10n.pmHabitMinutesSuffix(habit.minutes) : ''}',
-                style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+                style: TextStyle(fontSize: 12, color: AppPalette.success),
               ),
               trailing: PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, size: 20, color: AppInk.faint),

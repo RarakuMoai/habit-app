@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
+import '../utils/app_style.dart';
 import '../utils/logical_date.dart';
 import '../utils/logical_day_coordinator.dart';
 import '../utils/mascot.dart';
@@ -16,21 +17,22 @@ import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/usage_stats.dart';
 import '../utils/water_entries.dart';
+import '../widgets/app_pressable.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/scene_rooms.dart';
+import '../widgets/sheet_drag_handle.dart';
 import '../widgets/water_bottle.dart';
 import 'home/room_metrics.dart';
 
-const Color _kInk = Color(0xFF17657A);
-const Color _kInkSoft = Color(0xFF4A8BA0);
+const Color _kInk = Color(0xFF245D65);
+const Color _kInkSoft = Color(0xFF557B80);
 const Color _kBgTop = Color(0xFFE8FAFF);
 const Color _kBgMid = Color(0xFFDFF5FF);
 const Color _kBgBottom = Color(0xFFFFFFFF);
 const Color _kChipBg = Color(0xFFEAF8FF);
-const Color _kWaterBright = Color(0xFF35BFE3);
-const Color _kWaterDeep = Color(0xFF1284A3);
+const Color _kWaterDeep = AppPalette.water;
 const Color _kGoalGold = Color(0xFFFFC857);
 
 /// 一般加水用短泡泡；只有從未達標跨到達標的那一杯改播完整慶祝音。
@@ -974,69 +976,40 @@ class _WaterPageState extends State<WaterPage> {
                 ),
                 child: LayoutBuilder(
                   builder: (context, box) {
-                    // 面板展開時卡片只剩約半屏高，summary 卡＋節點列＋控制列
-                    // 這些固定高度區塊會把 Column 撐爆（iPhone 17 超出 12px）。
-                    // 依可用高度線性收緊間距與底部留白（拖曳中也平滑），水瓶
-                    // 本身在 Expanded 裡會自行縮放；極小高度時再讓掉節點列。
-                    final t = ((box.maxHeight - 360) / 100).clamp(0.0, 1.0);
-                    double sp(double tight, double roomy) =>
-                        tight + (roomy - tight) * t;
-                    // 拖曳到中段（內容區約 360–440px）時，節點列會讓固定內容超過
-                    // 可用高度 → RenderFlex 溢出（debug 黃黑斜紋＝失敗區域）。
-                    // 所以節點列等夠高（≥440）才顯示，把那段壓縮帶讓出來。
-                    final showNodes = box.maxHeight >= 440;
-                    // 夠高才把建議卡顯示在今日補水卡「下方」（多佔約 100px）；
-                    // 空間不足時改成讓建議卡「覆蓋」今日補水卡（同一張卡換內容），
-                    // 覆蓋不增加高度 → 面板縮小動畫不會把 Column 撐爆（黃黑斜線），
-                    // 而且面板展開時建議仍然看得到。
-                    final suggestionBelow = box.maxHeight >= 520;
-                    // 超矮（SE + 六分頁兩列導覽 + 面板展開）連壓縮版都塞不下：
-                    // 改成可捲動的「摘要 + 控制列」精簡版（水瓶/節點列讓位），
-                    // 任何高度都不溢出；面板上拉即回完整版。
-                    // 門檻 300：14PM 六分頁時內容高 ≈326 必須維持完整版（作者
-                    // 基準），SE ≈183 才走精簡版；壓縮版固定內容 ≈298 塞得下 300+。
-                    if (box.maxHeight < 300) {
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(22, 8, 22, 10),
-                        child: Column(
-                          children: [
-                            _summaryCard(suggestionBelow: false),
-                            const SizedBox(height: 8),
-                            _controls(),
-                          ],
-                        ),
-                      );
-                    }
-                    return Padding(
-                      padding: EdgeInsets.fromLTRB(22, 8, 22, sp(10, 20)),
-                      child: Column(
-                        children: [
-                          _summaryCard(suggestionBelow: suggestionBelow),
-                          SizedBox(height: sp(4, 8)),
-                          Expanded(
-                            child: Center(
-                              child: RepaintBoundary(
-                                child: ValueListenableBuilder<double>(
-                                  valueListenable: MascotPanelPrefs.openValue,
-                                  builder: (_, openValue, _) => WaterBottle(
-                                    progress: _progress,
-                                    reached: _goalReached,
-                                    bumpKey: _entries.length,
-                                    panelOpenValue: openValue,
-                                    paused: _visualIdle,
-                                  ),
-                                ),
-                              ),
-                            ),
+                    // The shell may leave less than 300 pt when the room is
+                    // open on a small phone. Keep controls anchored and let
+                    // the journal scroll; never replace today's data with a
+                    // suggestion or shrink a label to make the layout fit.
+                    final compact = box.maxHeight < 460;
+                    final suggestion = _goalSuggestion;
+                    final hasSuggestion =
+                        !_goalSuggestionDismissed &&
+                        suggestion != null &&
+                        (suggestion.ml - _goalMl).abs() >= 50;
+                    return Column(
+                      children: [
+                        Expanded(
+                          child: ListView(
+                            key: const PageStorageKey('water-journal'),
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                            children: [
+                              _summaryCard(compact: compact),
+                              const SizedBox(height: 12),
+                              _waterMoodLine(),
+                              if (hasSuggestion) ...[
+                                const SizedBox(height: 14),
+                                _goalSuggestionCard(suggestion),
+                              ],
+                              const SizedBox(height: 14),
+                              _recentWaterEntries(),
+                            ],
                           ),
-                          if (showNodes) ...[
-                            SizedBox(height: sp(6, 12)),
-                            _progressNodes(),
-                          ],
-                          SizedBox(height: sp(8, 18)),
-                          _controls(),
-                        ],
-                      ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                          child: _controls(),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -1048,125 +1021,205 @@ class _WaterPageState extends State<WaterPage> {
     );
   }
 
-  Widget _summaryCard({required bool suggestionBelow}) {
+  Widget _summaryCard({required bool compact}) {
     final left = math.max(0, _goalMl - _totalMl);
     final goalDisp = _volStr(_goalMl);
-    final leftDisp = _volStr(left);
     final subtitle = _goalReached
         ? _l10n.waterGoalReached(goalDisp)
-        : _l10n.waterGoalRemaining(goalDisp, leftDisp);
+        : _l10n.waterGoalRemaining(goalDisp, _volStr(left));
     final totalDisp = _unit == UnitSystem.imperial
         ? UnitConvert.mlToFlOz(_totalMl.toDouble()).round().toString()
         : _totalMl.toString();
-    final suggestion = _goalSuggestion;
-    final hasSuggestion =
-        !_goalSuggestionDismissed &&
-        suggestion != null &&
-        (suggestion.ml - _goalMl).abs() >= 50;
-    // 夠高 → 建議卡顯示在今日補水卡「下方」；空間不足 → 建議卡「覆蓋」整張
-    // 今日補水卡（同一張卡換成建議內容）。覆蓋比原本詳情更矮、又不另佔高度，
-    // 所以面板縮小時版面不會溢出，建議也一直看得到。
-    final showBelow = hasSuggestion && suggestionBelow;
-    final coverWithSuggestion = hasSuggestion && !suggestionBelow;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+      key: const ValueKey('water-today-card'),
+      padding: const EdgeInsets.fromLTRB(20, 12, 16, 18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.95),
-            const Color(0xFFEAFBFF).withValues(alpha: 0.92),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.88)),
-        boxShadow: [
-          BoxShadow(
-            color: _kWaterBright.withValues(alpha: 0.13),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+        color: const Color(0xFFEDF7F7),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: Border.all(color: _kWaterDeep.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _l10n.waterTodayTitle,
+                  style: const TextStyle(
+                    color: _kInk,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _summarySettingsButton(),
+            ],
           ),
-          BoxShadow(
-            color: _kInk.withValues(alpha: 0.05),
-            blurRadius: 7,
-            offset: const Offset(0, 2),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.end,
+                      spacing: 6,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          child: Text(
+                            totalDisp,
+                            key: ValueKey(totalDisp),
+                            style: AppType.digits(
+                              color: _kInk,
+                              fontSize: compact ? 44 : 52,
+                              letterSpacing: -1.2,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 7),
+                          child: Text(
+                            _volLabel,
+                            style: const TextStyle(
+                              color: _kInkSoft,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    _summaryStatusPill(),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ExcludeSemantics(
+                child: SizedBox(
+                  width: compact ? 74 : 92,
+                  height: compact ? 111 : 138,
+                  child: RepaintBoundary(
+                    child: WaterBottle(
+                      progress: _progress,
+                      reached: _goalReached,
+                      bumpKey: _entries.length,
+                      panelOpenValue: 0,
+                      paused: _visualIdle || reduceMotion,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Semantics(
+            label: _l10n.waterProgressSemantics(_volStr(_totalMl), goalDisp),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: _progress, end: _progress),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              builder: (_, value, _) => LinearProgressIndicator(
+                value: value,
+                minHeight: 6,
+                borderRadius: BorderRadius.circular(3),
+                color: _goalReached ? const Color(0xFF55987C) : _kWaterDeep,
+                backgroundColor: _kWaterDeep.withValues(alpha: 0.11),
+              ),
+            ),
+          ),
+          const SizedBox(height: 11),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: _kInkSoft,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
           ),
         ],
       ),
-      // 空間不足時整張卡換成建議內容（覆蓋今日補水詳情）；否則正常顯示詳情。
-      child: coverWithSuggestion
-          ? _goalSuggestionCard(suggestion)
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      _l10n.waterTodayTitle,
-                      style: TextStyle(
-                        color: _kInkSoft,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const Spacer(),
-                    _summaryStatusPill(),
-                    const SizedBox(width: 8),
-                    _summarySettingsButton(),
-                  ],
+    );
+  }
+
+  Widget _recentWaterEntries() {
+    final recent = _entries.reversed.take(3).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _l10n.waterTodayRecords,
+                style: const TextStyle(
+                  color: _kInk,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      totalDisp,
-                      style: const TextStyle(
-                        color: _kInk,
-                        fontSize: 36,
-                        fontWeight: FontWeight.w900,
-                        height: 1.0,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _volLabel,
-                      style: TextStyle(
-                        color: _kInkSoft,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: _kInkSoft,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 9),
-                _waterMoodLine(),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  child: showBelow
-                      ? Padding(
-                          key: ValueKey(suggestion.ml),
-                          padding: const EdgeInsets.only(top: 10),
-                          child: _goalSuggestionCard(suggestion),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+              ),
             ),
+            TextButton(
+              onPressed: _openCustomCupSheet,
+              style: TextButton.styleFrom(foregroundColor: _kInkSoft),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_l10n.waterRecordCount(_entries.length)),
+                  const Icon(Icons.chevron_right_rounded, size: 18),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (recent.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              _l10n.waterNoRecords,
+              style: const TextStyle(color: _kInkSoft, fontSize: 13),
+            ),
+          )
+        else
+          ...recent.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.water_drop_outlined,
+                    size: 18,
+                    color: _kWaterDeep,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    MaterialLocalizations.of(context).formatTimeOfDay(
+                      TimeOfDay.fromDateTime(entry.at),
+                      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(
+                        context,
+                      ),
+                    ),
+                    style: const TextStyle(color: _kInkSoft, fontSize: 13),
+                  ),
+                  const Spacer(),
+                  Text(
+                    _volStr(entry.ml),
+                    style: AppType.digits(color: _kInk, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1260,60 +1313,13 @@ class _WaterPageState extends State<WaterPage> {
   }
 
   Widget _summarySettingsButton() {
-    return Semantics(
-      button: true,
-      label: _l10n.waterAdjustGoalSemantics,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: [
-            BoxShadow(
-              color: _kWaterDeep.withValues(alpha: 0.16),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(999),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: _openWaterSettings,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 34),
-              padding: const EdgeInsets.fromLTRB(11, 7, 8, 7),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: _kWaterDeep.withValues(alpha: 0.22),
-                  width: 1.2,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.flag_rounded, size: 15, color: _kWaterDeep),
-                  const SizedBox(width: 5),
-                  Text(
-                    _l10n.waterAdjustGoal,
-                    style: const TextStyle(
-                      color: _kInk,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 17,
-                    color: _kWaterDeep.withValues(alpha: 0.82),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+    return IconButton(
+      tooltip: _l10n.waterAdjustGoal,
+      onPressed: _openWaterSettings,
+      icon: const Icon(Icons.tune_rounded, size: 20, color: _kInkSoft),
+      style: IconButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        backgroundColor: Colors.white.withValues(alpha: 0.72),
       ),
     );
   }
@@ -1412,47 +1418,6 @@ class _WaterPageState extends State<WaterPage> {
     await _saveWaterSettings(cupMl: _cupMl, goalMl: suggestion.ml);
   }
 
-  Widget _progressNodes() {
-    // Always show 8 evenly-spaced nodes regardless of goalCups.
-    // Each node represents a fractional share of the goal; filled count
-    // mirrors the proportion already drunk (capped at full).
-    const nodeCount = 8;
-    final ratio = _goalMl == 0 ? 0.0 : (_totalMl / _goalMl).clamp(0.0, 1.0);
-    final filledNodes = (ratio * nodeCount).round();
-    return Semantics(
-      label: _l10n.waterProgressSemantics(_volStr(_totalMl), _volStr(_goalMl)),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(nodeCount, (i) {
-              final filled = i < filledNodes;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2.5),
-                child: _WaterProgressDrop(
-                  filled: filled,
-                  reached: _goalReached,
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _goalReached
-                ? _l10n.waterProgressReached(_volStr(_totalMl))
-                : '${_volStr(_totalMl)} / ${_volStr(_goalMl)}',
-            style: TextStyle(
-              color: _kInkSoft,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _onAddCupPressed() {
     if (_totalMl + _cupMl > _maxTotalMl) {
       _showOverLimitHint();
@@ -1462,23 +1427,52 @@ class _WaterPageState extends State<WaterPage> {
   }
 
   Widget _controls() {
-    // 加一杯會超過每日上限就視為「滿了」，主按鈕灰掉
     final atMax = _totalMl + _cupMl > _maxTotalMl;
-    final canRemove = _entries.isNotEmpty;
-    return Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _SmallGhostButton(
-          icon: Icons.remove_rounded,
-          onTap: canRemove ? _removeCup : null,
-          semanticsLabel: _l10n.waterMinusCup,
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: _mainCupButton(atMax: atMax)),
-        const SizedBox(width: 12),
-        _SmallGhostButton(
-          icon: Icons.more_horiz_rounded,
-          onTap: _openCustomCupSheet,
-          semanticsLabel: _l10n.waterCustomAmount,
+        _mainCupButton(atMax: atMax),
+        const SizedBox(height: 3),
+        Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: _entries.isNotEmpty ? _removeCup : null,
+                style: TextButton.styleFrom(
+                  foregroundColor: _kInkSoft,
+                  minimumSize: const Size(44, 44),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                child: Text(_l10n.waterMinusCup),
+              ),
+            ),
+            Container(width: 1, height: 16, color: AppSurfaces.divider),
+            Expanded(
+              child: TextButton(
+                onPressed: _openCustomCupSheet,
+                style: TextButton.styleFrom(
+                  foregroundColor: _kInk,
+                  minimumSize: const Size(44, 44),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                child: Text(_l10n.waterCustomAmount),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -1500,21 +1494,20 @@ class _WaterPageState extends State<WaterPage> {
     return Semantics(
       button: true,
       label: _l10n.waterCupSemantics(_volStr(_cupMl)),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: colors,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      child: AppPressable(
+        onPressed: atMax ? _onAddCupPressed : _addCup,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: colors,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
           ),
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(22),
-            onTap: atMax ? _onAddCupPressed : _addCup,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               child: Row(
@@ -1573,58 +1566,6 @@ class _WaterPageState extends State<WaterPage> {
   }
 }
 
-class _WaterProgressDrop extends StatelessWidget {
-  final bool filled;
-  final bool reached;
-
-  const _WaterProgressDrop({required this.filled, required this.reached});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = filled
-        ? (reached ? _kGoalGold : _kWaterBright)
-        : Colors.white.withValues(alpha: 0.78);
-    final outline = filled
-        ? Colors.transparent
-        : _kWaterBright.withValues(alpha: 0.28);
-    return AnimatedScale(
-      scale: filled ? 1.0 : 0.86,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      child: SizedBox(
-        width: 20,
-        height: 24,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (filled)
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.28),
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: const SizedBox(width: 14, height: 14),
-              ),
-            Icon(
-              filled ? Icons.water_drop_rounded : Icons.water_drop_outlined,
-              size: filled ? 20 : 18,
-              color: color,
-            ),
-            if (!filled)
-              Icon(Icons.water_drop_outlined, size: 18, color: outline),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SuggestionActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1651,7 +1592,7 @@ class _SuggestionActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(99),
         onTap: onTap,
         child: SizedBox(
-          height: 34,
+          height: 44,
           child: Center(
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -1677,65 +1618,6 @@ class _SuggestionActionButton extends StatelessWidget {
     );
   }
 }
-
-class _SmallGhostButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  final String? semanticsLabel;
-
-  const _SmallGhostButton({
-    required this.icon,
-    required this.onTap,
-    this.semanticsLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      label: semanticsLabel,
-      child: AnimatedOpacity(
-        opacity: enabled ? 1 : 0.44,
-        duration: const Duration(milliseconds: 180),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.92),
-          shape: CircleBorder(
-            side: BorderSide(
-              color: enabled
-                  ? Colors.cyan.shade100
-                  : Colors.cyan.shade50.withValues(alpha: 0.5),
-              width: 1.2,
-            ),
-          ),
-          elevation: enabled ? 2 : 0,
-          shadowColor: Colors.cyan.withValues(alpha: 0.14),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: SizedBox(
-              width: 54,
-              height: 54,
-              child: Icon(icon, color: _kInk, size: 22),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Single source of truth for bottle layout.
-//
-// `imageAspectRatio` matches `assets/scenes/water/bottle_back.png` /
-// `bottle_front.png` (1024 × 1536). When the bottle widget uses the same aspect ratio,
-// `BoxFit.contain` does not letterbox the image, so the painter's
-// normalized 0–1 coordinates map 1:1 onto the bottle artwork.
-//
-// `bodyLeft`/`bodyTop`/`bodyWidth`/`bodyHeight` describe the glass
-// interior (where water can sit) as fractions of the image. If the
-// asset is ever replaced, adjust ONLY these four numbers here.
 
 class _WaterSettingsResult {
   final int cupMl;
@@ -2115,7 +1997,8 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
   // 避免使用者連點時動畫互相打架、_localEntries 索引漂移
   WaterEntry? _entryBeingRemoved;
   // 刪除動畫 + 列表塌陷的長度
-  static const Duration _deleteAnimDuration = Duration(milliseconds: 280);
+  Duration get _deleteAnimDuration =>
+      AppMotion.duration(context, const Duration(milliseconds: 280));
 
   @override
   void initState() {
@@ -2215,179 +2098,171 @@ class _CustomCupSheetState extends State<_CustomCupSheet> {
   Widget build(BuildContext context) {
     final label = UnitFormat.volumeLabel(widget.unit);
     final history = _localEntries.indexed.toList().reversed.toList();
-    // 不再加 viewInsets.bottom，因為內建小鍵盤不會召喚系統鍵盤、
-    // sheet 也就不會被推上去
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.78,
-        ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                // 規範：陰影不用純黑；用頁面墨色帶藍調
-                color: _kInk.withValues(alpha: 0.16),
-                blurRadius: 22,
-                offset: const Offset(0, 8),
-              ),
-            ],
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.86,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _l10n.waterSheetTitle,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: _kInk,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _l10n.waterSheetSub,
-                style: const TextStyle(fontSize: 13, color: _kInkSoft),
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _presetMl.map((ml) {
-                  final shown = UnitFormat.volume(ml, widget.unit);
-                  return _PresetChip(
-                    label: shown,
-                    onTap: () =>
-                        Navigator.of(context).pop(_WaterSheetResult.add(ml)),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _l10n.waterCustomLabel,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              _CustomCupInputDisplay(
-                input: _input,
-                unitLabel: label,
-                error: _err,
-              ),
-              const SizedBox(height: 10),
-              _CustomCupKeypad(
-                onDigit: _pressDigit,
-                onBackspace: _pressBackspace,
-                onClear: _pressClear,
-                onSubmit: _submitCustom,
-                submitEnabled: _input.isNotEmpty,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Text(
-                    _l10n.waterTodayRecords,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: _kInk,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _l10n.waterRecordCount(_localEntries.length),
-                    style: const TextStyle(
-                      color: _kInkSoft,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: history.isEmpty
-                    ? Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        decoration: BoxDecoration(
-                          color: _kChipBg.withValues(alpha: 0.62),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          _l10n.waterNoRecords,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: _kInkSoft,
-                            fontWeight: FontWeight.w600,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            decoration: BoxDecoration(
+              color: AppSurfaces.card,
+              borderRadius: BorderRadius.circular(AppCardStyle.sheetRadius),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SheetDragHandle(),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _l10n.waterSheetTitle,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: _kInk,
+                            ),
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _l10n.waterSheetSub,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _kInkSoft,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: _l10n.commonCancel,
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded, color: _kInkSoft),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _presetMl
+                              .map(
+                                (ml) => _PresetChip(
+                                  label: UnitFormat.volume(ml, widget.unit),
+                                  onTap: () => Navigator.of(
+                                    context,
+                                  ).pop(_WaterSheetResult.add(ml)),
+                                ),
+                              )
+                              .toList(),
                         ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: history.length,
-                        // 每筆 entry 必須有獨立 key（用 entry.at 當識別），否則
-                        // 刪除中間項時，下方 entry 會 shift 到舊位置、
-                        // 接收前一個 AnimatedAlign 的狀態（heightFactor: 0），
-                        // 然後再 animate 回 1 → 視覺上「突然冒出來」
-                        findChildIndexCallback: (Key key) {
-                          if (key is! ValueKey<DateTime>) return null;
-                          final at = key.value;
-                          final idx = history.indexWhere((e) => e.$2.at == at);
-                          return idx < 0 ? null : idx;
-                        },
-                        itemBuilder: (context, i) {
-                          final (index, entry) = history[i];
-                          final isRemoving = identical(
-                            entry,
-                            _entryBeingRemoved,
-                          );
-                          // 刪除動畫：tile 本體不換掉，同時做 fade（opacity 1→0）
-                          // 跟「從上向下塌陷」（heightFactor 1→0）。
-                          // ClipRect 把塌陷過程中超出的部分裁掉。
-                          // 兩個動畫同 duration / 同 curve（easeInCubic 加速收尾）
-                          // → 不會有「fade 提早結束、size 還在收」的卡頓感
-                          return KeyedSubtree(
-                            key: ValueKey(entry.at),
-                            child: ClipRect(
-                              child: AnimatedAlign(
-                                duration: _deleteAnimDuration,
-                                curve: Curves.easeInCubic,
-                                alignment: Alignment.topCenter,
-                                heightFactor: isRemoving ? 0.0 : 1.0,
-                                child: AnimatedOpacity(
+                        const SizedBox(height: 20),
+                        _CustomCupInputDisplay(
+                          input: _input,
+                          unitLabel: label,
+                          error: _err,
+                        ),
+                        const SizedBox(height: 12),
+                        _CustomCupKeypad(
+                          onDigit: _pressDigit,
+                          onBackspace: _pressBackspace,
+                          onClear: _pressClear,
+                          onSubmit: _submitCustom,
+                          submitEnabled: _input.isNotEmpty,
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _l10n.waterTodayRecords,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: _kInk,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _l10n.waterRecordCount(_localEntries.length),
+                              style: const TextStyle(
+                                color: _kInkSoft,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (history.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Text(
+                              _l10n.waterNoRecords,
+                              style: const TextStyle(
+                                color: _kInkSoft,
+                                fontSize: 13,
+                              ),
+                            ),
+                          )
+                        else
+                          ...history.map((indexed) {
+                            final (index, entry) = indexed;
+                            final removing = identical(
+                              entry,
+                              _entryBeingRemoved,
+                            );
+                            return KeyedSubtree(
+                              key: ValueKey(entry.at),
+                              child: ClipRect(
+                                child: AnimatedAlign(
                                   duration: _deleteAnimDuration,
                                   curve: Curves.easeInCubic,
-                                  opacity: isRemoving ? 0.0 : 1.0,
-                                  child: IgnorePointer(
-                                    ignoring: isRemoving,
-                                    child: Padding(
-                                      padding: EdgeInsets.only(
-                                        bottom: i < history.length - 1 ? 8 : 0,
-                                      ),
-                                      child: _WaterHistoryTile(
-                                        time: _formatEntryTime(entry.at),
-                                        amount: UnitFormat.volume(
-                                          entry.ml,
-                                          widget.unit,
+                                  alignment: Alignment.topCenter,
+                                  heightFactor: removing ? 0 : 1,
+                                  child: AnimatedOpacity(
+                                    duration: _deleteAnimDuration,
+                                    opacity: removing ? 0 : 1,
+                                    child: IgnorePointer(
+                                      ignoring: removing,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
                                         ),
-                                        type: _entryTypeLabel(entry),
-                                        onDelete: () => _handleDelete(index),
+                                        child: _WaterHistoryTile(
+                                          time: _formatEntryTime(entry.at),
+                                          amount: UnitFormat.volume(
+                                            entry.ml,
+                                            widget.unit,
+                                          ),
+                                          type: _entryTypeLabel(entry),
+                                          onDelete: () => _handleDelete(index),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
+                            );
+                          }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2420,9 +2295,7 @@ class _CustomCupInputDisplay extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(
-              color: hasError
-                  ? Colors.red.shade400
-                  : _kInk.withValues(alpha: 0.32),
+              color: hasError ? AppInk.danger : _kInk.withValues(alpha: 0.32),
               width: 1.4,
             ),
             borderRadius: BorderRadius.circular(12),
@@ -2457,7 +2330,7 @@ class _CustomCupInputDisplay extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4, left: 4),
             child: Text(
               error!,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              style: TextStyle(color: AppInk.danger, fontSize: 12),
             ),
           ),
       ],
@@ -2661,7 +2534,7 @@ class _WaterHistoryTile extends StatelessWidget {
             tooltip: AppLocalizations.of(context).commonDelete,
             onPressed: onDelete,
             icon: const Icon(Icons.delete_outline_rounded),
-            color: Colors.redAccent.shade200,
+            color: AppInk.danger,
             iconSize: 21,
             visualDensity: VisualDensity.compact,
           ),

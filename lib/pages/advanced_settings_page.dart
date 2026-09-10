@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
+import '../widgets/settings_ui.dart';
 import 'data_deletion_page.dart';
 
 class AdvancedSettingsPage extends StatelessWidget {
@@ -13,17 +14,17 @@ class AdvancedSettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.settingsSectionAdvanced),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF8ED),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFFFD7A8)),
+              color: AppSurfaces.fill,
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: Border.all(color: AppSurfaces.divider),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,12 +33,12 @@ class AdvancedSettingsPage extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.14),
+                    color: AppInk.soft.withValues(alpha: 0.10),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.tune_rounded,
-                    color: Colors.orange,
+                    color: AppInk.soft,
                     size: 20,
                   ),
                 ),
@@ -70,55 +71,19 @@ class AdvancedSettingsPage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppSurfaces.card,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppInk.danger.withValues(alpha: 0.20)),
-              boxShadow: AppShadows.flat,
-            ),
-            child: ListTile(
-              leading: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppInk.danger.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
+          const SizedBox(height: 24),
+          SettingsTileCard(
+            icon: Icons.delete_forever_outlined,
+            iconColor: AppInk.danger,
+            title: l10n.dataDeletionTitle,
+            subtitle: l10n.dataDeletionEntrySubtitle,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const DataDeletionPage(),
                 ),
-                child: const Icon(
-                  Icons.delete_forever_outlined,
-                  color: AppInk.danger,
-                  size: 20,
-                ),
-              ),
-              title: Text(
-                l10n.dataDeletionTitle,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppInk.strong,
-                ),
-              ),
-              subtitle: Text(
-                l10n.dataDeletionEntrySubtitle,
-                style: const TextStyle(fontSize: 12, color: AppInk.soft),
-              ),
-              trailing: const Icon(
-                Icons.chevron_right,
-                color: AppInk.iconFaint,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const DataDeletionPage(),
-                  ),
-                );
-              },
-            ),
+              );
+            },
           ),
         ],
       ),

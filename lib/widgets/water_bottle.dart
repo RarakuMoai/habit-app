@@ -107,6 +107,7 @@ class WaterBottleState extends State<WaterBottle>
   );
   // 這次晃動是不是「加水」：加水才畫漣漪跟跳起的水珠，減水只搖晃
   bool _sloshIsAdd = true;
+  bool _reduceMotion = false;
 
   late final AnimationController _bumpCtl = AnimationController(
     vsync: this,
@@ -135,9 +136,25 @@ class WaterBottleState extends State<WaterBottle>
     _syncClock();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      // Keep the new level and goal badge, but remove the physical bounce,
+      // moving droplets and idle waves from the reduced-motion presentation.
+      _bumpCtl.value = 0;
+      _slosh.value = 1;
+    }
+    _syncClock();
+  }
+
   // 空瓶或頁面閒置時畫面上沒有必要持續動，停掉主時鐘省電；有水且未閒置才轉。
   void _syncClock() {
-    final needsTick = !widget.paused && (widget.progress > 0 || widget.reached);
+    final needsTick =
+        !_reduceMotion &&
+        !widget.paused &&
+        (widget.progress > 0 || widget.reached);
     if (needsTick && !_clock.isAnimating) {
       _clock.repeat();
     } else if (!needsTick && _clock.isAnimating) {
@@ -148,7 +165,7 @@ class WaterBottleState extends State<WaterBottle>
   @override
   void didUpdateWidget(WaterBottle oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.bumpKey != widget.bumpKey) {
+    if (!_reduceMotion && oldWidget.bumpKey != widget.bumpKey) {
       _sloshIsAdd = widget.progress >= oldWidget.progress;
       _bumpCtl.forward(from: 0);
       _slosh.forward(from: 0);
@@ -168,7 +185,9 @@ class WaterBottleState extends State<WaterBottle>
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: widget.progress),
-      duration: const Duration(milliseconds: 900),
+      duration: _reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 900),
       curve: Curves.easeOutCubic,
       builder: (context, level, _) {
         final compactProgress = widget.reached

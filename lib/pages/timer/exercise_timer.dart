@@ -1109,7 +1109,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
           curve: Curves.easeOutCubic,
           width: width,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
@@ -1184,40 +1186,35 @@ class ExerciseTimerState extends State<ExerciseTimer>
     return GestureDetector(
       onTap: onTap ?? () => _selectKind(k),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         width: width,
         constraints: width == null ? const BoxConstraints(minWidth: 62) : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? meta.color : Colors.white.withValues(alpha: 0.86),
+          color: selected
+              ? meta.color.withValues(alpha: 0.10)
+              : AppSurfaces.fill,
           borderRadius: BorderRadius.circular(16),
-          border: selected ? null : AppCardStyle.hairline,
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: meta.color.withValues(alpha: 0.24),
-                    blurRadius: 13,
-                    offset: const Offset(0, 5),
-                  ),
-                ]
-              : AppShadows.flat,
+          border: Border.all(
+            color: selected
+                ? meta.color.withValues(alpha: 0.36)
+                : Colors.transparent,
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              meta.icon,
-              size: 16,
-              color: selected ? Colors.white : meta.color,
-            ),
+            Icon(meta.icon, size: 16, color: meta.color),
             const SizedBox(height: 1),
             Text(
               _kindName(k),
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w800,
-                color: selected ? Colors.white : AppInk.strong,
+                color: selected ? meta.color : AppInk.strong,
               ),
             ),
           ],
@@ -1286,7 +1283,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
       child: AnimatedBuilder(
         animation: _breath,
         builder: (context, child) {
-          final t = _isRunning
+          final t = _isRunning && !MediaQuery.disableAnimationsOf(context)
               ? Curves.easeInOut.transform(_breath.value)
               : 0.0;
           return DecoratedBox(
@@ -1294,9 +1291,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.16 + 0.13 * t),
-                  blurRadius: 24 + 14 * t,
-                  spreadRadius: 2 + 5 * t,
+                  color: color.withValues(alpha: 0.04 + 0.035 * t),
+                  blurRadius: 18 + 8 * t,
+                  spreadRadius: 1 + 2 * t,
                 ),
               ],
             ),
@@ -1308,7 +1305,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
           // 也會建立新動畫，避免沿用舊進度時短暫空白或倒帶。
           key: ValueKey((_phase, _idx)),
           tween: Tween(begin: 0, end: _progress),
-          duration: const Duration(milliseconds: 180),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
           builder: (context, p, child) => CustomPaint(
             painter: TimerRingPainter(progress: p, color: color),
             child: child,
@@ -1317,19 +1316,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
             margin: EdgeInsets.all(size * 0.14),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFFFF5EB)],
-              ),
-              border: Border.all(color: const Color(0x12A85A3A)),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 7),
-                ),
-              ],
+              color: AppSurfaces.card,
             ),
             child: Stack(
               alignment: Alignment.center,
@@ -1340,7 +1327,12 @@ class ExerciseTimerState extends State<ExerciseTimer>
                     child: ValueListenableBuilder<double>(
                       valueListenable: _pendAngle,
                       builder: (context, angle, _) => CustomPaint(
-                        painter: _PendulumPainter(angle: angle, color: color),
+                        painter: _PendulumPainter(
+                          angle: MediaQuery.disableAnimationsOf(context)
+                              ? 0
+                              : angle,
+                          color: color,
+                        ),
                       ),
                     ),
                   ),
@@ -1358,14 +1350,17 @@ class ExerciseTimerState extends State<ExerciseTimer>
                           size: size * 0.1,
                         ),
                       SizedBox(height: size * 0.01),
-                      Text(
-                        _idle ? _phaseLabel : _timeString,
-                        style: TextStyle(
-                          fontSize: _idle ? size * 0.13 : size * 0.2,
-                          fontWeight: FontWeight.w900,
-                          color: color,
-                          height: 1.05,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _idle ? _phaseLabel : _timeString,
+                          style: TextStyle(
+                            fontSize: _idle ? size * 0.13 : size * 0.2,
+                            fontWeight: FontWeight.w900,
+                            color: color,
+                            height: 1.05,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ),
                       SizedBox(height: size * 0.015),
@@ -1373,12 +1368,15 @@ class ExerciseTimerState extends State<ExerciseTimer>
                       if (_jogWorkActive)
                         _inlineBpm(size, color)
                       else
-                        Text(
-                          _ringSubtitle(),
-                          style: TextStyle(
-                            fontSize: math.max(11.0, size * 0.056),
-                            fontWeight: FontWeight.w600,
-                            color: AppInk.soft,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _ringSubtitle(),
+                            style: TextStyle(
+                              fontSize: math.max(11.0, size * 0.056),
+                              fontWeight: FontWeight.w600,
+                              color: AppInk.soft,
+                            ),
                           ),
                         ),
                     ],
@@ -1553,7 +1551,9 @@ class ExerciseTimerState extends State<ExerciseTimer>
     final canDecrease = enabled && value > min;
     final canIncrease = enabled && value < max;
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 180),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
       opacity: enabled ? 1 : 0.46,
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -2125,7 +2125,10 @@ class ExerciseTimerState extends State<ExerciseTimer>
                                 },
                               ),
                               AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 180),
+                                duration:
+                                    MediaQuery.disableAnimationsOf(context)
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 180),
                                 child: c.metronomeSoundOn
                                     ? Padding(
                                         key: const ValueKey('metro_on'),

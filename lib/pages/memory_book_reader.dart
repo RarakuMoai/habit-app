@@ -52,7 +52,9 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
         for (final (pi, page) in storyEventById(u.id).pages.indexed)
           _SpreadEntry(storyEventById(u.id), page, pi + 1, u.date),
     ];
-    final eventIndex = widget.initialIndex.clamp(0, widget.entries.length - 1);
+    final eventIndex = widget.entries.isEmpty
+        ? 0
+        : widget.initialIndex.clamp(0, widget.entries.length - 1);
     final targetId = widget.entries.isEmpty
         ? null
         : widget.entries[eventIndex].id;
@@ -84,11 +86,49 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
   Widget build(BuildContext context) {
     final entries = _spreads;
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF3E8), // 暖書頁底
+      backgroundColor: AppSurfaces.canvas,
       body: SafeArea(
         child: Stack(
           children: [
             const Positioned.fill(child: _PaperBackdrop()),
+            if (entries.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.auto_stories_outlined,
+                        size: 48,
+                        color: AppPalette.habit,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        AppLocalizations.of(context).wdFirstPageWaiting,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        AppLocalizations.of(
+                          context,
+                        ).wdFirstPageSub(MascotName.value),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                          color: AppInk.soft,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             PageView.builder(
               controller: _controller,
               itemCount: entries.length,
@@ -125,7 +165,7 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    '${_index + 1} / ${entries.length}',
+                    entries.isEmpty ? '' : '${_index + 1} / ${entries.length}',
                     style: TextStyle(
                       color: kMemoryAccent.withValues(alpha: 0.72),
                       fontSize: 10,
@@ -158,78 +198,81 @@ class _MemorySpread extends StatelessWidget {
   Widget build(BuildContext context) {
     final event = entry.event;
     final multiPage = event.pages.length > 1;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 62, 20, 42),
-      child: Column(
-        children: [
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFCF7),
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(
-                  color: kMemoryAccent.withValues(alpha: 0.20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF8B5D3C).withValues(alpha: 0.12),
-                    blurRadius: 26,
-                    offset: const Offset(0, 10),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 72, 20, 48),
+        child: Column(
+          children: [
+            SizedBox(
+              height: (constraints.maxHeight * 0.52).clamp(180.0, 480.0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFCF7),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(
+                    color: kMemoryAccent.withValues(alpha: 0.20),
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(19),
-                child: Image.asset(
-                  entry.page.image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const _ImageFallback(),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF8B5D3C).withValues(alpha: 0.12),
+                      blurRadius: 26,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(19),
+                  child: Image.asset(
+                    entry.page.image,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => const _ImageFallback(),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: kMemoryAccent.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: Text(
-              MascotName.fill(event.label),
-              style: TextStyle(
-                color: kMemoryAccent.withValues(alpha: 0.95),
-                fontSize: 10.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.8,
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: kMemoryAccent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                MascotName.fill(event.label),
+                style: TextStyle(
+                  color: kMemoryAccent.withValues(alpha: 0.95),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            multiPage ? '${event.title}・${entry.pageNo}' : event.title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppInk.strong,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
+            const SizedBox(height: 7),
+            Text(
+              multiPage ? '${event.title}・${entry.pageNo}' : event.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppInk.strong,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            _formatDate(entry.date),
-            style: TextStyle(
-              color: kMemoryAccent.withValues(alpha: 0.9),
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+            const SizedBox(height: 3),
+            Text(
+              _formatDate(entry.date),
+              style: TextStyle(
+                color: kMemoryAccent.withValues(alpha: 0.9),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _CaptionsFadeIn(lines: entry.page.captions),
-        ],
+            const SizedBox(height: 12),
+            _CaptionsFadeIn(lines: entry.page.captions),
+          ],
+        ),
       ),
     );
   }
@@ -245,7 +288,7 @@ class _PaperBackdrop extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFF9F0), Color(0xFFF8EBDD)],
+          colors: [AppSurfaces.card, AppSurfaces.canvas],
         ),
       ),
       child: CustomPaint(painter: _PaperGrainPainter()),
@@ -299,6 +342,17 @@ class _CaptionsFadeInState extends State<_CaptionsFadeIn> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      for (final timer in _timers) {
+        timer.cancel();
+      }
+      _shown = widget.lines.length;
+    }
+  }
+
+  @override
   void dispose() {
     for (final t in _timers) {
       t.cancel();
@@ -313,11 +367,17 @@ class _CaptionsFadeInState extends State<_CaptionsFadeIn> {
         for (final (i, line) in widget.lines.indexed)
           AnimatedSlide(
             offset: i < _shown ? Offset.zero : const Offset(0, 0.25),
-            duration: const Duration(milliseconds: 420),
+            duration: AppMotion.duration(
+              context,
+              const Duration(milliseconds: 420),
+            ),
             curve: Curves.easeOutCubic,
             child: AnimatedOpacity(
               opacity: i < _shown ? 1 : 0,
-              duration: const Duration(milliseconds: 420),
+              duration: AppMotion.duration(
+                context,
+                const Duration(milliseconds: 420),
+              ),
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 5),
                 child: Text(

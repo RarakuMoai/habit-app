@@ -229,7 +229,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     final confirm = await _confirmLongPress(
       title: l10n.ddClearWeightTitle,
       message: l10n.ddClearWeightMessage,
-      color: Colors.orange,
+      color: AppPalette.habit,
     );
     if (!confirm) return;
     await _runDelete((prefs) => prefs.remove(PrefsKeys.weightRecords));
@@ -241,7 +241,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     final confirm = await _confirmLongPress(
       title: l10n.ddClearWaterTitle,
       message: l10n.ddClearWaterMessage,
-      color: Colors.orange,
+      color: AppPalette.habit,
     );
     if (!confirm) return;
     await _runDelete((prefs) async {
@@ -258,7 +258,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     final confirm = await _confirmLongPress(
       title: l10n.ddClearFamilyTitle,
       message: l10n.ddClearFamilyMessage,
-      color: Colors.deepOrange,
+      color: AppPalette.family,
     );
     if (!confirm) return;
     await _runDelete((prefs) async {
@@ -313,12 +313,12 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     final l10n = AppLocalizations.of(context);
     if (!_loaded || !_authorized) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.dataDeletionTitle), centerTitle: true),
+        appBar: AppBar(title: Text(l10n.dataDeletionTitle), centerTitle: false),
         body: const AppPageWaiting(),
       );
     }
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.dataDeletionTitle), centerTitle: true),
+      appBar: AppBar(title: Text(l10n.dataDeletionTitle), centerTitle: false),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
@@ -326,7 +326,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
           const SizedBox(height: 16),
           _DeleteItemCard(
             icon: Icons.monitor_weight_outlined,
-            color: Colors.orange,
+            color: AppPalette.habit,
             title: l10n.ddClearWeightTitle,
             subtitle: _weightCount == 0
                 ? l10n.ddWeightCountNone
@@ -338,7 +338,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
           const SizedBox(height: 12),
           _DeleteItemCard(
             icon: Icons.water_drop_outlined,
-            color: Colors.orange,
+            color: AppPalette.habit,
             title: l10n.ddClearWaterTitle,
             subtitle: _waterDayCount == 0
                 ? l10n.ddWaterCountNone
@@ -350,7 +350,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
           const SizedBox(height: 12),
           _DeleteItemCard(
             icon: Icons.family_restroom_rounded,
-            color: Colors.deepOrange,
+            color: AppPalette.family,
             title: l10n.ddClearFamilyTitle,
             subtitle: _familyCount == 0
                 ? l10n.ddFamilyCountNone
@@ -371,8 +371,8 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF3F0),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.16)),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: Border.all(color: AppInk.danger.withValues(alpha: 0.16)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,12 +381,12 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.11),
+              color: AppInk.danger.withValues(alpha: 0.11),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.warning_amber_rounded,
-              color: Colors.red,
+              color: AppInk.danger,
               size: 21,
             ),
           ),
@@ -407,7 +407,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
                 Text(
                   AppLocalizations.of(context).ddWarningBody,
                   style: TextStyle(
-                    color: Colors.red.shade700,
+                    color: AppInk.danger,
                     fontSize: 12.5,
                     height: 1.4,
                     fontWeight: FontWeight.w600,
@@ -446,14 +446,14 @@ class _DeleteItemCard extends StatelessWidget {
     final fg = enabled ? color : AppInk.iconFaint;
     return Material(
       color: AppSurfaces.card,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppCardStyle.radius),
       child: InkWell(
         onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
             border: Border.all(color: AppSurfaces.divider),
           ),
           child: Row(
@@ -520,15 +520,15 @@ class _ResetAllCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: const Color(0xFFFFF5F5),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppCardStyle.radius),
       child: InkWell(
         onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.red.withValues(alpha: 0.22)),
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
+            border: Border.all(color: AppInk.danger.withValues(alpha: 0.22)),
           ),
           child: Row(
             children: [
@@ -536,12 +536,12 @@ class _ResetAllCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.12),
+                  color: AppInk.danger.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.delete_forever_rounded,
-                  color: Colors.red,
+                  color: AppInk.danger,
                   size: 24,
                 ),
               ),
@@ -562,7 +562,7 @@ class _ResetAllCard extends StatelessWidget {
                     Text(
                       AppLocalizations.of(context).ddResetAllSubtitle,
                       style: TextStyle(
-                        color: Colors.red.shade700,
+                        color: AppInk.danger,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -570,7 +570,10 @@ class _ResetAllCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.red.shade200),
+              Icon(
+                Icons.chevron_right,
+                color: AppInk.danger.withValues(alpha: 0.45),
+              ),
             ],
           ),
         ),
@@ -665,7 +668,7 @@ class _HoldToConfirmButtonState extends State<_HoldToConfirmButton>
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: base.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           border: Border.all(color: base.withValues(alpha: 0.55), width: 1.4),
         ),
         child: Stack(

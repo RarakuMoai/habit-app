@@ -69,17 +69,24 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppSurfaces.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppSurfaces.divider),
-        boxShadow: AppShadows.flat,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: Border.all(
+          color: value
+              ? iconColor.withValues(alpha: 0.28)
+              : AppSurfaces.divider,
+        ),
       ),
       child: SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
         secondary: Container(
-          width: 38,
-          height: 38,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             color: iconColor.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(15),
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
@@ -87,22 +94,31 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
           title,
           style: const TextStyle(
             fontSize: 15,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w800,
             color: AppInk.strong,
           ),
         ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(fontSize: 12, color: AppInk.soft),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.4,
+              color: AppInk.soft,
+            ),
+          ),
         ),
         value: value,
-        activeThumbColor: Colors.orange,
-        activeTrackColor: Colors.orange.shade200,
+        activeThumbColor: AppSurfaces.card,
+        activeTrackColor: iconColor,
         onChanged: (v) {
           playHaptic(HapticLevel.selection);
           onChanged(v);
         },
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        ),
       ),
     );
   }
@@ -165,10 +181,13 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.featureSettingsTitle), centerTitle: true),
+      appBar: AppBar(
+        title: Text(l10n.featureSettingsTitle),
+        centerTitle: false,
+      ),
       body: _loaded
           ? ListView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
               children: [
                 // 底部分頁排序（拖曳調整順序）
                 _reorderSection(),
@@ -176,7 +195,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 // 計時頁開關（專注、運動、節拍器、遊戲）
                 _toggleTile(
                   icon: Icons.timer_outlined,
-                  iconColor: Colors.red.shade400,
+                  iconColor: AppPalette.focus,
                   title: l10n.featureTimerTitle,
                   subtitle: l10n.featureTimerSubtitle,
                   value: _timerEnabled,
@@ -189,7 +208,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 // 喝水頁開關
                 _toggleTile(
                   icon: Icons.water_drop_outlined,
-                  iconColor: Colors.blue,
+                  iconColor: AppPalette.water,
                   title: l10n.featureWaterTitle,
                   subtitle: l10n.featureWaterSubtitle,
                   value: _waterEnabled,
@@ -209,7 +228,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 // 體重紀錄開關
                 _toggleTile(
                   icon: Icons.monitor_weight_outlined,
-                  iconColor: Colors.green.shade600,
+                  iconColor: AppPalette.weight,
                   title: l10n.featureWeightTitle,
                   subtitle: l10n.featureWeightSubtitle,
                   value: _weightTrackingEnabled,
@@ -226,7 +245,7 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
                 // 家庭模式開關
                 _toggleTile(
                   icon: Icons.family_restroom,
-                  iconColor: Colors.purple,
+                  iconColor: AppPalette.family,
                   title: l10n.featureFamilyTitle,
                   subtitle: l10n.featureFamilySubtitle,
                   value: _familyEnabled,
@@ -313,7 +332,7 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
         onTap: _toggleEdit,
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: AppMotion.duration(context, AppMotion.quick),
           curve: Curves.easeOut,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
@@ -375,15 +394,17 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
           padding: const EdgeInsets.only(left: 4, bottom: 6),
           child: Row(
             children: [
-              Text(
-                AppLocalizations.of(context).tabOrderTitle,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppInk.strong,
+              Expanded(
+                child: Text(
+                  AppLocalizations.of(context).tabOrderTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppInk.strong,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               _editToggle(),
             ],
           ),
@@ -392,7 +413,7 @@ class _BottomBarReorderState extends State<_BottomBarReorder>
         Padding(
           padding: const EdgeInsets.only(left: 4, right: 4, bottom: 12),
           child: AnimatedSize(
-            duration: const Duration(milliseconds: 180),
+            duration: AppMotion.duration(context, AppMotion.settle),
             alignment: Alignment.topLeft,
             curve: Curves.easeOut,
             child: Text(

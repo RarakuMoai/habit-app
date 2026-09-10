@@ -122,21 +122,27 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // 區塊標題（顏色跟隨當前主題主色）
   Widget _sectionTitle(String title, IconData icon) {
-    final color = Theme.of(context).colorScheme.primary;
+    final color = AppInk.soft;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: color),
+          Icon(icon, size: 16, color: color),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: color,
+          Flexible(
+            flex: 4,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                letterSpacing: 0.5,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
             ),
           ),
+          const SizedBox(width: 12),
+          const Expanded(child: Divider(height: 1)),
         ],
       ),
     );
@@ -146,9 +152,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (_) => _PinSettingsSheet(
         hasPin: _hasPin,
         currentDigits: _pinDigits,
@@ -172,10 +175,10 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsTitle), centerTitle: true),
+      appBar: AppBar(title: Text(l10n.settingsTitle), centerTitle: false),
       body: _loaded
           ? ListView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
               children: [
                 // ── 兔咪名片：點進檔案頁（足跡總覽）──
                 MascotCallingCard(
@@ -199,14 +202,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
 
-                const Divider(height: 32, thickness: 1),
+                const SizedBox(height: 28),
 
                 // ── 區塊1：基本資料（進入子頁面編輯）──
                 _sectionTitle(l10n.basicInfoTitle, Icons.person_outline),
 
                 SettingsTileCard(
                   icon: Icons.edit_outlined,
-                  iconColor: Colors.orange,
+                  iconColor: AppPalette.habit,
                   // 卡片標題與區塊標題錯開，避免同字重複兩次
                   title: l10n.settingsEditProfileTitle,
                   subtitle: l10n.settingsEditProfileSubtitle,
@@ -220,7 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
 
-                const Divider(height: 32, thickness: 1),
+                const SizedBox(height: 28),
 
                 // ── 區塊：單位（公制／英制）──
                 _sectionTitle(
@@ -228,7 +231,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Icons.straighten_outlined,
                 ),
                 SettingsGroupCard(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -270,7 +273,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
 
-                const Divider(height: 32, thickness: 1),
+                const SizedBox(height: 28),
 
                 // ── 區塊：換日時間（夜貓族把午夜往後挪）──
                 _sectionTitle(
@@ -278,7 +281,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Icons.bedtime_outlined,
                 ),
                 SettingsGroupCard(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -343,14 +346,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
 
-                const Divider(height: 32, thickness: 1),
+                const SizedBox(height: 28),
 
                 // ── 區塊2：功能開關（進入獨立子頁面）──
                 _sectionTitle(l10n.featureSettingsTitle, Icons.tune_outlined),
 
                 SettingsTileCard(
                   icon: Icons.tune_outlined,
-                  iconColor: Colors.teal,
+                  iconColor: AppPalette.success,
                   title: l10n.settingsManageFeaturesTitle,
                   subtitle: l10n.settingsManageFeaturesSubtitle,
                   onTap: () {
@@ -362,7 +365,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
 
-                const Divider(height: 32, thickness: 1),
+                const SizedBox(height: 28),
 
                 // ── 安全性區塊：PIN 設定 ──
                 _sectionTitle(
@@ -372,7 +375,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 SettingsTileCard(
                   icon: Icons.lock_outline,
-                  iconColor: Colors.indigo,
+                  iconColor: AppPalette.focus,
                   title: l10n.pinSettingsTitle,
                   // 依是否設定數字密碼顯示不同狀態文字
                   subtitle: _hasPin
@@ -381,7 +384,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: _showPinSettings,
                 ),
 
-                const Divider(height: 32, thickness: 1),
+                const SizedBox(height: 28),
 
                 // ── 區塊3：進階 ──
                 _sectionTitle(
@@ -391,7 +394,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 SettingsTileCard(
                   icon: Icons.admin_panel_settings_outlined,
-                  iconColor: Colors.deepOrange,
+                  iconColor: AppPalette.habit,
                   title: l10n.settingsAdvancedTitle,
                   subtitle: l10n.settingsAdvancedSubtitle,
                   onTap: () {
@@ -409,7 +412,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   _sectionTitle(l10n.devToolsTitle, Icons.science_outlined),
                   SettingsTileCard(
                     icon: Icons.science_outlined,
-                    iconColor: Colors.blueGrey,
+                    iconColor: AppInk.soft,
                     title: l10n.devToolsTitle,
                     subtitle: l10n.devToolsSubtitle,
                     onTap: () {
@@ -1099,8 +1102,10 @@ class _DayStartTimelineState extends State<_DayStartTimeline> {
             // 上排區段標籤：左夜右晨
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
                   _ZoneLabel(
                     Icons.bedtime_rounded,
@@ -1280,12 +1285,14 @@ class _ZoneLabel extends StatelessWidget {
     children: [
       Icon(icon, size: 14, color: color),
       const SizedBox(width: 4),
-      Text(
-        text,
-        style: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-          color: color,
+      Flexible(
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
         ),
       ),
     ],

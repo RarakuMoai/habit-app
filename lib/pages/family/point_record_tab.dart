@@ -123,13 +123,13 @@ class _PointRecordTabState extends State<PointRecordTab> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: isPlus ? Colors.green : Colors.red,
+                  color: isPlus ? AppPalette.success : AppInk.danger,
                 ),
               ),
               Text(
                 // 摺疊時取最新那筆的累計，那才是這一天結束時的分數
                 _l10n.prtTotal(r.total),
-                style: TextStyle(fontSize: 11, color: AppInk.faint),
+                style: TextStyle(fontSize: 11, color: AppInk.soft),
               ),
             ],
           ),
@@ -164,7 +164,7 @@ class _PointRecordTabState extends State<PointRecordTab> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: item.delta >= 0 ? Colors.green : Colors.red,
+                    color: item.delta >= 0 ? AppPalette.success : AppInk.danger,
                   ),
                 ),
               ],

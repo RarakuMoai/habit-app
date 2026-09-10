@@ -34,7 +34,7 @@ class HabitBackfillPage extends StatelessWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFBF5EC),
+        backgroundColor: AppSurfaces.canvas,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -283,15 +283,13 @@ class _BackfillDayViewState extends State<BackfillDayView> {
           return GestureDetector(
             onTap: () => _selectDate(date),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
+              duration: AppMotion.duration(context, AppMotion.quick),
               width: 52,
               decoration: BoxDecoration(
-                color: selected ? const Color(0xFFFF8A50) : Colors.white,
+                color: selected ? AppPalette.habit : Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: selected
-                      ? const Color(0xFFFF8A50)
-                      : const Color(0xFFEADBC8),
+                  color: selected ? AppPalette.habit : AppSurfaces.divider,
                 ),
                 boxShadow: selected ? AppShadows.card : AppShadows.flat,
               ),
@@ -322,7 +320,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: hasActivity
-                          ? (selected ? Colors.white : const Color(0xFFFF8A50))
+                          ? (selected ? Colors.white : AppPalette.habit)
                           : Colors.transparent,
                     ),
                   ),
@@ -391,7 +389,7 @@ class _BackfillDayViewState extends State<BackfillDayView> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppCardStyle.radius),
               border: Border.all(
-                color: done ? const Color(0xFFAED581) : const Color(0xFFEADBC8),
+                color: done ? const Color(0xFFAED581) : AppSurfaces.divider,
               ),
             ),
             child: Row(

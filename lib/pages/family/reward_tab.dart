@@ -220,7 +220,7 @@ class _RewardTabState extends State<RewardTab> {
           _SectionHeader(
             icon: Icons.confirmation_num_outlined,
             label: _l10n.rtMyVouchers,
-            color: Colors.purple.shade400,
+            color: AppPalette.wardrobe,
             trailing: pendingVouchers.isEmpty
                 ? null
                 : _l10n.rtVoucherCount(pendingVouchers.length),
@@ -346,7 +346,7 @@ class _SectionHeader extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Text(
                 trailing!,
@@ -374,17 +374,18 @@ class _VoucherCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: AppSurfaces.card,
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        side: BorderSide(color: AppSurfaces.divider),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
-            Icon(
-              Icons.confirmation_num,
-              size: 32,
-              color: Colors.purple.shade300,
-            ),
+            Icon(Icons.confirmation_num, size: 32, color: AppPalette.wardrobe),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -410,13 +411,13 @@ class _VoucherCard extends StatelessWidget {
             ElevatedButton(
               onPressed: onUse,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple.shade400,
+                backgroundColor: AppPalette.wardrobe,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 6,
                 ),
-                minimumSize: Size.zero,
+                minimumSize: const Size(72, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
@@ -445,20 +446,25 @@ class _RewardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    final primary = AppPalette.family;
     return Card(
+      color: AppSurfaces.card,
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        side: BorderSide(color: AppSurfaces.divider),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 48,
+              height: 56,
               decoration: BoxDecoration(
                 color: primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Icon(Icons.card_giftcard, color: primary, size: 22),
             ),
@@ -479,11 +485,13 @@ class _RewardCard extends StatelessWidget {
                     children: [
                       Icon(Icons.star, size: 12, color: Colors.amber.shade600),
                       const SizedBox(width: 2),
-                      Text(
-                        AppLocalizations.of(
-                          context,
-                        ).pmRewardCost(reward.pointsCost),
-                        style: TextStyle(fontSize: 12, color: AppInk.soft),
+                      Flexible(
+                        child: Text(
+                          AppLocalizations.of(
+                            context,
+                          ).pmRewardCost(reward.pointsCost),
+                          style: TextStyle(fontSize: 12, color: AppInk.soft),
+                        ),
                       ),
                     ],
                   ),
@@ -501,7 +509,7 @@ class _RewardCard extends StatelessWidget {
                   horizontal: 14,
                   vertical: 6,
                 ),
-                minimumSize: Size.zero,
+                minimumSize: const Size(72, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),

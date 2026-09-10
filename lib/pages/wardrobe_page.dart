@@ -18,6 +18,7 @@ import '../utils/story_store.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/app_pressable.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -368,7 +369,7 @@ class _WardrobePageState extends State<WardrobePage>
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: kWardrobeAccent,
+              backgroundColor: AppPalette.wardrobe,
               minimumSize: const Size(0, 46),
             ),
             onPressed: affordable ? () => Navigator.pop(dialogCtx, true) : null,
@@ -404,8 +405,8 @@ class _WardrobePageState extends State<WardrobePage>
     }
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFFFF8F8),
-      appBar: const MascotAppBar(accent: kWardrobeAccent),
+      backgroundColor: AppSurfaces.canvas,
+      appBar: const MascotAppBar(accent: AppPalette.wardrobe),
       body: Stack(
         children: [
           Positioned(
@@ -419,12 +420,12 @@ class _WardrobePageState extends State<WardrobePage>
           ),
           SafeArea(
             child: MascotPageShell(
-              accent: kWardrobeAccent,
+              accent: AppPalette.wardrobe,
               sceneHeight: sceneRegionHeightAnchored(
                 MediaQuery.of(context).size.width,
                 MediaQuery.of(context).padding.top,
               ),
-              scene: const PersonaScene(accent: kWardrobeAccent),
+              scene: const PersonaScene(accent: AppPalette.wardrobe),
               child: AnimatedBuilder(
                 animation: Listenable.merge([
                   WardrobeStore.selectedOutfit,
@@ -456,7 +457,7 @@ class _WardrobePageState extends State<WardrobePage>
                     ),
                     const SizedBox(height: 14),
                     AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
+                      duration: AppMotion.duration(context, AppMotion.settle),
                       child: switch (_section) {
                         _WardrobeSection.outfits => _buildOutfitSection(),
                         _WardrobeSection.music => _buildMusicSection(),
@@ -487,20 +488,36 @@ class _WardrobePageState extends State<WardrobePage>
             outfitName(_l10n, outfitById(selectedId)),
           ),
           trailing: '${owned.length}/${outfitCatalog.length}',
-          color: kWardrobeAccent,
+          color: AppPalette.wardrobe,
         ),
         const SizedBox(height: 12),
-        for (final outfit in outfitCatalog)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _OutfitCard(
-              outfit: outfit,
-              owned: owned.contains(outfit.id),
-              selected: selectedId == outfit.id,
-              onWear: () => _wearOutfit(outfit),
-              onBuy: () => _buyOutfit(outfit),
-            ),
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // Compact phones keep a full-width card; other phones show a
+            // paired collection with natural content height for larger text.
+            final paired = constraints.maxWidth >= 340;
+            final cardWidth = paired
+                ? (constraints.maxWidth - 12) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final outfit in outfitCatalog)
+                  SizedBox(
+                    width: cardWidth,
+                    child: _OutfitCard(
+                      outfit: outfit,
+                      owned: owned.contains(outfit.id),
+                      selected: selectedId == outfit.id,
+                      onWear: () => _wearOutfit(outfit),
+                      onBuy: () => _buyOutfit(outfit),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
@@ -556,7 +573,7 @@ class _WardrobePageState extends State<WardrobePage>
             ownedTracks.length,
             trackCatalog.length,
           ),
-          color: kMusicAccent,
+          color: AppPalette.focus,
         ),
         _buildMoodGroup(MusicMood.relax),
         _buildMoodGroup(MusicMood.focus),
@@ -600,7 +617,7 @@ class _WardrobePageState extends State<WardrobePage>
           title: _l10n.wdMemoryBook,
           subtitle: _l10n.wdMemoryBookSub,
           trailing: '${entries.length}/${storyCatalog.length}',
-          color: kMemoryAccent,
+          color: AppPalette.habit,
         ),
         const SizedBox(height: 12),
         if (entries.isEmpty) ...[
@@ -650,7 +667,7 @@ class _MemoryShelfLabel extends StatelessWidget {
         Expanded(
           child: Container(
             height: 1,
-            color: kMemoryAccent.withValues(alpha: 0.14),
+            color: AppPalette.habit.withValues(alpha: 0.14),
           ),
         ),
       ],
@@ -683,10 +700,10 @@ class _MemoryCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
-            color: unlock == null ? const Color(0xFFFFFCF8) : Colors.white,
+            color: unlock == null ? AppSurfaces.fill : AppSurfaces.card,
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
             border: Border.all(color: const Color(0x0A46342B)),
-            boxShadow: AppShadows.card,
+            boxShadow: AppShadows.flat,
           ),
           child: Row(
             children: [
@@ -706,10 +723,10 @@ class _MemoryCard extends StatelessWidget {
                             ? BlendMode.saturation
                             : null,
                         errorBuilder: (_, _, _) => ColoredBox(
-                          color: kMemoryAccent.withValues(alpha: 0.10),
+                          color: AppPalette.habit.withValues(alpha: 0.10),
                           child: Icon(
                             Icons.auto_stories_rounded,
-                            color: kMemoryAccent.withValues(alpha: 0.6),
+                            color: AppPalette.habit.withValues(alpha: 0.6),
                             size: 28,
                           ),
                         ),
@@ -728,7 +745,7 @@ class _MemoryCard extends StatelessWidget {
                               child: Icon(
                                 Icons.lock_outline_rounded,
                                 size: 16,
-                                color: kMemoryAccent.withValues(alpha: 0.72),
+                                color: AppPalette.habit.withValues(alpha: 0.72),
                               ),
                             ),
                           ),
@@ -750,7 +767,7 @@ class _MemoryCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: kMemoryAccent.withValues(alpha: 0.92),
+                              color: AppPalette.habit.withValues(alpha: 0.92),
                               fontSize: 11,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.7,
@@ -801,7 +818,7 @@ class _MemoryCard extends StatelessWidget {
                       style: TextStyle(
                         color: unlock == null
                             ? AppInk.soft.withValues(alpha: 0.76)
-                            : kMemoryAccent.withValues(alpha: 0.9),
+                            : AppPalette.habit.withValues(alpha: 0.9),
                         fontSize: 11.5,
                         height: 1.3,
                         fontWeight: FontWeight.w700,
@@ -835,7 +852,7 @@ class _MemoryEmpty extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: AppCardStyle.hairline,
         boxShadow: AppShadows.flat,
@@ -846,12 +863,12 @@ class _MemoryEmpty extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: kMemoryAccent.withValues(alpha: 0.10),
+              color: AppPalette.habit.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Icon(
               Icons.auto_stories_rounded,
-              color: kMemoryAccent.withValues(alpha: 0.7),
+              color: AppPalette.habit.withValues(alpha: 0.7),
               size: 28,
             ),
           ),
@@ -898,36 +915,37 @@ class _SectionSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAF7F2),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Row(
-        children: [
-          _sectionButton(
-            section: _WardrobeSection.outfits,
-            icon: Icons.checkroom_rounded,
-            label: AppLocalizations.of(context).wdTabOutfits,
-          ),
-          _sectionButton(
-            section: _WardrobeSection.music,
-            icon: Icons.music_note_rounded,
-            label: AppLocalizations.of(context).wdTabMusic,
-          ),
-          _sectionButton(
-            section: _WardrobeSection.memories,
-            icon: Icons.auto_stories_rounded,
-            label: AppLocalizations.of(context).wdTabMemories,
-            showDot: hasUnreadMemories,
-          ),
-        ],
-      ),
+    final l10n = AppLocalizations.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionButton(
+          context,
+          section: _WardrobeSection.outfits,
+          icon: Icons.checkroom_rounded,
+          label: l10n.wdTabOutfits,
+        ),
+        const SizedBox(width: 8),
+        _sectionButton(
+          context,
+          section: _WardrobeSection.music,
+          icon: Icons.music_note_rounded,
+          label: l10n.wdTabMusic,
+        ),
+        const SizedBox(width: 8),
+        _sectionButton(
+          context,
+          section: _WardrobeSection.memories,
+          icon: Icons.auto_stories_rounded,
+          label: l10n.wdTabMemories,
+          showDot: hasUnreadMemories,
+        ),
+      ],
     );
   }
 
-  Widget _sectionButton({
+  Widget _sectionButton(
+    BuildContext context, {
     required _WardrobeSection section,
     required IconData icon,
     required String label,
@@ -935,54 +953,51 @@ class _SectionSwitch extends StatelessWidget {
   }) {
     final selected = value == section;
     final color = switch (section) {
-      _WardrobeSection.outfits => kWardrobeAccent,
-      _WardrobeSection.music => kMusicAccent,
-      _WardrobeSection.memories => kMemoryAccent,
+      _WardrobeSection.outfits => AppPalette.wardrobe,
+      _WardrobeSection.music => AppPalette.focus,
+      _WardrobeSection.memories => AppPalette.habit,
     };
     return Expanded(
-      // 每顆按鈕各自包一層透明 Material，把點擊 ink（漣漪/highlight）關在自己
-      // 的圓角範圍內。少了這層，三顆 InkWell 會共用上層遠處的 Material，
-      // ink 會畫到隔壁去（點「回憶」連「音樂盒」也跟著亮）。
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: () => onChanged(section),
-          borderRadius: BorderRadius.circular(12),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              color: selected ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: selected ? AppShadows.flat : null,
+      child: AppPressable(
+        selected: selected,
+        semanticsLabel: label,
+        borderRadius: 20,
+        onPressed: () => onChanged(section),
+        child: AnimatedContainer(
+          duration: AppMotion.duration(context, AppMotion.quick),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.12) : AppSurfaces.fill,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.36)
+                  : Colors.transparent,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 18, color: selected ? color : AppInk.soft),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: selected ? color : AppInk.soft,
-                  ),
+          ),
+          child: Column(
+            children: [
+              Badge(
+                isLabelVisible: showDot,
+                backgroundColor: color,
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: selected ? color : AppInk.soft,
                 ),
-                if (showDot) ...[
-                  const SizedBox(width: 5),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? color : AppInk.soft,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1007,45 +1022,41 @@ class _WardrobeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 18),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 4, 2, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppInk.strong,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppInk.soft,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppInk.strong,
+                    fontSize: 20,
+                    height: 1.25,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-        _SoftPill(text: trailing, color: color),
-      ],
+          const SizedBox(height: 7),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppInk.soft,
+              fontSize: 12.5,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SoftPill(text: trailing, color: color),
+        ],
+      ),
     );
   }
 }
@@ -1067,94 +1078,127 @@ class _OutfitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
+    final l10n = AppLocalizations.of(context);
+    final color = AppPalette.wardrobe;
+    return AnimatedContainer(
+      duration: AppMotion.duration(context, AppMotion.settle),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: Border.all(
-          color: selected
-              ? kWardrobeAccent.withValues(alpha: 0.36)
-              : const Color(0x0A46342B),
-          width: selected ? 1.4 : 1,
+          color: selected ? color.withValues(alpha: 0.48) : AppSurfaces.divider,
+          width: 1.4,
         ),
-        boxShadow: AppShadows.card,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 86,
-            height: 86,
+            height: 160,
+            width: double.infinity,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  kWardrobeAccent.withValues(alpha: 0.12),
-                  const Color(0xFFFFF5FB),
+                  color.withValues(alpha: selected ? 0.16 : 0.07),
+                  AppSurfaces.fill,
                 ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(7),
-              child: Image.asset(outfit.assetPath, fit: BoxFit.contain),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        outfitName(AppLocalizations.of(context), outfit),
-                        style: const TextStyle(
-                          color: AppInk.strong,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 14, 10, 8),
+                  child: Image.asset(outfit.assetPath, fit: BoxFit.contain),
+                ),
+                if (selected)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Tooltip(
+                      message: l10n.wdWearing,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          color: AppSurfaces.card,
+                          size: 15,
                         ),
                       ),
                     ),
-                    if (selected)
-                      _SoftPill(
-                        text: AppLocalizations.of(context).wdWearing,
-                        color: kWardrobeAccent,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  outfitSubtitle(AppLocalizations.of(context), outfit),
-                  style: const TextStyle(
-                    color: AppInk.soft,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
                   ),
-                ),
-                const SizedBox(height: 10),
-                MiniActionButton(
-                  label: selected
-                      ? AppLocalizations.of(context).wdApplied
-                      : owned
-                      ? AppLocalizations.of(context).wdApply
-                      : unlockLabel(
-                          AppLocalizations.of(context),
-                          outfit.unlockType,
-                          outfit.coinPrice,
-                        ),
-                  icon: selected
-                      ? Icons.check_rounded
-                      : owned
-                      ? Icons.checkroom_rounded
-                      : Icons.lock_rounded, // 未擁有＝鎖著
-                  color: kWardrobeAccent,
-                  enabled: !selected,
-                  onTap: owned ? onWear : onBuy,
-                ),
               ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            outfitName(l10n, outfit),
+            style: const TextStyle(
+              color: AppInk.strong,
+              fontSize: 16,
+              height: 1.3,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            outfitSubtitle(l10n, outfit),
+            style: const TextStyle(
+              color: AppInk.soft,
+              fontSize: 12,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: selected
+                  ? null
+                  : owned
+                  ? onWear
+                  : onBuy,
+              style: FilledButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: AppSurfaces.card,
+                disabledBackgroundColor: color.withValues(alpha: 0.10),
+                disabledForegroundColor: color,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: Icon(
+                selected
+                    ? Icons.check_rounded
+                    : owned
+                    ? Icons.checkroom_rounded
+                    : Icons.lock_outline_rounded,
+                size: 16,
+              ),
+              label: Text(
+                selected
+                    ? l10n.wdApplied
+                    : owned
+                    ? l10n.wdApply
+                    : unlockLabel(l10n, outfit.unlockType, outfit.coinPrice),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
         ],
@@ -1206,7 +1250,7 @@ class _MusicSummaryCard extends StatelessWidget {
                           const Color(0xFFFFF6EE),
                         ]
                       : [
-                          kMusicAccent.withValues(alpha: 0.14),
+                          AppPalette.focus.withValues(alpha: 0.14),
                           const Color(0xFFF4F7FF),
                         ],
                   begin: Alignment.topLeft,
@@ -1214,8 +1258,9 @@ class _MusicSummaryCard extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(AppCardStyle.radius),
                 border: Border.all(
-                  color: (previewing ? const Color(0xFFE0894F) : kMusicAccent)
-                      .withValues(alpha: 0.16),
+                  color:
+                      (previewing ? const Color(0xFFE0894F) : AppPalette.focus)
+                          .withValues(alpha: 0.16),
                 ),
               ),
               child: Row(
@@ -1237,19 +1282,21 @@ class _MusicSummaryCard extends StatelessWidget {
                             else
                               _PlaybackEqualizer(
                                 active: !muted,
-                                color: kMusicAccent,
+                                color: AppPalette.focus,
                               ),
                             const SizedBox(width: 5),
-                            Text(
-                              previewing
-                                  ? AppLocalizations.of(context).wdPreviewing
-                                  : AppLocalizations.of(context).wdNowPlaying,
-                              style: TextStyle(
-                                color: previewing
-                                    ? const Color(0xFFB9763B)
-                                    : AppInk.soft,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
+                            Expanded(
+                              child: Text(
+                                previewing
+                                    ? AppLocalizations.of(context).wdPreviewing
+                                    : AppLocalizations.of(context).wdNowPlaying,
+                                style: TextStyle(
+                                  color: previewing
+                                      ? const Color(0xFFB9763B)
+                                      : AppInk.soft,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
                           ],
@@ -1281,7 +1328,7 @@ class _MusicSummaryCard extends StatelessWidget {
                       icon: muted
                           ? Icons.play_arrow_rounded
                           : Icons.pause_rounded,
-                      color: kMusicAccent,
+                      color: AppPalette.focus,
                       tooltip: muted
                           ? AppLocalizations.of(context).wdResume
                           : AppLocalizations.of(context).wdPause,
@@ -1292,7 +1339,7 @@ class _MusicSummaryCard extends StatelessWidget {
                     text: AppLocalizations.of(
                       context,
                     ).wdTrackCount(playlistCount),
-                    color: kMusicAccent,
+                    color: AppPalette.focus,
                   ),
                 ],
               ),
@@ -1576,7 +1623,7 @@ class _PlaylistCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: AppCardStyle.hairline,
         boxShadow: AppShadows.flat,
@@ -1587,11 +1634,13 @@ class _PlaylistCard extends StatelessWidget {
           Row(
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
+                duration: AppMotion.duration(context, AppMotion.quick),
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: kMusicAccent.withValues(alpha: editMode ? 0.16 : 0.10),
+                  color: AppPalette.focus.withValues(
+                    alpha: editMode ? 0.16 : 0.10,
+                  ),
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: AnimatedSwitcher(
@@ -1601,7 +1650,7 @@ class _PlaylistCard extends StatelessWidget {
                         ? Icons.swap_vert_rounded
                         : Icons.queue_music_rounded,
                     key: ValueKey(editMode),
-                    color: kMusicAccent,
+                    color: AppPalette.focus,
                     size: 19,
                   ),
                 ),
@@ -1631,7 +1680,7 @@ class _PlaylistCard extends StatelessWidget {
                         key: ValueKey(editMode),
                         style: TextStyle(
                           color: editMode
-                              ? kMusicAccent
+                              ? AppPalette.focus
                               : AppInk.soft.withValues(alpha: 0.82),
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
@@ -1644,7 +1693,7 @@ class _PlaylistCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 160),
+                duration: AppMotion.duration(context, AppMotion.quick),
                 transitionBuilder: (child, animation) => FadeTransition(
                   opacity: animation,
                   child: ScaleTransition(
@@ -1681,7 +1730,7 @@ class _PlaylistCard extends StatelessWidget {
             child: ScrollbarTheme(
               data: ScrollbarTheme.of(context).copyWith(
                 thumbColor: WidgetStatePropertyAll(
-                  kMusicAccent.withValues(alpha: 0.30),
+                  AppPalette.focus.withValues(alpha: 0.30),
                 ),
               ),
               child: Scrollbar(
@@ -1850,7 +1899,7 @@ class _PlaylistRow extends StatelessWidget {
     final playing = isCurrent && !muted;
     final rowColor = isCurrent ? const Color(0xFFEFF3FC) : Colors.white;
     final borderColor = isCurrent
-        ? kMusicAccent.withValues(alpha: 0.20)
+        ? AppPalette.focus.withValues(alpha: 0.20)
         : Colors.transparent;
 
     return AnimatedContainer(
@@ -2127,7 +2176,7 @@ class _PlaylistMenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? Colors.red.shade400 : kMusicAccent;
+    final color = danger ? Colors.red.shade400 : AppPalette.focus;
     final contentColor = enabled ? color : AppInk.iconFaint;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -2168,7 +2217,7 @@ class _PlaylistPlayButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: kMusicAccent.withValues(alpha: playing ? 0.16 : 0.10),
+        color: AppPalette.focus.withValues(alpha: playing ? 0.16 : 0.10),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -2176,7 +2225,7 @@ class _PlaylistPlayButton extends StatelessWidget {
           child: SizedBox(
             width: 44,
             height: 44,
-            child: Icon(icon, size: 24, color: kMusicAccent),
+            child: Icon(icon, size: 24, color: AppPalette.focus),
           ),
         ),
       ),
@@ -2205,8 +2254,8 @@ class _PlaylistSortDoneAction extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Color.lerp(kMusicAccent, Colors.white, 0.08)!,
-                  Color.lerp(kMusicAccent, Colors.black, 0.08)!,
+                  Color.lerp(AppPalette.focus, Colors.white, 0.08)!,
+                  Color.lerp(AppPalette.focus, Colors.black, 0.08)!,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -2214,7 +2263,7 @@ class _PlaylistSortDoneAction extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: kMusicAccent.withValues(alpha: 0.24),
+                  color: AppPalette.focus.withValues(alpha: 0.24),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -2264,7 +2313,7 @@ class _PlayModeButton extends StatelessWidget {
       PlayMode.shuffle => Icons.shuffle_rounded,
     };
     return Material(
-      color: kMusicAccent.withValues(alpha: 0.10),
+      color: AppPalette.focus.withValues(alpha: 0.10),
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -2274,12 +2323,12 @@ class _PlayModeButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 16, color: kMusicAccent),
+              Icon(icon, size: 16, color: AppPalette.focus),
               const SizedBox(width: 5),
               Text(
                 playModeLabel(AppLocalizations.of(context), mode),
                 style: const TextStyle(
-                  color: kMusicAccent,
+                  color: AppPalette.focus,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
@@ -2364,7 +2413,7 @@ class _MoodSectionState extends State<_MoodSection> {
               setState(() => _expanded = !_expanded);
             },
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: AppMotion.duration(context, AppMotion.settle),
               padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: _expanded ? 0.12 : 0.08),
@@ -2426,7 +2475,7 @@ class _MoodSectionState extends State<_MoodSection> {
                   const SizedBox(width: 7),
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
+                    duration: AppMotion.duration(context, AppMotion.settle),
                     child: Container(
                       width: 28,
                       height: 28,
@@ -2456,7 +2505,7 @@ class _MoodSectionState extends State<_MoodSection> {
           crossFadeState: _expanded
               ? CrossFadeState.showFirst
               : CrossFadeState.showSecond,
-          duration: const Duration(milliseconds: 220),
+          duration: AppMotion.duration(context, AppMotion.settle),
           sizeCurve: Curves.easeInOutCubic,
         ),
       ],
@@ -2579,7 +2628,7 @@ class _TrackGridCard extends StatelessWidget {
       return MiniActionButton(
         label: AppLocalizations.of(context).wdStop,
         icon: Icons.stop_rounded,
-        color: kMusicAccent,
+        color: AppPalette.focus,
         onTap: onPreview,
       );
     }
@@ -2587,7 +2636,7 @@ class _TrackGridCard extends StatelessWidget {
       return MiniActionButton(
         label: AppLocalizations.of(context).wdPlaying,
         icon: Icons.graphic_eq_rounded,
-        color: kMusicAccent,
+        color: AppPalette.focus,
         enabled: false,
         onTap: () {},
       );
@@ -2595,7 +2644,7 @@ class _TrackGridCard extends StatelessWidget {
     return MiniActionButton(
       label: AppLocalizations.of(context).wdPreview,
       icon: Icons.play_arrow_rounded,
-      color: kMusicAccent,
+      color: AppPalette.focus,
       onTap: onPreview,
     );
   }
@@ -2608,7 +2657,7 @@ class _TrackGridCard extends StatelessWidget {
             ? AppLocalizations.of(context).wdRemove
             : AppLocalizations.of(context).wdAdded,
         icon: removable ? Icons.playlist_remove_rounded : Icons.check_rounded,
-        color: kMusicAccent,
+        color: AppPalette.focus,
         enabled: removable,
         onTap: onRemoveFromPlaylist,
       );
@@ -2624,7 +2673,7 @@ class _TrackGridCard extends StatelessWidget {
       ),
       unlockedLabel: AppLocalizations.of(context).wdAdd,
       unlockedIcon: Icons.playlist_add_rounded,
-      color: kMusicAccent,
+      color: AppPalette.focus,
       onLockedTap: onBuy,
       onUnlockedTap: onAddToPlaylist,
     );
@@ -2639,15 +2688,15 @@ class _TrackGridCard extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppSurfaces.card,
             borderRadius: BorderRadius.circular(AppCardStyle.radius),
             border: Border.all(
               color: previewing
-                  ? kMusicAccent.withValues(alpha: 0.42)
+                  ? AppPalette.focus.withValues(alpha: 0.42)
                   : const Color(0x0A46342B),
               width: previewing ? 1.4 : 1,
             ),
-            boxShadow: AppShadows.card,
+            boxShadow: AppShadows.flat,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2759,7 +2808,11 @@ class _SquareCover extends StatelessWidget {
         ),
       ),
       child: const Center(
-        child: Icon(Icons.music_note_rounded, color: Colors.white, size: 34),
+        child: Icon(
+          Icons.music_note_rounded,
+          color: AppSurfaces.card,
+          size: 34,
+        ),
       ),
     );
   }
@@ -2773,7 +2826,7 @@ class _NowPlayingBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: kMusicAccent,
+        color: AppPalette.focus,
         borderRadius: BorderRadius.circular(99),
         boxShadow: [
           BoxShadow(
@@ -2791,7 +2844,7 @@ class _NowPlayingBadge extends StatelessWidget {
           Text(
             AppLocalizations.of(context).wdPlaying,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppSurfaces.card,
               fontSize: 10,
               fontWeight: FontWeight.w900,
             ),
@@ -2845,7 +2898,7 @@ class _TrackDetailSheet extends StatelessWidget {
           track.coinPrice,
         ),
         icon: Icons.lock_rounded, // 未擁有＝鎖著
-        color: kMusicAccent,
+        color: AppPalette.focus,
         onTap: onBuy,
       );
     }
@@ -2853,7 +2906,7 @@ class _TrackDetailSheet extends StatelessWidget {
       return MiniActionButton(
         label: AppLocalizations.of(context).wdAddToPlaylist,
         icon: Icons.playlist_add_rounded,
-        color: kMusicAccent,
+        color: AppPalette.focus,
         onTap: onAddToPlaylist,
       );
     }
@@ -2861,14 +2914,14 @@ class _TrackDetailSheet extends StatelessWidget {
       return MiniActionButton(
         label: AppLocalizations.of(context).wdSetCurrent,
         icon: Icons.play_arrow_rounded,
-        color: kMusicAccent,
+        color: AppPalette.focus,
         onTap: onSetCurrent,
       );
     }
     return MiniActionButton(
       label: AppLocalizations.of(context).wdCurrentlyPlaying,
       icon: Icons.graphic_eq_rounded,
-      color: kMusicAccent,
+      color: AppPalette.focus,
       enabled: false,
       onTap: () {},
     );
@@ -2883,9 +2936,9 @@ class _TrackDetailSheet extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppSurfaces.card,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: AppShadows.card,
+            boxShadow: AppShadows.flat,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2912,7 +2965,7 @@ class _TrackDetailSheet extends StatelessWidget {
                           child: Icon(
                             Icons.close_rounded,
                             size: 18,
-                            color: Colors.white,
+                            color: AppSurfaces.card,
                           ),
                         ),
                       ),
@@ -2950,7 +3003,7 @@ class _TrackDetailSheet extends StatelessWidget {
                   for (final tag in track.tags)
                     _DetailChip(
                       label: bgmTagLabel(AppLocalizations.of(context), tag),
-                      color: kMusicAccent,
+                      color: AppPalette.focus,
                     ),
                 ],
               ),
@@ -3004,7 +3057,7 @@ class _TrackDetailSheet extends StatelessWidget {
                                   : activeNow
                                   ? Icons.graphic_eq_rounded
                                   : Icons.play_arrow_rounded,
-                              color: kMusicAccent,
+                              color: AppPalette.focus,
                               // 「播放中」（目前曲、非試聽）停用，其餘可按
                               enabled: previewing || !activeNow,
                               onTap: onPreview,
@@ -3051,11 +3104,11 @@ class _InfoLine extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: kMusicAccent,
+                    color: AppPalette.focus,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
                     decoration: TextDecoration.underline,
-                    decorationColor: kMusicAccent,
+                    decorationColor: AppPalette.focus,
                   ),
                 ),
               ),
@@ -3063,7 +3116,7 @@ class _InfoLine extends StatelessWidget {
               const Icon(
                 Icons.open_in_new_rounded,
                 size: 14,
-                color: kMusicAccent,
+                color: AppPalette.focus,
               ),
             ],
           )
@@ -3079,7 +3132,7 @@ class _InfoLine extends StatelessWidget {
           );
     final row = Row(
       children: [
-        Icon(icon, size: 17, color: kMusicAccent),
+        Icon(icon, size: 17, color: AppPalette.focus),
         const SizedBox(width: 7),
         SizedBox(
           width: 40,
@@ -3154,9 +3207,9 @@ class _TrackProgressBarState extends State<_TrackProgressBar> {
                 trackHeight: 3,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 13),
-                activeTrackColor: kMusicAccent,
-                inactiveTrackColor: kMusicAccent.withValues(alpha: 0.18),
-                thumbColor: kMusicAccent,
+                activeTrackColor: AppPalette.focus,
+                inactiveTrackColor: AppPalette.focus.withValues(alpha: 0.18),
+                thumbColor: AppPalette.focus,
               ),
               child: Slider(
                 value: value,
@@ -3216,7 +3269,7 @@ Future<void> _openExternal(BuildContext context, String url) async {
           onPressed: () => Navigator.pop(dialogCtx, false),
         ),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: kMusicAccent),
+          style: FilledButton.styleFrom(backgroundColor: AppPalette.focus),
           onPressed: () => Navigator.pop(dialogCtx, true),
           icon: const Icon(Icons.open_in_new_rounded, size: 18),
           label: Text(AppLocalizations.of(context).wdOpen),
@@ -3276,7 +3329,7 @@ class _TrackCover extends StatelessWidget {
       ),
       child: Icon(
         Icons.music_note_rounded,
-        color: Colors.white,
+        color: AppSurfaces.card,
         size: size * 0.46,
       ),
     );
@@ -3321,7 +3374,11 @@ class _DetailHeroCover extends StatelessWidget {
         ),
       ),
       child: const Center(
-        child: Icon(Icons.music_note_rounded, color: Colors.white, size: 48),
+        child: Icon(
+          Icons.music_note_rounded,
+          color: AppSurfaces.card,
+          size: 48,
+        ),
       ),
     );
   }

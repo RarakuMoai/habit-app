@@ -264,9 +264,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFE6D9), Color(0xFFFFF2D9), Color(0xFFF2EAFE)],
+          colors: [AppSurfaces.card, Color(0xFFF5EBDE)],
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: Border.all(color: _identityAccent.withValues(alpha: 0.16)),
         boxShadow: AppShadows.flat,
       ),
@@ -382,7 +382,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       padding: padding ?? const EdgeInsets.fromLTRB(15, 14, 14, 15),
       decoration: BoxDecoration(
         color: Color.lerp(AppSurfaces.card, accent, 0.035),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: Border.all(color: accent.withValues(alpha: 0.16)),
         boxShadow: [
           ...AppShadows.flat,
@@ -429,12 +429,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 child: Icon(icon, size: 18, color: accent),
               ),
               const SizedBox(width: 10),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: AppInk.strong,
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppInk.strong,
+                  ),
                 ),
               ),
               if (required)
@@ -446,8 +448,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                     color: Colors.red.shade400,
                   ),
                 ),
-              const Spacer(),
-              ?trailing,
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                Flexible(child: trailing),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -623,16 +627,16 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   }) {
     return Material(
       color: selected ? accent : accent.withValues(alpha: 0.065),
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(AppCardStyle.radius),
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         onTap: () {
           if (!selected) playHaptic(HapticLevel.selection);
           onSelected();
         },
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
             border: Border.all(
               color: selected ? accent : accent.withValues(alpha: 0.20),
             ),
@@ -675,12 +679,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 child: Icon(icon, size: 18, color: accent),
               ),
               const SizedBox(width: 10),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: AppInk.strong,
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppInk.strong,
+                  ),
                 ),
               ),
             ],
@@ -744,9 +750,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       padding: EdgeInsets.zero,
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           onTap: () async {
             final picked = await showBirthdayPicker(
               context,
@@ -775,23 +781,30 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  _l10n.birthdayLabel,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: AppInk.strong,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _birthday == null
-                      ? _l10n.notSetLabel
-                      : _formatDate(_birthday!),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _birthday == null ? AppInk.faint : AppInk.strong,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _l10n.birthdayLabel,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppInk.strong,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        _birthday == null
+                            ? _l10n.notSetLabel
+                            : _formatDate(_birthday!),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppInk.soft,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -811,12 +824,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8F0),
+      backgroundColor: AppSurfaces.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF8F0),
+        backgroundColor: AppSurfaces.canvas,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         iconTheme: const IconThemeData(color: AppInk.strong),
         title: Text(
           _l10n.basicInfoTitle,
@@ -833,7 +846,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     children: [
                       _introCard(),
                       _sectionTitle(

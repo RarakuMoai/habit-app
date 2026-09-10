@@ -816,7 +816,10 @@ class _MetronomeTimerState extends State<MetronomeTimer>
             valueListenable: _pendAngle,
             builder: (context, angle, _) => CustomPaint(
               size: Size(width, height),
-              painter: _MetronomePainter(angle: angle, color: color),
+              painter: _MetronomePainter(
+                angle: MediaQuery.disableAnimationsOf(context) ? 0 : angle,
+                color: color,
+              ),
             ),
           ),
         ),
@@ -1495,7 +1498,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: AppMotion.duration(context, AppMotion.quick),
           curve: Curves.easeOutCubic,
           width: width,
           constraints: const BoxConstraints(minHeight: 62),
@@ -1580,7 +1583,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: AppMotion.duration(context, AppMotion.quick),
           curve: Curves.easeOutCubic,
           width: width,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -1754,7 +1757,7 @@ class _Dot extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = accent ? 16.0 : 12.0;
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 90),
+      duration: AppMotion.duration(context, AppPressMotion.down),
       width: size,
       height: size,
       decoration: BoxDecoration(
@@ -1803,21 +1806,25 @@ class _SignatureGlyph extends StatelessWidget {
     return SizedBox(
       width: height * 0.92,
       height: height,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('$beats', style: numberStyle),
-          Container(
-            width: height * 0.42,
-            height: 1.3,
-            margin: EdgeInsets.symmetric(vertical: height * 0.035),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(99),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('$beats', style: numberStyle),
+            Container(
+              width: height * 0.42,
+              height: 1.3,
+              margin: EdgeInsets.symmetric(vertical: height * 0.035),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(99),
+              ),
             ),
-          ),
-          Text('$unit', style: numberStyle),
-        ],
+            Text('$unit', style: numberStyle),
+          ],
+        ),
       ),
     );
   }

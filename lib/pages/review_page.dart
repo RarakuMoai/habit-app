@@ -1,7 +1,6 @@
 // 足跡 / 回顧：以陪伴語氣回看一段時間做了多少。
 //
-// 頂部只保留 [週 / 月] 唯讀統計；「補習慣」從 AppBar 進入獨立頁，
-// 避免與統計的期間切換混在一起。
+// 錢包、補登入口與週／月統計共用同一捲軸，短螢幕也能完整閱讀每個區段。
 //
 // 領域：習慣、喝水、專注、運動（各自有功能開關才顯示）。語氣刻意不打分、
 // 不紅綠燈；數字只是「兔咪替你記得」。彙總邏輯在 utils/review_stats.dart。
@@ -24,9 +23,9 @@ import '../utils/units.dart';
 import '../widgets/app_waiting.dart';
 import 'habit_backfill_page.dart';
 
-const Color _accent = Color(0xFFFF8A50);
-const Color _cardBorder = Color(0xFFEADBC8);
-const Color _success = Color(0xFF74A65A);
+const Color _accent = AppPalette.habit;
+const Color _cardBorder = AppSurfaces.divider;
+const Color _success = AppPalette.success;
 
 class ReviewPage extends StatefulWidget {
   /// 進來預設停在哪個分頁：0=週 1=月。
@@ -195,7 +194,7 @@ class _ReviewPageState extends State<ReviewPage> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFBF5EC),
+        backgroundColor: AppSurfaces.canvas,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -216,12 +215,16 @@ class _ReviewPageState extends State<ReviewPage> {
         ),
         body: _loading
             ? const AppPageWaiting()
-            : Column(
+            : ListView(
+                padding: const EdgeInsets.only(top: 8, bottom: 32),
                 children: [
                   _buildCoinWalletCard(),
                   _buildBackfillEntry(),
                   _buildSegmentBar(),
-                  Expanded(child: _buildPeriodView()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildPeriodView(),
+                  ),
                 ],
               ),
       ),
@@ -236,9 +239,9 @@ class _ReviewPageState extends State<ReviewPage> {
 
   Widget _buildBackfillEntry() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
       child: Material(
-        color: const Color(0xFFFFF3E8),
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         child: InkWell(
           borderRadius: BorderRadius.circular(AppCardStyle.radius),
@@ -247,7 +250,7 @@ class _ReviewPageState extends State<ReviewPage> {
             padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppCardStyle.radius),
-              border: Border.all(color: const Color(0xFFF3C49E)),
+              border: Border.all(color: AppSurfaces.divider),
             ),
             child: Row(
               children: [
@@ -289,34 +292,46 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget _buildSegmentBar() {
     final labels = [_l10n.rvSegWeek, _l10n.rvSegMonth];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Container(
-        padding: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _cardBorder),
+          color: AppSurfaces.fill,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppSurfaces.divider),
         ),
         child: Row(
           children: [
             for (var i = 0; i < labels.length; i++)
               Expanded(
-                child: GestureDetector(
-                  onTap: () => _changeSeg(i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _seg == i ? _accent : Colors.transparent,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Text(
-                      labels[i],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: _seg == i ? Colors.white : AppInk.soft,
+                child: Semantics(
+                  button: true,
+                  selected: _seg == i,
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(13),
+                    child: InkWell(
+                      onTap: () => _changeSeg(i),
+                      borderRadius: BorderRadius.circular(13),
+                      child: AnimatedContainer(
+                        duration: AppMotion.duration(context, AppMotion.quick),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _seg == i
+                              ? AppSurfaces.card
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(13),
+                          boxShadow: _seg == i ? AppShadows.flat : null,
+                        ),
+                        child: Text(
+                          labels[i],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: _seg == i ? AppInk.strong : AppInk.soft,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -332,152 +347,126 @@ class _ReviewPageState extends State<ReviewPage> {
     final todayAmount = _todayLoginAmount();
     final periodStats = _coinPeriodStats();
     final periodWord = _seg == 0 ? _l10n.rvPeriodWeek : _l10n.rvPeriodMonth;
-    final periodLine = _periodCoinLine(periodWord, periodStats);
     final levelText = _loginLevel <= 0 ? '-' : 'Lv.$_loginLevel';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 13),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.white, Color(0xFFFFF6E6)],
-          ),
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
-          border: Border.all(color: const Color(0xFFF0D8A7)),
-          boxShadow: AppShadows.flat,
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF5ECD9), AppSurfaces.card],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFC44D).withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFE5A327).withValues(alpha: 0.38),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(5),
-                    child: Image.asset(
-                      'assets/icon/ui/paw_footprint_coin_round.png',
-                      filterQuality: FilterQuality.high,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _l10n.rvWallet,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: AppInk.strong,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        periodLine,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppInk.soft,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: Border.all(color: const Color(0xFFE4D5B7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _l10n.rvWallet,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppInk.strong,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       _l10n.rvCurrentCoins,
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        color: AppInk.soft,
-                      ),
+                      style: const TextStyle(fontSize: 12, color: AppInk.soft),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       _formatCoins(_coinBalance),
                       style: AppType.digits(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF7A4A17),
+                        fontSize: 42,
+                        fontWeight: FontWeight.w800,
+                        color: AppInk.strong,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 13),
-            Row(
-              children: [
-                Expanded(
-                  child: _WalletMetric(
-                    label: _l10n.rvTodayLogin,
-                    value: todayAmount == null
-                        ? _l10n.rvNotCredited
-                        : '+$todayAmount',
-                    color: const Color(0xFFE5A327),
-                  ),
-                ),
-                const _WalletDivider(),
-                Expanded(
-                  child: _WalletMetric(
-                    label: _l10n.rvLoginStreak,
-                    value: _loginStreak > 999
-                        ? _l10n.rvDaysMax
-                        : _l10n.rvDays(_loginStreak.clamp(0, 999)),
-                    color: _accent,
-                  ),
-                ),
-                const _WalletDivider(),
-                Expanded(
-                  child: _WalletMetric(
-                    label: _l10n.rvRewardLevel,
-                    value: levelText,
-                    color: _success,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: _milestoneProgressValue(),
-                minHeight: 6,
-                backgroundColor: const Color(0xFFF3E4CE),
-                valueColor: const AlwaysStoppedAnimation(Color(0xFFE5A327)),
               ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              _milestoneLine(),
-              style: const TextStyle(
-                fontSize: 11.5,
-                height: 1.25,
-                fontWeight: FontWeight.w700,
-                color: AppInk.soft,
+              Image.asset(
+                'assets/icon/ui/paw_footprint_coin_round.png',
+                width: 64,
+                height: 64,
+                filterQuality: FilterQuality.high,
+                excludeFromSemantics: true,
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _periodCoinLine(periodWord, periodStats),
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.45,
+              color: AppInk.soft,
             ),
-          ],
-        ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, color: Color(0xFFE4D5B7)),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _WalletMetric(
+                  label: _l10n.rvTodayLogin,
+                  value: todayAmount == null
+                      ? _l10n.rvNotCredited
+                      : '+$todayAmount',
+                  color: const Color(0xFF9C794A),
+                ),
+              ),
+              const _WalletDivider(),
+              Expanded(
+                child: _WalletMetric(
+                  label: _l10n.rvLoginStreak,
+                  value: _loginStreak > 999
+                      ? _l10n.rvDaysMax
+                      : _l10n.rvDays(_loginStreak.clamp(0, 999)),
+                  color: _accent,
+                ),
+              ),
+              const _WalletDivider(),
+              Expanded(
+                child: _WalletMetric(
+                  label: _l10n.rvRewardLevel,
+                  value: levelText,
+                  color: _success,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          LinearProgressIndicator(
+            value: _milestoneProgressValue(),
+            minHeight: 5,
+            borderRadius: BorderRadius.circular(10),
+            backgroundColor: const Color(0xFFE8DFCD),
+            valueColor: const AlwaysStoppedAnimation(Color(0xFFB2925F)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _milestoneLine(),
+            style: const TextStyle(
+              fontSize: 11.5,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+              color: AppInk.soft,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -492,8 +481,8 @@ class _ReviewPageState extends State<ReviewPage> {
       tombstones: _tombstones,
       habitFallbackName: _l10n.rsHabitFallback,
     );
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildPeriodNav(),
         const SizedBox(height: 12),
@@ -537,7 +526,7 @@ class _ReviewPageState extends State<ReviewPage> {
         Text(
           _l10n.rvNotAScore(MascotName.value),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11.5, color: AppInk.faint),
+          style: TextStyle(fontSize: 12.5, height: 1.5, color: AppInk.soft),
         ),
       ],
     );
@@ -777,7 +766,7 @@ class _ReviewPageState extends State<ReviewPage> {
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 15),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFFFF3E6), Color(0xFFFFE9D2)],
+          colors: [AppPalette.successSurface, AppSurfaces.card],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -803,12 +792,14 @@ class _ReviewPageState extends State<ReviewPage> {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                _seg == 0 ? _l10n.rvWeekReview : _l10n.rvMonthReview,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: AppInk.strong,
+              Expanded(
+                child: Text(
+                  _seg == 0 ? _l10n.rvWeekReview : _l10n.rvMonthReview,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: AppInk.strong,
+                  ),
                 ),
               ),
             ],
@@ -960,9 +951,9 @@ class _Card extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: Border.all(color: _cardBorder),
       ),
@@ -973,12 +964,14 @@ class _Card extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: color),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppInk.strong,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppInk.strong,
+                  ),
                 ),
               ),
             ],
@@ -1028,8 +1021,8 @@ class _WalletMetric extends StatelessWidget {
       children: [
         Text(
           label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          maxLines: 2,
           style: const TextStyle(
             fontSize: 10.5,
             fontWeight: FontWeight.w800,
@@ -1153,8 +1146,8 @@ class _SummaryMetric extends StatelessWidget {
       children: [
         Text(
           label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          maxLines: 2,
           style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
@@ -1167,8 +1160,8 @@ class _SummaryMetric extends StatelessWidget {
           child: Text(
             AppLocalizations.of(context).rvDays(value),
             style: AppType.digits(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
+              fontSize: 23,
+              fontWeight: FontWeight.w800,
               color: color,
             ),
           ),
@@ -1255,16 +1248,20 @@ class _FootprintGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (_, constraints) {
         final cell = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        // Date plus status marker needs two lines even when seven columns
+        // are narrow. Width stays aligned to the weekday grid; height can grow.
+        final height = (MediaQuery.textScalerOf(context).scale(13) * 1.1 + 22)
+            .clamp(cell, double.infinity);
         return Wrap(
           spacing: gap,
           runSpacing: gap,
           children: [
             for (var i = 0; i < leadingBlanks; i++)
-              SizedBox(width: cell, height: cell),
+              SizedBox(width: cell, height: height),
             for (final day in days)
               SizedBox(
                 width: cell,
-                height: cell,
+                height: height,
                 child: _FootprintCell(day: day),
               ),
           ],
@@ -1293,12 +1290,16 @@ class _FootprintCell extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '${day.day}',
-              style: AppType.digits(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: colors.text,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '${day.day}',
+                maxLines: 1,
+                style: AppType.digits(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: colors.text,
+                ),
               ),
             ),
             const SizedBox(height: 2),

@@ -639,11 +639,11 @@ class _TimerPageState extends State<TimerPage>
 
   // 專注暖橘 / 嫩綠 / 湖水綠：比 Material 原色再暖一階，貼整體插畫調性。
   Color get _phaseColor => switch (_phase) {
-    _Phase.focus => const Color(0xFFFF7043),
-    _Phase.shortBreak => const Color(0xFF66BB6A),
-    _Phase.longBreak => const Color(0xFF26A69A),
-    _Phase.finished => const Color(0xFF66BB6A),
-    _Phase.idle => const Color(0xFFFF7043),
+    _Phase.focus => AppPalette.focus,
+    _Phase.shortBreak => AppPalette.success,
+    _Phase.longBreak => AppPalette.habit,
+    _Phase.finished => AppPalette.success,
+    _Phase.idle => AppPalette.focus,
   };
 
   String get _phaseLabel => switch (_phase) {
@@ -726,7 +726,7 @@ class _TimerPageState extends State<TimerPage>
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFFFF8F0),
+      backgroundColor: AppSurfaces.canvas,
       appBar: MascotAppBar(accent: color),
       body: Stack(
         children: [
@@ -784,92 +784,83 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  // 模式分段切換（玻璃膠囊風，跟全 app 卡片語彙一致）。只渲染已啟用的模式
-  // 四欄較擠時自動縮小圖示/字級給 SE 排下。
+  // 工具導覽使用等寬 52pt 觸控區。圖示與文字上下排列，英文不與圖示搶寬度。
   Widget _buildModeSwitch(Color color) {
-    final modes = _availableModes;
-    final crowded = modes.length >= 4;
-    final iconSize = crowded ? 15.0 : 16.0;
-    final fontSize = crowded ? 12.5 : 13.5;
-    final iconGap = crowded ? 3.0 : 4.0;
-
-    Widget seg(_TimerMode mode) {
-      final selected = _topMode == mode;
-      final segColor = _accentFor(mode);
-      final (icon, label) = _modeChrome(mode);
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => _switchMode(mode),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              color: selected ? segColor : Colors.transparent,
-              borderRadius: BorderRadius.circular(13),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: segColor.withValues(alpha: 0.28),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: iconSize,
-                  color: selected ? Colors.white : AppInk.soft,
-                ),
-                SizedBox(width: iconGap),
-                // FittedBox：中文四個模式都放得下、不會被縮；英文
-                // ("Metronome") 在 SE 的 1/4 欄寬放不下，等比縮到剛好，
-                // 免得被 fade 成「Metronom」。
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w800,
-                        color: selected ? Colors.white : AppInk.soft,
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: TimerModeMetrics.horizontalInset,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppSurfaces.fill,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: [
+              for (final mode in _availableModes)
+                Expanded(
+                  child: Semantics(
+                    selected: _topMode == mode,
+                    button: true,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => _switchMode(mode),
+                        child: AnimatedContainer(
+                          duration: reduce
+                              ? Duration.zero
+                              : const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: _topMode == mode
+                                ? AppSurfaces.card
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: _topMode == mode
+                                ? AppShadows.flat
+                                : null,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _modeChrome(mode).$1,
+                                size: 20,
+                                color: _topMode == mode
+                                    ? _accentFor(mode)
+                                    : AppInk.soft,
+                              ),
+                              const SizedBox(height: 3),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _modeChrome(mode).$2,
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: _topMode == mode
+                                        ? AppInk.strong
+                                        : AppInk.soft,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
-      );
-    }
-
-    return Container(
-      // 與 TimerModeFrame 的 horizontalInset 對齊，切換列和標頭同一條邊線。
-      margin: const EdgeInsets.symmetric(
-        horizontal: TimerModeMetrics.horizontalInset,
-      ),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(16),
-        border: AppCardStyle.hairline,
-        boxShadow: AppShadows.flat,
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < modes.length; i++) ...[
-            if (i > 0) const SizedBox(width: 4),
-            seg(modes[i]),
-          ],
-        ],
       ),
     );
   }
@@ -912,7 +903,7 @@ class _TimerPageState extends State<TimerPage>
       quickPicker: _buildProfilePicker(),
       footer: _todayFocusRounds > 0 ? _statsBar() : null,
       topAction: TimerSettingsAction(
-        color: const Color(0xFFFF7043),
+        color: AppPalette.focus,
         onTap: _openSettingsSheet,
       ),
     );
@@ -921,16 +912,16 @@ class _TimerPageState extends State<TimerPage>
   // 今日統計列：有完成紀錄時才顯示，讓四種工具的主面板保有相近空間。
   Widget _statsBar() {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
       height: 50, // 與運動統計列等高，切換模式不位移（兩處需一致）
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFFF7043).withValues(alpha: 0.16),
-        ),
+        border: Border.all(color: AppPalette.focus.withValues(alpha: 0.16)),
         boxShadow: AppShadows.flat,
       ),
       child: Row(
@@ -940,7 +931,7 @@ class _TimerPageState extends State<TimerPage>
               icon: Icons.check_circle_rounded,
               label: _l10n.statTodayDone,
               value: _l10n.roundsCount(_todayFocusRounds),
-              color: const Color(0xFFFF7043),
+              color: AppPalette.focus,
             ),
           ),
           const SizedBox(width: 8),
@@ -949,7 +940,7 @@ class _TimerPageState extends State<TimerPage>
               icon: Icons.hourglass_bottom_rounded,
               label: _l10n.phaseFocusTime,
               value: _l10n.minutesCount(_todayFocusMin),
-              color: const Color(0xFF66BB6A),
+              color: AppPalette.success,
             ),
           ),
         ],
@@ -1043,7 +1034,9 @@ class _TimerPageState extends State<TimerPage>
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 3.5),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 300),
             curve: Curves.easeOutBack,
             width: active ? 11 : 9,
             height: active ? 11 : 9,
@@ -1099,7 +1092,9 @@ class _TimerPageState extends State<TimerPage>
     return GestureDetector(
       onTap: onTap ?? () => _selectProfile(index),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         width: width,
         constraints: width == null
@@ -1107,18 +1102,13 @@ class _TimerPageState extends State<TimerPage>
             : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? accent : Colors.white.withValues(alpha: 0.86),
+          color: selected ? accent.withValues(alpha: 0.10) : AppSurfaces.fill,
           borderRadius: BorderRadius.circular(16),
-          border: selected ? null : AppCardStyle.hairline,
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.24),
-                    blurRadius: 13,
-                    offset: const Offset(0, 5),
-                  ),
-                ]
-              : AppShadows.flat,
+          border: Border.all(
+            color: selected
+                ? accent.withValues(alpha: 0.38)
+                : Colors.transparent,
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1130,7 +1120,7 @@ class _TimerPageState extends State<TimerPage>
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w800,
-                color: selected ? Colors.white : AppInk.strong,
+                color: selected ? accent : AppInk.strong,
               ),
             ),
             const SizedBox(height: 1),
@@ -1139,9 +1129,7 @@ class _TimerPageState extends State<TimerPage>
               maxLines: 1,
               style: AppType.digits(
                 fontSize: 11,
-                color: selected
-                    ? Colors.white.withValues(alpha: 0.9)
-                    : AppInk.faint,
+                color: selected ? accent : AppInk.soft,
               ),
             ),
           ],
@@ -1364,7 +1352,7 @@ class _TimerPageState extends State<TimerPage>
                                     Icons.edit_rounded,
                                     color: profile.name.trim().isEmpty
                                         ? AppInk.iconFaint
-                                        : const Color(0xFFFF7043),
+                                        : AppPalette.focus,
                                   ),
                                   filled: true,
                                   fillColor: const Color(0xFFFFFCF8),
@@ -1402,7 +1390,7 @@ class _TimerPageState extends State<TimerPage>
                                 label: _l10n.modeFocus,
                                 sub: _l10n.focusStepperSub,
                                 icon: Icons.local_fire_department_rounded,
-                                color: const Color(0xFFFF7043),
+                                color: AppPalette.focus,
                                 value: _focusMin,
                                 min: 5,
                                 max: 120,
@@ -1415,7 +1403,7 @@ class _TimerPageState extends State<TimerPage>
                                 label: _l10n.phaseShortBreak,
                                 sub: _l10n.shortBreakStepperSub,
                                 icon: Icons.local_cafe_rounded,
-                                color: const Color(0xFF66BB6A),
+                                color: AppPalette.success,
                                 value: _shortMin,
                                 min: 1,
                                 max: 30,
@@ -1428,7 +1416,7 @@ class _TimerPageState extends State<TimerPage>
                                 label: _l10n.roundsStepperLabel,
                                 sub: _l10n.roundsStepperSub,
                                 icon: Icons.tag_rounded,
-                                color: const Color(0xFFFF7043),
+                                color: AppPalette.focus,
                                 value: _rounds,
                                 min: 1,
                                 max: 8,
@@ -1457,7 +1445,7 @@ class _TimerPageState extends State<TimerPage>
                                 label: _l10n.phaseLongBreak,
                                 sub: _l10n.longBreakStepperSub,
                                 icon: Icons.self_improvement_rounded,
-                                color: const Color(0xFF26A69A),
+                                color: AppPalette.habit,
                                 value: _longMin,
                                 min: 5,
                                 max: 60,
@@ -1481,7 +1469,7 @@ class _TimerPageState extends State<TimerPage>
                         width: double.infinity,
                         child: FilledButton.icon(
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF7043),
+                            backgroundColor: AppPalette.focus,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(
@@ -1529,14 +1517,12 @@ class _TimerPageState extends State<TimerPage>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFFFF7043).withValues(alpha: 0.14),
-            const Color(0xFF66BB6A).withValues(alpha: 0.10),
+            AppPalette.focus.withValues(alpha: 0.14),
+            AppPalette.success.withValues(alpha: 0.10),
           ],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFFF7043).withValues(alpha: 0.12),
-        ),
+        border: Border.all(color: AppPalette.focus.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1584,7 +1570,7 @@ class _TimerPageState extends State<TimerPage>
                 child: _settingsSummaryMetric(
                   label: _l10n.modeFocus,
                   value: _l10n.minutesCount(_focusMin),
-                  color: const Color(0xFFFF7043),
+                  color: AppPalette.focus,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1592,7 +1578,7 @@ class _TimerPageState extends State<TimerPage>
                 child: _settingsSummaryMetric(
                   label: _l10n.phaseShortBreak,
                   value: _l10n.minutesCount(_shortMin),
-                  color: const Color(0xFF66BB6A),
+                  color: AppPalette.success,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1600,7 +1586,7 @@ class _TimerPageState extends State<TimerPage>
                 child: _settingsSummaryMetric(
                   label: _l10n.roundsStepperLabel,
                   value: _l10n.roundsCount(_rounds),
-                  color: const Color(0xFFE8604C),
+                  color: AppPalette.focus,
                 ),
               ),
             ],
@@ -1724,7 +1710,7 @@ class _TimerPageState extends State<TimerPage>
   }) {
     return Row(
       children: [
-        Icon(icon, size: 17, color: const Color(0xFFFF7043)),
+        Icon(icon, size: 17, color: AppPalette.focus),
         const SizedBox(width: 6),
         Text(
           title,
@@ -1978,7 +1964,7 @@ class _TimerPageState extends State<TimerPage>
         animation: _breath,
         builder: (context, child) {
           // 執行中光暈隨呼吸放大縮小；暫停/待機固定在最小值
-          final t = _isRunning
+          final t = _isRunning && !MediaQuery.disableAnimationsOf(context)
               ? Curves.easeInOut.transform(_breath.value)
               : 0.0;
           return DecoratedBox(
@@ -1986,9 +1972,9 @@ class _TimerPageState extends State<TimerPage>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.16 + 0.13 * t),
-                  blurRadius: 24 + 14 * t,
-                  spreadRadius: 2 + 5 * t,
+                  color: color.withValues(alpha: 0.04 + 0.035 * t),
+                  blurRadius: 18 + 8 * t,
+                  spreadRadius: 1 + 2 * t,
                 ),
               ],
             ),
@@ -2001,7 +1987,9 @@ class _TimerPageState extends State<TimerPage>
           // 沿用上一段的圓環動畫狀態。
           key: ValueKey((_phase, _idx)),
           tween: Tween(begin: 0, end: _progress),
-          duration: const Duration(milliseconds: 1000),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 1000),
           builder: (context, p, child) => CustomPaint(
             // 與運動模式共用同一個圓環外觀，只差傳入的專注配色。
             painter: TimerRingPainter(progress: p, color: color),
@@ -2011,19 +1999,7 @@ class _TimerPageState extends State<TimerPage>
             margin: EdgeInsets.all(size * 0.14),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFFFF5EB)],
-              ),
-              border: Border.all(color: const Color(0x12A85A3A)),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 7),
-                ),
-              ],
+              color: AppSurfaces.card,
             ),
             child: Center(
               child: Column(
@@ -2035,26 +2011,32 @@ class _TimerPageState extends State<TimerPage>
                     size: size * 0.1,
                   ),
                   SizedBox(height: size * 0.01),
-                  Text(
-                    _timeString,
-                    style: TextStyle(
-                      fontSize: size * 0.2,
-                      fontWeight: FontWeight.w900,
-                      color: color,
-                      height: 1.05,
-                      // 等寬數字：倒數時各位數不左右跳動。
-                      // 刻意不用 AppType.digits：Baloo 2 沒有 tabular figures，
-                      // 倒數會左右抖
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _timeString,
+                      style: TextStyle(
+                        fontSize: size * 0.2,
+                        fontWeight: FontWeight.w900,
+                        color: color,
+                        height: 1.05,
+                        // 等寬數字：倒數時各位數不左右跳動。
+                        // 刻意不用 AppType.digits：Baloo 2 沒有 tabular figures，
+                        // 倒數會左右抖
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
                   ),
                   SizedBox(height: size * 0.015),
-                  Text(
-                    _ringSubtitle(),
-                    style: TextStyle(
-                      fontSize: math.max(11.0, size * 0.056),
-                      fontWeight: FontWeight.w600,
-                      color: AppInk.soft,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _ringSubtitle(),
+                      style: TextStyle(
+                        fontSize: math.max(11.0, size * 0.056),
+                        fontWeight: FontWeight.w600,
+                        color: AppInk.soft,
+                      ),
                     ),
                   ),
                 ],

@@ -36,7 +36,8 @@ class StoryRevealPage extends StatefulWidget {
       reverseTransitionDuration: const Duration(milliseconds: 420),
       pageBuilder: (_, _, _) =>
           StoryRevealPage(event: event, date: date ?? DateTime.now()),
-      transitionsBuilder: (_, animation, _, child) {
+      transitionsBuilder: (context, animation, _, child) {
+        if (MediaQuery.disableAnimationsOf(context)) return child;
         final curved = CurvedAnimation(
           parent: animation,
           curve: Curves.easeOutCubic,
@@ -57,6 +58,7 @@ class _StoryRevealPageState extends State<StoryRevealPage>
 
   int _pageIndex = 0;
   bool _imageIn = false;
+  bool _reduceMotion = false;
   int _shownCaptions = 0;
   final List<Timer> _timers = [];
 
@@ -77,6 +79,20 @@ class _StoryRevealPageState extends State<StoryRevealPage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _ambient.stop();
+      _cancelTimers();
+      _imageIn = true;
+      _shownCaptions = _page.captions.length;
+    } else if (!_ambient.isAnimating) {
+      _ambient.repeat();
+    }
+  }
+
+  @override
   void dispose() {
     _cancelTimers();
     _ambient.dispose();
@@ -93,6 +109,11 @@ class _StoryRevealPageState extends State<StoryRevealPage>
   /// 目前頁重新開演：圖先浮現，台詞再逐句亮起。
   void _startPage() {
     _cancelTimers();
+    if (_reduceMotion) {
+      _imageIn = true;
+      _shownCaptions = _page.captions.length;
+      return;
+    }
     _imageIn = false;
     _shownCaptions = 0;
     _timers.add(
@@ -162,7 +183,10 @@ class _StoryRevealPageState extends State<StoryRevealPage>
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 380),
+                  duration: AppMotion.duration(
+                    context,
+                    const Duration(milliseconds: 380),
+                  ),
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeIn,
                   child: _buildSpread(key: ValueKey(_pageIndex)),
@@ -201,7 +225,10 @@ class _StoryRevealPageState extends State<StoryRevealPage>
         const SizedBox(height: 8),
         AnimatedOpacity(
           opacity: _imageIn ? 1 : 0,
-          duration: const Duration(milliseconds: 520),
+          duration: AppMotion.duration(
+            context,
+            const Duration(milliseconds: 520),
+          ),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
@@ -225,15 +252,24 @@ class _StoryRevealPageState extends State<StoryRevealPage>
         Expanded(
           child: AnimatedSlide(
             offset: _imageIn ? Offset.zero : const Offset(0, 0.035),
-            duration: const Duration(milliseconds: 720),
+            duration: AppMotion.duration(
+              context,
+              const Duration(milliseconds: 720),
+            ),
             curve: Curves.easeOutCubic,
             child: AnimatedOpacity(
               opacity: _imageIn ? 1 : 0,
-              duration: const Duration(milliseconds: 720),
+              duration: AppMotion.duration(
+                context,
+                const Duration(milliseconds: 720),
+              ),
               curve: Curves.easeOut,
               child: AnimatedScale(
                 scale: _imageIn ? 1 : 0.965,
-                duration: const Duration(milliseconds: 720),
+                duration: AppMotion.duration(
+                  context,
+                  const Duration(milliseconds: 720),
+                ),
                 curve: Curves.easeOutCubic,
                 child: Container(
                   width: double.infinity,
@@ -256,7 +292,7 @@ class _StoryRevealPageState extends State<StoryRevealPage>
                     borderRadius: BorderRadius.circular(19),
                     child: Image.asset(
                       page.image,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const _ImageFallback(),
                     ),
                   ),
@@ -268,7 +304,10 @@ class _StoryRevealPageState extends State<StoryRevealPage>
         const SizedBox(height: 18),
         AnimatedOpacity(
           opacity: _imageIn ? 1 : 0,
-          duration: const Duration(milliseconds: 720),
+          duration: AppMotion.duration(
+            context,
+            const Duration(milliseconds: 720),
+          ),
           child: Column(
             children: [
               Text(
@@ -298,11 +337,17 @@ class _StoryRevealPageState extends State<StoryRevealPage>
         for (var i = 0; i < page.captions.length; i++)
           AnimatedSlide(
             offset: i < _shownCaptions ? Offset.zero : const Offset(0, 0.25),
-            duration: const Duration(milliseconds: 460),
+            duration: AppMotion.duration(
+              context,
+              const Duration(milliseconds: 460),
+            ),
             curve: Curves.easeOutCubic,
             child: AnimatedOpacity(
               opacity: i < _shownCaptions ? 1 : 0,
-              duration: const Duration(milliseconds: 460),
+              duration: AppMotion.duration(
+                context,
+                const Duration(milliseconds: 460),
+              ),
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 5),
                 child: Text(
@@ -324,7 +369,10 @@ class _StoryRevealPageState extends State<StoryRevealPage>
           height: 22,
           child: AnimatedOpacity(
             opacity: _captionsDone ? 1 : 0,
-            duration: const Duration(milliseconds: 400),
+            duration: AppMotion.duration(
+              context,
+              const Duration(milliseconds: 400),
+            ),
             child: AnimatedBuilder(
               animation: _ambient,
               builder: (_, child) => Opacity(

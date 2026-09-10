@@ -42,6 +42,28 @@ void main() {
     expect(find.text(event.label), findsOneWidget);
     expect(find.text(event.title), findsOneWidget);
     expect(find.text('嗯...我們就從今天，慢慢再走。'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('嗯...我們就從今天，慢慢再走。'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(
+      tester.getBottomRight(find.text('嗯...我們就從今天，慢慢再走。')).dy,
+      lessThanOrEqualTo(568),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('empty memory reader has a readable first-page state', (
+    tester,
+  ) async {
+    useCompactPhone(tester);
+    await tester.pumpWidget(
+      l10nTestApp(home: const MemoryBookReader(entries: [])),
+    );
+    await tester.pump();
+    expect(find.byIcon(Icons.auto_stories_outlined), findsOneWidget);
+    expect(find.text('1 / 0'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -63,4 +85,61 @@ void main() {
     expect(find.text('點一下，收進回憶本 ✧'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'changing reduced motion keeps the current story and visible captions',
+    (tester) async {
+      useCompactPhone(tester);
+      final reduced = ValueNotifier(false);
+      addTearDown(reduced.dispose);
+      final event = storyEventById('comeback');
+      await tester.pumpWidget(
+        l10nTestApp(
+          home: ValueListenableBuilder<bool>(
+            valueListenable: reduced,
+            builder: (context, value, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: value),
+              child: child!,
+            ),
+            child: StoryRevealPage(event: event, date: DateTime(2026, 9, 10)),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      reduced.value = true;
+      await tester.pump();
+      for (final line in event.pages.first.captions) {
+        final opacity = tester.widget<AnimatedOpacity>(
+          find
+              .ancestor(
+                of: find.text(line),
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first,
+        );
+        expect(opacity.opacity, 1);
+        expect(opacity.duration, Duration.zero);
+      }
+      reduced.value = false;
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text(event.title), findsOneWidget);
+      for (final line in event.pages.first.captions) {
+        expect(
+          tester
+              .widget<AnimatedOpacity>(
+                find
+                    .ancestor(
+                      of: find.text(line),
+                      matching: find.byType(AnimatedOpacity),
+                    )
+                    .first,
+              )
+              .opacity,
+          1,
+        );
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }

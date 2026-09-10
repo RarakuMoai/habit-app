@@ -19,9 +19,9 @@ import '../utils/sfx_service.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 import '../utils/weight_records.dart';
+import '../widgets/app_pressable.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/birthday_picker.dart';
-import '../widgets/habit_ui.dart';
 import '../widgets/hold_repeat_button.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -53,19 +53,19 @@ class WeightPage extends StatefulWidget {
 
 enum _WeightSheetField { weight, fat }
 
-/// 體重頁自己的暖珊瑚色系：從浴室背景的木色／粉橘取色，避免散落不同的
-/// Material orange shades。健康狀態只用低飽和輔色，不把數字做成警告燈。
+/// 身體紀錄採柔和莓果色。健康狀態保留低飽和輔色，
+/// 避免把每天正常的數值浮動做成警告燈。
 abstract final class _WeightColors {
-  static const accent = Color(0xFFFF8A4C);
-  static const accentStrong = Color(0xFFD86536);
-  static const accentSoft = Color(0xFFFFF0E4);
-  static const accentWash = Color(0xFFFFF8F1);
-  static const coral = Color(0xFFF27A5B);
+  static const accent = AppPalette.weight;
+  static const accentStrong = Color(0xFF835169);
+  static const accentSoft = Color(0xFFF5E9EE);
+  static const accentWash = Color(0xFFFBF5F7);
+  static const coral = Color(0xFFBF8FA0);
   static const sage = Color(0xFF5E9E68);
   static const sageSoft = Color(0xFFEEF7EF);
   static const blue = Color(0xFF5C8FA6);
   static const danger = Color(0xFFB65B55);
-  static const pageBackground = Color(0xFFFFF8F0);
+  static const pageBackground = Color(0xFFFAF5F3);
 }
 
 class _WeightPageState extends State<WeightPage> {
@@ -933,7 +933,7 @@ class _WeightPageState extends State<WeightPage> {
                     padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
                     decoration: BoxDecoration(
                       color: AppSurfaces.card,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(AppCardStyle.radius),
                       boxShadow: [
                         BoxShadow(
                           color: _WeightColors.accent.withValues(alpha: 0.18),
@@ -1154,7 +1154,9 @@ class _WeightPageState extends State<WeightPage> {
       context: context,
       backgroundColor: AppSurfaces.card,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppCardStyle.sheetRadius),
+        ),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -1271,32 +1273,36 @@ class _WeightPageState extends State<WeightPage> {
                   ),
                 ),
               ),
-              if (!isGoalReached)
-                Text(
-                  _l10n.weightGoalRemaining(_fmtWeight(diff), _wLabel),
-                  style: AppType.digits(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: _WeightColors.accentStrong,
-                  ),
-                ),
             ],
           ),
+          if (!isGoalReached)
+            Padding(
+              padding: const EdgeInsets.only(left: 23, top: 4),
+              child: Text(
+                _l10n.weightGoalRemaining(_fmtWeight(diff), _wLabel),
+                style: AppType.digits(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: _WeightColors.accentStrong,
+                ),
+              ),
+            ),
           const SizedBox(height: 7),
           // 漸層進度條 + 尾端白心亮點（同首頁進度列語彙）
           _GradientProgressBar(value: progress, accent: barColor),
           const SizedBox(height: 3),
-          // 起始與目標標籤
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                _l10n.weightGoalStart(_fmtWeight(initialWeight), _wLabel),
-                style: const TextStyle(fontSize: 10.5, color: AppInk.soft),
+              Expanded(
+                child: Text(
+                  _l10n.weightGoalStart(_fmtWeight(initialWeight), _wLabel),
+                  style: const TextStyle(fontSize: 11, color: AppInk.soft),
+                ),
               ),
+              const SizedBox(width: 8),
               Text(
-                _l10n.weightGoalLine(_fmtWeight(target), _wLabel),
-                style: const TextStyle(fontSize: 10.5, color: AppInk.soft),
+                '${(progress * 100).round()}%',
+                style: AppType.digits(color: barColor),
               ),
             ],
           ),
@@ -1310,15 +1316,10 @@ class _WeightPageState extends State<WeightPage> {
     if (!_loaded) {
       return const Scaffold(body: AppPageWaiting());
     }
-
-    final today = _todayString();
-    // 今天的紀錄（若有）
-    final todayIdx = _records.indexWhere((r) => r['date'] == today);
+    final todayIdx = _records.indexWhere((r) => r['date'] == _todayString());
     final todayRec = todayIdx >= 0 ? _records[todayIdx] : null;
-
-    // 提前計算，避免 build() 中重複呼叫
     final chartData = _getChartData();
-    final targetProgressWidget = _buildTargetProgress();
+    final targetProgress = _buildTargetProgress();
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -1327,11 +1328,8 @@ class _WeightPageState extends State<WeightPage> {
         accent: _WeightColors.accent,
         onSettingsReturn: _loadData,
       ),
-      // 不用 FAB：核心動作鈕（記錄今天／更新今日）釘在捲動區外的最上方，
-      // 跟習慣頁「新增習慣」一致，常駐明顯、不被捲動蓋掉。
       body: Stack(
         children: [
-          // 場景背景：延伸到 AppBar 後面，高度跟首頁同一套「寬度錨點」
           Positioned(
             top: 0,
             left: 0,
@@ -1349,188 +1347,105 @@ class _WeightPageState extends State<WeightPage> {
                 MediaQuery.of(context).padding.top,
               ),
               scene: const PersonaScene(accent: _WeightColors.accent),
-              // 核心動作鈕釘在捲動區外（與習慣頁「新增習慣」一致）：
-              // 永遠在最上面明顯處，不會因捲動而消失。
               child: Column(
                 children: [
                   Expanded(
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      key: const PageStorageKey('weight-journal'),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                       children: [
-                        // ── 今日數據放最前：面板展開時第一眼就是今天的體重 ──
-                        HabitSectionHeader(
-                          label: _l10n.weightTodaySection,
-                          icon: Icons.today_rounded,
-                          color: _WeightColors.accent,
-                        ),
                         todayRec != null
                             ? Container(
                                 key: const ValueKey('today-weight-card'),
-                                padding: const EdgeInsets.fromLTRB(
-                                  14,
-                                  13,
-                                  14,
-                                  13,
-                                ),
+                                padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
                                   color: AppSurfaces.card,
                                   borderRadius: BorderRadius.circular(
                                     AppCardStyle.radius,
                                   ),
-                                  border: AppCardStyle.hairline,
-                                  boxShadow: AppShadows.card,
+                                  border: Border.all(
+                                    color: _WeightColors.accent.withValues(
+                                      alpha: 0.16,
+                                    ),
+                                  ),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            _l10n.weightTodaySection,
+                                            style: const TextStyle(
+                                              color: _WeightColors.accentStrong,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                        const Icon(
+                                          Icons.check_circle_outline_rounded,
+                                          color: _WeightColors.accent,
+                                          size: 20,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
                                     _buildStatGrid(todayRec),
-                                    if (targetProgressWidget != null) ...[
-                                      const SizedBox(height: 10),
-                                      targetProgressWidget,
+                                    if (targetProgress != null) ...[
+                                      const SizedBox(height: 16),
+                                      targetProgress,
                                     ],
                                   ],
                                 ),
                               )
                             : _buildTodayEmptyCard(),
-
-                        // 今天尚未記錄、但已有歷史資料時，仍保留目標摘要。
-                        if (todayRec == null &&
-                            targetProgressWidget != null) ...[
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: AppSurfaces.card,
-                              borderRadius: BorderRadius.circular(
-                                AppCardStyle.radius,
-                              ),
-                              border: AppCardStyle.hairline,
-                              boxShadow: AppShadows.flat,
-                            ),
-                            child: targetProgressWidget,
-                          ),
+                        if (todayRec == null && targetProgress != null) ...[
+                          const SizedBox(height: 14),
+                          targetProgress,
                         ],
-
                         const SizedBox(height: 20),
-
-                        // ── 趨勢圖卡片（範圍切換 + 折線圖） ──
-                        HabitSectionHeader(
-                          label: _l10n.weightTrendSection,
-                          icon: Icons.show_chart_rounded,
-                          color: _WeightColors.accent,
-                        ),
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                          decoration: BoxDecoration(
-                            color: AppSurfaces.card,
-                            borderRadius: BorderRadius.circular(
-                              AppCardStyle.radius,
-                            ),
-                            border: AppCardStyle.hairline,
-                            boxShadow: AppShadows.card,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  _rangeSelector(),
-                                  const Spacer(),
-                                  if (chartData.spots.isNotEmpty)
-                                    Text(
-                                      _l10n.weightRecordCount(
-                                        chartData.spots.length,
-                                      ),
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppInk.soft,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              // 無資料時顯示友善提示，否則顯示折線圖
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 220),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder: (child, animation) =>
-                                    FadeTransition(
-                                      opacity: animation,
-                                      child: child,
-                                    ),
-                                child: chartData.spots.isEmpty
-                                    ? SizedBox(
-                                        key: ValueKey(
-                                          'weight-chart-empty-$_chartRangeIndex',
-                                        ),
-                                        height: 158,
-                                        child: Center(
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.show_chart,
-                                                size: 36,
-                                                color: _WeightColors.accent
-                                                    .withValues(alpha: 0.38),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                _l10n.weightChartEmpty,
-                                                style: const TextStyle(
-                                                  color: AppInk.faint,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      )
-                                    : SizedBox(
-                                        key: ValueKey(
-                                          'weight-chart-$_chartRangeIndex-${chartData.spots.length}',
-                                        ),
-                                        height: 174,
-                                        child: Column(
-                                          children: [
-                                            _chartInsightRow(chartData),
-                                            const SizedBox(height: 6),
-                                            Expanded(
-                                              child: _buildLineChart(chartData),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // ── 歷史紀錄列表 ──
+                        _trendCard(chartData),
                         if (_records.isNotEmpty) ...[
-                          const SizedBox(height: 20),
-                          HabitSectionHeader(
-                            label: _l10n.weightHistorySection,
-                            icon: Icons.history_rounded,
-                            color: _WeightColors.accent,
+                          const SizedBox(height: 24),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, bottom: 12),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _l10n.weightHistorySection,
+                                    style: const TextStyle(
+                                      color: AppInk.strong,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  _l10n.weightRecordCount(_records.length),
+                                  style: const TextStyle(
+                                    color: AppInk.soft,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           _buildHistoryList(),
                         ],
                       ],
                     ),
                   ),
-                  // 核心動作鈕釘在最下方、捲動區外：最常用、隨時可按，不被捲動蓋掉
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
                     child: _TodayActionButton(
                       label: todayRec != null
                           ? _l10n.weightActionUpdate
                           : _l10n.weightActionAdd,
                       icon: todayRec != null
-                          ? Icons.edit_rounded
+                          ? Icons.edit_outlined
                           : Icons.add_rounded,
                       onTap: _openAddSheet,
                     ),
@@ -1538,6 +1453,89 @@ class _WeightPageState extends State<WeightPage> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _trendCard(_ChartData chartData) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppSurfaces.card,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: AppCardStyle.hairline,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.show_chart_rounded,
+                color: _WeightColors.accentStrong,
+                size: 21,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _l10n.weightTrendSection,
+                  style: const TextStyle(
+                    color: AppInk.strong,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                _wLabel,
+                style: const TextStyle(color: AppInk.soft, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _rangeSelector(),
+          const SizedBox(height: 18),
+          AnimatedSwitcher(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 220),
+            child: chartData.spots.isEmpty
+                ? SizedBox(
+                    key: ValueKey('weight-chart-empty-$_chartRangeIndex'),
+                    height: 170,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.show_chart_rounded,
+                            size: 38,
+                            color: _WeightColors.accent,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _l10n.weightChartEmpty,
+                            style: const TextStyle(
+                              color: AppInk.soft,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Column(
+                    key: ValueKey(
+                      'weight-chart-$_chartRangeIndex-${chartData.spots.length}',
+                    ),
+                    children: [
+                      _chartInsightRow(chartData),
+                      const SizedBox(height: 20),
+                      SizedBox(height: 154, child: _buildLineChart(chartData)),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -1565,6 +1563,9 @@ class _WeightPageState extends State<WeightPage> {
     final yAxis = _niceYAxis(minV, maxV);
 
     return LineChart(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 240),
       LineChartData(
         minX: chartData.minX,
         maxX: chartData.maxX,
@@ -1699,7 +1700,8 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  // 範圍切換：segmented 膠囊（選中浮白卡，未選沉在底色裡）
+  // A full-width segmented control gives every range a 44 pt target,
+  // including narrow screens and larger accessibility text.
   Widget _rangeSelector() {
     final labels = [
       _l10n.weightRangeWeek,
@@ -1707,39 +1709,52 @@ class _WeightPageState extends State<WeightPage> {
       _l10n.weightRangeQuarter,
     ];
     return Container(
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: _WeightColors.accentWash,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: List.generate(labels.length, (i) {
           final selected = _chartRangeIndex == i;
-          return GestureDetector(
-            onTap: () {
-              if (_chartRangeIndex == i) return;
-              playHaptic(HapticLevel.selection);
-              setState(() => _chartRangeIndex = i);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-              decoration: selected
-                  ? BoxDecoration(
-                      color: AppSurfaces.card,
-                      borderRadius: BorderRadius.circular(9),
-                      border: AppCardStyle.hairline,
-                      boxShadow: AppShadows.flat,
-                    )
-                  : null,
-              child: Text(
-                labels[i],
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? _WeightColors.accentStrong : AppInk.soft,
+          return Expanded(
+            child: Semantics(
+              selected: selected,
+              button: true,
+              child: Material(
+                color: selected
+                    ? _WeightColors.accentStrong
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    if (_chartRangeIndex == i) return;
+                    playHaptic(HapticLevel.selection);
+                    setState(() => _chartRangeIndex = i);
+                  },
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 44),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 8,
+                      ),
+                      child: Center(
+                        child: Text(
+                          labels[i],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: selected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: selected ? Colors.white : AppInk.soft,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1823,42 +1838,37 @@ class _WeightPageState extends State<WeightPage> {
       key: const ValueKey('weight-chart-insight'),
       label: _l10n.weightInsightSemantics(insight, range),
       excludeSemantics: true,
-      child: LayoutBuilder(
-        builder: (context, constraints) => Row(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _WeightColors.accentWash,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
           children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 15, color: color),
-            ),
-            const SizedBox(width: 8),
+            Icon(icon, size: 19, color: color),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                insight,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: AppInk.strong,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    insight,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppInk.strong,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    range,
+                    style: const TextStyle(fontSize: 11, color: AppInk.soft),
+                  ),
+                ],
               ),
             ),
-            if (constraints.maxWidth >= 300) ...[
-              const SizedBox(width: 8),
-              Text(
-                range,
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppInk.soft,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -2004,9 +2014,8 @@ class _WeightPageState extends State<WeightPage> {
             Text(
               _fmtWeight(weight),
               style: AppType.digits(
-                fontSize: 36,
-                fontWeight: FontWeight.w800,
-                color: AppInk.strong,
+                fontSize: 48,
+                color: _WeightColors.accentStrong,
               ),
             ),
             const SizedBox(width: 5),
@@ -2028,7 +2037,7 @@ class _WeightPageState extends State<WeightPage> {
           _DeltaPill(delta: delta, text: _deltaText(delta), unit: _wLabel),
         ],
         if (items.isNotEmpty) ...[
-          const SizedBox(height: 9),
+          const SizedBox(height: 18),
           _buildTodayMetricSummary(items),
         ],
         if (hintMessage != null) ...[
@@ -2058,42 +2067,21 @@ class _WeightPageState extends State<WeightPage> {
   Widget _buildTodayMetricSummary(List<_StatItem> items) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textScale = MediaQuery.textScalerOf(context).scale(1);
-        final useTwoColumns =
-            items.length > 2 &&
-            (constraints.maxWidth < 252 || textScale > 1.15);
-        final columnCount = useTwoColumns ? 2 : items.length;
-        final rows = <Widget>[];
-
-        for (var start = 0; start < items.length; start += columnCount) {
-          if (rows.isNotEmpty) {
-            rows.add(const Divider(height: 1, color: AppSurfaces.divider));
-          }
-          rows.add(
-            Row(
-              children: [
-                for (var slot = 0; slot < columnCount; slot++) ...[
-                  if (slot > 0)
-                    Container(width: 1, height: 34, color: AppSurfaces.divider),
-                  Expanded(
-                    child: start + slot < items.length
-                        ? _CompactWeightStat(item: items[start + slot])
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }
-
-        return Container(
+        // Two quiet columns preserve labels and units rather than squeezing
+        // four physiological readings into a single micro-text strip.
+        final columns = constraints.maxWidth < 210 ? 1 : 2;
+        final width = (constraints.maxWidth - 10 * (columns - 1)) / columns;
+        return Wrap(
           key: const ValueKey('today-weight-metrics'),
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-          decoration: BoxDecoration(
-            color: AppSurfaces.fill,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: rows),
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final item in items)
+              SizedBox(
+                width: width,
+                child: _CompactWeightStat(item: item),
+              ),
+          ],
         );
       },
     );
@@ -2152,103 +2140,106 @@ class _WeightPageState extends State<WeightPage> {
           size: 26,
         ),
       ),
-      child: GestureDetector(
-        onLongPress: () => _showRecordActions(rec),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  // 日期與時間
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _shortDateLabel(date),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: AppInk.strong,
-                        ),
-                      ),
-                      Text(
-                        time,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppInk.soft,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  // 體重（含與更早一筆的差值）、體脂、BMI
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+      child: Material(
+        color: AppSurfaces.card,
+        child: InkWell(
+          onTap: () => _openAddSheet(existing: rec),
+          onLongPress: () => _showRecordActions(rec),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 4, 14),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 58,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (delta != null && delta.abs() >= 0.05) ...[
-                            Icon(
-                              delta < 0
-                                  ? Icons.south_rounded
-                                  : Icons.north_rounded,
-                              size: 11,
-                              color: _deltaColor(delta, weight - delta),
-                            ),
-                            Text(
-                              _deltaText(delta),
-                              style: AppType.digits(
-                                fontSize: 11,
-                                color: _deltaColor(delta, weight - delta),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
                           Text(
-                            '${_fmtWeight(weight)} $_wLabel',
-                            style: AppType.digits(
-                              fontSize: 16,
+                            _shortDateLabel(date),
+                            style: const TextStyle(
+                              fontSize: 13,
                               fontWeight: FontWeight.w800,
                               color: AppInk.strong,
                             ),
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            time,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppInk.soft,
+                            ),
+                          ),
                         ],
                       ),
-                      Row(
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          if (fat != null) ...[
-                            Text(
-                              _l10n.weightHistoryFat(_fmt(fat)),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppInk.soft,
-                              ),
+                          Text(
+                            '${_fmtWeight(weight)} $_wLabel',
+                            style: AppType.digits(
+                              fontSize: 21,
+                              color: AppInk.strong,
                             ),
-                            const SizedBox(width: 8),
-                          ],
-                          if (bmi != null)
-                            Text(
-                              'BMI ${_fmt(bmi)}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppInk.soft,
-                              ),
-                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: 8,
+                            runSpacing: 3,
+                            children: [
+                              if (delta != null && delta.abs() >= 0.05)
+                                Text(
+                                  '${delta > 0 ? '+' : '-'}${_deltaText(delta)} $_wLabel',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _deltaColor(delta, weight - delta),
+                                  ),
+                                ),
+                              if (fat != null)
+                                Text(
+                                  _l10n.weightHistoryFat(_fmt(fat)),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppInk.soft,
+                                  ),
+                                ),
+                              if (bmi != null)
+                                Text(
+                                  'BMI ${_fmt(bmi)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppInk.soft,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    IconButton(
+                      tooltip: _l10n.wdMore,
+                      onPressed: () => _showRecordActions(rec),
+                      icon: const Icon(
+                        Icons.more_horiz_rounded,
+                        color: AppInk.soft,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (!isLast)
-              const Padding(
-                padding: EdgeInsets.only(left: 16),
-                child: Divider(height: 1, color: AppSurfaces.divider),
-              ),
-          ],
+              if (!isLast)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Divider(height: 1, color: AppSurfaces.divider),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -2744,49 +2735,26 @@ class _TodayActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          splashColor: _WeightColors.accent.withValues(alpha: 0.15),
-          highlightColor: _WeightColors.accent.withValues(alpha: 0.08),
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [_WeightColors.accentWash, _WeightColors.accentSoft],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _WeightColors.accent.withValues(alpha: 0.35),
-              ),
-              boxShadow: AppShadows.flat,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: AppPressable(
+        onPressed: onTap,
+        child: Material(
+          color: _WeightColors.accentStrong,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: _WeightColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 16, color: Colors.white),
-                ),
+                Icon(icon, size: 21, color: Colors.white),
                 const SizedBox(width: 10),
                 Flexible(
                   child: Text(
                     label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _WeightColors.accentStrong,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontWeight: FontWeight.w800,
-                      fontSize: 14,
+                      fontSize: 15,
                     ),
                   ),
                 ),
@@ -2873,79 +2841,65 @@ class _CompactWeightStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semantics = [
-      item.label,
-      item.value,
-      if (item.suffix != null) item.suffix!,
-      if (item.sub != null) item.sub!,
-    ].join(' ');
-
     return Semantics(
-      label: semantics,
+      label: [
+        item.label,
+        item.value,
+        if (item.suffix != null) item.suffix!,
+        if (item.sub != null) item.sub!,
+      ].join(' '),
       excludeSemantics: true,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: item.secondary ? AppSurfaces.fill : _WeightColors.accentWash,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10.5,
+              style: const TextStyle(
+                fontSize: 11.5,
                 fontWeight: FontWeight.w700,
-                color: item.secondary ? AppInk.faint : AppInk.soft,
+                color: AppInk.soft,
               ),
             ),
-            const SizedBox(height: 1),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    item.value,
-                    style: AppType.digits(
-                      fontSize: item.secondary ? 13.5 : 15,
-                      fontWeight: item.secondary
-                          ? FontWeight.w700
-                          : FontWeight.w800,
-                      color: item.secondary ? AppInk.soft : AppInk.strong,
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 3,
+              crossAxisAlignment: WrapCrossAlignment.end,
+              children: [
+                Text(
+                  item.value,
+                  style: AppType.digits(fontSize: 22, color: AppInk.strong),
+                ),
+                if (item.suffix != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(
+                      item.suffix!,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppInk.soft,
+                      ),
                     ),
                   ),
-                  if (item.suffix != null) ...[
-                    const SizedBox(width: 2),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 1),
-                      child: Text(
-                        item.suffix!,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: item.secondary ? AppInk.faint : AppInk.soft,
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (item.sub != null) ...[
-                    const SizedBox(width: 4),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 1),
-                      child: Text(
-                        item.sub!,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          color: item.subColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+              ],
             ),
+            if (item.sub != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                item.sub!,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: item.subColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ],
         ),
       ),

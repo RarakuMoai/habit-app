@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
+import 'app_pressable.dart';
 import 'hold_repeat_button.dart';
 
 typedef TimerHeroBuilder = Widget Function(BuildContext context, double size);
@@ -88,9 +89,8 @@ class TimerModeFrame extends StatelessWidget {
     );
   }
 
-  /// 標頭：狀態膠囊置中（跟主視覺、控制群同一條中軸線），設定鈕固定右側。
-  /// 狀態膠囊兩側各保留設定鈕的寬度，320pt 窄機也不會互相覆蓋，
-  /// 空間不足時膠囊等比縮小、維持置中。
+  /// 標頭通常置中、設定固定右側；英文或大字需要更寬設定鈕時，
+  /// 改成狀態在左、設定在右，保留完整文字與互不重疊的操作區。
   Widget _header({bool showContent = true}) {
     if (!showContent) {
       return const SizedBox(height: TimerModeMetrics.statusHeight);
@@ -104,15 +104,32 @@ class TimerModeFrame extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final sideReserve = topAction == null ? 0.0 : 88.0;
+            final labelPainter = TextPainter(
+              text: TextSpan(
+                text: AppLocalizations.of(context).timerSettingsEntry,
+                style: DefaultTextStyle.of(context).style.merge(
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                ),
+              ),
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+            )..layout();
+            final sideReserve = topAction == null
+                ? 0.0
+                : math.max(88.0, labelPainter.width + 45);
+            labelPainter.dispose();
+            // 英文／大字設定鈕較寬時，標頭改為左右對齊；不把狀態文字擠成極小一點。
+            final crowded = sideReserve > constraints.maxWidth / 3;
             final statusMaxWidth = math.max(
               0.0,
-              constraints.maxWidth - sideReserve * 2,
+              constraints.maxWidth -
+                  (crowded ? sideReserve + 8 : sideReserve * 2),
             );
             return Stack(
               alignment: Alignment.center,
               children: [
-                Center(
+                Align(
+                  alignment: crowded ? Alignment.centerLeft : Alignment.center,
                   child: ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: statusMaxWidth),
                     child: FittedBox(fit: BoxFit.scaleDown, child: status),
@@ -564,11 +581,13 @@ class TimerStatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 350),
-      switchInCurve: Curves.easeOutBack,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeIn,
       transitionBuilder: (child, animation) =>
-          ScaleTransition(scale: animation, child: child),
+          FadeTransition(opacity: animation, child: child),
       child: SizedBox(
         key: ValueKey(stateKey),
         width: TimerModeMetrics.statusWidth,
@@ -576,16 +595,9 @@ class TimerStatusPill extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.92),
+            color: color.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: color.withValues(alpha: 0.20)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.12),
-                blurRadius: 14,
-                offset: const Offset(0, 5),
-              ),
-            ],
+            border: Border.all(color: color.withValues(alpha: 0.10)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -651,53 +663,65 @@ class TimerControlCluster extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final actionLabel = primaryIcon == Icons.pause_rounded
+        ? l10n.stgPause
+        : primaryIcon == Icons.stop_rounded
+        ? l10n.wdStop
+        : l10n.notifStartFallback;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact =
             constraints.hasBoundedWidth && constraints.maxWidth < 260;
-        final sideSize = compact ? 44.0 : 54.0;
-        final primarySize = compact ? 62.0 : 78.0;
-        final gap = compact ? 16.0 : 24.0;
-        Widget side(TimerSecondaryAction? action) => action == null
-            ? SizedBox.square(dimension: sideSize)
-            : _SecondaryButton(action: action, size: sideSize);
-        // 連緊湊尺寸都放不下時（極窄右槽），整組等比縮小而不是溢位。
-        final row = Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            side(leading),
-            SizedBox(width: gap),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _PrimaryButton(
-                  accent: accent,
-                  icon: primaryIcon,
-                  onTap: onPrimary,
-                  size: primarySize,
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  height: 16,
-                  child: primaryLabel == null
-                      ? null
-                      : Text(
-                          primaryLabel!,
-                          style: AppType.digits(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: AppInk.soft,
-                          ),
-                        ),
-                ),
-              ],
-            ),
-            SizedBox(width: gap),
-            side(trailing),
-          ],
+        final primary = _PrimaryButton(
+          accent: accent,
+          icon: primaryIcon,
+          label: actionLabel,
+          detail: primaryLabel,
+          onTap: onPrimary,
+          compact: compact,
         );
-        return FittedBox(fit: BoxFit.scaleDown, child: row);
+        if (compact) {
+          // 狹窄右槽不縮小整排控制。主操作獨佔一行，次操作各有 44pt 高。
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(height: 52, width: double.infinity, child: primary),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  if (leading != null)
+                    Expanded(
+                      child: _SecondaryButton(action: leading!, compact: true),
+                    ),
+                  if (leading != null && trailing != null)
+                    const SizedBox(width: 6),
+                  if (trailing != null)
+                    Expanded(
+                      child: _SecondaryButton(action: trailing!, compact: true),
+                    ),
+                ],
+              ),
+            ],
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: TimerModeMetrics.horizontalInset,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (leading != null)
+                _SecondaryButton(action: leading!, compact: false),
+              const SizedBox(width: 12),
+              Flexible(child: SizedBox(width: 156, height: 64, child: primary)),
+              const SizedBox(width: 12),
+              if (trailing != null)
+                _SecondaryButton(action: trailing!, compact: false),
+            ],
+          ),
+        );
       },
     );
   }
@@ -706,57 +730,70 @@ class TimerControlCluster extends StatelessWidget {
 class _PrimaryButton extends StatelessWidget {
   final Color accent;
   final IconData icon;
+  final String label;
+  final String? detail;
   final VoidCallback? onTap;
-  final double size;
+  final bool compact;
 
   const _PrimaryButton({
     required this.accent,
     required this.icon,
-    required this.onTap,
-    required this.size,
+    required this.label,
+    this.detail,
+    this.onTap,
+    required this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return Opacity(
-      opacity: enabled ? 1 : 0.4,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.4),
-                    blurRadius: 15,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : null,
-        ),
-        child: Material(
-          color: accent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: SizedBox.square(
-              dimension: size,
-              child: Center(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, animation) =>
-                      ScaleTransition(scale: animation, child: child),
-                  child: Icon(
-                    icon,
-                    key: ValueKey(icon),
-                    color: Colors.white,
-                    size: size * 0.5,
-                  ),
-                ),
+    return _TimerPressSurface(
+      onTap: onTap,
+      color: accent,
+      radius: 22,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedSwitcher(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 180),
+              child: Icon(
+                icon,
+                key: ValueKey(icon),
+                color: Colors.white,
+                size: compact ? 24 : 28,
               ),
             ),
-          ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: compact ? 14 : 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (detail != null)
+                    Text(
+                      detail!,
+                      maxLines: 1,
+                      style: AppType.digits(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -765,56 +802,78 @@ class _PrimaryButton extends StatelessWidget {
 
 class _SecondaryButton extends StatelessWidget {
   final TimerSecondaryAction action;
-  final double size;
+  final bool compact;
 
-  const _SecondaryButton({required this.action, required this.size});
+  const _SecondaryButton({required this.action, required this.compact});
 
   @override
   Widget build(BuildContext context) {
-    final enabled = action.onTap != null;
-    final button = DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.fromBorderSide(AppCardStyle.hairline.top),
-        boxShadow: AppShadows.flat,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: action.repeatable ? null : action.onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox.square(
-            dimension: size,
-            child: Icon(action.icon, color: AppInk.soft, size: size * 0.42),
-          ),
-        ),
-      ),
-    );
-    return Opacity(
-      opacity: enabled ? 1 : 0.35,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (action.repeatable)
-            HoldRepeatButton(onTrigger: action.onTap, child: button)
-          else
-            button,
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 16,
-            child: Text(
+    final button = _TimerPressSurface(
+      onTap: action.repeatable ? null : action.onTap,
+      enabled: action.onTap != null,
+      color: AppSurfaces.fill,
+      radius: 16,
+      child: SizedBox(
+        width: compact ? null : 56,
+        height: compact ? 44 : 64,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(action.icon, color: AppInk.soft, size: compact ? 19 : 22),
+            const SizedBox(height: 2),
+            Text(
               action.label,
-              style: const TextStyle(
-                fontSize: 11.5,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: compact ? 10 : 11,
                 fontWeight: FontWeight.w700,
                 color: AppInk.soft,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+    return Semantics(
+      label: action.label,
+      button: true,
+      enabled: action.onTap != null,
+      child: action.repeatable
+          ? HoldRepeatButton(onTrigger: action.onTap, child: button)
+          : button,
+    );
   }
+}
+
+/// 按壓只改繪製，不縮減實際觸控區；降低動態仍保留 Material 底色回饋。
+class _TimerPressSurface extends StatelessWidget {
+  final VoidCallback? onTap;
+  final bool? enabled;
+  final Color color;
+  final double radius;
+  final Widget child;
+  const _TimerPressSurface({
+    this.onTap,
+    this.enabled,
+    required this.color,
+    required this.radius,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) => Opacity(
+    opacity: (enabled ?? onTap != null) ? 1 : 0.38,
+    child: AppPressable(
+      onPressed: onTap,
+      borderRadius: radius,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        child: child,
+      ),
+    ),
+  );
 }

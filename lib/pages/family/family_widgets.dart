@@ -73,15 +73,8 @@ class FamilyEmptyInvite extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 390),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withValues(alpha: 0.96),
-              const Color(0xFFFFF3E6).withValues(alpha: 0.94),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
+          color: AppSurfaces.card,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           border: Border.all(color: accent.withValues(alpha: 0.16)),
           boxShadow: AppShadows.flat,
         ),
@@ -135,7 +128,7 @@ class FamilyEmptyInvite extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: accent,
                   foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(44),
+                  minimumSize: const Size.fromHeight(48),
                   textStyle: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -169,7 +162,7 @@ class _FamilyEmptyIcon extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppCardStyle.radius),
               ),
               child: Icon(Icons.child_care_rounded, size: 31, color: accent),
             ),
@@ -322,7 +315,7 @@ class FreqChip extends StatelessWidget {
       duration: const Duration(milliseconds: 150),
       decoration: BoxDecoration(
         color: selected ? Colors.orange : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: Border.all(
           color: selected ? Colors.orange : AppSurfaces.divider,
           width: 1.5,
@@ -339,9 +332,9 @@ class FreqChip extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           splashColor: Colors.orange.withValues(alpha: 0.18),
           highlightColor: Colors.orange.withValues(alpha: 0.08),
           onTap: () {

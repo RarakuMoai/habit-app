@@ -847,7 +847,10 @@ class _HabitTabState extends State<HabitTab> {
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
+                      duration: AppMotion.duration(
+                        context,
+                        const Duration(milliseconds: 200),
+                      ),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
@@ -892,7 +895,7 @@ class _HabitTabState extends State<HabitTab> {
                                 color: selectedPresets.isEmpty
                                     ? AppInk.soft
                                     : (isAdd
-                                          ? Colors.green.shade700
+                                          ? AppPalette.success
                                           : Colors.red.shade700),
                                 fontSize: 14,
                               ),
@@ -1191,7 +1194,7 @@ class _HabitTabState extends State<HabitTab> {
       padding: const EdgeInsets.only(left: 2, bottom: 8),
       child: Row(
         children: [
-          Icon(Icons.stars_rounded, size: 13, color: Colors.orange.shade400),
+          Icon(Icons.stars_rounded, size: 13, color: AppPalette.family),
           const SizedBox(width: 4),
           Text(
             _l10n.htTodayEarned(todayPts),
@@ -1262,9 +1265,9 @@ class _HabitItemState extends State<_HabitItem>
       duration: const Duration(milliseconds: 380),
     );
     _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.78), weight: 25),
-      TweenSequenceItem(tween: Tween(begin: 0.78, end: 1.18), weight: 45),
-      TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.94), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 0.94, end: 1.04), weight: 45),
+      TweenSequenceItem(tween: Tween(begin: 1.04, end: 1.0), weight: 30),
     ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
 
@@ -1275,7 +1278,7 @@ class _HabitItemState extends State<_HabitItem>
   }
 
   void _handleDailyTap() {
-    _ctrl.forward(from: 0);
+    if (!MediaQuery.disableAnimationsOf(context)) _ctrl.forward(from: 0);
     if (widget.doneToday) {
       widget.onUndo?.call();
     } else {
@@ -1311,7 +1314,7 @@ class _HabitItemState extends State<_HabitItem>
       key: ValueKey('repeatable-habit-${habit.id}'),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppSurfaces.card,
         borderRadius: BorderRadius.circular(AppCardStyle.radius),
         border: AppCardStyle.hairline,
         boxShadow: AppShadows.card,
@@ -1337,7 +1340,10 @@ class _HabitItemState extends State<_HabitItem>
                 onTap: widget.onShowHistory,
                 contentPadding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
                 leading: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
+                  duration: AppMotion.duration(
+                    context,
+                    const Duration(milliseconds: 180),
+                  ),
                   width: 40,
                   height: 40,
                   alignment: Alignment.center,
@@ -1478,12 +1484,11 @@ class _HabitItemState extends State<_HabitItem>
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: done ? const Color(0xFFF1F8E9) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        elevation: done ? 0 : 1.5,
+        color: done ? AppPalette.successSurface : AppSurfaces.card,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         shadowColor: Colors.orange.withValues(alpha: 0.18),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           // 整張卡都可點擊打卡（不只左邊小圓圈），ripple 回饋
           child: InkWell(
             onTap: _handleDailyTap,
@@ -1495,35 +1500,42 @@ class _HabitItemState extends State<_HabitItem>
             ),
             child: IntrinsicHeight(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 66),
+                constraints: const BoxConstraints(minHeight: 80),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: 5,
-                      color: done
-                          ? Colors.green.shade400
-                          : Colors.orange.shade400,
+                      duration: AppMotion.duration(
+                        context,
+                        const Duration(milliseconds: 300),
+                      ),
+                      width: 3,
+                      color: done ? AppPalette.success : AppPalette.family,
                     ),
                     Expanded(
                       child: ListTile(
+                        minTileHeight: 80,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 2,
                         ),
                         leading: ScaleTransition(
-                          scale: _scale,
+                          scale: MediaQuery.disableAnimationsOf(context)
+                              ? const AlwaysStoppedAnimation(1.0)
+                              : _scale,
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
+                            duration: AppMotion.duration(
+                              context,
+                              const Duration(milliseconds: 250),
+                            ),
                             width: 34,
                             height: 34,
                             decoration: BoxDecoration(
                               gradient: done
                                   ? LinearGradient(
                                       colors: [
-                                        Colors.green.shade400,
-                                        Colors.green.shade500,
+                                        AppPalette.success,
+                                        AppPalette.success,
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
@@ -1552,14 +1564,17 @@ class _HabitItemState extends State<_HabitItem>
                             child: done
                                 ? const Icon(
                                     Icons.check_rounded,
-                                    color: Colors.white,
+                                    color: AppSurfaces.card,
                                     size: 20,
                                   )
                                 : null,
                           ),
                         ),
                         title: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 250),
+                          duration: AppMotion.duration(
+                            context,
+                            const Duration(milliseconds: 250),
+                          ),
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -1587,7 +1602,7 @@ class _HabitItemState extends State<_HabitItem>
                                       : _l10n.pmHabitPoints(habit.points),
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.orange.shade600,
+                                    color: AppPalette.family,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -1608,14 +1623,14 @@ class _HabitItemState extends State<_HabitItem>
                                     Icon(
                                       Icons.check_rounded,
                                       size: 11,
-                                      color: Colors.green.shade700,
+                                      color: AppPalette.success,
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
                                       '+${habit.points}',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: Colors.green.shade700,
+                                        color: AppPalette.success,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -1649,24 +1664,24 @@ class _HabitItemState extends State<_HabitItem>
             : inProgress
             ? const Color(0xFFF3F2FB)
             : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        elevation: done ? 0 : 1.5,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
         shadowColor: Colors.indigo.withValues(alpha: 0.18),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
           child: IntrinsicHeight(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 66),
+              constraints: const BoxConstraints(minHeight: 80),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 左邊條
                   AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
+                    duration: AppMotion.duration(
+                      context,
+                      const Duration(milliseconds: 300),
+                    ),
                     width: 5,
-                    color: done
-                        ? Colors.green.shade400
-                        : Colors.indigo.shade300,
+                    color: done ? AppPalette.success : Colors.indigo.shade300,
                   ),
                   // ⊖ n ⊕ 計數區
                   Padding(
@@ -1686,7 +1701,9 @@ class _HabitItemState extends State<_HabitItem>
                           ),
                           const SizedBox(width: 4),
                           ScaleTransition(
-                            scale: _scale,
+                            scale: MediaQuery.disableAnimationsOf(context)
+                                ? const AlwaysStoppedAnimation(1.0)
+                                : _scale,
                             child: SizedBox(
                               width: 24,
                               child: Text(
@@ -1708,7 +1725,11 @@ class _HabitItemState extends State<_HabitItem>
                             icon: Icons.add_rounded,
                             onTap: widget.weeklyCount < 20
                                 ? () {
-                                    _ctrl.forward(from: 0);
+                                    if (!MediaQuery.disableAnimationsOf(
+                                      context,
+                                    )) {
+                                      _ctrl.forward(from: 0);
+                                    }
                                     widget.onCheckIn();
                                   }
                                 : null,
@@ -1722,7 +1743,10 @@ class _HabitItemState extends State<_HabitItem>
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 250),
+                        duration: AppMotion.duration(
+                          context,
+                          const Duration(milliseconds: 250),
+                        ),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -1760,7 +1784,7 @@ class _HabitItemState extends State<_HabitItem>
                             done ? Icons.check_rounded : Icons.flag_rounded,
                             size: 11,
                             color: done
-                                ? Colors.green.shade700
+                                ? AppPalette.success
                                 : Colors.indigo.shade400,
                           ),
                           const SizedBox(width: 3),
@@ -1770,7 +1794,7 @@ class _HabitItemState extends State<_HabitItem>
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               color: done
-                                  ? Colors.green.shade700
+                                  ? AppPalette.success
                                   : Colors.indigo.shade500,
                             ),
                           ),

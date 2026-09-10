@@ -18,7 +18,7 @@ void main() {
       '${date.year}-${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
 
-  testWidgets('今日體重卡在窄螢幕保持緊湊，並說清楚與上次的差值', (tester) async {
+  testWidgets('窄螢幕可捲讀完整今日指標，核心紀錄操作維持可見', (tester) async {
     tester.view.physicalSize = const Size(320, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -61,11 +61,13 @@ void main() {
 
     final cardFinder = find.byKey(const ValueKey('today-weight-card'));
     expect(cardFinder, findsOneWidget);
-    expect(
-      tester.getSize(cardFinder).height,
-      lessThan(175),
-      reason: '今日卡應維持單屏可掃讀的緊湊高度',
-    );
+    final action = find.text('更新今日體重');
+    expect(action.hitTestable(), findsOneWidget);
+    await tester.ensureVisible(find.text('TDEE'));
+    await tester.pump();
+    expect(find.text('TDEE').hitTestable(), findsOneWidget);
+    expect(action.hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     final card = tester.widget<Container>(cardFinder);
     final decoration = card.decoration! as BoxDecoration;

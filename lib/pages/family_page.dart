@@ -14,6 +14,7 @@ import '../utils/mascot.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../widgets/app_pressable.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
@@ -130,7 +131,7 @@ class _FamilyPageState extends State<FamilyPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: MascotAppBar(
-        accent: Theme.of(context).colorScheme.primary,
+        accent: AppPalette.family,
         onSettingsReturn: () {
           widget.onSettingsChanged?.call();
           _loadChildren();
@@ -150,7 +151,7 @@ class _FamilyPageState extends State<FamilyPage> {
                 ),
                 SafeArea(
                   child: MascotPageShell(
-                    accent: Theme.of(context).colorScheme.primary,
+                    accent: AppPalette.family,
                     sceneHeight: sceneRegionHeightAnchored(
                       MediaQuery.of(context).size.width,
                       MediaQuery.of(context).padding.top,
@@ -158,11 +159,11 @@ class _FamilyPageState extends State<FamilyPage> {
                     // 空狀態不再縮小場景（舊 0.40 特例）：所有分頁統一同一條
                     // 卡片線，空狀態內容是可捲動的邀請卡，不需要額外高度。
                     scene: PersonaScene(
-                      accent: Theme.of(context).colorScheme.primary,
+                      accent: AppPalette.family,
                       lightGeometry: FourPeriodRoom.family.light,
                     ),
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 260),
+                      duration: AppMotion.duration(context, AppMotion.settle),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
                       // AnimatedSwitcher 預設會把比面板矮的 child 垂直置中。
@@ -173,6 +174,9 @@ class _FamilyPageState extends State<FamilyPage> {
                         children: [...previousChildren, ?currentChild],
                       ),
                       transitionBuilder: (child, animation) {
+                        if (MediaQuery.disableAnimationsOf(context)) {
+                          return child;
+                        }
                         final offset = Tween<Offset>(
                           begin: const Offset(0.06, 0),
                           end: Offset.zero,
@@ -205,14 +209,16 @@ class _FamilyPageState extends State<FamilyPage> {
                 padding: const EdgeInsets.only(bottom: _kOuterNavFabClearance),
                 child: FloatingActionButton.extended(
                   heroTag: 'family_manage',
+                  elevation: 0,
+                  shape: const StadiumBorder(),
                   onPressed: _enterParentManagement,
                   icon: Icon(
                     unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
                   ),
                   label: Text(AppLocalizations.of(context).famParentManage),
                   backgroundColor: unlocked
-                      ? Colors.green.shade600
-                      : Theme.of(context).colorScheme.primary,
+                      ? AppPalette.success
+                      : AppPalette.family,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -247,14 +253,14 @@ class _FamilyPageState extends State<FamilyPage> {
 
   // 尚無小孩時的空狀態：淡入＋上浮，視覺語言對齊習慣頁
   Widget _buildEmpty() {
-    final accent = Theme.of(context).colorScheme.primary;
+    final accent = AppPalette.family;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 2, 18, 102),
       child: Align(
         alignment: Alignment.topCenter,
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 450),
+          duration: AppMotion.duration(context, AppMotion.enter),
           curve: Curves.easeOut,
           builder: (_, v, child) => Opacity(
             opacity: v,
@@ -337,7 +343,7 @@ class _FamilyRosterHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
+    final accent = AppPalette.family;
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 2, 2, 14),
       child: Row(
@@ -360,7 +366,7 @@ class _FamilyRosterHeader extends StatelessWidget {
                   AppLocalizations.of(context).famTitle,
                   style: const TextStyle(
                     color: AppInk.strong,
-                    fontSize: 16,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -430,113 +436,81 @@ class _RosterStatPill extends StatelessWidget {
 class _ChildCard extends StatelessWidget {
   final ChildData child;
   final VoidCallback onTap;
-
   const _ChildCard({required this.child, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final pointColor = Colors.amber.shade700;
+    const accent = AppPalette.family;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
-          boxShadow: AppShadows.card,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppCardStyle.radius),
-          clipBehavior: Clip.antiAlias,
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFFFF8F1)],
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppPressable(
+        onPressed: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppSurfaces.card,
+            borderRadius: BorderRadius.circular(AppCardStyle.radius),
+            border: AppCardStyle.hairline,
+            boxShadow: AppShadows.flat,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 60,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.09),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  child.avatar.isNotEmpty ? child.avatar : '🐼',
+                  style: const TextStyle(fontSize: 32),
+                ),
               ),
-              borderRadius: BorderRadius.circular(AppCardStyle.radius),
-              border: AppCardStyle.hairline,
-            ),
-            child: InkWell(
-              onTap: onTap,
-              splashColor: accent.withValues(alpha: 0.10),
-              highlightColor: accent.withValues(alpha: 0.05),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
-                child: Row(
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.10),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          width: 3,
-                        ),
-                        boxShadow: AppShadows.flat,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        child.avatar.isNotEmpty ? child.avatar : '🐼',
-                        style: const TextStyle(fontSize: 28),
-                      ),
-                    ),
-                    const SizedBox(width: 13),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
                             child.name,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppInk.strong,
-                              fontSize: 17,
+                              fontSize: 19,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.auto_awesome_rounded,
-                                size: 14,
-                                color: pointColor.withValues(alpha: 0.86),
-                              ),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  AppLocalizations.of(context).famChildSubtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: AppInk.soft.withValues(alpha: 0.92),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: accent,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      AppLocalizations.of(context).famChildSubtitle,
+                      maxLines: 2,
+                      style: const TextStyle(
+                        color: AppInk.soft,
+                        fontSize: 12,
+                        height: 1.4,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    _ChildPointBadge(points: child.points, color: pointColor),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: accent.withValues(alpha: 0.55),
-                      size: 24,
-                    ),
+                    const SizedBox(height: 10),
+                    _ChildPointBadge(points: child.points, color: accent),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -553,7 +527,7 @@ class _ChildPointBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 58),
+      constraints: const BoxConstraints(minWidth: 58, maxWidth: 150),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.11),
