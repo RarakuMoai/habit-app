@@ -58,6 +58,8 @@ dependency_overrides:
   path_provider_foundation: 2.5.1
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
   # 場景時間引擎測試用（分鐘 tick / 時鐘跳變模擬）；本來就是 flutter_test

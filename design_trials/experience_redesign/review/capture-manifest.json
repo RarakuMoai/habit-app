@@ -1,0 +1,176 @@
+{
+  "baseline": "0737a7d",
+  "branch": "codex/experience-redesign",
+  "environment": "iPhone 14 Pro Max / iOS 26.5 / Flutter dev debug",
+  "logical_size": [
+    430,
+    932
+  ],
+  "locale": "zh",
+  "scene_hour": 10,
+  "data": "In-memory fixture; no real user records",
+  "images": [
+    {
+      "image": "before/01-habits.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "fc5eb7e27deedbce82c0a06a257e43d0524057fb4bb9a75186eef6e09136dd32",
+      "export_sha256": "dc8b57ca471f86fa43aa5ecb004e5056624c3b06aa95223d1262c0b9f908fbaa"
+    },
+    {
+      "image": "before/02-timer.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "b29ff8211d11722ea3bdf13851cd23b8fda1b4832b383a0a64e8453fa166f2f9",
+      "export_sha256": "dc006c0713e1228d2d0ce3a8b820577f334507071dc5de80474d37d672d14b68"
+    },
+    {
+      "image": "before/03-water.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "ad2f8bb95b715db31ff41fe7386de4fbe314fe640a1b4496835336dc47557a92",
+      "export_sha256": "121882acaafc4472dd87cf3f5bd890e08a04cd3e07e5d3311e896a95a019dd7c"
+    },
+    {
+      "image": "before/04-weight.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "d148be30ac1c0f4b48bef15b25c7ebda61fddb5e9f33810a1a41b28254468be3",
+      "export_sha256": "3cdd37df5fe6ccfaf6943fe14a598044d6a17fbb32dc9a77ad615c7d493b988b"
+    },
+    {
+      "image": "before/05-family.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "ce9366fb788fc4729daa5eb65d747e6db90466dde480cba9b246873616ca0533",
+      "export_sha256": "5523efb3fe341ec3c33a766e09def30d7b860ce39f153a748634fa66c82941fe"
+    },
+    {
+      "image": "before/06-wardrobe.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "f0dbd05190b4cb878fa5dbeee1b0f853901262781dbc25a96ca5d8de9d40ca20",
+      "export_sha256": "5007668fe839f5b17bbc6cc55ca6bb6f05dc3993b6aa2cdc4771bb970e8f986c"
+    },
+    {
+      "image": "before/07-settings.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "427c440bff6d507dc4ae8bc841727e270e256e9a392aee7a90000ed0bf9f8841",
+      "export_sha256": "8b66b88e66ad16989d578d7125bee44160cffe1b4fdf2e4187405b9b168525f5"
+    },
+    {
+      "image": "after/01-habits.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "deda94a2032b0ed4a258f01f8d0e337bdd44ef18e5f3414756fb5ca52aa4c76f",
+      "export_sha256": "304650efbbb5e9cda53c33e9082b4fad2366c98f0404a6a8f59ae1b7b006ba8d"
+    },
+    {
+      "image": "after/02-timer.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "9fecc63f071400296560124bb9a9ffc614d6160cd2112af2f29b258e1b98d693",
+      "export_sha256": "a2a936a2170048cdd9d8859edf4ad46bee6ca7d8b56574e2e72568e4a1c957ee"
+    },
+    {
+      "image": "after/03-water.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "8155d658241413cf607419f665096fd6978492b27d4adae9e291f23c0b7440f7",
+      "export_sha256": "83974a3cb9d68611b43b426775c055770e7b961e0b29a02fbd736d5543cf03c2"
+    },
+    {
+      "image": "after/04-weight.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "9651481375712fc64033f2c9d8f1b1b27f1d2969d8ff8e0f2b128a9c913393bf",
+      "export_sha256": "b0b27023c008d8eaf08886f61eebfcad77d95d56e78f9122728914f033f06910"
+    },
+    {
+      "image": "after/05-family.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "90e78cac209be240bc5a1f70a60263188a3e4711ed428c73cd0fc512a04aa938",
+      "export_sha256": "d3fcf38837f72df2f06f941e9505a946c156a43e81747c0d0106a02e9ffc0ddf"
+    },
+    {
+      "image": "after/06-wardrobe.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "2298d34539e837993daaa0795ff20be9304628fc33b6ddde6aa48e94b5f8e0ee",
+      "export_sha256": "0090f28206d52976cf2de057b6c63a685acf0b76aacf732e78ab9871f0523b73"
+    },
+    {
+      "image": "after/07-settings.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "eb0c51a4b51ef22f10ac5461d53abbb93c73c92d842fa4534df3d7f7d0537cdc",
+      "export_sha256": "8b296010f6aa5b7d292f22e199321a10b0ea874e8341efac13d4fd2dc3df4ddc"
+    },
+    {
+      "image": "after/08-review.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "1eb19025447818b80d7eed5b40785b4b991c01af23bfafeb2da7059e76e21eaa",
+      "export_sha256": "dabd70ae207c05f54ebbcbdcd733ddd3c79a3ecbe0c3d5087e1da3bfbb942e41"
+    },
+    {
+      "image": "after/09-water-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "adb08e2e89b798242e049813b57084b7fbc2f6447f959469fa82ce6fa83879cf",
+      "export_sha256": "a4e2cc7295e17aa10e3b8b6f2fccd355f5511c0ca8b0322ae4d95793e613575a"
+    },
+    {
+      "image": "after/10-water-added.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "51864d1238aa4561565201965ca16e6b5882ad8a9b88206fae5d46e77235ca60",
+      "export_sha256": "7997203f7751173531a6d7bbbc64cb99596bb2d4943676397ba6c77024586b6e"
+    },
+    {
+      "image": "after/11-roommate.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "b089a778a31def541d8b134c6f4f89a431b55f30a9c5faf1b429e7e5ee7a8857",
+      "export_sha256": "88d21653a15890c81c968706e30bf26565db018cde833dc1f0d44ca4cf4a2460"
+    }
+  ]
+}

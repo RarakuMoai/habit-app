@@ -5,6 +5,15 @@
 > Token 一律集中在 [`lib/utils/app_style.dart`](../lib/utils/app_style.dart)，**不要在頁面裡重新發明**。
 > 全 app `Colors.grey` / 純黑歸零（`lib/dev/` 除外）。
 
+## 獨立改版分支（2026-09-10）
+
+`codex/experience-redesign` 使用新的日常手帳樣式，見
+[改版範圍與驗收](experience_redesign.md)。本分支的 `AppPalette`、`AppSurfaces`、
+`AppInk`、`AppCardStyle` 與 `buildAppTheme()` 是目前實作來源；卡片 24、底部面板32、
+紙色頁面與深綠墨色取代下方舊版樣式。每日習慣卡完成前後同樣至少72pt，主導覽改線條
+圖示與浮動卡面，新互動由 `AppPressable` 與 `AppMotion` 管理並尊重降低動態。
+下方保留舊版紀錄，供比較與挑選移植；不應將舊 token 數值套回本次改版。
+
 ## 顏色
 
 **頁面識別色系優先**
