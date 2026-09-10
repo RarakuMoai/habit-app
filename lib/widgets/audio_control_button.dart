@@ -8,6 +8,7 @@ import '../utils/app_style.dart';
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
 import '../utils/sfx_service.dart';
+import 'mascot_toolbar_surface.dart';
 
 enum AudioControlStyle { appBar, onboarding }
 
@@ -141,6 +142,7 @@ class _AudioCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onboarding = style == AudioControlStyle.onboarding;
+    if (!onboarding) return MascotToolbarSurface(child: child);
     return Padding(
       padding: onboarding
           ? const EdgeInsets.only(top: 6, right: 10)

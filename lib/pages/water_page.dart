@@ -945,7 +945,7 @@ class _WaterPageState extends State<WaterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFEFF9FF),
+      backgroundColor: AppSurfaces.canvas,
       appBar: MascotAppBar(accent: _kInk, onSettingsReturn: _loadWater),
       body: Listener(
         behavior: HitTestBehavior.translucent,
@@ -980,7 +980,7 @@ class _WaterPageState extends State<WaterPage> {
                     // open on a small phone. Keep controls anchored and let
                     // the journal scroll; never replace today's data with a
                     // suggestion or shrink a label to make the layout fit.
-                    final compact = box.maxHeight < 460;
+                    final compact = box.maxHeight < 400 || box.maxWidth < 360;
                     final suggestion = _goalSuggestion;
                     final hasSuggestion =
                         !_goalSuggestionDismissed &&
@@ -1007,7 +1007,7 @@ class _WaterPageState extends State<WaterPage> {
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                          child: _controls(),
+                          child: _controls(compact: compact),
                         ),
                       ],
                     );
@@ -1031,6 +1031,84 @@ class _WaterPageState extends State<WaterPage> {
         ? UnitConvert.mlToFlOz(_totalMl.toDouble()).round().toString()
         : _totalMl.toString();
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
+
+    if (compact) {
+      // 短面板把總量、目標拆成各自可換行的欄位。整張卡都是設定入口，
+      // 不再讓 44pt 圖示按鈕額外撐高標題列，或讓目標文字擠掉主數字。
+      return Tooltip(
+        message: _l10n.waterAdjustGoal,
+        child: AppPressable(
+          onPressed: _openWaterSettings,
+          child: Container(
+            key: const ValueKey('water-today-card'),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            decoration: BoxDecoration(
+              color: Color.alphaBlend(
+                _kWaterDeep.withValues(alpha: 0.07),
+                AppSurfaces.card,
+              ),
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: Border.all(color: _kWaterDeep.withValues(alpha: 0.12)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _l10n.waterTodayTitle,
+                        style: const TextStyle(
+                          color: _kInkSoft,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.tune_rounded, size: 18, color: _kInkSoft),
+                  ],
+                ),
+                Semantics(
+                  label: _l10n.waterProgressSemantics(
+                    _volStr(_totalMl),
+                    goalDisp,
+                  ),
+                  child: ExcludeSemantics(
+                    child: Row(
+                      children: [
+                        Text(
+                          totalDisp,
+                          style: AppType.digits(color: _kInk, fontSize: 32),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '/ $goalDisp',
+                            style: const TextStyle(
+                              color: _kInkSoft,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                LinearProgressIndicator(
+                  value: _progress,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
+                  color: _goalReached ? AppPalette.success : _kWaterDeep,
+                  backgroundColor: _kWaterDeep.withValues(alpha: 0.10),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Container(
       key: const ValueKey('water-today-card'),
@@ -1426,8 +1504,62 @@ class _WaterPageState extends State<WaterPage> {
     _addCup();
   }
 
-  Widget _controls() {
+  Widget _controls({bool compact = false}) {
     final atMax = _totalMl + _cupMl > _maxTotalMl;
+    if (compact) {
+      return Row(
+        key: const ValueKey('water-compact-actions'),
+        children: [
+          IconButton.filledTonal(
+            tooltip: _l10n.waterMinusCup,
+            onPressed: _entries.isNotEmpty ? _removeCup : null,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(44, 48),
+              backgroundColor: AppSurfaces.card,
+              foregroundColor: _kInkSoft,
+            ),
+            icon: const Icon(Icons.remove_rounded),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: AppPressable(
+              key: const ValueKey('water-add-cup'),
+              semanticsLabel: _l10n.waterCupSemantics(_volStr(_cupMl)),
+              onPressed: atMax ? _onAddCupPressed : _addCup,
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 52),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _goalReached ? AppPalette.success : _kWaterDeep,
+                  borderRadius: BorderRadius.circular(AppCardStyle.radius),
+                ),
+                child: Text(
+                  atMax ? _l10n.waterCupSlowDown : '+ ${_volStr(_cupMl)}',
+                  textAlign: TextAlign.center,
+                  style: AppType.digits(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            tooltip: _l10n.waterCustomAmount,
+            onPressed: _openCustomCupSheet,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(44, 48),
+              backgroundColor: AppSurfaces.card,
+              foregroundColor: _kInk,
+            ),
+            icon: const Icon(Icons.tune_rounded),
+          ),
+        ],
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

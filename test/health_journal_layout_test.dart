@@ -58,10 +58,13 @@ void main() {
 
       final context = tester.element(find.byType(WaterPage));
       final l10n = AppLocalizations.of(context);
-      final add = find.text(l10n.waterCupDrank);
+      final add = find.byKey(const ValueKey('water-add-cup'));
       expect(add.hitTestable(), findsOneWidget);
-      expect(find.text(l10n.waterCustomAmount).hitTestable(), findsOneWidget);
-      await tester.tap(find.text(l10n.waterCustomAmount));
+      expect(
+        find.byTooltip(l10n.waterCustomAmount).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip(l10n.waterCustomAmount));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text(l10n.waterSheetTitle), findsOneWidget);
@@ -84,7 +87,7 @@ void main() {
     await tester.pumpWidget(journalApp(const WeightPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    final action = find.text('紀錄今天體重');
+    final action = find.byKey(const ValueKey('weight-primary-action'));
     expect(action.hitTestable(), findsOneWidget);
     await tester.tap(action);
     await tester.pump();

@@ -383,8 +383,10 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
           atFirst ? null : () => _shiftMonth(-1),
         ),
         Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               _headerChip(
                 AppLocalizations.of(context).bpYear(_sel.year),
@@ -392,7 +394,6 @@ class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
                 accent,
                 () => _setMode(_Mode.year),
               ),
-              const SizedBox(width: 8),
               _headerChip(
                 AppLocalizations.of(context).bpMonth(_sel.month),
                 _mode == _Mode.month,

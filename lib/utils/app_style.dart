@@ -3,17 +3,17 @@
 // 一律帶棕色調、不用純黑，跟兔咪暖色世界觀一致。
 import 'package:flutter/material.dart';
 
-/// 日常手帳的共同色盤。場景插畫保留自己的光線，操作介面用沉穩的墨色。
+/// 親子日常的共同色盤：奶油、蜜桃與暖棕，讓每個小習慣像家的延伸。
 abstract final class AppPalette {
-  static const brand = Color(0xFF396B5D);
-  static const habit = Color(0xFFB66B48);
-  static const focus = Color(0xFF79689B);
-  static const water = Color(0xFF287F91);
-  static const weight = Color(0xFFA0637C);
-  static const family = Color(0xFFAE7650);
-  static const wardrobe = Color(0xFF8D7495);
-  static const success = Color(0xFF4C8066);
-  static const successSurface = Color(0xFFEDF5EE);
+  static const brand = Color(0xFFB85F43);
+  static const habit = Color(0xFFC87950);
+  static const focus = Color(0xFF9270A4);
+  static const water = Color(0xFF357E91);
+  static const weight = Color(0xFFA96280);
+  static const family = Color(0xFFAE7740);
+  static const wardrobe = Color(0xFF9973A6);
+  static const success = Color(0xFF638653);
+  static const successSurface = Color(0xFFF0F6E6);
 }
 
 /// 有限、可取消的介面動效；持續的角色演出仍由各自的時間軸管理。
@@ -60,14 +60,14 @@ abstract final class AppType {
   );
 }
 
-/// 文字墨色階層：主文字深綠墨，次文字保留溫暖的紙張閱讀感。
+/// 文字墨色階層：柔和的暖棕，避免親子畫面變成冷硬的數據介面。
 abstract final class AppInk {
-  /// 主要文字：深綠墨，比純黑柔和但對比足夠。
-  static const Color strong = Color(0xFF343E38);
+  /// 主要文字：可讀的深咖啡色。
+  static const Color strong = Color(0xFF594438);
 
   /// 次要文字（說明、副標）。
-  /// 紙張介面的灰綠墨色；主要資訊仍使用 strong。
-  static const Color soft = Color(0xFF72776B);
+  /// 暖灰棕色說明字；主要資訊仍使用 strong。
+  static const Color soft = Color(0xFF796657);
 
   /// 淡化文字（完成後劃線、停用、佔位）。低對比是刻意的——
   /// 只用在「已完成 / 停用」語意，不拿來排還需要閱讀的內容。
@@ -82,16 +82,16 @@ abstract final class AppInk {
 
 /// 表面／分隔色（暖色系，取代 Colors.white + grey.shade50~300 那組）。
 abstract final class AppSurfaces {
-  static const Color canvas = Color(0xFFF5F3EC);
+  static const Color canvas = Color(0xFFFFF8ED);
 
   /// 暖白卡面（與 mascot_page_shell、popup/dialog theme 同色）。
-  static const Color card = Color(0xFFFFFEFA);
+  static const Color card = Color(0xFFFFFDFA);
 
   /// 輸入框、未選取 chip 的暖淺填色（取代 grey.shade50/100）。
-  static const Color fill = Color(0xFFF0EFE7);
+  static const Color fill = Color(0xFFF8EDDE);
 
   /// 分隔線／描邊（取代 grey.shade200/300 與預設 Divider）。
-  static const Color divider = Color(0xFFE5E5D9);
+  static const Color divider = Color(0xFFECDCCB);
 
   /// bottom sheet 頂端拖曳把手。
   static const Color dragHandle = Color(0xFFDCCFC2);

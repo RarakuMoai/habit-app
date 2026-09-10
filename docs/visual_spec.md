@@ -7,12 +7,16 @@
 
 ## 獨立改版分支（2026-09-10）
 
-`codex/experience-redesign` 使用新的日常手帳樣式，見
-[改版範圍與驗收](experience_redesign.md)。本分支的 `AppPalette`、`AppSurfaces`、
-`AppInk`、`AppCardStyle` 與 `buildAppTheme()` 是目前實作來源；卡片 24、底部面板32、
-紙色頁面與深綠墨色取代下方舊版樣式。每日習慣卡完成前後同樣至少72pt，主導覽改線條
-圖示與浮動卡面，新互動由 `AppPressable` 與 `AppMotion` 管理並尊重降低動態。
-下方保留舊版紀錄，供比較與挑選移植；不應將舊 token 數值套回本次改版。
+`codex/experience-redesign` 目前採親子溫暖的 V2 方向，範圍、版面基準與待驗收狀態見
+[親子溫暖體驗改版 V2](experience_redesign_v2.md)；[第一版紀錄](experience_redesign.md) 保留比較。
+本分支的 `AppPalette`、`AppSurfaces`、`AppInk`、`AppCardStyle` 與 `buildAppTheme()`
+是目前實作來源：奶油、蜜桃與暖棕承接場景，保留水藍、莓粉與柔紫識別；卡片24、
+底部面板32。主導覽恢復彩色 PNG，預設暖色不透明表面，工具鈕48pt、間距8pt。
+`NAV_GLASS=true` 僅作 Flutter 霧面材質比較，不是 Apple 原生 Liquid Glass 或預設樣式。
+
+各頁依正式 parent 的收合／展開可用空間重新安排資訊，主數據與操作不得被大卡片裁掉；
+`AppPressable`、`AppMotion` 及各頁持續動畫尊重降低動態。詳細尺寸與驗證狀態只在 V2
+文件維護。下方保留舊版紀錄，不應把其中舊 token 或歷史通過結果套回本輪。
 
 ## 顏色
 

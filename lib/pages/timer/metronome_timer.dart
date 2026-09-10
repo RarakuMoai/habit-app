@@ -19,7 +19,7 @@ import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/timer_mode_frame.dart';
 
 // 節拍器主色（跟專注暖橘、運動青綠明顯區分）
-const Color kMetronomeAccent = Color(0xFF7C6BCF);
+const Color kMetronomeAccent = AppPalette.focus;
 
 const int _kMinBpm = 30;
 const int _kMaxBpm = 240;
@@ -745,6 +745,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     if (!_loaded) return const SizedBox.shrink();
     const color = kMetronomeAccent;
     return TimerModeFrame(
+      compactReadout: TimerCompactReadout(value: '$_bpm BPM', color: color),
       heroBuilder: (context, size) =>
           _metronome(color, width: size, height: size),
       status: TimerStatusPill(
@@ -780,13 +781,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
           fontWeight: FontWeight.w600,
         ),
       ),
-      quickPicker: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: TimerModeMetrics.horizontalInset,
-        ),
-        // 52 高置中於 56 槽位，與專注方案／遊戲摘要膠囊同一個光學高度。
-        child: Center(child: _bottomControls(color, height: 52)),
-      ),
+      quickPicker: _bottomControls(color),
       topAction: TimerSettingsAction(
         color: color,
         onTap: () {
@@ -854,16 +849,23 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     );
   }
 
-  Widget _bottomControls(Color color, {double height = 60}) {
-    // 抽速讓位給拍號/細分：主畫面直接把節奏入口做成好點的大按鍵。
-    return Row(
-      children: [
-        Expanded(flex: 3, child: _tapButton(color, height)),
-        const SizedBox(width: 8),
-        Expanded(flex: 4, child: _signaturePill(color, height)),
-        const SizedBox(width: 8),
-        Expanded(flex: 4, child: _subdivisionPill(color, height)),
-      ],
+  Widget _bottomControls(Color color, {double height = 64}) {
+    return SizedBox(
+      height: height,
+      child: SingleChildScrollView(
+        key: const ValueKey('metronome-quick-settings'),
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Row(
+          children: [
+            SizedBox(width: 92, child: _tapButton(color, height)),
+            const SizedBox(width: 8),
+            SizedBox(width: 116, child: _signaturePill(color, height)),
+            const SizedBox(width: 8),
+            SizedBox(width: 116, child: _subdivisionPill(color, height)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -985,8 +987,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
             height: height,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             alignment: Alignment.center,
-            // FittedBox：窄機時整體縮放，絕不橫向溢出（修 RenderFlex overflow）
-            child: FittedBox(fit: BoxFit.scaleDown, child: child),
+            child: child,
           ),
         ),
       ),

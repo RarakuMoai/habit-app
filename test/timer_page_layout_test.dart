@@ -32,10 +32,14 @@ void main() {
     expect(find.text('今日完成'), findsNothing);
     expect(tester.takeException(), isNull);
 
+    await tester.ensureVisible(find.text('深度'));
     await tester.tap(find.text('深度'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('50:00'), findsOneWidget);
 
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('timer-settings-action')),
+    );
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
@@ -156,40 +160,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('四種計時模式的共用槽位維持同一垂直基準', (tester) async {
+  testWidgets('四種模式保留可操作主次按鈕及可捲動快捷設定', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-
     await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-
-    double slotCenter(String name) {
-      final slot = find.byKey(ValueKey('timer-mode-$name-slot'));
-      expect(slot, findsOneWidget);
-      return tester.getCenter(slot).dy;
-    }
-
-    final baseline = <String, double>{
-      for (final name in ['status', 'progress', 'controls', 'quick-picker'])
-        name: slotCenter(name),
-    };
-
-    for (final mode in ['運動', '節拍器', '遊戲']) {
-      await tester.tap(find.text(mode));
+    for (final mode in ['focus', 'exercise', 'metronome', 'game']) {
+      final selector = find.byKey(ValueKey('timer-mode-$mode'));
+      await tester.ensureVisible(selector);
+      await tester.tap(selector);
       await tester.pump(const Duration(milliseconds: 300));
-      for (final entry in baseline.entries) {
-        expect(
-          slotCenter(entry.key),
-          closeTo(entry.value, 1.5),
-          reason: '$mode 的 ${entry.key} 槽位應與專注對齊',
-        );
-      }
+      final primary = find.byKey(const ValueKey('timer-primary-action'));
+      expect(primary.hitTestable(), findsOneWidget);
+      expect(tester.getSize(primary).height, greaterThanOrEqualTo(52));
+      final settings = find.byKey(const ValueKey('timer-settings-action'));
+      expect(settings.hitTestable(), findsOneWidget);
+      expect(tester.getSize(settings).height, greaterThanOrEqualTo(44));
+      final detail = find.byKey(const ValueKey('timer-mode-quick-picker-slot'));
+      await tester.ensureVisible(detail);
+      await tester.pump();
+      expect(detail.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
     }
-    expect(tester.takeException(), isNull);
   });
 
   testWidgets('快捷方案可獨立改名與改時間', (tester) async {
@@ -203,6 +199,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('timer-settings-action')),
+    );
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.enterText(find.byType(TextField), '閱讀');
@@ -226,10 +225,12 @@ void main() {
     expect(find.text('閱讀'), findsOneWidget);
     expect(find.text('26:00'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('深度'));
     await tester.tap(find.text('深度'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('50:00'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('閱讀'));
     await tester.tap(find.text('閱讀'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('26:00'), findsOneWidget);
@@ -251,6 +252,9 @@ void main() {
     await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('timer-settings-action')),
+    );
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -281,6 +285,9 @@ void main() {
     await tester.pumpWidget(l10nTestApp(home: const TimerPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('timer-settings-action')),
+    );
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));

@@ -22,6 +22,7 @@ import '../widgets/app_pressable.dart';
 import '../widgets/audio_control_button.dart';
 import '../widgets/birthday_picker.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/timer_ring_painter.dart';
 
 // 引導頁「習慣選擇」清單（喝水交由畫面4處理，故不列入）
 // freq=true：適合「每週幾次」的習慣，選取後會出現每日/每週切換
@@ -47,15 +48,16 @@ class OnboardingPage extends StatefulWidget {
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage>
-    with WidgetsBindingObserver {
+class _OnboardingPageState extends State<OnboardingPage> {
   AppLocalizations get _l10n => AppLocalizations.of(context);
 
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  bool _pageMoving = false;
+  bool _reduceMotion = false;
 
-  // 身體資訊頁專用 scroll controller：鍵盤彈出時自動捲到底，把按鈕推到鍵盤上緣
-  // （兔咪會被擠到畫面外，但這頁欄位/按鈕優先）
+  // 身體資訊頁保留自己的閱讀位置；EditableText 負責將目前欄位捲入可視區，
+  // 不再於每次鍵盤動畫強制跳到底（那會把正在填寫的身高欄推離畫面）。
   final ScrollController _bodyInfoScrollCtrl = ScrollController();
 
   // 畫面1：打字動畫
@@ -165,6 +167,12 @@ class _OnboardingPageState extends State<OnboardingPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion && !_page1Done) {
+      _typingTimer?.cancel();
+      _displayText = _lines.join('\n');
+      _page1Done = true;
+    }
     // 預設兔咪名走 l10n（英文介面是 Tumi）；只在還沒填過時帶入，
     // 不會蓋掉使用者已經打的字。
     if (!_mascotDefaultApplied) {
@@ -177,7 +185,6 @@ class _OnboardingPageState extends State<OnboardingPage>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _nicknameController.addListener(() => setState(() {}));
     _heightController.addListener(() => setState(() {}));
     _heightInController.addListener(() => setState(() {}));
@@ -235,7 +242,6 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _typingTimer?.cancel();
     _pageController.dispose();
     _mascotController.dispose();
@@ -254,27 +260,9 @@ class _OnboardingPageState extends State<OnboardingPage>
     super.dispose();
   }
 
-  // 鍵盤狀態變化時，把身體資訊頁的 scroll view 跟著捲到底
-  // ─ iOS 鍵盤動畫期間 didChangeMetrics 會連發多次（viewport 漸縮）
-  // ─ 改用 jumpTo 每次同步跳到當前 maxScrollExtent，視覺上跟鍵盤同步上來
-  //   （比 animateTo 等鍵盤動畫跑完再起一段動畫快很多）
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_bodyInfoScrollCtrl.hasClients) return;
-      final kb = MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
-      if (kb > 0) {
-        _bodyInfoScrollCtrl.jumpTo(
-          _bodyInfoScrollCtrl.position.maxScrollExtent,
-        );
-      }
-    });
-  }
-
   // 逐字打字效果
   void _startTyping() {
-    if (!mounted) return;
+    if (!mounted || _page1Done) return;
     if (_lineIndex >= _lines.length) {
       setState(() => _page1Done = true);
       return;
@@ -326,17 +314,31 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   void _nextPage({bool playSound = true}) {
+    if (_pageMoving) return;
     if (playSound) _playOnboardingSfx(SfxCue.tap);
     unawaited(_ensureOnboardingBgm());
     // 換頁前先收起鍵盤，避免下一頁殘留鍵盤
     FocusScope.of(context).unfocus();
     if (_currentPage < _pages.length - 1) {
-      _pageController.nextPage(
-        duration: AppMotion.duration(context, AppMotion.settle),
-        curve: Curves.easeInOut,
-      );
-      setState(() => _currentPage++);
+      unawaited(_goToPage(_currentPage + 1));
     }
+  }
+
+  Future<void> _goToPage(int page) async {
+    setState(() {
+      _pageMoving = true;
+      _currentPage = page;
+    });
+    if (_reduceMotion) {
+      _pageController.jumpToPage(page);
+    } else {
+      await _pageController.animateToPage(
+        page,
+        duration: AppMotion.settle,
+        curve: AppMotion.curve,
+      );
+    }
+    if (mounted) setState(() => _pageMoving = false);
   }
 
   // 音效一律配對觸覺回饋；onboarding 的 tap 比預設再輕一階（selection），
@@ -657,6 +659,7 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   // 回上一步：若該頁正處於追問子步驟，先退回初始選項；否則回上一畫面
   void _handleBack() {
+    if (_pageMoving) return;
     _playOnboardingSfx(SfxCue.cancel);
     // 換頁前先收起鍵盤，與 _nextPage 一致
     FocusScope.of(context).unfocus();
@@ -666,11 +669,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       return;
     }
     if (_currentPage > 0) {
-      _pageController.previousPage(
-        duration: AppMotion.duration(context, AppMotion.settle),
-        curve: Curves.easeInOut,
-      );
-      setState(() => _currentPage--);
+      unawaited(_goToPage(_currentPage - 1));
     }
   }
 
@@ -791,232 +790,278 @@ class _OnboardingPageState extends State<OnboardingPage>
     await prefs.setString(PrefsKeys.habits, jsonEncode(habits));
   }
 
-  // 通用對話氣泡樣式
+  // 所有步驟使用相同的閱讀順序：介面標題 → 兔咪／示意 → 對話 → 內容。
+  // 主操作屬於外層 footer，因此不會隨長表單或鍵盤捲走。
   Widget _speechBubble(String text, {double fontSize = 16}) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.bottomCenter,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.88),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppPalette.brand.withValues(alpha: 0.22)),
-            boxShadow: [
-              BoxShadow(
-                color: AppPalette.brand.withValues(alpha: 0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: fontSize,
-              height: 1.38,
-              color: AppInk.strong,
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.center,
-          ),
+    return Container(
+      key: const ValueKey('onboarding-speech'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppSurfaces.card,
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: Border.all(color: AppPalette.brand.withValues(alpha: 0.16)),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: AppInk.strong,
+          fontSize: fontSize,
+          height: 1.5,
+          fontWeight: FontWeight.w600,
         ),
-        Positioned(
-          top: -7,
-          left: 0,
-          right: 0,
-          child: Transform.rotate(
-            angle: math.pi / 4,
-            child: Center(
-              child: Container(
-                width: 15,
-                height: 15,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.88),
-                  border: Border(
-                    left: BorderSide(
-                      color: AppPalette.brand.withValues(alpha: 0.16),
-                    ),
-                    top: BorderSide(
-                      color: AppPalette.brand.withValues(alpha: 0.16),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  // 吉祥物（依情境切換情緒）。走 MascotStage 讓引導頁的兔咪跟主 app
-  // 一樣活著：呼吸、眨眼（neutral_front 有閉眼差分）、點擊彈跳＋星星。
   Widget _mascot({double size = 80, String emotion = 'neutral_front'}) {
-    // 透過 MascotEmotion 取，會自動走新 CG / 舊圖路由
     final asset = MascotEmotion.values
         .firstWhere(
           (e) => e.assetKey == emotion,
           orElse: () => MascotEmotion.neutralFront,
         )
         .assetPath;
-    return SizedBox(
-      width: size,
-      height: size,
-      // MascotStage 內部是固定 252 的舞台，FittedBox 等比縮到引導頁要的大小
+    return SizedBox.square(
+      dimension: size,
       child: FittedBox(
         child: MascotStage(
           asset: asset,
           accent: AppPalette.brand,
           reactionTick: 0,
+          reduceMotion: _reduceMotion,
+          paused: _reduceMotion,
           onTap: () => _playOnboardingSfx(SfxCue.tap),
         ),
       ),
     );
   }
 
-  // 選項按鈕
-  Widget _optionButton(String label, VoidCallback onTap, {Color? color}) {
-    final accent = color ?? AppPalette.brand;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppPressable(
-        borderRadius: 20,
-        onPressed: () {
-          _playOnboardingSfx(SfxCue.tap);
-          unawaited(_ensureOnboardingBgm());
-          onTap();
-        },
-        child: Ink(
-          padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 18),
-          decoration: BoxDecoration(
-            color: AppSurfaces.card,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: accent.withValues(alpha: 0.20)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.4,
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Icon(Icons.arrow_forward_rounded, size: 19, color: accent),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── 畫面1：吉祥物甦醒 ──
-  // 引導頁版型：兔咪固定在上方，內容在下方區域置中（可捲動）。
-  // 鍵盤彈出時，有掛 scrollController 的頁面會自動捲到底（didChangeMetrics
-  // 觸發），讓底部按鈕浮到鍵盤上緣；兔咪/上半部欄位會被推出畫面上方，但
-  // 使用者可往上滑回去。沒掛 controller 的頁面走預設行為（內容置中）。
   Widget _mascotPage({
+    required String title,
+    String? subtitle,
     required String emotion,
     required Widget content,
     ScrollController? scrollController,
-    // 緊湊版用：習慣選擇頁內容塞得下、不需要兔咪 200，給 140 + 縮 padding
-    // 就能避開 scroll，整頁更俐落
-    double mascotSize = 200,
-    EdgeInsets contentPadding = const EdgeInsets.all(32),
-    double mascotBottomSpacing = 16,
-    // 點空白處的額外行為（第一頁用來快轉打字）
+    bool welcome = false,
+    bool form = false,
+    Widget? featurePreview,
     VoidCallback? onTapBackground,
   }) {
-    return GestureDetector(
-      // 點空白處收起鍵盤
-      onTap: () {
-        FocusScope.of(context).unfocus();
-        onTapBackground?.call();
-      },
-      behavior: HitTestBehavior.opaque,
-      child: SafeArea(
-        child: Center(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+        final compact = constraints.maxHeight < 480;
+        return GestureDetector(
+          onTap: () {
+            FocusScope.of(context).unfocus();
+            onTapBackground?.call();
+          },
+          behavior: HitTestBehavior.opaque,
           child: SingleChildScrollView(
+            key: ValueKey('onboarding-scroll-$title'),
             controller: scrollController,
-            // Clamping：內容塞得下時完全不能滑（不像 iOS 預設 Bouncing 永遠
-            // 能拉橡皮筋）；內容超出時還是能正常 scroll，只是邊界硬停。
-            // 給引導頁俐落感，又保留 keyboard 自動捲到底的能力。
-            physics: const ClampingScrollPhysics(),
-            child: Padding(
-              padding: contentPadding,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _mascot(size: mascotSize, emotion: emotion),
-                  SizedBox(height: mascotBottomSpacing),
-                  content,
-                ],
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      title,
+                      key: const ValueKey('onboarding-step-title'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: welcome ? 27 : 23,
+                        fontWeight: FontWeight.w900,
+                        height: 1.25,
+                        color: AppInk.strong,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppInk.soft,
+                          height: 1.5,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                    if (!keyboard) ...[
+                      const SizedBox(height: 18),
+                      if (form)
+                        Center(child: _mascot(size: 100, emotion: emotion))
+                      else
+                        _gardenArtwork(
+                          emotion: emotion,
+                          welcome: welcome,
+                          compact: compact,
+                          featurePreview: featurePreview,
+                        ),
+                    ],
+                    const SizedBox(height: 18),
+                    content,
+                  ],
+                ),
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  // 沿用核准的花園背景與兔咪 PNG。花園只作有限大小的相遇舞台，
+  // 不把高亮背景鋪在整張表單下；每一步的文字都有自己的奶油卡面。
+  Widget _gardenArtwork({
+    required String emotion,
+    required bool welcome,
+    required bool compact,
+    Widget? featurePreview,
+  }) {
+    final height = welcome ? (compact ? 190.0 : 244.0) : 164.0;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(36),
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/scenes/onboarding/onboarding_bg_v3.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.bottomCenter,
+              excludeFromSemantics: true,
+            ),
+            if (featurePreview == null)
+              Center(
+                child: _mascot(size: height - 12, emotion: emotion),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _mascot(size: 142, emotion: emotion),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 6, child: featurePreview),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
+  Widget _previewCard(Color accent, List<Widget> children) {
+    return ExcludeSemantics(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppSurfaces.card.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: accent.withValues(alpha: 0.18)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: children),
+      ),
+    );
+  }
+
+  Widget _waterPreview() => _previewCard(AppPalette.water, [
+    Icon(Icons.local_drink_rounded, size: 42, color: AppPalette.water),
+    const SizedBox(height: 12),
+    Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(
+        4,
+        (i) => Icon(
+          i < 2 ? Icons.water_drop_rounded : Icons.water_drop_outlined,
+          size: 20,
+          color: AppPalette.water.withValues(alpha: i < 2 ? 1 : 0.4),
+        ),
+      ),
+    ),
+  ]);
+
+  Widget _focusPreview() => _previewCard(AppPalette.focus, [
+    SizedBox.square(
+      dimension: 80,
+      child: CustomPaint(
+        painter: const TimerRingPainter(
+          progress: 0.72,
+          color: AppPalette.focus,
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.menu_book_rounded,
+            size: 32,
+            color: AppPalette.focus,
+          ),
+        ),
+      ),
+    ),
+  ]);
+
+  Widget _familyPreview() => _previewCard(AppPalette.family, [
+    Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.favorite_rounded, size: 24, color: AppPalette.family),
+        const SizedBox(width: 6),
+        Icon(Icons.star_rounded, size: 20, color: AppPalette.habit),
+      ],
+    ),
+    const SizedBox(height: 12),
+    for (var i = 0; i < 2; i++)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          children: [
+            Icon(
+              i == 0 ? Icons.check_circle_rounded : Icons.circle_outlined,
+              size: 19,
+              color: AppPalette.family,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                height: 7,
+                decoration: BoxDecoration(
+                  color: AppPalette.family.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+  ]);
+
   Widget _buildPage1() {
-    // 依打字進度切換情緒：第1句剛醒(wake) → 自我介紹(neutral) → 陪伴宣告(smile)
-    final wakeEmotion = _page1Done
+    final emotion = _page1Done
         ? 'smile'
         : (_lineIndex == 0
               ? 'wake'
               : (_lineIndex == 1 ? 'neutral_front' : 'smile'));
     return _mascotPage(
-      emotion: wakeEmotion,
+      title: _l10n.obWelcomeTitle,
+      subtitle: _l10n.obWelcomeSubtitle,
+      emotion: emotion,
+      welcome: true,
       onTapBackground: _skipTyping,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble(_displayText, fontSize: 18),
-          const SizedBox(height: 40),
-          // 打字完成後才出現「繼續」按鈕
-          // 打字期間提示可以點畫面快轉，打完才換成「繼續」
-          AnimatedOpacity(
-            opacity: _page1Done ? 0.0 : 1.0,
-            duration: const Duration(milliseconds: 300),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Text(
-                _l10n.obTapToContinue,
-                style: const TextStyle(fontSize: 13, color: AppInk.faint),
-              ),
-            ),
-          ),
-          AnimatedOpacity(
-            opacity: _page1Done ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 400),
-            child: ElevatedButton(
-              onPressed: _page1Done ? _nextPage : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppPalette.brand,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 48,
-                  vertical: 14,
-                ),
-              ),
-              child: Text(
-                _l10n.obContinue,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-        ],
-      ),
+      content: _speechBubble(_displayText, fontSize: 17),
     );
   }
 
@@ -1037,178 +1082,129 @@ class _OnboardingPageState extends State<OnboardingPage>
   }
 
   Widget _diceButton() {
-    return Material(
-      color: AppPalette.brand,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: _rollMascotName,
-        child: const Padding(
-          padding: EdgeInsets.all(15),
-          child: Icon(Icons.casino_rounded, color: Colors.white, size: 24),
+    return IconButton.filledTonal(
+      key: const ValueKey('onboarding-name-dice'),
+      onPressed: _rollMascotName,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(56, 56),
+        backgroundColor: AppPalette.brand.withValues(alpha: 0.12),
+        foregroundColor: AppPalette.brand,
+      ),
+      icon: const Icon(Icons.casino_rounded, size: 26),
+    );
+  }
+
+  Widget _buildPage2() => _mascotPage(
+    title: _l10n.obMeetTitle,
+    emotion: 'smile',
+    content: Column(
+      children: [
+        _speechBubble('對了...\n你可以幫我取個名字。\n想不到的話，按旁邊骰子幫我抽一個。'),
+        const SizedBox(height: 20),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: _namedField(
+                controller: _mascotController,
+                label: _l10n.obNameHint,
+                keyName: 'onboarding-mascot-name',
+                formatters: const [
+                  DisplayWidthLimitingFormatter(kMascotNameMaxUnits),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _diceButton(),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _namedField({
+    required TextEditingController controller,
+    required String label,
+    required String keyName,
+    List<TextInputFormatter>? formatters,
+    int? maxLength,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(color: AppInk.soft, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        key: ValueKey(keyName),
+        controller: controller,
+        inputFormatters: formatters,
+        maxLength: maxLength,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => FocusScope.of(context).unfocus(),
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: AppInk.strong,
+        ),
+        decoration: InputDecoration(
+          counterText: '',
+          fillColor: AppSurfaces.card,
         ),
       ),
-    );
-  }
+    ],
+  );
 
-  // ── 畫面2：幫吉祥物命名 ──
-  Widget _buildPage2() {
-    return _mascotPage(
-      emotion: 'smile',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble('對了...\n你可以幫我取個名字。\n想不到的話，按旁邊骰子幫我抽一個。'),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _mascotController,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 18),
-                  // 名字會被帶進很多系統文案（「{name}的夥伴檔案」…），限長
-                  // 是為了防破版，所以數的是顯示寬度而非字元數：中文 6 字
-                  // 與英文 12 字元同寬（見 kMascotNameMaxUnits）。
-                  inputFormatters: const [
-                    DisplayWidthLimitingFormatter(kMascotNameMaxUnits),
-                  ],
-                  decoration: InputDecoration(
-                    hintText: _l10n.obNameHint,
-                    counterText: '',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: AppSurfaces.divider),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppPalette.brand),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _diceButton(),
-            ],
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                setState(
-                  () => _mascotName = _mascotController.text.trim().isEmpty
-                      ? _l10n.mascotDefaultName
-                      : _mascotController.text.trim(),
-                );
-                _nextPage();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppPalette.brand,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(
-                _l10n.obNext,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildPage3() => _mascotPage(
+    title: _l10n.obMeetTitle,
+    emotion: 'expect',
+    content: Column(
+      children: [
+        _speechBubble('那...你呢？\n$_mascotName 以後要怎麼叫你？'),
+        const SizedBox(height: 20),
+        _namedField(
+          controller: _nicknameController,
+          label: _l10n.obNicknameHint,
+          keyName: 'onboarding-nickname',
+          maxLength: 12,
+        ),
+      ],
+    ),
+  );
 
-  // ── 畫面3：用戶暱稱 ──
-  Widget _buildPage3() {
-    return _mascotPage(
-      emotion: 'expect',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble('那...你呢？\n$_mascotName 以後要怎麼叫你？'),
-          const SizedBox(height: 24),
-          TextField(
-            controller: _nicknameController,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18),
-            maxLength: 12,
-            decoration: InputDecoration(
-              hintText: _l10n.obNicknameHint,
-              counterText: '',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: AppSurfaces.divider),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: AppPalette.brand),
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _nicknameController.text.trim().isEmpty
-                  ? null
-                  : () {
-                      setState(
-                        () => _nickname = _nicknameController.text.trim(),
-                      );
-                      _nextPage();
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppPalette.brand,
-                disabledBackgroundColor: AppInk.faint,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(
-                _l10n.obNext,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 功能引導三頁共用：預設開啟的單一問題。
-  // 「好」= 開啟並前進；紅色「不用了」= 跳確認框，確定才關閉並前進。
   Widget _featureIntroPage({
+    required String title,
     required String bubble,
-    required String acceptLabel,
-    required VoidCallback onAccept,
-    required String declineName,
-    required VoidCallback onDeclineConfirmed,
-  }) {
-    return _mascotPage(
-      emotion: 'neutral_front',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble(bubble),
-          const SizedBox(height: 32),
-          _optionButton(acceptLabel, onAccept),
-          _optionButton(
-            _l10n.obDecline,
-            () => _confirmDecline(declineName, onDeclineConfirmed),
-            color: Colors.red.shade400,
-          ),
-        ],
-      ),
-    );
-  }
+    required Widget preview,
+  }) => _mascotPage(
+    title: title,
+    emotion: 'neutral_front',
+    featurePreview: preview,
+    content: Column(
+      children: [
+        _speechBubble(bubble),
+        const SizedBox(height: 18),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.tune_rounded, size: 18, color: AppInk.soft),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _l10n.obConfirmOffMessage,
+                style: const TextStyle(
+                  color: AppInk.soft,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 
   // 按「不用了」跳確認框：確定才關閉（之後仍能在設定再開）。
   Future<void> _confirmDecline(String name, VoidCallback onConfirmed) async {
@@ -1225,7 +1221,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
+            style: TextButton.styleFrom(foregroundColor: AppInk.danger),
             child: Text(_l10n.obTurnOff),
           ),
         ],
@@ -1237,346 +1233,215 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
   }
 
-  // ── 畫面4：喝水功能引導 ──
-  Widget _buildPage4() {
-    return _featureIntroPage(
-      bubble: '口渴前，我會輕輕提醒你喝水。\n先幫你開著好嗎？',
-      acceptLabel: _l10n.obWaterAccept,
-      onAccept: () {
-        setState(() => _waterEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: _l10n.obWaterFeature,
-      onDeclineConfirmed: () {
-        setState(() => _waterEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
+  Widget _buildPage4() => _featureIntroPage(
+    title: _l10n.obWaterFeature,
+    bubble: '口渴前，我會輕輕提醒你喝水。\n先幫你開著好嗎？',
+    preview: _waterPreview(),
+  );
 
-  // ── 畫面5：專注計時功能引導 ──
-  Widget _buildPage5() {
-    return _featureIntroPage(
-      bubble: '專心的時候，我幫你顧著時間。\n要先開著專注計時嗎？',
-      acceptLabel: _l10n.obFocusAccept,
-      onAccept: () {
-        setState(() => _timerEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: _l10n.obFocusFeature,
-      onDeclineConfirmed: () {
-        setState(() => _timerEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
+  Widget _buildPage5() => _featureIntroPage(
+    title: _l10n.obFocusFeature,
+    bubble: '專心的時候，我幫你顧著時間。\n要先開著專注計時嗎？',
+    preview: _focusPreview(),
+  );
 
-  // ── 畫面6：家庭功能引導 ──
-  Widget _buildFamilyPage() {
-    return _featureIntroPage(
-      bubble: '家裡有小朋友的話，\n我也能陪他們記小任務。\n要先開著嗎？',
-      acceptLabel: _l10n.obFocusAccept,
-      onAccept: () {
-        setState(() => _familyEnabled = true);
-        _nextPage(playSound: false);
-      },
-      declineName: _l10n.obFamilyFeature,
-      onDeclineConfirmed: () {
-        setState(() => _familyEnabled = false);
-        _nextPage(playSound: false);
-      },
-    );
-  }
+  Widget _buildFamilyPage() => _featureIntroPage(
+    title: _l10n.obFamilyFeature,
+    bubble: '家裡有小朋友的話，\n我也能陪他們記小任務。\n要先開著嗎？',
+    preview: _familyPreview(),
+  );
 
-  // ── 畫面7：身體資訊（可跳過）──
-  // 結構：頂部兔咪+對話 + 可滾動欄位區 + 底部固定按鈕（避免下次再說被擠到 fold 下方）
-  // 習慣選擇頁：勾選想養成的習慣，完成後寫入習慣清單
-  Widget _buildHabitPickerPage() {
-    return _mascotPage(
-      emotion: 'smile',
-      // 兔咪大小跟引導頁其他頁面統一（不再壓縮為 140）。內容若超出（小機型 + freq 全選）
-      // 走 ClampingScrollPhysics 正常 scroll
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble('要不要先放幾個小習慣？\n之後都可以再改。'),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: _kOnboardingHabits
-                .map((h) => _habitChip(h.name, h.emoji, h.freq))
-                .toList(),
-          ),
-          _freqSection(),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _nextPage,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppPalette.brand,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(
-                _selectedHabits.isEmpty ? _l10n.commonSkip : _l10n.obNext,
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildHabitPickerPage() => _mascotPage(
+    title: _l10n.obHabitsTitle,
+    emotion: 'smile',
+    form: true,
+    content: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _speechBubble('要不要先放幾個小習慣？\n之後都可以再改。'),
+        const SizedBox(height: 20),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = (constraints.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final h in _kOnboardingHabits)
+                  SizedBox(
+                    width: width,
+                    child: _habitChip(h.name, h.emoji, h.freq),
+                  ),
+              ],
+            );
+          },
+        ),
+        _freqSection(),
+      ],
+    ),
+  );
 
-  // 已選取且適合頻率的習慣 → 顯示每日/每週切換
   Widget _freqSection() {
     final rows = _kOnboardingHabits
         .where((h) => h.freq && _selectedHabits.contains(h.name))
         .toList();
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 360),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          final offset = Tween<Offset>(
-            begin: const Offset(0, -0.08),
-            end: Offset.zero,
-          ).animate(animation);
-          final scale = Tween<double>(begin: 0.98, end: 1).animate(animation);
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: offset,
-              child: ScaleTransition(scale: scale, child: child),
+    final content = rows.isEmpty
+        ? const SizedBox.shrink()
+        : Container(
+            key: const ValueKey('freq-panel'),
+            margin: const EdgeInsets.only(top: 20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppSurfaces.card,
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: Border.all(color: AppSurfaces.divider),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _l10n.obHabitFreqTitle,
+                  style: const TextStyle(
+                    color: AppInk.strong,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                for (final row in rows) ...[
+                  const SizedBox(height: 18),
+                  _freqRow(row.emoji, row.name),
+                ],
+              ],
             ),
           );
-        },
-        child: rows.isEmpty
-            ? const SizedBox.shrink(key: ValueKey('freq-empty'))
-            : Container(
-                key: const ValueKey('freq-panel'),
-                width: double.infinity,
-                margin: const EdgeInsets.only(top: 20),
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppSurfaces.fill),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppPalette.brand.withValues(alpha: 0.10),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.repeat_rounded,
-                          size: 15,
-                          color: AppPalette.brand,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _l10n.obHabitFreqTitle,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppPalette.brand,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    ...rows.indexed.map(
-                      (entry) => _animatedFreqRow(
-                        entry.$1,
-                        entry.$2.emoji,
-                        entry.$2.name,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _animatedFreqRow(int index, String emoji, String name) {
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('freq-row-$name'),
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 260 + index * 45),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - value) * 8),
-            child: child,
-          ),
-        );
-      },
-      child: _freqRow(emoji, name),
+    if (_reduceMotion) return content;
+    return AnimatedSize(
+      duration: AppMotion.settle,
+      alignment: Alignment.topCenter,
+      child: content,
     );
   }
 
   Widget _freqRow(String emoji, String name) {
-    final times = _weeklyTimes[name]; // null = 每日
-    final isWeekly = times != null;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text('$emoji $name', style: const TextStyle(fontSize: 14)),
-          ),
-          // 每週（主要，可調次數）
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 240),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: SizeTransition(
-                  sizeFactor: animation,
-                  axis: Axis.horizontal,
-                  axisAlignment: 1,
-                  child: child,
-                ),
-              );
-            },
-            child: isWeekly
-                ? _weeklyStepper(name, times)
-                : GestureDetector(
-                    key: ValueKey('weekly-pill-$name'),
-                    onTap: () {
-                      _playOnboardingSfx(SfxCue.tap);
-                      setState(() => _weeklyTimes[name] = 3);
-                    },
-                    child: _freqPill(_l10n.hsWeekly, false),
-                  ),
-          ),
-          const SizedBox(width: 6),
-          // 每日（次要，靠右）
-          GestureDetector(
-            onTap: () {
-              if (isWeekly) _playOnboardingSfx(SfxCue.tap);
-              setState(() => _weeklyTimes.remove(name));
-            },
-            child: _freqPill(_l10n.hsDaily, !isWeekly),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 每週次數調整器：−／＋ 改每週次數（1~7）
-  Widget _weeklyStepper(String name, int times) {
-    return Container(
-      key: ValueKey('weekly-stepper-$name'),
-      decoration: BoxDecoration(
-        color: AppPalette.brand,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              _l10n.hsWeekly,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          _stepBtn(Icons.remove, () {
-            _playOnboardingSfx(SfxCue.tap);
-            setState(() => _weeklyTimes[name] = (times - 1).clamp(1, 7));
-          }),
-          SizedBox(
-            width: 34,
-            child: Text(
-              _l10n.obTimesPerWeek(times),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          _stepBtn(Icons.add, () {
-            _playOnboardingSfx(SfxCue.tap);
-            setState(() => _weeklyTimes[name] = (times + 1).clamp(1, 7));
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _stepBtn(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: const BoxDecoration(
-          color: Colors.white24,
-          shape: BoxShape.circle,
+    final times = _weeklyTimes[name];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$emoji $name',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
-        child: Icon(icon, size: 19, color: Colors.white),
-      ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (times != null)
+              _weeklyStepper(name, times)
+            else
+              _choicePill(_l10n.hsWeekly, false, () {
+                _playOnboardingSfx(SfxCue.tap);
+                setState(() => _weeklyTimes[name] = 3);
+              }, key: ValueKey('weekly-pill-$name')),
+            _choicePill(_l10n.hsDaily, times == null, () {
+              if (times != null) _playOnboardingSfx(SfxCue.tap);
+              setState(() => _weeklyTimes.remove(name));
+            }),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _freqPill(String label, bool selected) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+  Widget _weeklyStepper(String name, int times) => Container(
+    key: ValueKey('weekly-stepper-$name'),
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    decoration: BoxDecoration(
+      color: AppPalette.brand,
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            _l10n.hsWeekly,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        _stepBtn(Icons.remove_rounded, () {
+          _playOnboardingSfx(SfxCue.tap);
+          setState(() => _weeklyTimes[name] = (times - 1).clamp(1, 7));
+        }),
+        Text(
+          _l10n.obTimesPerWeek(times),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        _stepBtn(Icons.add_rounded, () {
+          _playOnboardingSfx(SfxCue.tap);
+          setState(() => _weeklyTimes[name] = (times + 1).clamp(1, 7));
+        }),
+      ],
+    ),
+  );
+
+  Widget _stepBtn(IconData icon, VoidCallback onTap) => IconButton(
+    onPressed: onTap,
+    style: IconButton.styleFrom(
+      minimumSize: const Size(44, 44),
+      foregroundColor: Colors.white,
+    ),
+    icon: Icon(icon, size: 20),
+  );
+
+  Widget _choicePill(
+    String label,
+    bool selected,
+    VoidCallback onTap, {
+    Key? key,
+  }) => AppPressable(
+    key: key,
+    selected: selected,
+    borderRadius: 18,
+    onPressed: onTap,
+    child: AnimatedContainer(
+      duration: AppMotion.duration(context, AppMotion.quick),
+      constraints: const BoxConstraints(minHeight: 44),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: selected ? AppPalette.brand : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        color: selected ? AppPalette.brand : AppSurfaces.card,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: selected ? AppPalette.brand : const Color(0xFFDDD0C4),
+          color: selected ? AppPalette.brand : AppSurfaces.divider,
         ),
       ),
       child: Text(
         label,
         style: TextStyle(
+          color: selected ? Colors.white : AppInk.strong,
           fontSize: 13,
-          color: selected ? Colors.white : AppInk.soft,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          fontWeight: FontWeight.w700,
         ),
       ),
-    );
-  }
+    ),
+  );
 
-  // 習慣選擇 Chip（可多選）
   Widget _habitChip(String name, String emoji, bool freq) {
     final selected = _selectedHabits.contains(name);
-    return GestureDetector(
-      onTap: () {
+    return AppPressable(
+      key: ValueKey('onboarding-habit-$name'),
+      selected: selected,
+      onPressed: () {
         _playOnboardingSfx(SfxCue.tap);
         setState(() {
           if (selected) {
@@ -1584,84 +1449,48 @@ class _OnboardingPageState extends State<OnboardingPage>
             _weeklyTimes.remove(name);
           } else {
             _selectedHabits.add(name);
-            // 適合頻率的習慣預設為每週 3 次
             if (freq) _weeklyTimes[name] = 3;
           }
         });
       },
-      child: AnimatedScale(
-        scale: selected ? 1.04 : 1,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutBack,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected ? AppPalette.brand : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: selected ? AppPalette.brand : AppSurfaces.fill,
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: AppPalette.brand.withValues(alpha: 0.20),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : const [],
+      child: AnimatedContainer(
+        duration: AppMotion.duration(context, AppMotion.quick),
+        constraints: const BoxConstraints(minHeight: 98),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppPalette.brand.withValues(alpha: 0.12)
+              : AppSurfaces.card,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          border: Border.all(
+            color: selected ? AppPalette.brand : AppSurfaces.divider,
+            width: selected ? 1.5 : 1,
           ),
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            style: TextStyle(
-              color: selected ? Colors.white : AppInk.strong,
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text('$emoji $name'),
-                Positioned(
-                  top: -12,
-                  right: -14,
-                  child: AnimatedScale(
-                    scale: selected ? 1 : 0.65,
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutBack,
-                    child: AnimatedOpacity(
-                      opacity: selected ? 1 : 0,
-                      duration: const Duration(milliseconds: 140),
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppPalette.brand.withValues(alpha: 0.24),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.check_rounded,
-                          size: 14,
-                          color: AppPalette.brand,
-                        ),
-                      ),
-                    ),
-                  ),
+                Text(emoji, style: const TextStyle(fontSize: 24)),
+                const Spacer(),
+                Icon(
+                  selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  size: 20,
+                  color: selected ? AppPalette.brand : AppInk.iconFaint,
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              style: const TextStyle(
+                color: AppInk.strong,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1672,6 +1501,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   // 把整層內容往上推（兔咪暫時被擠到畫面外），下方的「填寫完成 / 下次
   // 再說」按鈕都能點到，所以不再額外塞 suffix icon
   Widget _onboardingNumField({
+    required String fieldId,
     required TextEditingController controller,
     required String label,
     String? errorText,
@@ -1680,34 +1510,39 @@ class _OnboardingPageState extends State<OnboardingPage>
     // 非 null 時掛上自動補小數（只在公制欄位傳，傳該欄位的公制合理上限）
     num? decimalMax,
   }) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        // 公制：bodyMetricFormatter（含自動補小數，例 1708→170.8）
-        // 英制 / 無 max：維持原本 3 位整數上限
-        if (decimalMax != null)
-          bodyMetricFormatter(decimalMax)
-        else
-          maxValueFormatter(999),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppInk.soft,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          key: ValueKey('onboarding-$fieldId'),
+          controller: controller,
+          focusNode: focusNode,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            if (decimalMax != null)
+              bodyMetricFormatter(decimalMax)
+            else
+              maxValueFormatter(999),
+          ],
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          decoration: InputDecoration(
+            errorText: errorText,
+            errorMaxLines: 3,
+            fillColor: AppSurfaces.card,
+          ),
+        ),
+        if (suffixWidget != null)
+          Align(alignment: Alignment.centerLeft, child: suffixWidget),
       ],
-      decoration: InputDecoration(
-        labelText: label,
-        errorText: errorText,
-        suffixIcon: suffixWidget,
-        suffixIconConstraints: const BoxConstraints(),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppSurfaces.divider),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppPalette.brand),
-        ),
-      ),
     );
   }
 
@@ -1717,7 +1552,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       labelText: label,
       suffixText: suffix,
       filled: true,
-      fillColor: Colors.white,
+      fillColor: AppSurfaces.card,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: AppSurfaces.divider),
@@ -1734,6 +1569,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           children: [
             Expanded(
               child: TextField(
+                key: const ValueKey('onboarding-height'),
                 controller: _heightController,
                 focusNode: _heightFocus,
                 keyboardType: TextInputType.number,
@@ -1747,6 +1583,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             const SizedBox(width: 10),
             Expanded(
               child: TextField(
+                key: const ValueKey('onboarding-height-inches'),
                 controller: _heightInController,
                 focusNode: _heightInFocus,
                 keyboardType: TextInputType.number,
@@ -1764,7 +1601,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             padding: const EdgeInsets.only(top: 6, left: 4),
             child: Text(
               _heightErrText!,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              style: TextStyle(color: AppInk.danger, fontSize: 12),
             ),
           ),
       ],
@@ -1777,11 +1614,11 @@ class _OnboardingPageState extends State<OnboardingPage>
     final bubbleText = bmiOdd ? '嗯…身高或體重好像需要再確認一下。' : '我可以幫你紀錄身高、體重喔！';
 
     return _mascotPage(
+      title: _l10n.obBodyTitle,
+      subtitle: _l10n.obBodySubtitle,
       emotion: emotion,
+      form: true,
       scrollController: _bodyInfoScrollCtrl,
-      // 緊湊：兔咪間距 + padding 縮小，盡量單頁能塞下完整身體資訊
-      mascotBottomSpacing: 8,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1818,7 +1655,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               padding: const EdgeInsets.only(top: 4, left: 4),
               child: Text(
                 _genderError!,
-                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                style: TextStyle(color: AppInk.danger, fontSize: 12),
               ),
             ),
           // 活動量（選填）— 跟性別放一起，兩個都是 chip 選擇器，視覺一致
@@ -1829,6 +1666,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             _onboardingFtInRow()
           else
             _onboardingNumField(
+              fieldId: 'height',
               controller: _heightController,
               focusNode: _heightFocus,
               label: _l10n.obHeightCm,
@@ -1838,6 +1676,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           const SizedBox(height: 10),
           // 體重
           _onboardingNumField(
+            fieldId: 'weight',
             controller: _weightController,
             focusNode: _weightFocus,
             label: _l10n.obWeightWithUnit(UnitFormat.weightLabel(_unit)),
@@ -1850,6 +1689,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           const SizedBox(height: 10),
           // 目標體重（選填）
           _onboardingNumField(
+            fieldId: 'target-weight',
             controller: _targetWeightController,
             focusNode: _targetWeightFocus,
             label: _l10n.obTargetWeightOptional(UnitFormat.weightLabel(_unit)),
@@ -1863,6 +1703,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           const SizedBox(height: 10),
           // 生日：整欄可點，直接跳出月曆系統（不打字、不彈鍵盤）。
           TextField(
+            key: const ValueKey('onboarding-birthday'),
             controller: _birthdayController,
             focusNode: _birthdayFocus,
             readOnly: true,
@@ -1879,7 +1720,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                 color: AppPalette.brand,
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: AppSurfaces.card,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: AppSurfaces.divider),
@@ -1894,94 +1735,23 @@ class _OnboardingPageState extends State<OnboardingPage>
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              // 按鈕永遠可按，按下去才驗證。空著 / 超範圍會跳紅字提示
-              onPressed: _tryFinishBodyInfo,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppPalette.brand,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: Text(
-                _l10n.obFillDone,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: _nextPage,
-            child: Text(
-              _l10n.obLaterMaybe,
-              style: const TextStyle(color: AppInk.soft),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  // 性別選擇按鈕
-  // value 是儲存值（跨頁邏輯比對它），label 只是顯示文字。
-  Widget _genderChip(String value, String label) {
-    final selected = _gender == value;
-    return GestureDetector(
-      onTap: () {
-        if (!selected) _playOnboardingSfx(SfxCue.tap);
+  // 選項的 value 維持既有中文存值；顯示文字才走 l10n。
+  Widget _genderChip(String value, String label) =>
+      _choicePill(label, _gender == value, () {
+        if (_gender != value) _playOnboardingSfx(SfxCue.tap);
         setState(() => _gender = value);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppPalette.brand : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppPalette.brand : const Color(0xFFDDD0C4),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : AppInk.soft,
-            fontSize: 14,
-          ),
-        ),
-      ),
-    );
-  }
+      });
 
-  // 活動量 chip（樣式跟 _genderChip 一致）
-  Widget _activityChip(String value) {
-    final selected = _activityLevel == value;
-    return GestureDetector(
-      onTap: () {
-        if (!selected) _playOnboardingSfx(SfxCue.tap);
+  Widget _activityChip(String value) =>
+      _choicePill(_activityLabel(value), _activityLevel == value, () {
+        if (_activityLevel != value) _playOnboardingSfx(SfxCue.tap);
         setState(() => _activityLevel = value);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppPalette.brand : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppPalette.brand : const Color(0xFFDDD0C4),
-          ),
-        ),
-        child: Text(
-          _activityLabel(value),
-          style: TextStyle(
-            color: selected ? Colors.white : AppInk.soft,
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
+      });
 
   // 活動量選擇區：用「一週運動幾天」取代抽象的輕度/中度。
   Widget _onboardingActivitySelector() {
@@ -1990,7 +1760,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.74),
+        color: AppSurfaces.fill,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppPalette.brand.withValues(alpha: 0.16)),
       ),
@@ -2016,164 +1786,345 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  // ── 畫面7：收尾 ──
-  Widget _buildPage7() {
-    return _mascotPage(
-      emotion: 'pop_happy',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _speechBubble('好了，$_nickname。\n以後也一起慢慢來。', fontSize: 18),
-          const SizedBox(height: 48),
-          SizedBox(
+  Widget _buildPage7() => _mascotPage(
+    title: _l10n.obReadyTitle,
+    emotion: 'pop_happy',
+    welcome: true,
+    content: Column(
+      children: [
+        _speechBubble('好了，$_nickname。\n以後也一起慢慢來。', fontSize: 17),
+        const SizedBox(height: 20),
+        if (_waterEnabled == true ||
+            _timerEnabled == true ||
+            _familyEnabled == true ||
+            _selectedHabits.isNotEmpty)
+          Container(
             width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _finish,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppPalette.brand,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                elevation: 4,
-                shadowColor: AppPalette.brand.withValues(alpha: 0.4),
-              ),
-              child: Text(
-                _l10n.obStart,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppSurfaces.card,
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: Border.all(color: AppSurfaces.divider),
+            ),
+            child: Column(
+              children: [
+                if (_waterEnabled == true)
+                  _readyRow(
+                    Icons.water_drop_rounded,
+                    _l10n.obWaterFeature,
+                    AppPalette.water,
+                  ),
+                if (_timerEnabled == true)
+                  _readyRow(
+                    Icons.timer_rounded,
+                    _l10n.obFocusFeature,
+                    AppPalette.focus,
+                  ),
+                if (_familyEnabled == true)
+                  _readyRow(
+                    Icons.favorite_rounded,
+                    _l10n.obFamilyFeature,
+                    AppPalette.family,
+                  ),
+                if (_selectedHabits.isNotEmpty)
+                  _readyRow(
+                    Icons.check_circle_rounded,
+                    _l10n.hsPickedPresets(_selectedHabits.length),
+                    AppPalette.habit,
+                  ),
+              ],
             ),
           ),
-        ],
-      ),
+      ],
+    ),
+  );
+
+  Widget _readyRow(IconData icon, String label, Color color) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      children: [
+        Icon(icon, size: 22, color: color),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppInk.strong,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Icon(Icons.check_rounded, size: 18, color: AppPalette.success),
+      ],
+    ),
+  );
+
+  String get _primaryLabel => switch (_currentPage) {
+    0 => _page1Done ? _l10n.obContinue : _l10n.obTapToContinue,
+    3 => _l10n.obWaterAccept,
+    4 || 5 => _l10n.obFocusAccept,
+    6 => _selectedHabits.isEmpty ? _l10n.commonSkip : _l10n.obNext,
+    7 => _l10n.obFillDone,
+    8 => _l10n.obStart,
+    _ => _l10n.obNext,
+  };
+
+  void _primaryAction() {
+    switch (_currentPage) {
+      case 0:
+        if (_page1Done) {
+          _nextPage();
+        } else {
+          _skipTyping();
+        }
+      case 1:
+        setState(
+          () => _mascotName = _mascotController.text.trim().isEmpty
+              ? _l10n.mascotDefaultName
+              : _mascotController.text.trim(),
+        );
+        _nextPage();
+      case 2:
+        if (_nicknameController.text.trim().isEmpty) return;
+        setState(() => _nickname = _nicknameController.text.trim());
+        _nextPage();
+      case 3:
+        setState(() => _waterEnabled = true);
+        _nextPage();
+      case 4:
+        setState(() => _timerEnabled = true);
+        _nextPage();
+      case 5:
+        setState(() => _familyEnabled = true);
+        _nextPage();
+      case 7:
+        _tryFinishBodyInfo();
+      case 8:
+        unawaited(_finish());
+      default:
+        _nextPage();
+    }
+  }
+
+  void _declineCurrentFeature() {
+    final page = _currentPage;
+    final name = switch (page) {
+      3 => _l10n.obWaterFeature,
+      4 => _l10n.obFocusFeature,
+      _ => _l10n.obFamilyFeature,
+    };
+    _playOnboardingSfx(SfxCue.tap);
+    unawaited(
+      _confirmDecline(name, () {
+        setState(() {
+          if (page == 3) _waterEnabled = false;
+          if (page == 4) _timerEnabled = false;
+          if (page == 5) _familyEnabled = false;
+        });
+        _nextPage(playSound: false);
+      }),
     );
   }
 
-  Widget _onboardingSoundButton() {
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topRight,
-        child: AudioControlButton(
-          style: AudioControlStyle.onboarding,
-          accent: AppPalette.brand,
-          onMusicEnabled: () => unawaited(_ensureOnboardingBgm(unmute: true)),
+  Widget _footer() {
+    final isFeature = _currentPage >= 3 && _currentPage <= 5;
+    final enabled =
+        !_pageMoving &&
+        (_currentPage != 2 || _nicknameController.text.trim().isNotEmpty);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppSurfaces.canvas,
+        border: Border(
+          top: BorderSide(color: AppSurfaces.divider.withValues(alpha: 0.65)),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('onboarding-primary'),
+                    onPressed: enabled ? _primaryAction : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppPalette.brand,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(48, 56),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: Text(
+                            _primaryLabel,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          _currentPage == 8
+                              ? Icons.favorite_rounded
+                              : Icons.arrow_forward_rounded,
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (isFeature || _currentPage == 7)
+                  TextButton(
+                    key: const ValueKey('onboarding-secondary'),
+                    onPressed: _pageMoving
+                        ? null
+                        : (isFeature ? _declineCurrentFeature : _nextPage),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppInk.soft,
+                      minimumSize: const Size(44, 44),
+                    ),
+                    child: Text(
+                      isFeature ? _l10n.obDecline : _l10n.obLaterMaybe,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // 第1頁沒有返回按鈕；任何頁在追問子步驟時也要顯示返回
-    final showBack = _currentPage > 0 || _pages[_currentPage].inSubStep();
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      // 引導頁背景是 #FFF8F0 米黃淡色，預設 iOS status bar 是淺色字會看不見
-      // 時間/訊號/電量。強制 dark icons（深色字）才看得清楚
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: AppSurfaces.canvas,
-        // 可讀的進度與安靜的分段軌道，包含底部安全區。
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: List.generate(
-                      _pages.length,
-                      (i) => Expanded(
-                        child: AnimatedContainer(
-                          duration: AppMotion.duration(
-                            context,
-                            AppMotion.settle,
-                          ),
-                          height: 4,
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          decoration: BoxDecoration(
-                            color: i <= _currentPage
-                                ? AppPalette.brand
-                                : AppSurfaces.divider,
-                            borderRadius: BorderRadius.circular(2),
+  Widget _header() {
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              SizedBox.square(
+                dimension: 48,
+                child: _currentPage > 0
+                    ? IconButton(
+                        key: const ValueKey('onboarding-back'),
+                        tooltip: _l10n.obBack,
+                        onPressed: _pageMoving ? null : _handleBack,
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: AppInk.strong,
+                        ),
+                      )
+                    : Icon(
+                        Icons.favorite_rounded,
+                        color: AppPalette.brand,
+                        size: 22,
+                      ),
+              ),
+              Expanded(
+                child: Text(
+                  _l10n.appTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppInk.strong,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              AudioControlButton(
+                style: AudioControlStyle.onboarding,
+                accent: AppPalette.brand,
+                onMusicEnabled: () =>
+                    unawaited(_ensureOnboardingBgm(unmute: true)),
+              ),
+            ],
+          ),
+          if (!keyboard) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: List.generate(
+                        _pages.length,
+                        (i) => Expanded(
+                          child: AnimatedContainer(
+                            duration: AppMotion.duration(
+                              context,
+                              AppMotion.quick,
+                            ),
+                            height: 7,
+                            margin: const EdgeInsets.only(right: 5),
+                            decoration: BoxDecoration(
+                              color: i <= _currentPage
+                                  ? AppPalette.brand
+                                  : AppSurfaces.divider,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  '${_currentPage + 1} / ${_pages.length}',
-                  style: AppType.digits(fontSize: 14, color: AppPalette.brand),
-                ),
-              ],
-            ),
-          ),
-        ),
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Image.asset(
-                  'assets/scenes/onboarding/onboarding_bg_v3.png',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        const Color(0xFFFFF8F0).withValues(alpha: 0.12),
-                        Colors.white.withValues(alpha: 0.10),
-                        const Color(0xFFFFF8F0).withValues(alpha: 0.34),
-                      ],
-                      stops: const [0.0, 0.45, 1.0],
-                    ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${_currentPage + 1} / ${_pages.length}',
+                    key: const ValueKey('onboarding-step-counter'),
+                    style: AppType.digits(fontSize: 14, color: AppInk.soft),
                   ),
-                ),
+                ],
               ),
             ),
-            // 隱形預渲染所有打字文字，讓字形提前載入 GPU 圖集，避免首次顯示亂碼
-            Offstage(
-              child: Text(_lines.join(), style: const TextStyle(fontSize: 18)),
-            ),
-            PageView(
-              controller: _pageController,
-              // 禁止滑動（只能用按鈕前進）
-              physics: const NeverScrollableScrollPhysics(),
-              children: [for (final p in _pages) p.build()],
-            ),
-            _onboardingSoundButton(),
-            // 返回按鈕：浮在主畫面上層，不佔排版空間，避免內容下移
-            if (showBack)
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: AppPalette.brand,
-                    ),
-                    onPressed: _handleBack,
-                    tooltip: _l10n.obBack,
-                  ),
-                ),
-              ),
           ],
-        ),
+        ],
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: SystemUiOverlayStyle.dark,
+    child: Scaffold(
+      backgroundColor: AppSurfaces.canvas,
+      // 整個 Column 在 Scaffold 的鍵盤避讓區內；footer 真正停在鍵盤上緣，
+      // 320 × 667 + 300 pt 鍵盤時，上方只保留 60 pt header，內容仍可捲讀。
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(),
+            Expanded(
+              child: PageView.builder(
+                key: const ValueKey('onboarding-pages'),
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _pages.length,
+                itemBuilder: (context, index) => TickerMode(
+                  enabled: index == _currentPage,
+                  child: _pages[index].build(),
+                ),
+              ),
+            ),
+            _footer(),
+          ],
+        ),
+      ),
+    ),
+  );
 }

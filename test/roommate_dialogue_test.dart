@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/main.dart';
+import 'package:habit_app/pages/home/home_speech_owner.dart';
 import 'package:habit_app/pages/home/room_metrics.dart';
 import 'package:habit_app/pages/home_page.dart';
 import 'package:habit_app/utils/audio_settings_service.dart';
 import 'package:habit_app/utils/logical_date.dart';
+import 'package:habit_app/utils/mascot.dart';
+import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/roommate_dialogue.dart';
+import 'package:habit_app/utils/roommate_events.dart';
 import 'package:habit_app/utils/roommate_voice.dart';
 import 'package:habit_app/utils/sfx_service.dart';
 import 'package:habit_app/utils/story_store.dart';
@@ -17,6 +21,8 @@ import 'package:habit_app/widgets/mascot_page_shell.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
 import 'package:habit_app/widgets/roommate_dialogue.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'shared_preferences_delay_test_helper.dart';
 
 class _Voice implements RoommateVoiceOutput {
   final cues = <SfxCue>[];
@@ -90,6 +96,65 @@ Future<void> _choose(WidgetTester tester, String id) async {
 Future<void> _dispose(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox());
   await tester.pump(const Duration(seconds: 25));
+}
+
+Future<void> _waitForFeedback(WidgetTester tester) async {
+  for (var i = 0; i < 140; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
+Future<String> _pumpCompletionInvitation(
+  WidgetTester tester, {
+  int habitCount = 3,
+}) async {
+  _surface(tester, const Size(430, 932));
+  final today = LogicalDate.stringFor(DateTime.now(), LogicalDate.defaultHour);
+  SharedPreferences.setMockInitialValues({
+    PrefsKeys.lastOpenDate: today,
+    PrefsKeys.coinLastLoginDate: today,
+    PrefsKeys.sfxMuted: true,
+    PrefsKeys.mascotPanelHintSeen: true,
+    PrefsKeys.roommateEventHistory: jsonEncode({'firstMeetHandled': true}),
+    PrefsKeys.habits: jsonEncode([
+      for (var i = 0; i < habitCount; i++)
+        {
+          'id': 'pending_h$i',
+          'name': '小日常$i',
+          'createdAt': today,
+          'frequency': 'daily',
+          'done': i == 0,
+        },
+    ]),
+  });
+  StoryEvents.debugCatalog = [];
+  addTearDown(() => StoryEvents.debugCatalog = null);
+  AudioSettingsService.sfxMuted.value = true;
+  addTearDown(() => AudioSettingsService.sfxMuted.value = false);
+  await tester.pumpWidget(const MyApp(startAtHome: true));
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 6));
+  expect(find.byKey(const ValueKey('roommate_entry')), findsOneWidget);
+  return today;
+}
+
+Future<DelayFirstWriteStore> _holdInvitationWrite(WidgetTester tester) async {
+  final store = installDelayFirstWriteStore(
+    'flutter.${PrefsKeys.roommateEventHistory}',
+  );
+  addTearDown(store.restore);
+  await tester.tap(find.byKey(const ValueKey('roommate_entry')));
+  await tester.pump();
+  expect(store.didDelay, isTrue);
+  expect(find.byType(RoommateDialogue), findsNothing);
+  return store;
+}
+
+Future<void> _expectInvitationPersisted(String day) async {
+  final prefs = await SharedPreferences.getInstance();
+  // Reload checks the platform store, not only legacy setString's early cache.
+  await prefs.reload();
+  expect(RoommateEventHistory.read(prefs).handledDay, day);
 }
 
 void main() {
@@ -312,6 +377,7 @@ void main() {
       final home = tester.state(find.byType(HomePage)) as dynamic;
       await home.loadHabits();
       await tester.pump();
+      await tester.pump(const Duration(seconds: 5));
       final original = find.text('讀兩頁書').evaluate().single;
       final nav = find.byKey(const ValueKey('main_navigation'));
       final originalNav = nav.evaluate().single;
@@ -341,18 +407,13 @@ void main() {
       await tester.pump();
       expect(find.text('讀兩頁書').evaluate().single, same(original));
       expect(nav.evaluate().single, same(originalNav));
-      await tester.tap(find.byKey(const ValueKey('roommate_entry')));
-      await tester.pump();
-      expect(nav, findsNothing);
-      await tester.binding.handlePopRoute();
-      await tester.pump();
-      expect(find.byType(RoommateDialogue), findsNothing);
-      expect(nav, findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('roommate_entry')));
-      await tester.pump();
+      // An event invitation is consumed on entry; it must not return immediately
+      // or reappear after loading the same day's records.
+      expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
       await home.loadHabits();
       await tester.pump();
       expect(find.byType(RoommateDialogue), findsNothing);
+      expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
       expect(nav, findsOneWidget);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('habits'), saved);
@@ -361,6 +422,215 @@ void main() {
       AudioSettingsService.sfxMuted.value = false;
     });
   }
+
+  testWidgets('completion invitation waits for feedback and never auto-opens', (
+    tester,
+  ) async {
+    _surface(tester, const Size(430, 932));
+    final today = LogicalDate.stringFor(
+      DateTime.now(),
+      LogicalDate.defaultHour,
+    );
+    SharedPreferences.setMockInitialValues({
+      PrefsKeys.lastOpenDate: today,
+      PrefsKeys.coinLastLoginDate: today,
+      PrefsKeys.sfxMuted: true,
+      PrefsKeys.mascotPanelHintSeen: true,
+      PrefsKeys.roommateEventHistory: jsonEncode({'firstMeetHandled': true}),
+      PrefsKeys.habits: jsonEncode([
+        for (var i = 0; i < 2; i++)
+          {
+            'id': 'h$i',
+            'name': '小日常$i',
+            'createdAt': today,
+            'frequency': 'daily',
+            'done': false,
+          },
+      ]),
+    });
+    StoryEvents.debugCatalog = [];
+    addTearDown(() => StoryEvents.debugCatalog = null);
+    AudioSettingsService.sfxMuted.value = true;
+    await tester.pumpWidget(const MyApp(startAtHome: true));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    final home = tester.state(find.byType(HomePage)) as dynamic;
+    expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
+    home.toggleHabit(0);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
+    for (var i = 0; i < 140; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(find.byKey(const ValueKey('roommate_entry')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('roommate_entry')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<RoommateDialogue>(find.byType(RoommateDialogue))
+          .initialNode,
+      RoommateNode.smallWin,
+    );
+    await tester.tap(find.byKey(const ValueKey('roommate_exit')));
+    await tester.pump();
+    home.toggleHabit(1);
+    for (var i = 0; i < 140; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
+    final prefs = await SharedPreferences.getInstance();
+    expect(RoommateEventHistory.read(prefs).handledDay, today);
+    expect(
+      (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List).every(
+        (h) => h['done'] == true,
+      ),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+    await _dispose(tester);
+    AudioSettingsService.sfxMuted.value = false;
+  });
+
+  for (final waitForFeedback in [false, true]) {
+    testWidgets(
+      'pending invitation yields to a new check, even after feedback: $waitForFeedback',
+      (tester) async {
+        final today = await _pumpCompletionInvitation(tester);
+        final home = tester.state(find.byType(HomePage)) as dynamic;
+        final store = await _holdInvitationWrite(tester);
+
+        home.toggleHabit(1);
+        await tester.pump();
+        expect(home.debugPresentationActive, isTrue);
+        final eventId = home.debugCompletionEventId;
+        if (waitForFeedback) await _waitForFeedback(tester);
+        store.release();
+        await tester.pump();
+
+        expect(find.byType(RoommateDialogue), findsNothing);
+        expect(home.debugCompletionEventId, eventId);
+        expect(home.debugPresentationActive, !waitForFeedback);
+        expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
+        await _expectInvitationPersisted(today);
+        final prefs = await SharedPreferences.getInstance();
+        final saved = jsonDecode(prefs.getString(PrefsKeys.habits)!) as List;
+        expect(saved.where((h) => h['done'] == true), hasLength(2));
+        expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
+        expect(tester.takeException(), isNull);
+        await _dispose(tester);
+      },
+    );
+  }
+
+  testWidgets('pending smallWin cannot replace a newer all-complete reaction', (
+    tester,
+  ) async {
+    final today = await _pumpCompletionInvitation(tester, habitCount: 2);
+    final home = tester.state(find.byType(HomePage)) as dynamic;
+    final store = await _holdInvitationWrite(tester);
+    home.toggleHabit(1);
+    await tester.pump();
+    expect(home.allDone0, isTrue);
+    expect(home.debugSpeechOwnerSource, HomeSpeechSource.milestone);
+    store.release();
+    await tester.pump();
+
+    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(home.debugSpeechOwnerSource, HomeSpeechSource.milestone);
+    await _expectInvitationPersisted(today);
+    final prefs = await SharedPreferences.getInstance();
+    final saved = jsonDecode(prefs.getString(PrefsKeys.habits)!) as List;
+    expect(saved.every((h) => h['done'] == true), isTrue);
+    expect(tester.takeException(), isNull);
+    await _dispose(tester);
+  });
+
+  testWidgets(
+    'reload cancels pending entry even when the same event still fits',
+    (tester) async {
+      final today = await _pumpCompletionInvitation(tester);
+      final home = tester.state(find.byType(HomePage)) as dynamic;
+      final store = await _holdInvitationWrite(tester);
+      await home.loadHabits();
+      await tester.pump();
+      store.release();
+      await tester.pump();
+
+      expect(find.byType(RoommateDialogue), findsNothing);
+      expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
+      await _expectInvitationPersisted(today);
+      expect(tester.takeException(), isNull);
+      await _dispose(tester);
+    },
+  );
+
+  testWidgets('toolbar action cancels entry before the dialogue has opened', (
+    tester,
+  ) async {
+    final today = await _pumpCompletionInvitation(tester);
+    final store = await _holdInvitationWrite(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('toolbar_audio')),
+        matching: find.byType(IconButton),
+      ),
+    );
+    await tester.pump();
+    store.release();
+    await tester.pump();
+
+    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
+    await _expectInvitationPersisted(today);
+    expect(tester.takeException(), isNull);
+    await _dispose(tester);
+  });
+
+  testWidgets('closing and restoring the room cancels its pending invitation', (
+    tester,
+  ) async {
+    final today = await _pumpCompletionInvitation(tester);
+    final store = await _holdInvitationWrite(tester);
+    MascotPanelPrefs.openValue.value = 0;
+    await tester.pump();
+    MascotPanelPrefs.openValue.value = 1;
+    await tester.pump();
+    store.release();
+    await tester.pump();
+
+    expect(find.byType(RoommateDialogue), findsNothing);
+    await _expectInvitationPersisted(today);
+    expect(tester.takeException(), isNull);
+    await _dispose(tester);
+  });
+
+  testWidgets('leaving and returning to the route cancels pending entry', (
+    tester,
+  ) async {
+    final today = await _pumpCompletionInvitation(tester);
+    final store = await _holdInvitationWrite(tester);
+    final navigator = Navigator.of(tester.element(find.byType(HomePage)));
+    final routeClosed = navigator.push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('another route')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    navigator.pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await routeClosed;
+    store.release();
+    await tester.pump();
+
+    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
+    await _expectInvitationPersisted(today);
+    expect(tester.takeException(), isNull);
+    await _dispose(tester);
+  });
 
   test('控制器拒绝偽造選項與上一句 callback', () async {
     final l = await AppLocalizations.delegate.load(const Locale('zh'));

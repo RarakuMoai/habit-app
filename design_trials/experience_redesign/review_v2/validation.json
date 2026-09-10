@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-10",
+  "branch": "codex/experience-redesign",
+  "baseline": "1ccd098",
+  "analyze": "No issues found",
+  "full_test": {
+    "passed": 950,
+    "command": "flutter test --reporter expanded"
+  },
+  "native_captures": {
+    "count": 44,
+    "manifest": "capture-manifest.json",
+    "exports_decode_and_sha256": "passed"
+  },
+  "release": {
+    "command": "flutter build ios --release --flavor redesign -t lib/main.dart --dart-define=NAV_GLASS=false",
+    "artifact": "build/ios/iphoneos/Runner.app",
+    "bundle_id": "com.yayoi991331.habitapp.redesign",
+    "display_name": "兔咪新體驗",
+    "architecture": "arm64",
+    "size_as_reported": "142.5MB",
+    "signing_type": "Apple Development for local device testing",
+    "team_id": "6NZ675Y2MZ",
+    "codesign_verify_deep_strict": "passed",
+    "runner_sha256": "e14e1aaf00e41f6f6e27b6c0060f99a3085d4600b9ecfc72a7440d996b80648e",
+    "app_framework_sha256": "a44db09e92308b0634e4138f78b24ab11e9bc67394ded40b3d81cc4939ce34c5"
+  },
+  "pending": [
+    "User physical-device visual and touch review",
+    "Release audio, haptics, cold start, and performance"
+  ],
+  "physical_device_installed_by_agent": false
+}

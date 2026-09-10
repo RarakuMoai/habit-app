@@ -32,10 +32,6 @@ import 'home/room_metrics.dart';
 
 // ── 家庭主頁（小孩選擇畫面）──
 
-// FamilyPage 是主頁 Scaffold 裡的巢狀 Scaffold，看不到外層自訂底部導覽列。
-// 外層底欄最高是雙排 96px；多留 4px，避免 extended FAB 被覆蓋或貼邊。
-const double _kOuterNavFabClearance = 100;
-
 class FamilyPage extends StatefulWidget {
   final VoidCallback? onSettingsChanged;
   const FamilyPage({super.key, this.onSettingsChanged});
@@ -162,68 +158,48 @@ class _FamilyPageState extends State<FamilyPage> {
                       accent: AppPalette.family,
                       lightGeometry: FourPeriodRoom.family.light,
                     ),
-                    child: AnimatedSwitcher(
-                      duration: AppMotion.duration(context, AppMotion.settle),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      // AnimatedSwitcher 預設會把比面板矮的 child 垂直置中。
-                      // 空狀態邀請卡因此即使內層用了 topCenter，仍會落在面板中央；
-                      // 在真正持有面板高度的這一層改成靠上排列。
-                      layoutBuilder: (currentChild, previousChildren) => Stack(
-                        alignment: Alignment.topCenter,
-                        children: [...previousChildren, ?currentChild],
-                      ),
-                      transitionBuilder: (child, animation) {
-                        if (MediaQuery.disableAnimationsOf(context)) {
-                          return child;
-                        }
-                        final offset = Tween<Offset>(
-                          begin: const Offset(0.06, 0),
-                          end: Offset.zero,
-                        ).animate(animation);
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: offset,
-                            child: child,
+                    child: LayoutBuilder(
+                      builder: (context, box) => AnimatedSwitcher(
+                        duration: AppMotion.duration(context, AppMotion.settle),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        // AnimatedSwitcher 預設會把比面板矮的 child 垂直置中。
+                        // 空狀態邀請卡因此即使內層用了 topCenter，仍會落在面板中央；
+                        // 在真正持有面板高度的這一層改成靠上排列。
+                        layoutBuilder: (currentChild, previousChildren) =>
+                            Stack(
+                              alignment: Alignment.topCenter,
+                              children: [...previousChildren, ?currentChild],
+                            ),
+                        transitionBuilder: (child, animation) {
+                          if (MediaQuery.disableAnimationsOf(context)) {
+                            return child;
+                          }
+                          final offset = Tween<Offset>(
+                            begin: const Offset(0.06, 0),
+                            end: Offset.zero,
+                          ).animate(animation);
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: offset,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: KeyedSubtree(
+                          key: ValueKey(_panelKey),
+                          child: _buildPanelContent(
+                            compact: box.maxHeight < 400,
+                            showHeader: box.maxHeight >= 260,
                           ),
-                        );
-                      },
-                      child: KeyedSubtree(
-                        key: ValueKey(_panelKey),
-                        child: _buildPanelContent(),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-      // 家長管理按鈕：鎖定狀態用圖示 + 色彩區分（開鎖綠 = 已解鎖 / 上鎖主色），
-      // 兩態同一個 label 讓按鈕大小一致、視覺平衡。
-      // 空狀態不顯示：唯一動作「新增小孩」本來就走 PIN 驗證，管理頁也無物可管；
-      // 小螢幕（SE）空狀態卡片較矮，FAB 會疊到邀請卡的按鈕。
-      floatingActionButton: _children.isNotEmpty && _activeChildIndex == null
-          ? ValueListenableBuilder<bool>(
-              valueListenable: parentSession,
-              builder: (_, unlocked, _) => Padding(
-                padding: const EdgeInsets.only(bottom: _kOuterNavFabClearance),
-                child: FloatingActionButton.extended(
-                  heroTag: 'family_manage',
-                  elevation: 0,
-                  shape: const StadiumBorder(),
-                  onPressed: _enterParentManagement,
-                  icon: Icon(
-                    unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
-                  ),
-                  label: Text(AppLocalizations.of(context).famParentManage),
-                  backgroundColor: unlocked
-                      ? AppPalette.success
-                      : AppPalette.family,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            )
-          : null,
     );
   }
 
@@ -235,10 +211,12 @@ class _FamilyPageState extends State<FamilyPage> {
     return 'child_${_children[index].id}';
   }
 
-  Widget _buildPanelContent() {
+  Widget _buildPanelContent({required bool compact, required bool showHeader}) {
     if (_children.isEmpty) return _buildEmpty();
     final active = _activeChildIndex;
-    if (active == null) return _buildChildList();
+    if (active == null) {
+      return _buildChildList(compact: compact, showHeader: showHeader);
+    }
     final index = active.clamp(0, _children.length - 1);
     return ChildHomePanel(
       children: _children,
@@ -255,7 +233,7 @@ class _FamilyPageState extends State<FamilyPage> {
   Widget _buildEmpty() {
     final accent = AppPalette.family;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 2, 18, 102),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
       child: Align(
         alignment: Alignment.topCenter,
         child: TweenAnimationBuilder<double>(
@@ -302,34 +280,87 @@ class _FamilyPageState extends State<FamilyPage> {
     MascotPersona.interact(MascotContext.completedOne);
   }
 
-  // 小孩卡片清單
-  Widget _buildChildList() {
-    return ListView.builder(
-      // 最後一項可以完整捲過抬高後的家長管理按鈕，不會被 FAB 擋住。
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 196),
-      itemCount: _children.length + 2,
-      itemBuilder: (_, i) {
-        if (i == 0) {
-          return _FamilyRosterHeader(childCount: _children.length);
-        }
-        final childIndex = i - 1;
-        if (childIndex == _children.length) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: TextButton.icon(
-              onPressed: _addChildAction,
-              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-              label: Text(AppLocalizations.of(context).famAddChild),
-              style: TextButton.styleFrom(foregroundColor: AppInk.soft),
+  // 管理與新增入口由面板自己的 constraints 排版，不再浮在名冊上。
+  Widget _buildChildList({required bool compact, required bool showHeader}) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      children: [
+        if (showHeader)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: _FamilyRosterHeader(
+              childCount: _children.length,
+              compact: compact,
             ),
-          );
-        }
-        final child = _children[childIndex];
-        return _ChildCard(
-          child: child,
-          onTap: () => setState(() => _activeChildIndex = childIndex),
-        );
-      },
+          ),
+        Expanded(
+          child: ListView.builder(
+            key: const PageStorageKey('family-roster'),
+            padding: EdgeInsets.fromLTRB(16, showHeader ? 0 : 8, 16, 8),
+            itemCount: _children.length,
+            itemBuilder: (_, index) => _ChildCard(
+              key: ValueKey('family-child-${_children[index].id}'),
+              child: _children[index],
+              compact: compact,
+              onTap: () => setState(() => _activeChildIndex = index),
+            ),
+          ),
+        ),
+        Padding(
+          key: const ValueKey('family-roster-actions'),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: _addChildAction,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(44, 48),
+                    foregroundColor: AppPalette.family,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: Text(l10n.famAddChild, textAlign: TextAlign.center),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: parentSession,
+                  builder: (_, unlocked, _) => FilledButton(
+                    onPressed: _enterParentManagement,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(44, 48),
+                      backgroundColor: unlocked
+                          ? AppPalette.success
+                          : AppPalette.family,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    child: Text(
+                      l10n.famParentManage,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -338,14 +369,15 @@ class _FamilyPageState extends State<FamilyPage> {
 
 class _FamilyRosterHeader extends StatelessWidget {
   final int childCount;
+  final bool compact;
 
-  const _FamilyRosterHeader({required this.childCount});
+  const _FamilyRosterHeader({required this.childCount, required this.compact});
 
   @override
   Widget build(BuildContext context) {
     final accent = AppPalette.family;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 2, 2, 14),
+      padding: EdgeInsets.fromLTRB(2, 2, 2, compact ? 8 : 14),
       child: Row(
         children: [
           Container(
@@ -364,21 +396,23 @@ class _FamilyRosterHeader extends StatelessWidget {
               children: [
                 Text(
                   AppLocalizations.of(context).famTitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppInk.strong,
-                    fontSize: 22,
+                    fontSize: compact ? 17 : 22,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  AppLocalizations.of(context).famSubtitle,
-                  style: const TextStyle(
-                    color: AppInk.soft,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                if (!compact) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    AppLocalizations.of(context).famSubtitle,
+                    style: const TextStyle(
+                      color: AppInk.soft,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -436,11 +470,72 @@ class _RosterStatPill extends StatelessWidget {
 class _ChildCard extends StatelessWidget {
   final ChildData child;
   final VoidCallback onTap;
-  const _ChildCard({required this.child, required this.onTap});
+  final bool compact;
+  const _ChildCard({
+    super.key,
+    required this.child,
+    required this.onTap,
+    required this.compact,
+  });
 
   @override
   Widget build(BuildContext context) {
     const accent = AppPalette.family;
+    if (compact) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: AppPressable(
+          semanticsLabel: '${child.name}, ${child.points}',
+          onPressed: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppSurfaces.card,
+              borderRadius: BorderRadius.circular(AppCardStyle.radius),
+              border: AppCardStyle.hairline,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    child.avatar.isNotEmpty ? child.avatar : '🐼',
+                    style: const TextStyle(fontSize: 26),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    child.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppInk.strong,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _ChildPointBadge(points: child.points, color: accent),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: accent,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: AppPressable(

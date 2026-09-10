@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/pages/weight_page.dart';
-import 'package:habit_app/utils/app_style.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
@@ -61,18 +60,18 @@ void main() {
 
     final cardFinder = find.byKey(const ValueKey('today-weight-card'));
     expect(cardFinder, findsOneWidget);
-    final action = find.text('更新今日體重');
+    final action = find.byKey(const ValueKey('weight-primary-action'));
     expect(action.hitTestable(), findsOneWidget);
+    // 短面板的主數據應是完整摘要，次要指標仍可往下讀；不要以背景色替代可讀性。
+    expect(
+      tester.getRect(cardFinder).bottom,
+      lessThanOrEqualTo(tester.getRect(action).top),
+    );
     await tester.ensureVisible(find.text('TDEE'));
     await tester.pump();
     expect(find.text('TDEE').hitTestable(), findsOneWidget);
     expect(action.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
-
-    final card = tester.widget<Container>(cardFinder);
-    final decoration = card.decoration! as BoxDecoration;
-    expect(decoration.color, AppSurfaces.card);
-    expect(decoration.gradient, isNull);
   });
 
   testWidgets('目標整合在今日主卡，趨勢與歷史使用精簡後的單一層級', (tester) async {

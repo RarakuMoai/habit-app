@@ -101,6 +101,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('120:00'), findsOneWidget);
     for (final mode in ['Focus', 'Workout', 'Metronome', 'Games']) {
+      await tester.ensureVisible(find.text(mode));
       await tester.tap(find.text(mode));
       await tester.pump(const Duration(milliseconds: 300));
       final status = tester.getRect(find.byType(TimerStatusPill));

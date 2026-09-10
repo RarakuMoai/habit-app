@@ -36,16 +36,16 @@ enum _ExPhase { idle, prep, warmup, work, rest, cooldown, finished }
 typedef _ExMeta = ({IconData icon, Color color});
 
 const Map<ExerciseKind, _ExMeta> _exMeta = {
-  ExerciseKind.tabata: (icon: Icons.bolt_rounded, color: Color(0xFFEF5350)),
-  ExerciseKind.hiit: (icon: Icons.whatshot_rounded, color: Color(0xFFFF8A50)),
-  ExerciseKind.emom: (icon: Icons.repeat_rounded, color: Color(0xFF66BB6A)),
+  ExerciseKind.tabata: (icon: Icons.bolt_rounded, color: AppPalette.habit),
+  ExerciseKind.hiit: (icon: Icons.whatshot_rounded, color: AppPalette.weight),
+  ExerciseKind.emom: (icon: Icons.repeat_rounded, color: AppPalette.success),
   ExerciseKind.gym: (
     icon: Icons.fitness_center_rounded,
-    color: Color(0xFF42A5F5),
+    color: AppPalette.water,
   ),
   ExerciseKind.jog: (
     icon: Icons.directions_run_rounded,
-    color: Color(0xFFAB47BC),
+    color: AppPalette.focus,
   ),
 };
 
@@ -880,11 +880,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
 
   Color get _phaseColor => switch (_phase) {
     _ExPhase.work => _exMeta[_kind]!.color,
-    _ExPhase.rest => const Color(0xFF66BB6A),
-    _ExPhase.warmup => const Color(0xFFFFA726),
-    _ExPhase.cooldown => const Color(0xFF4DD0E1),
-    _ExPhase.finished => const Color(0xFF42A5F5),
-    _ => const Color(0xFF26A69A),
+    _ExPhase.rest => AppPalette.success,
+    _ExPhase.warmup => AppPalette.family,
+    _ExPhase.cooldown => AppPalette.water,
+    _ExPhase.finished => AppPalette.success,
+    _ => AppPalette.water,
   };
 
   String get _phaseLabel => switch (_phase) {
@@ -937,6 +937,11 @@ class ExerciseTimerState extends State<ExerciseTimer>
   Widget build(BuildContext context) {
     final color = _phaseColor;
     return TimerModeFrame(
+      compactReadout: TimerCompactReadout(
+        value: _idle ? _phaseLabel : _timeString,
+        color: color,
+        fontSize: _idle ? 22 : 28,
+      ),
       heroBuilder: (context, size) => _buildRing(size),
       status: TimerStatusPill(
         stateKey: _phase,
@@ -970,7 +975,16 @@ class ExerciseTimerState extends State<ExerciseTimer>
           fontWeight: FontWeight.w500,
         ),
       ),
-      quickPicker: _kindPicker(),
+      quickPicker: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_kind == ExerciseKind.jog) ...[
+            _inlineBpm(color),
+            const SizedBox(height: 12),
+          ],
+          _kindPicker(),
+        ],
+      ),
       footer: _todaySessions > 0 ? _statsBar() : null,
       topAction: TimerSettingsAction(
         color: _exMeta[_kind]!.color,
@@ -1150,30 +1164,23 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
-  // 子模式選擇列（執行中鎖定）。專注方案已收進設定頁，運動仍保留這排，
-  // 因為 Tabata／HIIT 等是需要快速切換的運動種類，不只是時間預設。
-  static const double _pickerRowHeight = 52;
-
+  // 快捷種類保留自然字級與點擊範圍；窄螢幕橫捲選擇，執行中仍鎖定。
   Widget _kindPicker() {
     return SizedBox(
-      height: _pickerRowHeight,
-      child: Center(
-        child: Padding(
+      height: 64,
+      child: Opacity(
+        opacity: (!_idle && !_finished) ? 0.45 : 1,
+        child: SingleChildScrollView(
+          key: const ValueKey('exercise-quick-presets'),
+          scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Opacity(
-            opacity: (!_idle && !_finished) ? 0.45 : 1,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (final k in ExerciseKind.values) ...[
-                    _kindChip(k),
-                    if (k != ExerciseKind.values.last) const SizedBox(width: 8),
-                  ],
-                ],
-              ),
-            ),
+          child: Row(
+            children: [
+              for (final k in ExerciseKind.values) ...[
+                _kindChip(k),
+                if (k != ExerciseKind.values.last) const SizedBox(width: 8),
+              ],
+            ],
           ),
         ),
       ),
@@ -1191,7 +1198,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
             : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         width: width,
-        constraints: width == null ? const BoxConstraints(minWidth: 62) : null,
+        constraints: width == null ? const BoxConstraints(minWidth: 96) : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: selected
@@ -1223,55 +1230,63 @@ class ExerciseTimerState extends State<ExerciseTimer>
     );
   }
 
-  // 環內即時 BPM 步進器（超慢跑運動中顯示）：− 數字 + ，按住連發。
-  Widget _inlineBpm(double size, Color color) {
+  // 即時 BPM 獨立於面盤，避免縮小面盤時把加減熱區縮到 21pt。
+  Widget _inlineBpm(Color color) {
     final bpm = _cfg.bpm;
-    Widget btn(IconData icon, VoidCallback? onTap) {
-      final active = onTap != null;
-      return HoldRepeatButton(
+    Widget button(
+      IconData icon,
+      String label,
+      String id,
+      VoidCallback? onTap,
+    ) => Semantics(
+      label: label,
+      button: true,
+      enabled: onTap != null,
+      child: HoldRepeatButton(
+        key: ValueKey('jog-bpm-$id'),
         onTrigger: onTap,
         child: Container(
-          width: size * 0.12,
-          height: size * 0.12,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: active ? 0.16 : 0.06),
-            shape: BoxShape.circle,
+            color: color.withValues(alpha: onTap != null ? 0.12 : 0.05),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Icon(
             icon,
-            size: size * 0.07,
-            color: active ? color : AppInk.faint,
+            size: 22,
+            color: onTap != null ? color : AppInk.faint,
           ),
         ),
-      );
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: size * 0.025,
-        vertical: size * 0.01,
       ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(size),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          btn(Icons.remove_rounded, bpm > 30 ? () => _setBpm(bpm - 1) : null),
-          SizedBox(width: size * 0.02),
-          Text(
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        button(
+          Icons.remove_rounded,
+          _l10n.metroSlower,
+          'slower',
+          bpm > 30 ? () => _setBpm(bpm - 1) : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
             '$bpm BPM',
             style: AppType.digits(
-              fontSize: size * 0.07,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               color: color,
             ),
           ),
-          SizedBox(width: size * 0.02),
-          btn(Icons.add_rounded, bpm < 240 ? () => _setBpm(bpm + 1) : null),
-        ],
-      ),
+        ),
+        button(
+          Icons.add_rounded,
+          _l10n.metroFaster,
+          'faster',
+          bpm < 240 ? () => _setBpm(bpm + 1) : null,
+        ),
+      ],
     );
   }
 
@@ -1364,21 +1379,18 @@ class ExerciseTimerState extends State<ExerciseTimer>
                         ),
                       ),
                       SizedBox(height: size * 0.015),
-                      // 超慢跑運動中：環內即時調 BPM；其餘顯示情境副標
-                      if (_jogWorkActive)
-                        _inlineBpm(size, color)
-                      else
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            _ringSubtitle(),
-                            style: TextStyle(
-                              fontSize: math.max(11.0, size * 0.056),
-                              fontWeight: FontWeight.w600,
-                              color: AppInk.soft,
-                            ),
+                      // 面盤只呈現時間與副標；BPM 加減在下方完整觸控列。
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _ringSubtitle(),
+                          style: TextStyle(
+                            fontSize: math.max(11.0, size * 0.056),
+                            fontWeight: FontWeight.w600,
+                            color: AppInk.soft,
                           ),
                         ),
+                      ),
                     ],
                   ),
                 ),

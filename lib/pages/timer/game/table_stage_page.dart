@@ -167,46 +167,52 @@ class _TableStagePageState extends State<TableStagePage>
                           onDice: () => setState(() => _showDiceTray = true),
                         )
                       else
-                        PartyFace(key: ObjectKey(_engine), engine: _engine),
-                      // 標字工具鈕蓋在整面觸控區上方（吸收點擊，不觸發
-                      // 換人）；標清楚文字，兒童或長者不用猜純 icon。
-                      // 棋鐘的控制在中央窄帶，這裡只給多人/自由模式。
-                      // 注意 Stack 是 expand：一定要 Align 回頂部，不然 Row
-                      // 會被撐滿整頁、按鈕垂直置中。
-                      if (!chess)
                         SafeArea(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 6,
+                          // The header owns its natural height, including wrapped
+                          // rows. The playing surface receives only the remainder.
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 6,
+                                ),
+                                child: Wrap(
+                                  key: const ValueKey('table-stage-actions'),
+                                  alignment: WrapAlignment.spaceBetween,
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _StageActionButton(
+                                      icon: Icons.close_rounded,
+                                      label: l10n.stgLeave,
+                                      onTap: _confirmExit,
+                                    ),
+                                    _StageActionButton(
+                                      icon: Icons.pause_rounded,
+                                      label: l10n.stgPause,
+                                      onTap: _engine.phase == TablePhase.running
+                                          ? _engine.pause
+                                          : null,
+                                    ),
+                                    _StageActionButton(
+                                      icon: Icons.casino_rounded,
+                                      label: l10n.gtDiceLabel,
+                                      onTap: () =>
+                                          setState(() => _showDiceTray = true),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  _StageActionButton(
-                                    icon: Icons.close_rounded,
-                                    label: l10n.stgLeave,
-                                    onTap: _confirmExit,
-                                  ),
-                                  const Spacer(),
-                                  _StageActionButton(
-                                    icon: Icons.pause_rounded,
-                                    label: l10n.stgPause,
-                                    onTap: _engine.phase == TablePhase.running
-                                        ? _engine.pause
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _StageActionButton(
-                                    icon: Icons.casino_rounded,
-                                    label: l10n.gtDiceLabel,
-                                    onTap: () =>
-                                        setState(() => _showDiceTray = true),
-                                  ),
-                                ],
+                              Expanded(
+                                child: PartyFace(
+                                  key: ObjectKey(_engine),
+                                  engine: _engine,
+                                  toolbarInset: 0,
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       if (_showDiceTray)
@@ -270,7 +276,7 @@ class _StageActionButton extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48, minWidth: 76),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -281,14 +287,17 @@ class _StageActionButton extends StatelessWidget {
                   color: enabled ? TableTheme.tableInkStrong : AppInk.iconFaint,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    color: enabled
-                        ? TableTheme.tableInkStrong
-                        : AppInk.iconFaint,
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: enabled
+                          ? TableTheme.tableInkStrong
+                          : AppInk.iconFaint,
+                    ),
                   ),
                 ),
               ],
@@ -385,6 +394,7 @@ class _PauseOverlay extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         l10n.stgRestTitle,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
@@ -421,6 +431,7 @@ class _PauseOverlay extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         l10n.stgRestSub,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 12.5,
                           color: AppInk.soft,
@@ -437,24 +448,18 @@ class _PauseOverlay extends StatelessWidget {
                         onTap: engine.resume,
                       ),
                       const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _cardButton(
-                              label: l10n.stgPrevPlayer,
-                              icon: Icons.undo_rounded,
-                              onTap: engine.canUndo ? engine.undo : null,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _cardButton(
-                              label: l10n.stgRestartTurn,
-                              icon: Icons.replay_rounded,
-                              onTap: engine.restartTurn,
-                            ),
-                          ),
-                        ],
+                      // The card has only 224pt of content at a 320pt viewport.
+                      // Keep these full labels on separate full-width targets.
+                      _cardButton(
+                        label: l10n.stgPrevPlayer,
+                        icon: Icons.undo_rounded,
+                        onTap: engine.canUndo ? engine.undo : null,
+                      ),
+                      const SizedBox(height: 10),
+                      _cardButton(
+                        label: l10n.stgRestartTurn,
+                        icon: Icons.replay_rounded,
+                        onTap: engine.restartTurn,
                       ),
                       const SizedBox(height: 4),
                       _cardButton(
@@ -503,23 +508,28 @@ class _PauseOverlay extends StatelessWidget {
                 onTap();
               }
             : null,
-        child: SizedBox(
-          height: height,
-          width: double.infinity,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: fontSize + 4, color: fg),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w900,
-                  color: fg,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: height),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: fontSize + 4, color: fg),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w900,
+                      color: fg,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

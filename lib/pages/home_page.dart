@@ -22,6 +22,7 @@ import '../utils/logical_day_coordinator.dart';
 import '../utils/mascot.dart';
 import '../utils/preference_write_guard.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/roommate_events.dart';
 import '../utils/scene_time.dart';
 import '../utils/sfx_service.dart';
 import '../utils/story_store.dart';
@@ -36,6 +37,7 @@ import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
 import '../widgets/roommate_dialogue.dart';
+import '../widgets/roommate_invitation.dart';
 import '../widgets/scene_air_layer.dart';
 import '../widgets/scene_clock.dart';
 import '../widgets/scene_rooms.dart';
@@ -101,6 +103,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String mascotName0 = MascotName.fallback;
   bool yesterdayAllDone = false;
   bool _roommateOpen = false;
+  RoommateEventHistory _roommateHistory = const RoommateEventHistory();
+  RoommateEvent _activeRoommateEvent = RoommateEvent.firstMeet;
+  bool _roommateSceneReady = false;
+  bool _handlingRoommateInvitation = false;
+  int _roommateInvitationGeneration = 0;
+  Timer? _roommateReadyTimer;
   OverlayEntry? _greetingEntry;
   // 換日線（一天從幾點開始）；loadHabits 每次顯示首頁時從 prefs 重讀。
   int _dayStartHour = LogicalDate.defaultHour;
@@ -163,6 +171,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     SceneTimeController.instance.addListener(_handleSceneTimeChanged);
     MascotPersona.current.addListener(_handleMascotActivity);
     CoinService.dailyRewardShowing.addListener(_onDailyRewardShowing);
+    MascotPanelPrefs.openValue.addListener(_handleRoommatePanelChanged);
     _celebCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -186,6 +195,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     MascotPersona.idleBaseline = _idleMascotState;
 
     loadHabits();
+    // Let the existing opening/greeting settle; the invitation has no entrance sound.
+    _roommateReadyTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _roommateSceneReady = true);
+    });
   }
 
   /// 給 [MascotPersona] 的待機 baseline：純由今天進度推導、不帶台詞。
@@ -200,6 +213,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!TickerMode.valuesOf(context).enabled ||
+        !(ModalRoute.isCurrentOf(context) ?? true)) {
+      _invalidateRoommateInvitation();
+    }
     // 系統偏好可以在 app 執行中被切換（設定 App 就在旁邊）。開啟的那一刻，
     // 正在播的全完成慶祝必須當場停住——只保留資料、靜態立繪、台詞與音效。
     // MediaQuery 改變本來就會走到這裡，不需要另外掛 observer。
@@ -219,9 +236,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _roommateReadyTimer?.cancel();
     SceneTimeController.instance.removeListener(_handleSceneTimeChanged);
     MascotPersona.current.removeListener(_handleMascotActivity);
     CoinService.dailyRewardShowing.removeListener(_onDailyRewardShowing);
+    MascotPanelPrefs.openValue.removeListener(_handleRoommatePanelChanged);
     _dismissGreeting();
     if (MascotPersona.idleBaseline == _idleMascotState) {
       MascotPersona.idleBaseline = null;
@@ -363,6 +382,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final snapshot = await _readSnapshot(prefs, generation);
         if (!mounted) return _HomeLoadResult.cancelled(trigger);
         final firstApply = _appliedDate == null;
+        _roommateHistory = RoommateEventHistory.read(prefs);
         _applySnapshot(snapshot);
         _afterApply(prefs, snapshot, firstApply);
         return _HomeLoadResult.success(trigger);
@@ -921,15 +941,135 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (CoinService.dailyRewardShowing.value) _closeRoommate();
   }
 
-  void _startRoommate() {
-    if (_roommateOpen ||
-        _mutationsBlocked ||
-        _editMode ||
-        CoinService.dailyRewardShowing.value) {
+  RoommateEvent? get _eligibleRoommateEvent => _roommateHistory.eligible(
+    day: todayString(),
+    completed: dailyDoneCount,
+    total: _dailyHabits.length,
+  );
+
+  bool get _roommateSceneAvailable {
+    final speech = MascotPersona.current.value.speech;
+    return !_roommateOpen &&
+        !_mutationsBlocked &&
+        !_editMode &&
+        !CoinService.dailyRewardShowing.value &&
+        !_completion.presentationActive &&
+        !_celebCtrl.isAnimating &&
+        _greetingEntry == null &&
+        MascotPanelPrefs.openValue.value > 0.85 &&
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.isCurrentOf(context) ?? true) &&
+        (speech == null ||
+            MascotPersona.speechOrigin == MascotStateOrigin.opening);
+  }
+
+  void _invalidateRoommateInvitation() => _roommateInvitationGeneration++;
+
+  void _handleRoommatePanelChanged() {
+    if (MascotPanelPrefs.openValue.value <= 0.85) {
+      _invalidateRoommateInvitation();
+    }
+  }
+
+  Future<void> _handleRoommateInvitation(
+    RoommateEvent event, {
+    required bool open,
+  }) async {
+    if (_handlingRoommateInvitation ||
+        !_roommateSceneAvailable ||
+        _eligibleRoommateEvent != event) {
       return;
     }
+    final day = todayString();
+    final generation = ++_roommateInvitationGeneration;
+    final history = _roommateHistory;
+    final next = history.handling(event, day);
+    setState(() {
+      _handlingRoommateInvitation = true;
+      _roommateHistory = next;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await next.save(prefs);
+      if (!saved) debugPrint('Roommate invitation history could not be saved.');
+    } catch (error) {
+      // Keep this session quiet even if the non-critical invitation preference fails.
+      debugPrint('Roommate invitation history failed: $error');
+    }
+    if (!mounted) return;
+    // A reload may have applied newer history while the native write was pending.
+    // Only the in-flight flag belongs to this callback; do not restore its snapshot.
+    setState(() => _handlingRoommateInvitation = false);
+    if (!open ||
+        generation != _roommateInvitationGeneration ||
+        day != todayString()) {
+      return;
+    }
+    // Re-evaluate the exact candidate against current progress using the history
+    // from before this invitation consumed its daily cap.
+    if (history.eligible(
+          day: day,
+          completed: dailyDoneCount,
+          total: _dailyHabits.length,
+        ) !=
+        event) {
+      return;
+    }
+    _activeRoommateEvent = event;
+    _startRoommate();
+  }
+
+  Widget _buildInvitableScene(
+    Widget Function(bool suppressSpeech) buildPersona,
+  ) => ListenableBuilder(
+    listenable: Listenable.merge([
+      MascotPersona.current,
+      CoinService.dailyRewardShowing,
+      MascotPanelPrefs.openValue,
+    ]),
+    builder: (context, _) {
+      final event = _eligibleRoommateEvent;
+      final show =
+          event != null &&
+          _roommateSceneReady &&
+          !_handlingRoommateInvitation &&
+          _roommateSceneAvailable &&
+          TickerMode.valuesOf(context).enabled;
+      return LayoutBuilder(
+        builder: (context, box) => Stack(
+          fit: StackFit.expand,
+          children: [
+            buildPersona(show),
+            if (show)
+              Positioned(
+                top: box.maxHeight < 280 ? 8 : 28,
+                left: 24,
+                right: 24,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 290),
+                    child: RoommateInvitation(
+                      event: event,
+                      onOpen: () => unawaited(
+                        _handleRoommateInvitation(event, open: true),
+                      ),
+                      onDismiss: () => unawaited(
+                        _handleRoommateInvitation(event, open: false),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    },
+  );
+
+  void _startRoommate() {
+    if (!_roommateSceneAvailable) return;
     _dismissGreeting();
-    _invalidateCompletionPresentation();
     _markSceneActive();
     playHaptic(HapticLevel.selection);
     setState(() {
@@ -940,6 +1080,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _closeRoommate() {
+    // Toolbar actions and reloads cancel pending entry even before it has opened.
+    _invalidateRoommateInvitation();
     if (!_roommateOpen || !mounted) return;
     setState(() => _roommateOpen = false);
     widget.onRoommateModeChanged?.call(false);
@@ -1149,6 +1291,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     final idx = habits.indexWhere((h) => h['name'] == _kWaterHabitPresetName);
     if (idx == -1 || habits[idx]['done'] == done) return;
+    _invalidateRoommateInvitation();
     setState(() => habits[idx]['done'] = done);
     saveHabits();
     unawaited(_recordTodayHistory());
@@ -1165,6 +1308,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           isWeightHabitName(h['name'] as String?),
     );
     if (idx == -1 || habits[idx]['done'] == done) return;
+    _invalidateRoommateInvitation();
     setState(() => habits[idx]['done'] = done);
     saveHabits();
     unawaited(_recordTodayHistory());
@@ -1689,6 +1833,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // reload 進行中：畫面上還是上一份清單，index 可能已經對不上，落地也會被
     // 接著替換的新快照蓋掉。一律擋下且不給成功回饋（給了會讓使用者以為打成功）。
     if (_mutationsBlocked || index >= habits.length) return;
+    _invalidateRoommateInvitation();
     final wasAllDone = allDone0;
     // 進度條要晚一拍才收束（讓它讀起來是「結果」而不是同拍的裝飾），
     // 所以要先記下按下去之前的值。
@@ -2408,6 +2553,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final dates = List<String>.from((habit['weeklyDates'] as List?) ?? []);
     final lastIdx = dates.lastIndexOf(today);
     if (lastIdx == -1) return;
+    _invalidateRoommateInvitation();
     dates.removeAt(lastIdx);
     final target = (habit['weeklyTarget'] as int?) ?? 3;
     final weekSet = _currentWeekStrings().toSet();
@@ -2426,6 +2572,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void deleteHabit(int index) {
     if (_mutationsBlocked || index >= habits.length) return;
+    _invalidateRoommateInvitation();
     final habit = habits[index];
     final name = habit['name'] as String;
     final id = habit['id'] as String?;
@@ -2741,23 +2888,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         accent: colors.accent,
         onSettingsReturn: () => widget.onSettingsChanged?.call(),
         onBeforeAction: _closeRoommate,
-        extraActions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: CoinService.dailyRewardShowing,
-            builder: (_, showingReward, _) => IconButton.filledTonal(
-              key: const ValueKey('roommate_entry'),
-              tooltip: _l10n.rdEntry(MascotName.value),
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withValues(alpha: 0.92),
-                foregroundColor: colors.accent,
-              ),
-              onPressed: showingReward || _mutationsBlocked || _editMode
-                  ? null
-                  : _startRoommate,
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 21),
-            ),
-          ),
-        ],
       ),
       // 任何觸碰都視為互動：取消閒置凍結、重排計時。translucent 才不會
       // 攔掉底下卡片/兔咪的點擊。
@@ -2850,6 +2980,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       interactionBuilder: _roommateOpen
           ? (sceneHeight) => RoommateDialogue(
               sceneHeight: sceneHeight,
+              initialNode: _activeRoommateEvent.firstNode,
               roomFadeHeight: math.max(
                 0,
                 roomSceneHeight(MediaQuery.of(context).size.width) -
@@ -2861,34 +2992,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               onClose: _closeRoommate,
             )
           : null,
-      scene: ScaleTransition(
-        scale: _celebScale,
-        child: PersonaScene(
-          accent: colors.accent,
-          reactionTick: _mascotReactionTick,
-          noticeTick: _mascotNoticeTick,
-          reactionStrength: _completionReactionStrength,
-          reactionCancelUpTo: _mascotReactionCancelUpTo,
-          // 打卡演出期間換立繪走離散換圖：兩張完整立繪半透明疊在一起
-          // 才是衝擊點看到的雙影。其他互動維持全 app 既有的交叉淡入。
-          //
-          // Reduce Motion 一律走離散換圖，**不能**只看 presentationActive：
-          // 全完成會先把 completion 整代作廢（presentationActive 因此是
-          // false），最後一勾就會落回交叉淡入——兩張半透明立繪加上
-          // AnimatedSwitcher 的 0.92→1.0 縮放，正是這個偏好要拿掉的東西。
-          poseTransition: (_reduceMotion || _completion.presentationActive)
-              ? MascotPoseTransition.cut
-              : MascotPoseTransition.crossFade,
-          reduceMotion: _reduceMotion,
-          // 打卡台詞是短尾韻，自己淡出後才被清掉（不是硬切）。
-          speechVisibleDuration: const Duration(milliseconds: 2200),
-          onTap: _onMascotTap,
-          onHeadPet: _onMascotHeadPet,
-          paused: _sceneIdle, // 閒置時連兔咪呼吸/眨眼一起凍結 → 畫面全靜止
-          // 四時段色溫＋接地影融合；compile-time 開關只供 A/B 對照。
-          lightGeometry: _kHomeMascotFusionEnabled
-              ? FourPeriodRoom.home.light
-              : null,
+      scene: _buildInvitableScene(
+        (suppressSpeech) => ScaleTransition(
+          scale: _celebScale,
+          child: PersonaScene(
+            suppressSpeech: suppressSpeech,
+            accent: colors.accent,
+            reactionTick: _mascotReactionTick,
+            noticeTick: _mascotNoticeTick,
+            reactionStrength: _completionReactionStrength,
+            reactionCancelUpTo: _mascotReactionCancelUpTo,
+            // 打卡演出期間換立繪走離散換圖：兩張完整立繪半透明疊在一起
+            // 才是衝擊點看到的雙影。其他互動維持全 app 既有的交叉淡入。
+            //
+            // Reduce Motion 一律走離散換圖，**不能**只看 presentationActive：
+            // 全完成會先把 completion 整代作廢（presentationActive 因此是
+            // false），最後一勾就會落回交叉淡入——兩張半透明立繪加上
+            // AnimatedSwitcher 的 0.92→1.0 縮放，正是這個偏好要拿掉的東西。
+            poseTransition: (_reduceMotion || _completion.presentationActive)
+                ? MascotPoseTransition.cut
+                : MascotPoseTransition.crossFade,
+            reduceMotion: _reduceMotion,
+            // 打卡台詞是短尾韻，自己淡出後才被清掉（不是硬切）。
+            speechVisibleDuration: const Duration(milliseconds: 2200),
+            onTap: _onMascotTap,
+            onHeadPet: _onMascotHeadPet,
+            paused: _sceneIdle, // 閒置時連兔咪呼吸/眨眼一起凍結 → 畫面全靜止
+            // 四時段色溫＋接地影融合；compile-time 開關只供 A/B 對照。
+            lightGeometry: _kHomeMascotFusionEnabled
+                ? FourPeriodRoom.home.light
+                : null,
+          ),
         ),
       ),
       child: _habitCardContent(
@@ -3016,14 +3150,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ..stop()
         ..value = 0;
     }
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 房間可見時，把高度留給真正的習慣；展開後才顯示完整副標與大進度。
+        final compact = constraints.maxHeight < 430;
+        Widget progressLine() => Row(
+          children: [
+            Text(
+              '$displayDone / $displayTotal',
+              style: AppType.digits(
+                fontSize: compact ? 16 : 22,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.brand,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: _progressHold ?? progress),
+                duration: AppMotion.duration(
+                  context,
+                  const Duration(milliseconds: 460),
+                ),
+                curve: Curves.easeOutCubic,
+                builder: (_, value, _) => _ProgressBar(
+                  value: value,
+                  accent: reached ? AppPalette.success : AppPalette.habit,
+                  glow: _glowCtrl,
+                ),
+              ),
+            ),
+            if (reached) ...[
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.check_circle_rounded,
+                size: 18,
+                color: AppPalette.success,
+              ),
+            ],
+          ],
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, compact ? 8 : 14),
+              child: Row(
                 children: [
                   Expanded(
                     child: Column(
@@ -3031,39 +3202,49 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       children: [
                         Text(
                           _l10n.hpTodayTitle,
-                          style: const TextStyle(
-                            fontSize: 23,
+                          style: TextStyle(
+                            fontSize: compact ? 19 : 23,
                             height: 1.2,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
                             color: AppInk.strong,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          reached
-                              ? _l10n.hpTodayComplete
-                              : _l10n.hpTodaySubtitle,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            height: 1.45,
-                            color: AppInk.soft,
+                        if (!compact) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            reached
+                                ? _l10n.hpTodayComplete
+                                : _l10n.hpTodaySubtitle,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.4,
+                              color: AppInk.soft,
+                            ),
                           ),
-                        ),
+                        ],
+                        if (habits.isNotEmpty) ...[
+                          SizedBox(height: compact ? 6 : 12),
+                          progressLine(),
+                        ],
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   AppPressable(
-                    borderRadius: 18,
+                    borderRadius: 17,
                     semanticsLabel: _l10n.hsAddTitle,
                     onPressed: _editMode ? null : _showAddHabitSheet,
                     child: Ink(
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: AppPalette.brand,
-                        borderRadius: BorderRadius.circular(18),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFCF8058), AppPalette.brand],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(17),
+                        border: Border.all(color: const Color(0x66FFFFFF)),
                       ),
                       child: const Icon(
                         Icons.add_rounded,
@@ -3074,58 +3255,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ],
               ),
-              if (habits.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Text(
-                      '$displayDone',
-                      style: AppType.digits(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: AppPalette.brand,
-                      ),
-                    ),
-                    Text(
-                      ' / $displayTotal',
-                      style: AppType.digits(fontSize: 16, color: AppInk.soft),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(
-                          begin: 0.0,
-                          end: _progressHold ?? progress,
-                        ),
-                        duration: AppMotion.duration(
-                          context,
-                          const Duration(milliseconds: 460),
-                        ),
-                        curve: Curves.easeOutCubic,
-                        builder: (_, value, _) => _ProgressBar(
-                          value: value,
-                          accent: AppPalette.brand,
-                          glow: _glowCtrl,
-                        ),
-                      ),
-                    ),
-                    if (reached) ...[
-                      const SizedBox(width: 10),
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        size: 20,
-                        color: AppPalette.success,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-        if (_editMode) _buildMoveDoneBar(),
-        Expanded(child: _buildHabitList()),
-      ],
+            ),
+            if (_editMode) _buildMoveDoneBar(),
+            Expanded(child: _buildHabitList()),
+          ],
+        );
+      },
     );
   }
 

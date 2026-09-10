@@ -4,7 +4,19 @@ import '../l10n/app_localizations.dart';
 import 'mascot.dart';
 import 'sfx_service.dart';
 
-enum RoommateNode { hello, invitation, begin, rest, homesick, together, quiet }
+enum RoommateNode {
+  hello,
+  invitation,
+  begin,
+  rest,
+  homesick,
+  together,
+  quiet,
+  smallWin,
+  smallWinTogether,
+  dayComplete,
+  dayCompleteTogether,
+}
 
 class RoommateReply {
   final String id;
@@ -22,21 +34,30 @@ extension RoommateScript on RoommateNode {
     RoommateNode.homesick => l.rdHomesick,
     RoommateNode.together => l.rdTogether,
     RoommateNode.quiet => l.rdQuiet,
+    RoommateNode.smallWin => l.rdSmallWin,
+    RoommateNode.smallWinTogether => l.rdSmallWinTogether,
+    RoommateNode.dayComplete => l.rdDayComplete,
+    RoommateNode.dayCompleteTogether => l.rdDayCompleteTogether,
   };
 
   MascotEmotion get emotion => switch (this) {
     RoommateNode.hello => MascotEmotion.expect,
     RoommateNode.invitation => MascotEmotion.question,
-    RoommateNode.begin => MascotEmotion.happy,
+    RoommateNode.begin || RoommateNode.dayComplete => MascotEmotion.happy,
     RoommateNode.rest ||
     RoommateNode.together ||
-    RoommateNode.quiet => MascotEmotion.smile,
+    RoommateNode.quiet ||
+    RoommateNode.smallWin ||
+    RoommateNode.smallWinTogether ||
+    RoommateNode.dayCompleteTogether => MascotEmotion.smile,
     RoommateNode.homesick => MascotEmotion.neutralFront,
   };
 
   SfxCue get voice => switch (this) {
     RoommateNode.invitation => SfxCue.tumiQuestion,
-    RoommateNode.begin || RoommateNode.together => SfxCue.tumiHappy,
+    RoommateNode.begin ||
+    RoommateNode.together ||
+    RoommateNode.dayComplete => SfxCue.tumiHappy,
     _ => SfxCue.tumiConfirm,
   };
 
@@ -57,14 +78,36 @@ extension RoommateScript on RoommateNode {
       RoommateReply('together', l.rdChooseTogether, RoommateNode.together),
     ],
     RoommateNode.together ||
-    RoommateNode.quiet => [RoommateReply('finish', l.rdReturn, null)],
+    RoommateNode.quiet ||
+    RoommateNode.smallWinTogether ||
+    RoommateNode.dayCompleteTogether => [
+      RoommateReply('finish', l.rdReturn, null),
+    ],
+    RoommateNode.smallWin => [
+      RoommateReply(
+        'small_step',
+        l.rdSmallWinReply,
+        RoommateNode.smallWinTogether,
+      ),
+      RoommateReply('quiet', l.rdChooseQuiet, RoommateNode.quiet),
+    ],
+    RoommateNode.dayComplete => [
+      RoommateReply(
+        'celebrate',
+        l.rdDayCompleteReply,
+        RoommateNode.dayCompleteTogether,
+      ),
+      RoommateReply('quiet', l.rdChooseQuiet, RoommateNode.quiet),
+    ],
   };
 }
 
 /// 本次交談的進度；不寫習慣、不發獎，也不以字幕文字辨識分支。
 /// expectedNode + ready 擋下排版前的連點與過期 callback。
 class RoommateDialogueController extends ChangeNotifier {
-  RoommateNode node = RoommateNode.hello;
+  RoommateDialogueController({RoommateNode initialNode = RoommateNode.hello})
+    : node = initialNode;
+  RoommateNode node;
   bool ready = false;
   bool finished = false;
 

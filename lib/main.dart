@@ -48,6 +48,7 @@ import 'utils/weight_records.dart';
 import 'widgets/app_pressable.dart';
 import 'widgets/app_waiting.dart';
 import 'widgets/footprint_coin_reward_overlay.dart';
+import 'widgets/navigation_surface.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1441,31 +1442,18 @@ class _AdaptiveBottomNav extends StatelessWidget {
     _ => AppPalette.wardrobe,
   };
 
-  IconData _icon(String id) => switch (id) {
-    TabIds.habit => Icons.cottage_outlined,
-    TabIds.timer => Icons.timelapse_rounded,
-    TabIds.water => Icons.water_drop_outlined,
-    TabIds.weight => Icons.monitor_weight_outlined,
-    TabIds.family => Icons.people_outline_rounded,
-    _ => Icons.checkroom_outlined,
-  };
-
   @override
   Widget build(BuildContext context) {
     final accent = _accent(tabs[currentIndex].id);
     return ColoredBox(
-      color: AppSurfaces.canvas.withValues(alpha: 0.97),
+      color: navigationGlass
+          ? Colors.transparent
+          : AppSurfaces.canvas.withValues(alpha: 0.94),
       child: SafeArea(
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppSurfaces.card,
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: AppSurfaces.divider),
-              boxShadow: AppShadows.card,
-            ),
+          child: NavigationSurface(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final n = tabs.length;
@@ -1507,10 +1495,12 @@ class _AdaptiveBottomNav extends StatelessWidget {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  _icon(tab.id),
-                                  color: color,
-                                  size: twoRows ? 19 : 23,
+                                TabGlyph(
+                                  tabId: tab.id,
+                                  fallbackIcon: tab.icon,
+                                  fallbackColor: color,
+                                  size: twoRows ? 22 : 27,
+                                  selected: selected,
                                 ),
                                 const SizedBox(height: 3),
                                 Flexible(
@@ -1520,7 +1510,7 @@ class _AdaptiveBottomNav extends StatelessWidget {
                                       tab.label,
                                       maxLines: 1,
                                       style: TextStyle(
-                                        fontSize: twoRows ? 10 : 11,
+                                        fontSize: twoRows ? 10.5 : 11.5,
                                         height: 1.0,
                                         fontWeight: selected
                                             ? FontWeight.w800

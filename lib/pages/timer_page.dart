@@ -637,7 +637,7 @@ class _TimerPageState extends State<TimerPage>
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  // 專注暖橘 / 嫩綠 / 湖水綠：比 Material 原色再暖一階，貼整體插畫調性。
+  // 專注柔紫與暖色休息狀態沿用全域親子日常色盤。
   Color get _phaseColor => switch (_phase) {
     _Phase.focus => AppPalette.focus,
     _Phase.shortBreak => AppPalette.success,
@@ -662,9 +662,9 @@ class _TimerPageState extends State<TimerPage>
     _Phase.idle => Icons.local_fire_department_rounded,
   };
 
-  static const Color _exerciseAccent = Color(0xFF26A69A);
+  static const Color _exerciseAccent = AppPalette.water;
 
-  // 各模式主色：專注=暖橘（隨階段變）、運動=青綠、節拍器=紫、遊戲=藍。
+  // 各模式以共享色盤識別；專注與運動依階段切換狀態色。
   Color _accentFor(_TimerMode mode) => switch (mode) {
     _TimerMode.focus => _phaseColor,
     _TimerMode.exercise => _exerciseAccent,
@@ -721,7 +721,7 @@ class _TimerPageState extends State<TimerPage>
 
   @override
   Widget build(BuildContext context) {
-    // 頁面主色隨模式切換：專注用暖橘、運動用青綠、節拍器用紫。
+    // 頁面主色隨模式與階段切換，沿用共享親子日常色盤。
     final color = _accentFor(_topMode);
 
     return Scaffold(
@@ -784,9 +784,23 @@ class _TimerPageState extends State<TimerPage>
     );
   }
 
-  // 工具導覽使用等寬 52pt 觸控區。圖示與文字上下排列，英文不與圖示搶寬度。
+  // 模式按文字的實際寬度配置；大字英文改為可橫捲，不縮小標籤。
   Widget _buildModeSwitch(Color color) {
     final reduce = MediaQuery.disableAnimationsOf(context);
+    final labelStyle = DefaultTextStyle.of(
+      context,
+    ).style.merge(const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800));
+    var labelWidth = 0.0;
+    for (final mode in _availableModes) {
+      final painter = TextPainter(
+        text: TextSpan(text: _modeChrome(mode).$2, style: labelStyle),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      labelWidth = math.max(labelWidth, painter.width);
+      painter.dispose();
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: TimerModeMetrics.horizontalInset,
@@ -798,67 +812,78 @@ class _TimerPageState extends State<TimerPage>
         ),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Row(
-            children: [
-              for (final mode in _availableModes)
-                Expanded(
-                  child: Semantics(
-                    selected: _topMode == mode,
-                    button: true,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => _switchMode(mode),
-                        child: AnimatedContainer(
-                          duration: reduce
-                              ? Duration.zero
-                              : const Duration(milliseconds: 220),
-                          curve: Curves.easeOutCubic,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: _topMode == mode
-                                ? AppSurfaces.card
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: _topMode == mode
-                                ? AppShadows.flat
-                                : null,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _modeChrome(mode).$1,
-                                size: 20,
-                                color: _topMode == mode
-                                    ? _accentFor(mode)
-                                    : AppInk.soft,
-                              ),
-                              const SizedBox(height: 3),
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  _modeChrome(mode).$2,
-                                  maxLines: 1,
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: _topMode == mode
-                                        ? AppInk.strong
-                                        : AppInk.soft,
-                                  ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = math.max(
+                constraints.maxWidth / _availableModes.length,
+                labelWidth + 16,
+              );
+              return SingleChildScrollView(
+                key: const ValueKey('timer-mode-picker'),
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final mode in _availableModes)
+                      SizedBox(
+                        width: itemWidth,
+                        child: Semantics(
+                          selected: _topMode == mode,
+                          button: true,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              key: ValueKey('timer-mode-${mode.name}'),
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () => _switchMode(mode),
+                              child: AnimatedContainer(
+                                duration: reduce
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: _topMode == mode
+                                      ? AppSurfaces.card
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: _topMode == mode
+                                      ? AppShadows.flat
+                                      : null,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _modeChrome(mode).$1,
+                                      size: 20,
+                                      color: _topMode == mode
+                                          ? _accentFor(mode)
+                                          : AppInk.soft,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      _modeChrome(mode).$2,
+                                      maxLines: 1,
+                                      style: labelStyle.copyWith(
+                                        color: _topMode == mode
+                                            ? AppInk.strong
+                                            : AppInk.soft,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
                 ),
-            ],
+              );
+            },
           ),
         ),
       ),
@@ -867,6 +892,7 @@ class _TimerPageState extends State<TimerPage>
 
   Widget _buildTimerContent(Color color) {
     return TimerModeFrame(
+      compactReadout: TimerCompactReadout(value: _timeString, color: color),
       heroBuilder: (context, size) => _buildTimerCircle(size, color),
       status: TimerStatusPill(
         stateKey: _phase,
@@ -1057,24 +1083,20 @@ class _TimerPageState extends State<TimerPage>
   Widget _buildProfilePicker() {
     final locked = !_idle && !_finished;
     return SizedBox(
-      height: 52,
-      child: Center(
-        child: Padding(
+      height: 64,
+      child: Opacity(
+        opacity: locked ? 0.45 : 1,
+        child: SingleChildScrollView(
+          key: const ValueKey('focus-quick-presets'),
+          scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Opacity(
-            opacity: locked ? 0.45 : 1,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (var i = 0; i < _profileCount; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    _profileChip(index: i),
-                  ],
-                ],
-              ),
-            ),
+          child: Row(
+            children: [
+              for (var i = 0; i < _profileCount; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                _profileChip(index: i, width: 104),
+              ],
+            ],
           ),
         ),
       ),
@@ -1086,7 +1108,7 @@ class _TimerPageState extends State<TimerPage>
     VoidCallback? onTap,
     double? width,
   }) {
-    const accent = Color(0xFFFF7043);
+    const accent = AppPalette.focus;
     final profile = _profiles[index];
     final selected = _selected == index;
     return GestureDetector(

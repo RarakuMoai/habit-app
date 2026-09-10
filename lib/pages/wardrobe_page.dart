@@ -426,46 +426,72 @@ class _WardrobePageState extends State<WardrobePage>
                 MediaQuery.of(context).padding.top,
               ),
               scene: const PersonaScene(accent: AppPalette.wardrobe),
-              child: AnimatedBuilder(
-                animation: Listenable.merge([
-                  WardrobeStore.selectedOutfit,
-                  WardrobeStore.ownedOutfits,
-                  WardrobeStore.playlist,
-                  WardrobeStore.currentTrackId,
-                  WardrobeStore.playMode,
-                  WardrobeStore.ownedTracks,
-                  AudioSettingsService.musicMuted,
-                  CoinService.notifier,
-                  StoryStore.unlocked,
-                  StoryStore.unread,
-                ]),
-                builder: (context, _) => ListView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                  children: [
-                    _SectionSwitch(
-                      value: _section,
-                      hasUnreadMemories: StoryStore.hasUnread,
-                      onChanged: (value) {
-                        playHaptic(HapticLevel.selection);
-                        if (value != _WardrobeSection.music &&
-                            _playlistEditMode) {
-                          _finishMovingTracks();
-                        }
-                        setState(() => _section = value);
-                      },
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final compact =
+                      box.maxHeight < 400 ||
+                      box.maxWidth < 360 ||
+                      MediaQuery.textScalerOf(context).scale(15) > 18;
+                  return AnimatedBuilder(
+                    animation: Listenable.merge([
+                      WardrobeStore.selectedOutfit,
+                      WardrobeStore.ownedOutfits,
+                      WardrobeStore.playlist,
+                      WardrobeStore.currentTrackId,
+                      WardrobeStore.playMode,
+                      WardrobeStore.ownedTracks,
+                      AudioSettingsService.musicMuted,
+                      CoinService.notifier,
+                      StoryStore.unlocked,
+                      StoryStore.unread,
+                    ]),
+                    builder: (context, _) => Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                          child: _SectionSwitch(
+                            value: _section,
+                            compact: compact,
+                            hasUnreadMemories: StoryStore.hasUnread,
+                            onChanged: (value) {
+                              playHaptic(HapticLevel.selection);
+                              if (value != _WardrobeSection.music &&
+                                  _playlistEditMode) {
+                                _finishMovingTracks();
+                              }
+                              setState(() => _section = value);
+                              if (_scrollController.hasClients) {
+                                _scrollController.jumpTo(0);
+                              }
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: ListView(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                            children: [
+                              AnimatedSwitcher(
+                                duration: AppMotion.duration(
+                                  context,
+                                  AppMotion.settle,
+                                ),
+                                child: switch (_section) {
+                                  _WardrobeSection.outfits =>
+                                    _buildOutfitSection(compact: compact),
+                                  _WardrobeSection.music =>
+                                    _buildMusicSection(),
+                                  _WardrobeSection.memories =>
+                                    _buildMemorySection(),
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    AnimatedSwitcher(
-                      duration: AppMotion.duration(context, AppMotion.settle),
-                      child: switch (_section) {
-                        _WardrobeSection.outfits => _buildOutfitSection(),
-                        _WardrobeSection.music => _buildMusicSection(),
-                        _WardrobeSection.memories => _buildMemorySection(),
-                      },
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),
@@ -474,28 +500,29 @@ class _WardrobePageState extends State<WardrobePage>
     );
   }
 
-  Widget _buildOutfitSection() {
+  Widget _buildOutfitSection({required bool compact}) {
     final owned = WardrobeStore.ownedOutfits.value;
     final selectedId = WardrobeStore.selectedOutfit.value;
     return Column(
       key: const ValueKey('outfits'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _WardrobeHeader(
-          icon: Icons.checkroom_rounded,
-          title: _l10n.wdOutfitSection(MascotName.value),
-          subtitle: _l10n.wdWearingNow(
-            outfitName(_l10n, outfitById(selectedId)),
+        if (!compact) ...[
+          _WardrobeHeader(
+            icon: Icons.checkroom_rounded,
+            title: _l10n.wdOutfitSection(MascotName.value),
+            subtitle: _l10n.wdWearingNow(
+              outfitName(_l10n, outfitById(selectedId)),
+            ),
+            trailing: '${owned.length}/${outfitCatalog.length}',
+            color: AppPalette.wardrobe,
           ),
-          trailing: '${owned.length}/${outfitCatalog.length}',
-          color: AppPalette.wardrobe,
-        ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
+        ],
         LayoutBuilder(
           builder: (context, constraints) {
-            // Compact phones keep a full-width card; other phones show a
-            // paired collection with natural content height for larger text.
-            final paired = constraints.maxWidth >= 340;
+            // 短面板以完整的「縮圖＋名稱＋操作」選物列呈現；展開才用雙欄圖卡。
+            final paired = !compact && constraints.maxWidth >= 340;
             final cardWidth = paired
                 ? (constraints.maxWidth - 12) / 2
                 : constraints.maxWidth;
@@ -507,7 +534,9 @@ class _WardrobePageState extends State<WardrobePage>
                   SizedBox(
                     width: cardWidth,
                     child: _OutfitCard(
+                      key: ValueKey('wardrobe-outfit-${outfit.id}'),
                       outfit: outfit,
+                      compact: compact,
                       owned: owned.contains(outfit.id),
                       selected: selectedId == outfit.id,
                       onWear: () => _wearOutfit(outfit),
@@ -905,11 +934,13 @@ String _memoryDate(DateTime d) =>
 class _SectionSwitch extends StatelessWidget {
   final _WardrobeSection value;
   final bool hasUnreadMemories;
+  final bool compact;
   final ValueChanged<_WardrobeSection> onChanged;
 
   const _SectionSwitch({
     required this.value,
     required this.hasUnreadMemories,
+    required this.compact,
     required this.onChanged,
   });
 
@@ -965,7 +996,11 @@ class _SectionSwitch extends StatelessWidget {
         onPressed: () => onChanged(section),
         child: AnimatedContainer(
           duration: AppMotion.duration(context, AppMotion.quick),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: EdgeInsets.symmetric(
+            vertical: compact ? 10 : 12,
+            horizontal: 4,
+          ),
           decoration: BoxDecoration(
             color: selected ? color.withValues(alpha: 0.12) : AppSurfaces.fill,
             borderRadius: BorderRadius.circular(20),
@@ -977,24 +1012,30 @@ class _SectionSwitch extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Badge(
-                isLabelVisible: showDot,
-                backgroundColor: color,
-                child: Icon(
-                  icon,
-                  size: 22,
-                  color: selected ? color : AppInk.soft,
+              if (!compact) ...[
+                Badge(
+                  isLabelVisible: showDot,
+                  backgroundColor: color,
+                  child: Icon(
+                    icon,
+                    size: 22,
+                    color: selected ? color : AppInk.soft,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.2,
-                  fontWeight: FontWeight.w800,
-                  color: selected ? color : AppInk.soft,
+                const SizedBox(height: 7),
+              ],
+              Badge(
+                isLabelVisible: compact && showDot,
+                backgroundColor: color,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? color : AppInk.soft,
+                  ),
                 ),
               ),
             ],
@@ -1065,11 +1106,14 @@ class _OutfitCard extends StatelessWidget {
   final OutfitSpec outfit;
   final bool owned;
   final bool selected;
+  final bool compact;
   final VoidCallback onWear;
   final VoidCallback onBuy;
 
   const _OutfitCard({
+    super.key,
     required this.outfit,
+    required this.compact,
     required this.owned,
     required this.selected,
     required this.onWear,
@@ -1080,6 +1124,90 @@ class _OutfitCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final color = AppPalette.wardrobe;
+    if (compact) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppSurfaces.card,
+          borderRadius: BorderRadius.circular(AppCardStyle.radius),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.42)
+                : AppSurfaces.divider,
+            width: 1.4,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 78,
+              height: 84,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: selected ? 0.12 : 0.06),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Image.asset(outfit.assetPath, fit: BoxFit.contain),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    outfitName(l10n, outfit),
+                    style: const TextStyle(
+                      color: AppInk.strong,
+                      fontSize: 15,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  FilledButton(
+                    onPressed: selected
+                        ? null
+                        : owned
+                        ? onWear
+                        : onBuy,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(44, 44),
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: color.withValues(alpha: 0.10),
+                      disabledForegroundColor: color,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      selected
+                          ? l10n.wdApplied
+                          : owned
+                          ? l10n.wdApply
+                          : unlockLabel(
+                              l10n,
+                              outfit.unlockType,
+                              outfit.coinPrice,
+                            ),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return AnimatedContainer(
       duration: AppMotion.duration(context, AppMotion.settle),
       padding: const EdgeInsets.all(12),

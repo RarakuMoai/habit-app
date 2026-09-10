@@ -190,6 +190,10 @@ class MascotIdleScope extends InheritedWidget {
 /// 切頁不會重建兔咪狀態，只有互動會推新狀態。
 class PersonaScene extends StatelessWidget {
   final Color accent;
+
+  /// The scene may show an actionable invitation in the speech area instead.
+  /// This only hides rendering; the global persona and its speech lease stay intact.
+  final bool suppressSpeech;
   final int reactionTick;
 
   /// 見 [MascotStage.noticeTick]。
@@ -232,6 +236,7 @@ class PersonaScene extends StatelessWidget {
   const PersonaScene({
     super.key,
     required this.accent,
+    this.suppressSpeech = false,
     this.reactionTick = 0,
     this.noticeTick = 0,
     this.reactionStrength = 1.0,
@@ -307,7 +312,7 @@ class PersonaScene extends StatelessWidget {
             outfitById(outfitId).skinKey,
           ),
           accent: accent,
-          speech: state.speech,
+          speech: suppressSpeech ? null : state.speech,
           bubble: state.bubble,
           bubbleTick: state.bubbleTick,
           reactionTick: reactionTick,

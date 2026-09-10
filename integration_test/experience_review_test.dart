@@ -79,8 +79,52 @@ void main() {
     await settle();
     await tester.tap(find.descendant(of: nav, matching: find.text('習慣')));
     await settle();
+    for (
+      var i = 0;
+      i < 160 &&
+          find.byKey(const ValueKey('roommate_entry')).evaluate().isEmpty;
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await capture('11-invitation');
     await tester.tap(find.byKey(const ValueKey('roommate_entry')));
     await capture('11-roommate');
+    await tester.tap(find.byKey(const ValueKey('roommate_exit')));
+    await settle();
+    await tester.tap(find.descendant(of: nav, matching: find.text('計時')));
+    await settle();
+    for (final mode in ['focus', 'exercise', 'metronome', 'game']) {
+      final item = find.byKey(ValueKey('timer-mode-$mode'));
+      await tester.ensureVisible(item);
+      await tester.tap(item);
+      await capture('timer-$mode-compact');
+    }
+    await tester.tap(find.byType(MascotToggleBar).hitTestable());
+    const expanded = [
+      ('習慣', '20-habits-expanded'),
+      ('計時', '21-timer-expanded'),
+      ('喝水', '22-water-expanded'),
+      ('體重', '23-weight-expanded'),
+      ('家庭', '24-family-expanded'),
+      ('衣櫃', '25-wardrobe-expanded'),
+    ];
+    for (final page in expanded) {
+      await tester.tap(find.descendant(of: nav, matching: find.text(page.$1)));
+      await capture(page.$2);
+    }
+    await tester.tap(find.descendant(of: nav, matching: find.text('計時')));
+    await settle();
+    for (final mode in ['game', 'metronome', 'exercise', 'focus']) {
+      final item = find.byKey(ValueKey('timer-mode-$mode'));
+      await tester.ensureVisible(item);
+      await tester.tap(item);
+      await capture('timer-$mode-expanded');
+    }
+    await tester.tap(find.byKey(const ValueKey('timer-primary-action')));
+    await capture('timer-focus-running');
+    await tester.tap(find.byKey(const ValueKey('timer-primary-action')));
+    await capture('timer-focus-paused');
     debugPrint('REVIEW_COMPLETE ${output.path}');
   });
 }

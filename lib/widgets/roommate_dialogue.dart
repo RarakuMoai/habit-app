@@ -24,6 +24,7 @@ class RoommateDialogue extends StatefulWidget {
   final Color accent;
   final VoidCallback onClose;
   final RoommateVoiceOutput? voice;
+  final RoommateNode initialNode;
 
   const RoommateDialogue({
     super.key,
@@ -32,6 +33,7 @@ class RoommateDialogue extends StatefulWidget {
     required this.accent,
     required this.onClose,
     this.voice,
+    this.initialNode = RoommateNode.hello,
   });
 
   @override
@@ -44,7 +46,9 @@ class _RoommateDialogueState extends State<RoommateDialogue>
   static const _notice = 180;
   static const _letter = 42;
   static const _panelEntrance = Duration(milliseconds: 280);
-  final _dialogue = RoommateDialogueController();
+  late final _dialogue = RoommateDialogueController(
+    initialNode: widget.initialNode,
+  );
   late final AnimationController _beat;
   late final RoommateVoiceOutput _voice;
   String _text = '';

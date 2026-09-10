@@ -18,6 +18,8 @@ abstract final class PrefsKeys {
   static const userActivityLevel = 'user_activity_level';
   // 兔咪面板的展開教學只需顯示一次；面板本身每次冷啟動固定露出兔咪。
   static const mascotPanelHintSeen = 'mascot_panel_hint_seen';
+  // 只記邀請是否已處理及邏輯日，沒有對話內容或個性資料。
+  static const roommateEventHistory = 'roommate_event_history_v1';
 
   // ── 金幣 ─────────────────────────────────────────────────
   static const coinBalance = 'coin_balance';

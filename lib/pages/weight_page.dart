@@ -65,7 +65,7 @@ abstract final class _WeightColors {
   static const sageSoft = Color(0xFFEEF7EF);
   static const blue = Color(0xFF5C8FA6);
   static const danger = Color(0xFFB65B55);
-  static const pageBackground = Color(0xFFFAF5F3);
+  static const pageBackground = AppSurfaces.canvas;
 }
 
 class _WeightPageState extends State<WeightPage> {
@@ -1347,112 +1347,204 @@ class _WeightPageState extends State<WeightPage> {
                 MediaQuery.of(context).padding.top,
               ),
               scene: const PersonaScene(accent: _WeightColors.accent),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView(
-                      key: const PageStorageKey('weight-journal'),
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                      children: [
-                        todayRec != null
-                            ? Container(
-                                key: const ValueKey('today-weight-card'),
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: AppSurfaces.card,
-                                  borderRadius: BorderRadius.circular(
-                                    AppCardStyle.radius,
-                                  ),
-                                  border: Border.all(
-                                    color: _WeightColors.accent.withValues(
-                                      alpha: 0.16,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            _l10n.weightTodaySection,
-                                            style: const TextStyle(
-                                              color: _WeightColors.accentStrong,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w800,
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final compact = box.maxHeight < 400 || box.maxWidth < 360;
+                  return Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          key: const PageStorageKey('weight-journal'),
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                          children: [
+                            todayRec != null
+                                ? compact
+                                      ? _buildCompactTodayCard(todayRec)
+                                      : Container(
+                                          key: const ValueKey(
+                                            'today-weight-card',
+                                          ),
+                                          padding: const EdgeInsets.all(20),
+                                          decoration: BoxDecoration(
+                                            color: AppSurfaces.card,
+                                            borderRadius: BorderRadius.circular(
+                                              AppCardStyle.radius,
+                                            ),
+                                            border: Border.all(
+                                              color: _WeightColors.accent
+                                                  .withValues(alpha: 0.16),
                                             ),
                                           ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      _l10n.weightTodaySection,
+                                                      style: const TextStyle(
+                                                        color: _WeightColors
+                                                            .accentStrong,
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const Icon(
+                                                    Icons
+                                                        .check_circle_outline_rounded,
+                                                    color: _WeightColors.accent,
+                                                    size: 20,
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 12),
+                                              _buildStatGrid(todayRec),
+                                              if (targetProgress != null) ...[
+                                                const SizedBox(height: 16),
+                                                targetProgress,
+                                              ],
+                                            ],
+                                          ),
+                                        )
+                                : _buildTodayEmptyCard(),
+                            if (compact &&
+                                todayRec != null &&
+                                _deltaBefore(todayRec) != null) ...[
+                              const SizedBox(height: 10),
+                              _DeltaPill(
+                                delta: _deltaBefore(todayRec)!,
+                                text: _deltaText(_deltaBefore(todayRec)!),
+                                unit: _wLabel,
+                              ),
+                            ],
+                            if ((todayRec == null || compact) &&
+                                targetProgress != null) ...[
+                              const SizedBox(height: 12),
+                              targetProgress,
+                            ],
+                            if (todayRec != null) ...[
+                              const SizedBox(height: 14),
+                              _buildStatGrid(todayRec, detailsOnly: true),
+                            ],
+                            const SizedBox(height: 20),
+                            _trendCard(chartData),
+                            if (_records.isNotEmpty) ...[
+                              const SizedBox(height: 24),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 4,
+                                  bottom: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _l10n.weightHistorySection,
+                                        style: const TextStyle(
+                                          color: AppInk.strong,
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w800,
                                         ),
-                                        const Icon(
-                                          Icons.check_circle_outline_rounded,
-                                          color: _WeightColors.accent,
-                                          size: 20,
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                    const SizedBox(height: 12),
-                                    _buildStatGrid(todayRec),
-                                    if (targetProgress != null) ...[
-                                      const SizedBox(height: 16),
-                                      targetProgress,
-                                    ],
+                                    Text(
+                                      _l10n.weightRecordCount(_records.length),
+                                      style: const TextStyle(
+                                        color: AppInk.soft,
+                                        fontSize: 12,
+                                      ),
+                                    ),
                                   ],
                                 ),
-                              )
-                            : _buildTodayEmptyCard(),
-                        if (todayRec == null && targetProgress != null) ...[
-                          const SizedBox(height: 14),
-                          targetProgress,
-                        ],
-                        const SizedBox(height: 20),
-                        _trendCard(chartData),
-                        if (_records.isNotEmpty) ...[
-                          const SizedBox(height: 24),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4, bottom: 12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    _l10n.weightHistorySection,
-                                    style: const TextStyle(
-                                      color: AppInk.strong,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  _l10n.weightRecordCount(_records.length),
-                                  style: const TextStyle(
-                                    color: AppInk.soft,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          _buildHistoryList(),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
-                    child: _TodayActionButton(
-                      label: todayRec != null
-                          ? _l10n.weightActionUpdate
-                          : _l10n.weightActionAdd,
-                      icon: todayRec != null
-                          ? Icons.edit_outlined
-                          : Icons.add_rounded,
-                      onTap: _openAddSheet,
-                    ),
-                  ),
-                ],
+                              ),
+                              _buildHistoryList(),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        key: const ValueKey('weight-primary-action'),
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                        child: _TodayActionButton(
+                          compact: compact,
+                          shortLabel: todayRec != null
+                              ? _l10n.weightActionUpdateShort
+                              : _l10n.weightActionAddShort,
+                          label: todayRec != null
+                              ? _l10n.weightActionUpdate
+                              : _l10n.weightActionAdd,
+                          icon: todayRec != null
+                              ? Icons.edit_outlined
+                              : Icons.add_rounded,
+                          onTap: _openAddSheet,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactTodayCard(Map<String, dynamic> rec) {
+    return Container(
+      key: const ValueKey('today-weight-card'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          _WeightColors.accent.withValues(alpha: 0.06),
+          AppSurfaces.card,
+        ),
+        borderRadius: BorderRadius.circular(AppCardStyle.radius),
+        border: Border.all(color: _WeightColors.accent.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _l10n.weightTodaySection,
+                  style: const TextStyle(
+                    color: AppInk.soft,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.monitor_weight_rounded,
+                color: _WeightColors.accent,
+                size: 20,
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                _fmtWeight((rec['weight'] as num).toDouble()),
+                style: AppType.digits(
+                  color: _WeightColors.accentStrong,
+                  fontSize: 32,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  _wLabel,
+                  style: const TextStyle(fontSize: 13, color: AppInk.soft),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1956,9 +2048,8 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  // 今日數據：體重是唯一主角；差值緊跟在下方說清楚比較基準，
-  // 其餘指標收成緊湊摘要，讓面板縮小時仍能一次看完整張卡。
-  Widget _buildStatGrid(Map<String, dynamic> rec) {
+  // 主卡只保留體重與差值；生理指標獨立排列在下方，短面板也能先讀完整主數據。
+  Widget _buildStatGrid(Map<String, dynamic> rec, {bool detailsOnly = false}) {
     final weight = (rec['weight'] as num).toDouble();
     final fat = rec['body_fat'] != null
         ? (rec['body_fat'] as num).toDouble()
@@ -2007,40 +2098,37 @@ class _WeightPageState extends State<WeightPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── 體重 hero：主數字與比較資訊固定靠左，避免差值漂在卡片右側 ──
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              _fmtWeight(weight),
-              style: AppType.digits(
-                fontSize: 48,
-                color: _WeightColors.accentStrong,
-              ),
-            ),
-            const SizedBox(width: 5),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                _wLabel,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppInk.soft,
+        if (!detailsOnly)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _fmtWeight(weight),
+                style: AppType.digits(
+                  fontSize: 48,
+                  color: _WeightColors.accentStrong,
                 ),
               ),
-            ),
-          ],
-        ),
-        if (delta != null) ...[
+              const SizedBox(width: 5),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  _wLabel,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppInk.soft,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        if (!detailsOnly && delta != null) ...[
           const SizedBox(height: 3),
           _DeltaPill(delta: delta, text: _deltaText(delta), unit: _wLabel),
         ],
-        if (items.isNotEmpty) ...[
-          const SizedBox(height: 18),
-          _buildTodayMetricSummary(items),
-        ],
-        if (hintMessage != null) ...[
+        if (detailsOnly && items.isNotEmpty) _buildTodayMetricSummary(items),
+        if (detailsOnly && hintMessage != null) ...[
           const SizedBox(height: 6),
           Row(
             children: [
@@ -2722,10 +2810,14 @@ class _SheetRoundButton extends StatelessWidget {
 
 class _TodayActionButton extends StatelessWidget {
   final String label;
+  final String shortLabel;
   final IconData icon;
   final VoidCallback onTap;
+  final bool compact;
 
   const _TodayActionButton({
+    required this.shortLabel,
+    required this.compact,
     required this.label,
     required this.icon,
     required this.onTap,
@@ -2736,12 +2828,16 @@ class _TodayActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: AppPressable(
+        semanticsLabel: label,
         onPressed: onTap,
         child: Material(
           color: _WeightColors.accentStrong,
           borderRadius: BorderRadius.circular(AppCardStyle.radius),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
+            padding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: compact ? 12 : 17,
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -2749,7 +2845,7 @@ class _TodayActionButton extends StatelessWidget {
                 const SizedBox(width: 10),
                 Flexible(
                   child: Text(
-                    label,
+                    compact ? shortLabel : label,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
@@ -2949,11 +3045,13 @@ class _DeltaPill extends StatelessWidget {
               color: AppInk.soft,
             ),
             const SizedBox(width: 3),
-            Transform.translate(
-              offset: const Offset(0, 1.2),
-              child: Text(
-                label,
-                style: AppType.digits(fontSize: 11.5, color: AppInk.soft),
+            Flexible(
+              child: Transform.translate(
+                offset: const Offset(0, 1.2),
+                child: Text(
+                  label,
+                  style: AppType.digits(fontSize: 11.5, color: AppInk.soft),
+                ),
               ),
             ),
           ],

@@ -17,7 +17,11 @@ import 'table_timer_theme.dart';
 class PartyFace extends StatefulWidget {
   final TableTimerEngine engine;
 
-  const PartyFace({super.key, required this.engine});
+  /// Space for controls overlaid by a host. A host that lays controls out above
+  /// this face passes zero so their measured height is not reserved twice.
+  final double toolbarInset;
+
+  const PartyFace({super.key, required this.engine, this.toolbarInset = 52});
 
   @override
   State<PartyFace> createState() => _PartyFaceState();
@@ -172,7 +176,7 @@ class _PartyFaceState extends State<PartyFace> with TickerProviderStateMixin {
         SafeArea(
           child: Column(
             children: [
-              const SizedBox(height: 52), // 角落鍵的空間
+              SizedBox(height: widget.toolbarInset),
               Expanded(
                 child: Center(
                   child: LayoutBuilder(

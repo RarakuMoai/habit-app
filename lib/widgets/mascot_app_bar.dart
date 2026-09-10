@@ -17,6 +17,7 @@ import '../utils/app_style.dart';
 import '../utils/coin_service.dart';
 import '../utils/mini_game_session.dart';
 import 'audio_control_button.dart';
+import 'mascot_toolbar_surface.dart';
 import 'reward_animation_anchor.dart';
 
 class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -75,7 +76,7 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       surfaceTintColor: Colors.transparent,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
       leadingWidth:
-          (MediaQuery.sizeOf(context).width - 184 - extraActions.length * 48)
+          (MediaQuery.sizeOf(context).width - 188 - extraActions.length * 56)
               .clamp(84.0, 150.0),
       leading: Padding(
         padding: const EdgeInsets.only(left: 12),
@@ -90,37 +91,52 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: const SizedBox.shrink(),
       actions: [
         Padding(
-          padding: const EdgeInsets.only(right: 6),
-          // 金幣餘額兼足跡入口：和音量/設定一樣是白色圓鈕，
-          // 腳印內顯示短版金幣數，完整數字留給足跡頁與語意標籤。
-          child: CoinPill(
-            onReviewTap: showReview
-                ? () {
+          padding: const EdgeInsets.only(right: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CoinPill(
+                key: const ValueKey('toolbar_coins'),
+                onReviewTap: showReview
+                    ? () {
+                        _beforeAction();
+                        _openReview(context);
+                      }
+                    : null,
+              ),
+              for (final action in extraActions) ...[
+                const SizedBox(width: MascotToolbarSurface.gap),
+                SizedBox.square(
+                  dimension: MascotToolbarSurface.size,
+                  child: action,
+                ),
+              ],
+              const SizedBox(width: MascotToolbarSurface.gap),
+              AudioControlButton(
+                key: const ValueKey('toolbar_audio'),
+                style: AudioControlStyle.appBar,
+                accent: accent,
+                onBeforeOpen: _beforeAction,
+              ),
+              const SizedBox(width: MascotToolbarSurface.gap),
+              MascotToolbarSurface(
+                key: const ValueKey('toolbar_settings'),
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.settings_outlined,
+                    color: AppInk.strong,
+                  ),
+                  tooltip: l10n.abSettings,
+                  onPressed: () async {
                     _beforeAction();
-                    _openReview(context);
-                  }
-                : null,
-          ),
-        ),
-        ...extraActions,
-        AudioControlButton(
-          style: AudioControlStyle.appBar,
-          accent: accent,
-          onBeforeOpen: _beforeAction,
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: _circleAction(
-            icon: Icons.settings_outlined,
-            iconColor: AppInk.strong,
-            tooltip: l10n.abSettings,
-            onPressed: () async {
-              _beforeAction();
-              await Navigator.of(
-                context,
-              ).push(_slideRoute((_) => const SettingsPage()));
-              onSettingsReturn?.call();
-            },
+                    await Navigator.of(
+                      context,
+                    ).push(_slideRoute((_) => const SettingsPage()));
+                    onSettingsReturn?.call();
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -130,38 +146,6 @@ class MascotAppBar extends StatelessWidget implements PreferredSizeWidget {
   void _beforeAction() {
     MiniGameSession.pauseActive();
     onBeforeAction?.call();
-  }
-
-  // 白圓底 + 陰影的 AppBar 圓鈕；足跡 / 設定共用同一視覺語言。
-  Widget _circleAction({
-    required IconData icon,
-    required Color iconColor,
-    required String tooltip,
-    required VoidCallback onPressed,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.88),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF8D6E63).withValues(alpha: 0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: IconButton(
-          icon: Icon(icon, color: iconColor),
-          tooltip: tooltip,
-          onPressed: onPressed,
-        ),
-      ),
-    );
   }
 
   void _openReview(BuildContext context) {
@@ -260,7 +244,6 @@ class _CoinPillState extends State<CoinPill>
 
 class _CoinBalanceButton extends StatelessWidget {
   static const _reviewGold = Color(0xFFE5A327);
-  static const _reviewAmber = Color(0xFFFFC44D);
   static const _reviewBrown = Color(0xFF7A4A17);
 
   final int coins;
@@ -276,36 +259,16 @@ class _CoinBalanceButton extends StatelessWidget {
     final label = canOpenReview
         ? l10n.abCoinsWithReview(coins)
         : l10n.abCoinsOnly(coins);
-    final button = SizedBox.square(
-      dimension: 48,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.88),
-            shape: BoxShape.circle,
-            border: Border.all(color: _reviewAmber.withValues(alpha: 0.24)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF8D6E63).withValues(alpha: 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onReviewTap,
-            splashColor: _reviewGold.withValues(alpha: 0.14),
-            highlightColor: _reviewGold.withValues(alpha: 0.07),
-            child: Center(
-              child: SizedBox.square(
-                dimension: 38,
-                child: _PawCoinIcon(coins: coins),
-              ),
-            ),
+    final button = MascotToolbarSurface(
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onReviewTap,
+        splashColor: _reviewGold.withValues(alpha: 0.14),
+        highlightColor: _reviewGold.withValues(alpha: 0.07),
+        child: Center(
+          child: SizedBox.square(
+            dimension: 38,
+            child: _PawCoinIcon(coins: coins),
           ),
         ),
       ),
