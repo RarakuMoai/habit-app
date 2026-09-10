@@ -25,6 +25,46 @@ void main() {
     WardrobeStore.reset();
   });
 
+  group('霧藍月牙免費造型', () {
+    const moon = 'tumi_moon_pajamas';
+
+    test('舊存檔載入會補入免費睡衣，保留原造型與金幣', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(PrefsKeys.wardrobeOwnedOutfits, [
+        defaultOutfit.id,
+      ]);
+      await prefs.setString(PrefsKeys.wardrobeSelectedOutfit, defaultOutfit.id);
+
+      await WardrobeStore.load();
+
+      expect(
+        WardrobeStore.ownedOutfits.value,
+        containsAll([defaultOutfit.id, moon]),
+      );
+      expect(WardrobeStore.selectedOutfit.value, defaultOutfit.id);
+      expect(prefs.getInt(PrefsKeys.coinBalance), 500);
+      expect(CoinService.notifier.value, 500);
+    });
+
+    test('穿上後重新載入仍穿睡衣，也能換回原始兔咪', () async {
+      await WardrobeStore.load();
+      await WardrobeStore.setOutfit(moon);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(PrefsKeys.wardrobeSelectedOutfit), moon);
+
+      WardrobeStore.reset();
+      expect(WardrobeStore.selectedOutfit.value, defaultOutfit.id);
+      expect(WardrobeStore.ownedOutfits.value, contains(moon));
+      await WardrobeStore.load();
+      expect(WardrobeStore.currentOutfit.skinKey, 'moon_pajamas');
+
+      await WardrobeStore.setOutfit(defaultOutfit.id);
+      await WardrobeStore.load();
+      expect(WardrobeStore.currentOutfit.skinKey, 'core');
+      expect(prefs.getInt(PrefsKeys.coinBalance), 500);
+    });
+  });
+
   // 用三首已擁有曲 seed 一份清單＋指定目前曲＋模式，再 load。
   Future<void> seed({
     List<String> playlist = const [_a, _b, _c],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../utils/mascot.dart';
+import '../../widgets/outfit_mascot_image.dart';
 
 // ── 問候橫幅 ──
 
@@ -81,7 +82,7 @@ class _GreetingBannerState extends State<GreetingBanner>
                       shape: BoxShape.circle,
                     ),
                     padding: const EdgeInsets.all(3),
-                    child: Image.asset(
+                    child: OutfitMascotImage(
                       MascotEmotion.happy.assetPath,
                       fit: BoxFit.contain,
                     ),

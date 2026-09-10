@@ -11,6 +11,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_feedback.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/mascot.dart';
+import '../../../widgets/outfit_mascot_image.dart';
 import 'table_timer_engine.dart';
 import 'table_timer_theme.dart';
 
@@ -84,7 +85,7 @@ class TableSummaryOverlay extends StatelessWidget {
                         child: Stack(
                           alignment: Alignment.bottomCenter,
                           children: [
-                            Image.asset(
+                            OutfitMascotImage(
                               'assets/mascot/core/tumi_happy.png',
                               width: 104,
                               height: 104,

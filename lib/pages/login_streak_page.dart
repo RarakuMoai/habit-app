@@ -26,6 +26,7 @@ import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
 import '../utils/sfx_service.dart';
+import '../widgets/outfit_mascot_image.dart';
 
 class LoginStreakPage extends StatefulWidget {
   /// 領取後的連續登入天數（coinLoginStreak）。
@@ -383,7 +384,7 @@ class _LoginStreakPageState extends State<LoginStreakPage>
               ),
               Padding(
                 padding: EdgeInsets.symmetric(vertical: compact ? 4 : 10),
-                child: Image.asset(
+                child: OutfitMascotImage(
                   _mascotAsset,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,

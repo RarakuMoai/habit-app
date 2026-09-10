@@ -13,6 +13,7 @@ import '../../../utils/mascot.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../utils/wake_guard.dart';
 import '../../../widgets/app_dialogs.dart';
+import '../../../widgets/outfit_mascot_image.dart';
 import 'chess_face.dart';
 import 'dice_tray.dart';
 import 'party_face.dart';
@@ -352,7 +353,7 @@ class _PauseOverlay extends StatelessWidget {
                         child: Stack(
                           alignment: Alignment.bottomCenter,
                           children: [
-                            Image.asset(
+                            OutfitMascotImage(
                               'assets/mascot/core/tumi_sleep.png',
                               width: 92,
                               height: 92,

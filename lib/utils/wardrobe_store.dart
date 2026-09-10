@@ -24,6 +24,11 @@ enum PurchaseResult { success, alreadyOwned, needCoins, needSubscription }
 class WardrobeStore {
   WardrobeStore._();
 
+  static Set<String> get _freeOutfitIds => outfitCatalog
+      .where((outfit) => outfit.unlockType == UnlockType.free)
+      .map((outfit) => outfit.id)
+      .toSet();
+
   static Set<String> get _freeTrackIds => trackCatalog
       .where((track) => track.unlockType == UnlockType.free)
       .map((track) => track.id)
@@ -36,7 +41,7 @@ class WardrobeStore {
 
   /// 已擁有的造型 id 集合。
   static final ValueNotifier<Set<String>> ownedOutfits =
-      ValueNotifier<Set<String>>({defaultOutfit.id});
+      ValueNotifier<Set<String>>(_freeOutfitIds);
 
   /// 播放清單（有序，使用者可拖曳排序）。順序穩定，不再用「第一首=目前」語意。
   static final ValueNotifier<List<String>> playlist =
@@ -92,7 +97,7 @@ class WardrobeStore {
     final ownedFits =
         (prefs.getStringList(PrefsKeys.wardrobeOwnedOutfits) ?? const [])
             .toSet()
-          ..add(defaultOutfit.id);
+          ..addAll(_freeOutfitIds);
     final list = _safePlaylist(
       prefs.getStringList(PrefsKeys.bgmPlaylist),
       owned,
@@ -125,7 +130,7 @@ class WardrobeStore {
   /// 避免清空 prefs 後仍殘留已不擁有的造型/曲目。
   static void reset() {
     ownedTracks.value = _freeTrackIds;
-    ownedOutfits.value = {defaultOutfit.id};
+    ownedOutfits.value = _freeOutfitIds;
     selectedOutfit.value = defaultOutfit.id;
     playlist.value = [defaultTrack.id];
     currentTrackId.value = defaultTrack.id;

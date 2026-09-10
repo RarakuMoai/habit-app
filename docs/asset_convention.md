@@ -17,7 +17,8 @@ assets/
       tumi_neutral_front.png
       tumi_<emotion>.png
       tumi_<emotion>_blink.png  # 有核准眨眼差分時才加入
-    <outfit>/                # 未來整套造型；資料夾名對應 skinKey
+    moon_pajamas/            # 已核可的霧藍月牙睡衣，12 情緒 + 日常眨眼
+    <outfit>/                # 整套造型；資料夾名對應 skinKey
       tumi_<emotion>.png
       ...
   scenes/
@@ -56,6 +57,11 @@ assets/
 
 另有 `tumi_neutral_front_blink.png` 作為中性站姿眨眼關鍵幀；它不是獨立情緒。
 新增或移除狀態時先改 `MascotEmotion`，再同步本文件，不要另立固定數量規則。
+
+2026-09-10 使用者核可霧藍月牙 v2（褲面無陰影摺痕）並要求接入 App。
+`moon_pajamas/` 的 13 張直接取自核可候選，未再次改圖；與 `core/` 檔名完整對應。
+衣櫃 id 為 `tumi_moon_pajamas`，目前免費擁有，穿上後沿用既有選擇保存及跨頁換裝；
+原始兔咪仍為預設。正式定價尚待使用者決定。
 
 ---
 

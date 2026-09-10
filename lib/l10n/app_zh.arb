@@ -4029,6 +4029,14 @@
   "@outfitOriginalSub": {
     "description": "預設造型的說明。"
   },
+  "outfitMoonPajamasName": "霧藍月牙",
+  "@outfitMoonPajamasName": {
+    "description": "霧藍月牙睡衣造型名稱。"
+  },
+  "outfitMoonPajamasSub": "穿上柔軟睡衣，一起慢慢休息",
+  "@outfitMoonPajamasSub": {
+    "description": "霧藍月牙睡衣造型的說明。"
+  },
   "bgmDurationLoop": "循環曲",
   "@bgmDurationLoop": {
     "description": "曲目長度欄位：這首是無縫循環，沒有固定長度。"

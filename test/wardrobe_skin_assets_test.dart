@@ -7,12 +7,15 @@
 // 所以每個造型資料夾的檔名清單必須跟 core 一模一樣。這條測試在造型進 repo
 // 的當下就會擋下缺漏，不用等到實機穿上去才發現。
 import 'dart:io';
+import 'dart:ui' as ui;
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/wardrobe_catalog.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final mascotDir = Directory('assets/mascot');
 
   Set<String> pngNamesIn(Directory dir) => dir
@@ -63,6 +66,25 @@ void main() {
         isTrue,
         reason: '造型「${outfit.id}」宣告了 skinKey=${outfit.skinKey}，但沒有對應資料夾',
       );
+    }
+  });
+
+  test('每套造型與眨眼都實際打包且可解碼，不只是在磁碟存在', () async {
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final bundled = manifest.listAssets().toSet();
+    for (final outfit in outfitCatalog) {
+      for (final name in pngNamesIn(Directory('${mascotDir.path}/core'))) {
+        final path = 'assets/mascot/${outfit.skinKey}/$name';
+        expect(bundled, contains(path), reason: 'pubspec.yaml 缺少 $path');
+        final bytes = await rootBundle.load(path);
+        final codec = await ui.instantiateImageCodec(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+        );
+        final frame = await codec.getNextFrame();
+        expect([frame.image.width, frame.image.height], [1024, 1024]);
+        frame.image.dispose();
+        codec.dispose();
+      }
     }
   });
 

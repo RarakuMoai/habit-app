@@ -12,7 +12,9 @@ import 'package:habit_app/utils/roommate_dialogue.dart';
 import 'package:habit_app/utils/roommate_voice.dart';
 import 'package:habit_app/utils/sfx_service.dart';
 import 'package:habit_app/utils/story_store.dart';
+import 'package:habit_app/utils/wardrobe_store.dart';
 import 'package:habit_app/widgets/mascot_page_shell.dart';
+import 'package:habit_app/widgets/mascot_scene.dart';
 import 'package:habit_app/widgets/roommate_dialogue.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -92,6 +94,36 @@ Future<void> _dispose(WidgetTester tester) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('室友對話即時套用睡衣，回覆換姿勢後仍保持造型', (tester) async {
+    _surface(tester, const Size(430, 932));
+    WardrobeStore.reset();
+    await WardrobeStore.load();
+    addTearDown(WardrobeStore.reset);
+    await tester.pumpWidget(_app(_Voice()));
+    await tester.pump();
+    final original = tester.widget<MascotScene>(find.byType(MascotScene)).asset;
+    expect(original, contains('/mascot/core/'));
+
+    await WardrobeStore.setOutfit('tumi_moon_pajamas');
+    await tester.pump();
+    expect(
+      tester.widget<MascotScene>(find.byType(MascotScene)).asset,
+      original.replaceFirst('/core/', '/moon_pajamas/'),
+    );
+    await _choose(tester, 'continue');
+    expect(
+      tester.widget<MascotScene>(find.byType(MascotScene)).asset,
+      'assets/mascot/moon_pajamas/tumi_question.png',
+    );
+    await _choose(tester, 'begin');
+    expect(
+      tester.widget<MascotScene>(find.byType(MascotScene)).asset,
+      'assets/mascot/moon_pajamas/tumi_happy.png',
+    );
+    expect(tester.takeException(), isNull);
+    await _dispose(tester);
+  });
 
   testWidgets('選項按住有回饋；取消不換句、不改版面；降低動態不縮放', (tester) async {
     _surface(tester, const Size(430, 932));

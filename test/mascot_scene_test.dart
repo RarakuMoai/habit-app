@@ -5,11 +5,88 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/sfx_service.dart';
+import 'package:habit_app/utils/wardrobe_catalog.dart';
+import 'package:habit_app/utils/wardrobe_store.dart';
 import 'package:habit_app/widgets/mascot_bubbles.dart';
 import 'package:habit_app/widgets/mascot_scene.dart';
+import 'package:habit_app/widgets/outfit_mascot_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('靜態兔咪插圖跟隨造型切換，保留尺寸與語意', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    WardrobeStore.reset();
+    await WardrobeStore.load();
+    addTearDown(WardrobeStore.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OutfitMascotImage(
+          MascotEmotion.streak.assetPath,
+          width: 104,
+          height: 104,
+          fit: BoxFit.contain,
+          semanticLabel: '兔咪開心報到',
+        ),
+      ),
+    );
+    Image picture() => tester.widget<Image>(find.byType(Image));
+    expect(
+      (picture().image as AssetImage).assetName,
+      MascotEmotion.streak.assetPath,
+    );
+    await WardrobeStore.setOutfit('tumi_moon_pajamas');
+    await tester.pump();
+    expect(
+      (picture().image as AssetImage).assetName,
+      'assets/mascot/moon_pajamas/tumi_streak.png',
+    );
+    expect(picture().width, 104);
+    expect(picture().height, 104);
+    expect(picture().semanticLabel, '兔咪開心報到');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('穿上睡衣後共用場景的全部情緒跟著換裝，也能換回', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    WardrobeStore.reset();
+    await WardrobeStore.load();
+    final previous = MascotPersona.current.value;
+    addTearDown(() {
+      WardrobeStore.reset();
+      MascotPersona.current.value = previous;
+    });
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 430,
+            height: 300,
+            child: PersonaScene(accent: Colors.blue, paused: true),
+          ),
+        ),
+      ),
+    );
+    await WardrobeStore.setOutfit('tumi_moon_pajamas');
+    for (final emotion in MascotEmotion.values) {
+      MascotPersona.current.value = MascotState(emotion.assetPath, null);
+      await tester.pump();
+      expect(
+        tester.widget<MascotScene>(find.byType(MascotScene)).asset,
+        'assets/mascot/moon_pajamas/tumi_${emotion.assetKey}.png',
+      );
+    }
+    await WardrobeStore.setOutfit(defaultOutfit.id);
+    await tester.pump();
+    expect(
+      tester.widget<MascotScene>(find.byType(MascotScene)).asset,
+      MascotEmotion.values.last.assetPath,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 10));
+  });
 
   test('摸頭主愛心比原版多停留 0.3 秒', () {
     expect(

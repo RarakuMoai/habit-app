@@ -16,6 +16,7 @@ import '../../../utils/prefs_keys.dart';
 import '../../../utils/sfx_service.dart';
 import '../../../widgets/app_dialogs.dart';
 import '../../../widgets/hold_repeat_button.dart';
+import '../../../widgets/outfit_mascot_image.dart';
 import '../../../widgets/reorder_jiggle.dart';
 import '../../../widgets/sheet_drag_handle.dart';
 import 'table_store.dart';
@@ -1204,7 +1205,7 @@ class _TableSetupPanelState extends State<TableSetupPanel>
             ),
             const SizedBox(width: 8),
             ExcludeSemantics(
-              child: Image.asset(
+              child: OutfitMascotImage(
                 'assets/mascot/core/tumi_invite.png',
                 width: 72,
                 height: 72,

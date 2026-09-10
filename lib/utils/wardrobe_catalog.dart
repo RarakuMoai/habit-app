@@ -123,11 +123,13 @@ class MusicTrackSpec {
 /// 文案一律走 l10n，不放在 catalog 裡。
 String outfitName(AppLocalizations l10n, OutfitSpec o) => switch (o.id) {
   'tumi_original' => l10n.outfitOriginalName,
+  'tumi_moon_pajamas' => l10n.outfitMoonPajamasName,
   _ => o.id,
 };
 
 String outfitSubtitle(AppLocalizations l10n, OutfitSpec o) => switch (o.id) {
   'tumi_original' => l10n.outfitOriginalSub,
+  'tumi_moon_pajamas' => l10n.outfitMoonPajamasSub,
   _ => '',
 };
 
@@ -136,6 +138,14 @@ const List<OutfitSpec> outfitCatalog = [
     id: 'tumi_original',
     assetPath: 'assets/mascot/core/tumi_neutral_front.png',
     skinKey: 'core',
+    unlockType: UnlockType.free,
+    coinPrice: 0,
+  ),
+  // 2026-09-10 核可的首套睡衣；目前免費開放，正式定價另行決定。
+  OutfitSpec(
+    id: 'tumi_moon_pajamas',
+    assetPath: 'assets/mascot/moon_pajamas/tumi_neutral_front.png',
+    skinKey: 'moon_pajamas',
     unlockType: UnlockType.free,
     coinPrice: 0,
   ),

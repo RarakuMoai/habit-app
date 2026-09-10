@@ -104,6 +104,7 @@ flutter:
     - assets/sounds/
     - assets/music/covers/
     - assets/mascot/core/
+    - assets/mascot/moon_pajamas/
     - assets/story/
     - assets/scenes/home/
     - assets/scenes/timer/
