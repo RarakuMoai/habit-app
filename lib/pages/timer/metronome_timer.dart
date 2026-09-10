@@ -18,7 +18,7 @@ import '../../widgets/scroll_continuation_area.dart';
 import '../../widgets/sheet_drag_handle.dart';
 import '../../widgets/timer_mode_frame.dart';
 
-// 節拍器主色（跟專注暖橘、運動青綠明顯區分）
+// 節拍器暖琥珀與專注柔紫、運動配色分開。
 const Color kMetronomeAccent = AppPalette.metronome;
 
 const int _kMinBpm = 30;
@@ -852,19 +852,34 @@ class _MetronomeTimerState extends State<MetronomeTimer>
   Widget _bottomControls(Color color, {double height = 64}) {
     return SizedBox(
       height: height,
-      child: SingleChildScrollView(
-        key: const ValueKey('metronome-quick-settings'),
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        child: Row(
-          children: [
-            SizedBox(width: 92, child: _tapButton(color, height)),
-            const SizedBox(width: 8),
-            SizedBox(width: 116, child: _signaturePill(color, height)),
-            const SizedBox(width: 8),
-            SizedBox(width: 116, child: _subdivisionPill(color, height)),
-          ],
-        ),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final fit = box.maxWidth >= 380;
+          final width = (box.maxWidth - 36 - 16) / 3;
+          return SingleChildScrollView(
+            key: const ValueKey('metronome-quick-settings'),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: fit ? width : 92,
+                  child: _tapButton(color, height),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: fit ? width : 116,
+                  child: _signaturePill(color, height),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: fit ? width : 116,
+                  child: _subdivisionPill(color, height),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

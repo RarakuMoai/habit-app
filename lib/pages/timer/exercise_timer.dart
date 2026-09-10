@@ -884,7 +884,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     _ExPhase.warmup => AppPalette.family,
     _ExPhase.cooldown => AppPalette.water,
     _ExPhase.finished => AppPalette.success,
-    _ => AppPalette.water,
+    _ => _exMeta[_kind]!.color,
   };
 
   String get _phaseLabel => switch (_phase) {
@@ -975,16 +975,8 @@ class ExerciseTimerState extends State<ExerciseTimer>
           fontWeight: FontWeight.w500,
         ),
       ),
-      quickPicker: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_kind == ExerciseKind.jog) ...[
-            _inlineBpm(color),
-            const SizedBox(height: 4),
-          ],
-          _kindPicker(),
-        ],
-      ),
+      quickPicker: _kindPicker(),
+      controlAccessory: _kind == ExerciseKind.jog ? _inlineBpm(color) : null,
       footer: _todaySessions > 0 ? _statsBar() : null,
       topAction: TimerSettingsAction(
         color: _exMeta[_kind]!.color,
@@ -1206,6 +1198,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
             : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         width: width,
+        alignment: Alignment.center,
         height: width == null ? null : 68,
         constraints: BoxConstraints(
           minWidth: width == null ? 96 : 0,
@@ -1260,48 +1253,71 @@ class ExerciseTimerState extends State<ExerciseTimer>
       child: HoldRepeatButton(
         key: ValueKey('jog-bpm-$id'),
         onTrigger: onTap,
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: onTap != null ? 0.12 : 0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
+        child: SizedBox.square(
+          dimension: 48,
           child: Icon(
             icon,
-            size: 22,
+            size: 20,
             color: onTap != null ? color : AppInk.faint,
           ),
         ),
       ),
     );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        button(
-          Icons.remove_rounded,
-          _l10n.metroSlower,
-          'slower',
-          bpm > 30 ? () => _setBpm(bpm - 1) : null,
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            '$bpm BPM',
-            style: AppType.digits(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: color,
+    return DecoratedBox(
+      key: const ValueKey('jog-bpm-control'),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: SizedBox(
+        height: 48,
+        child: Row(
+          children: [
+            button(
+              Icons.remove_rounded,
+              _l10n.metroSlower,
+              'slower',
+              bpm > 30 ? () => _setBpm(bpm - 1) : null,
             ),
-          ),
+            Expanded(
+              child: Semantics(
+                label: '$bpm BPM',
+                child: ExcludeSemantics(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$bpm',
+                        style: AppType.digits(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ).copyWith(height: 1),
+                      ),
+                      Text(
+                        'BPM',
+                        style: TextStyle(
+                          fontSize: 9,
+                          height: 1.2,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            button(
+              Icons.add_rounded,
+              _l10n.metroFaster,
+              'faster',
+              bpm < 240 ? () => _setBpm(bpm + 1) : null,
+            ),
+          ],
         ),
-        button(
-          Icons.add_rounded,
-          _l10n.metroFaster,
-          'faster',
-          bpm < 240 ? () => _setBpm(bpm + 1) : null,
-        ),
-      ],
+      ),
     );
   }
 
@@ -1969,6 +1985,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
                                           8 * (columns - 1)) /
                                       columns;
                                   return Wrap(
+                                    alignment: WrapAlignment.center,
                                     spacing: 8,
                                     runSpacing: 8,
                                     children: [

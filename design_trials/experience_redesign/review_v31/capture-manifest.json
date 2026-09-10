@@ -1,0 +1,478 @@
+{
+  "baseline": "6a4551c",
+  "branch": "codex/experience-redesign",
+  "environment": "Tumi Experience Review / iPhone 14 Pro Max / iOS 26.5 / redesign debug",
+  "logical_size": [
+    430,
+    932
+  ],
+  "locale": "zh",
+  "text_scale": 1.0,
+  "scene_hour": 10,
+  "reduced_motion": false,
+  "glass": true,
+  "fixture": "Synthetic in-memory records; notification permission and jog sound excluded",
+  "capture": {
+    "device": "1896C555-F577-4433-A53D-6672B15E82C9",
+    "test": "integration_test/timer_alignment_review_test.dart",
+    "flavor": "redesign",
+    "glass": true,
+    "files": [
+      "exercise-tabata-compact.png",
+      "exercise-tabata-compact-running.png",
+      "exercise-tabata-compact-paused.png",
+      "exercise-hiit-compact.png",
+      "exercise-hiit-compact-running.png",
+      "exercise-hiit-compact-paused.png",
+      "exercise-emom-compact.png",
+      "exercise-emom-compact-running.png",
+      "exercise-emom-compact-paused.png",
+      "exercise-gym-compact.png",
+      "exercise-gym-compact-running.png",
+      "exercise-gym-compact-paused.png",
+      "exercise-jog-compact.png",
+      "exercise-jog-compact-running.png",
+      "exercise-jog-compact-paused.png",
+      "timer-focus-compact.png",
+      "timer-metronome-compact.png",
+      "timer-game-compact.png",
+      "exercise-tabata-expanded.png",
+      "exercise-tabata-expanded-running.png",
+      "exercise-tabata-expanded-paused.png",
+      "exercise-hiit-expanded.png",
+      "exercise-hiit-expanded-running.png",
+      "exercise-hiit-expanded-paused.png",
+      "exercise-emom-expanded.png",
+      "exercise-emom-expanded-running.png",
+      "exercise-emom-expanded-paused.png",
+      "exercise-gym-expanded.png",
+      "exercise-gym-expanded-running.png",
+      "exercise-gym-expanded-paused.png",
+      "exercise-jog-expanded.png",
+      "exercise-jog-expanded-running.png",
+      "exercise-jog-expanded-paused.png",
+      "timer-focus-expanded.png",
+      "timer-metronome-expanded.png",
+      "timer-game-expanded.png",
+      "exercise-settings.png",
+      "exercise-settings-options.png",
+      "page-habits.png",
+      "page-water.png",
+      "page-weight.png",
+      "page-family.png",
+      "page-wardrobe.png",
+      "page-settings.png",
+      "page-settings-lower.png"
+    ],
+    "test_exit_code": 0,
+    "capture_error": null,
+    "exit_code": 0
+  },
+  "images": [
+    {
+      "path": "after/exercise-tabata-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "92d5dc8d06f75b5708a2688454f183ee1837e212fa5e089e12d92d8c721e7c92",
+      "export_sha256": "4bbf515c9ad1ed436d1ad48c14179b39d5409332f9fefca5f38842cf6ca1f4ee"
+    },
+    {
+      "path": "after/exercise-tabata-compact-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "1dbb223141748fda6c0fafd97a7a06c8bd6693a3ff31523605a4927d3bf6476d",
+      "export_sha256": "61b2c4ceda29cb23c79828446fd5b3d5d15ff3a822ff02e528937b19e06dff82"
+    },
+    {
+      "path": "after/exercise-tabata-compact-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "6c98c45e92a67b834233656a216388e5f0cd9b246ae195d035bbbd74ffb771d9",
+      "export_sha256": "5a661251b4cc40e3a4e70a61eeb473c45cb7c1953c95dc8b2aa699e01001e700"
+    },
+    {
+      "path": "after/exercise-hiit-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "f98182d1721aed716c72f4ab5f0a7398462fe74afac1cce7a3d19fcfd526ca2a",
+      "export_sha256": "b67b25fe7d991c80883f2f077980956b5c651bcce5762d41929143a5aa371022"
+    },
+    {
+      "path": "after/exercise-hiit-compact-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "c8ed7cc8280f0df53eda9849f0d7d4e477154c4748e6705a0b724b76c167576f",
+      "export_sha256": "f31f3c3530b0bfb234780878ef4f11f07a91b7c8a70a3fa1af25030792191bf9"
+    },
+    {
+      "path": "after/exercise-hiit-compact-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "bb6ec9bf0ec86b96d2b16e8c36bcad9a074b840f70d1262d78676bbcd104cff4",
+      "export_sha256": "5b227da30a55b3a4a325b6b0fae286e8c6db031cc5e01b83d0a8ee0fb61bb7f1"
+    },
+    {
+      "path": "after/exercise-emom-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "a58cf17e673eec77bd6c6ec77064b0cf4afcaed300e32b5998e1f627d072a876",
+      "export_sha256": "9b66131eb449d61a0cb956bc8696b30974906d39bc490d0f80d5fb0362a1d46b"
+    },
+    {
+      "path": "after/exercise-emom-compact-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "6c610a463f722c8830c9d80eb91701e79d5cf622acbedae51cb449831e134a6f",
+      "export_sha256": "d9e82089e8ae87daef76ac603e9890a1ec8d8d2149649cf9b5b0ab51fc1c3653"
+    },
+    {
+      "path": "after/exercise-emom-compact-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "bf682e0e895f8a60d3c567cf870755286c1b4b6de56cb1b2eb9b839786867fc8",
+      "export_sha256": "5f0215e649025d0ecddbb390a7e4090280e915151721823df24d6fb9a9001811"
+    },
+    {
+      "path": "after/exercise-gym-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "971c0dbc7b87fd2c70b751fc333778eb9cb7e02c0c37e274131d14ddf05008b3",
+      "export_sha256": "ac76fae5cb0dbd47c75d0aa065d42cc05be16d4579a08fce1b547927a6c506a1"
+    },
+    {
+      "path": "after/exercise-gym-compact-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "973429d7d6deeed8164c4255c939b21d364ce27d4cc4ae57241e8e13e03a5a5e",
+      "export_sha256": "a076c494b3705bac88b5df1d89219d5996d1bc51a20ca655d5197f3f216c1b36"
+    },
+    {
+      "path": "after/exercise-gym-compact-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "e32f74d6bda6c2e0392ac0db62b040bf67c78d3b59ec7829bcf10322bac1fbf0",
+      "export_sha256": "fafe6783f2774df46772c43c8614d8aeb5043f3631e411b2f0ebc056d8f6e517"
+    },
+    {
+      "path": "after/exercise-jog-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "067e06eeb066e4a4fe1d23be5cc11e992a71c0df20bfcf11157503fd9caa429d",
+      "export_sha256": "40d00d814e97c9bc39fb9dd1274860d2180438433ede24043d15544cc46be880"
+    },
+    {
+      "path": "after/exercise-jog-compact-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "815d033d52e7062b50e4dce57622b9915aa74d8237daf376397f4a8d1b0150c1",
+      "export_sha256": "05d81e3326aedbf8efa99dca1c8689261198d2122f8643515aa8a0cfc544826f"
+    },
+    {
+      "path": "after/exercise-jog-compact-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "6be37d1b5c6ee54b05226324ea01874ef577df3126bac0ae0843d857f8a96a94",
+      "export_sha256": "fa0279958090ff7bb56f073ac03e5ea1f11faa5a7eefd13ed77f22d8e010d3cd"
+    },
+    {
+      "path": "after/timer-focus-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "9b1679bf76c5bacde8e232059f33e8de266a95c63858ac826b96fdd3010ffba4",
+      "export_sha256": "36b07e4db5fb077c8f706749acd5a2f0b442417f7192a39c497a07d50be0f189"
+    },
+    {
+      "path": "after/timer-metronome-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "4321a9a801aaa82bbf53f356baf7ffc88c910c9e4ffe7b229f26b58f9c7ce938",
+      "export_sha256": "ed23615f10bb815a2ec2a450ea5672aee8b343234c821ae04758f44370a1700e"
+    },
+    {
+      "path": "after/timer-game-compact.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "77ab7c58208d90796048527e2d53f5416f23e3ca13204631fef7711509c0a935",
+      "export_sha256": "394be1e3aa3a3ff70d30012692b477fff096d373a41e7e488aac1db43771d21d"
+    },
+    {
+      "path": "after/exercise-tabata-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "4cffce191e3c51f8dddde8ffc80be9e8be0b74b676c56efa59dcc4bced65ccd2",
+      "export_sha256": "125a854d9b4b7ae7a112e75c688caa1e11580354f33700f5a9337b657d859760"
+    },
+    {
+      "path": "after/exercise-tabata-expanded-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "0c34abd9cdd63dd2368535f3cbc5eee14c50a19b304f64008d804e41b994316c",
+      "export_sha256": "bd30d7a2c9ad4720ef3afd51e00df56f25c4abd0ec3ec764c7e6aaee0119e297"
+    },
+    {
+      "path": "after/exercise-tabata-expanded-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "484177381e1fdd5ebb3ad65e85166082a9e0909ddeba40b1f17064c8bf51f3cb",
+      "export_sha256": "f7bac0b07829747fa9be67f3f8e937fa63945023cfda5fa8ed64587f15faa8fb"
+    },
+    {
+      "path": "after/exercise-hiit-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "0c2bd771236e5dbceaa7660e481bac166d5f1a6d2eb1ce34a268ed1f4429ba71",
+      "export_sha256": "5e25ac3ebe4ca8078516151543a0eb585fba3ef61f9c5a2bbc6e26d5ea792f4e"
+    },
+    {
+      "path": "after/exercise-hiit-expanded-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "c402bbe3c0e8339663000d8f0354043c01763ec1a4a565c8f92753e4edd66f0c",
+      "export_sha256": "f1b1191e878a28795a4aeb310f2f867fc0d3a13775189f3debb377a35242502d"
+    },
+    {
+      "path": "after/exercise-hiit-expanded-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "6506944cf42e47a219f9ed3a575f244dfaaf286f860d013da7c46caf938bb535",
+      "export_sha256": "c906c8c940e6b623e1399b6b7a8c38cf37ee0be44de5a296013b5f41ed29a724"
+    },
+    {
+      "path": "after/exercise-emom-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "b36c8c61ef10cac3186f8fa4a114e4f9b58621429040719b13e05041e5199692",
+      "export_sha256": "495cc69e32970f17ac158775198fc3b952fa49f116fa2eab4d0450b6b6f4b83f"
+    },
+    {
+      "path": "after/exercise-emom-expanded-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "62f2651b5576f5b0727dc4d875b5c3a1923db49e6cb2f4e197c9d906ba17c1fd",
+      "export_sha256": "90a3500d5a63255a965b13886c3ac20cee07418b017c87aa8b920b35ee609ca9"
+    },
+    {
+      "path": "after/exercise-emom-expanded-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "116ecf0e3974b19f1c4d87c249751e9276bfb346414f2c0e8a7c4d7453dc93af",
+      "export_sha256": "1bc6f4a1d2222e88fbdef471d89f49446ec98b5d8013059896fd51a185743c13"
+    },
+    {
+      "path": "after/exercise-gym-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "8344fb45dfbd4f36f9b6c30466afbef975e2529ee5867129fd65fd4525172acb",
+      "export_sha256": "f2830c125bdfdfc8333d7bf25f862b9ce23d5961faa01f1b79cc87b672ffa21f"
+    },
+    {
+      "path": "after/exercise-gym-expanded-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "9ed2386c1943dac7e252d152d41f156d950bf7369c88056c8628a582fd653cb8",
+      "export_sha256": "e3f9defcbe43d27c1e9b11371b92d6370081971b38727fad042654eb46cba60e"
+    },
+    {
+      "path": "after/exercise-gym-expanded-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "58dddb24c0b4ab2176fe1375d6e772c19c9e7b8c7a7829a09ad57e86068f4344",
+      "export_sha256": "aa0c5a3ad86fd0c1f1429117b46fa472c298fd182564d2199c9b5a41b1e79d3e"
+    },
+    {
+      "path": "after/exercise-jog-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "30f6ef11ea7ed71dff41f0c45bd0c3929672586fd9788268ae4fb0483d57666c",
+      "export_sha256": "00ea8786604a1be191f70011a5ebb111b1ae14d6ec065c63e0a7dd2b4568632d"
+    },
+    {
+      "path": "after/exercise-jog-expanded-running.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "b56d78f1fd5a20a45da4920d6671410da0f7d54c87f7c915b7d65b756b09ca37",
+      "export_sha256": "ecdeb3cd96d34f4c4ffc576813490af5f6870e9a11e17035ef11124847cd2e6c"
+    },
+    {
+      "path": "after/exercise-jog-expanded-paused.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "349ccc62cadd41d6a0f306a023454a8a22fafff6710bd26126281087fdc7c6e4",
+      "export_sha256": "044428ee77c533987d6f2ada1421d720e4670544490762b6e121e6a2ecde6e7a"
+    },
+    {
+      "path": "after/timer-focus-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "72cea52c86d163385a0b1f45efc5e3161cc2eaabd36932bc8fefa33a6da5428f",
+      "export_sha256": "86826f7e64f07a1489432edb8506a4e77f65132085e1ba2ebf3292c99d1a2370"
+    },
+    {
+      "path": "after/timer-metronome-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "b84f0db3e4a0ed8ca58b303e175e4d66b2a95ac5f60bab0c370bdfb396a849c9",
+      "export_sha256": "bbf91c7f752c191fba9391baafa4316cca79405be8c722311a7aeecb9678c9f5"
+    },
+    {
+      "path": "after/timer-game-expanded.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "ecb5152f2bd7f9b1710ba44fcb3359a67b6909b49dc42258e7e8cd066db49056",
+      "export_sha256": "18fa4c790e266514372395dd57bcb5bd3463cc4bcd6b88dd67b68473d32f7af4"
+    },
+    {
+      "path": "after/exercise-settings.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "9a22f1bb8a089917fef72458140e5e63178cb2b0fb7095da9d5d724fd74373e1",
+      "export_sha256": "ebc4df7c7f772fbb8b23c44846e783f718c2d6ce1ac7303245e0811362aa7a99"
+    },
+    {
+      "path": "after/exercise-settings-options.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "dbdff37042fa195e082e3338b05943f8bd187186fc70ebce01fdbf58e492e722",
+      "export_sha256": "2f327c686004bf534e6e9c3d2961633518181a853347ab16c03ac2cfbd9fd8c6"
+    },
+    {
+      "path": "after/page-habits.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "7416a7af2ec38b8eeaf46b240eeed1b96b90bdbc08d2d7b621df7945c88772b1",
+      "export_sha256": "5dbeefa08d7e060447ddfd0808bf26cdb08bdfd49af3a8868c6475b8f25199b7"
+    },
+    {
+      "path": "after/page-water.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "7248ed88b373bc6536c87a8e8febe115b6065499956b1f8ad467f6408c422d37",
+      "export_sha256": "ed3bbdbba8c630ea1e64f98787635538ab493ef26c7e34665552348f748de38d"
+    },
+    {
+      "path": "after/page-weight.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "973bad1ba14aca571993fca96822a2bb62a9f2212de1713289e1e4b7bf01fdb0",
+      "export_sha256": "cc31185993d3158aee2aa227a92783ffa8573282ffe6d1925ffbad0065c2baa7"
+    },
+    {
+      "path": "after/page-family.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "1d09312558a2b6eef1e4daedea719dbfd5c5aba1dc1ee5e17b600ffd8e36d510",
+      "export_sha256": "324de56d28f7c4f37f71c358358e1315c0fa876ffddf8ad411dbe49c545916a0"
+    },
+    {
+      "path": "after/page-wardrobe.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "5138e13e535845839ec9b41ec18978c69c94d456912d57ee2e27452128de0b8b",
+      "export_sha256": "f89ec6a095f8d683dc158f142bd37191f39fc68c62710c47927439f5beb00646"
+    },
+    {
+      "path": "after/page-settings.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "5326aee2b4ac590568b77c633d6763cc565213b9fffe4befa942a83758d1e489",
+      "export_sha256": "a347f61246b53d766cb02f8bb5ae4bb8b2403bfed6724c0e8c7e0dab9fd6f1f6"
+    },
+    {
+      "path": "after/page-settings-lower.webp",
+      "source_pixels": [
+        1290,
+        2796
+      ],
+      "source_sha256": "aff06bd7c71848228e1be592b026cb4b02ddd8accef4e59be491b520ba92979c",
+      "export_sha256": "2fc3393c99d6c843249eee86c539d2899c0641f3821692426ac9da84e10cb2de"
+    }
+  ]
+}

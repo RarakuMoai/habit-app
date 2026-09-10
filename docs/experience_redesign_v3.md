@@ -1,5 +1,7 @@
 # 親子體驗 V3：玻璃導覽與收合操作優先
 
+> 本頁保留V3基準。使用者回報的對齊與運動排列問題，後續修正見 [V3.1](experience_redesign_v31.md)。
+
 更新：2026-09-10。本輪依使用者實際試用 V2 的回饋修正，沿用
 `codex/experience-redesign` 與獨立 `redesign` flavor。基準為 `41131ee`。
 

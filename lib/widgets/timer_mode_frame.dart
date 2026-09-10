@@ -24,6 +24,7 @@ class TimerModeFrame extends StatelessWidget {
   final Widget progress;
   final Widget controls;
   final Widget? quickPicker;
+  final Widget? controlAccessory;
   final Widget? statusLine;
   final Widget? footer;
   final Widget? topAction;
@@ -38,6 +39,7 @@ class TimerModeFrame extends StatelessWidget {
     required this.controls,
     this.compactReadout,
     this.quickPicker,
+    this.controlAccessory,
     this.statusLine,
     this.footer,
     this.topAction,
@@ -66,6 +68,16 @@ class TimerModeFrame extends StatelessWidget {
         ),
         if (topAction != null) ...[const SizedBox(width: 12), topAction!],
       ],
+    ),
+  );
+
+  Widget _accessory() => _slot(
+    'accessory',
+    Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 264),
+        child: controlAccessory!,
+      ),
     ),
   );
 
@@ -160,6 +172,11 @@ class TimerModeFrame extends StatelessWidget {
             ),
           ),
         ),
+        if (controlAccessory != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+            child: _accessory(),
+          ),
         if (quickPicker != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -179,9 +196,9 @@ class TimerModeFrame extends StatelessWidget {
     double height,
     TimerControlCluster actions,
   ) {
-    // Give the header and shortcuts their natural height first. The stage uses
-    // the remainder, so a 120pt jog picker gets a smaller illustration than a
-    // 64pt focus picker without moving either set of controls offscreen.
+    // Presets keep their natural height. The stage has two stable columns:
+    // the hero is centered within its column, so a smaller hero never stretches
+    // the start button. Jog speed belongs with the immediate controls.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -190,7 +207,7 @@ class TimerModeFrame extends StatelessWidget {
           child: Column(
             children: [
               _header(),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -198,20 +215,28 @@ class TimerModeFrame extends StatelessWidget {
                   ),
                   child: LayoutBuilder(
                     builder: (context, stage) {
+                      final heroColumnWidth = (stage.maxWidth - 16) * 0.44;
                       final heroSize = math.min(
                         stage.maxHeight,
-                        stage.maxWidth - 172,
+                        heroColumnWidth,
                       );
                       return Row(
                         children: [
-                          SizedBox.square(
-                            key: const ValueKey('timer-hero'),
-                            dimension: heroSize,
-                            child: heroBuilder(context, heroSize),
+                          SizedBox(
+                            key: const ValueKey('timer-hero-column'),
+                            width: heroColumnWidth,
+                            child: Center(
+                              child: SizedBox.square(
+                                key: const ValueKey('timer-hero'),
+                                dimension: heroSize,
+                                child: heroBuilder(context, heroSize),
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
+                              key: const ValueKey('timer-action-column'),
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 SizedBox(
@@ -219,6 +244,10 @@ class TimerModeFrame extends StatelessWidget {
                                   width: double.infinity,
                                   child: actions.primaryButton(context),
                                 ),
+                                if (controlAccessory != null) ...[
+                                  const SizedBox(height: 4),
+                                  _accessory(),
+                                ],
                                 const SizedBox(height: 4),
                                 _slot('controls', actions.secondaryActions()),
                               ],
@@ -270,6 +299,11 @@ class TimerModeFrame extends StatelessWidget {
             child: controls,
           ),
         ),
+        if (controlAccessory != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+            child: _accessory(),
+          ),
         _details(),
       ],
     );

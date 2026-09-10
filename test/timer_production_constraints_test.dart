@@ -161,6 +161,135 @@ void main() {
     expect(tester.takeException(), isNull, reason: reason);
   }
 
+  Rect contentBounds(WidgetTester tester, Finder tile) {
+    final content = find.descendant(
+      of: tile,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Icon || widget is Text,
+      ),
+    );
+    return content
+        .evaluate()
+        .map((element) => tester.getRect(find.byWidget(element.widget)))
+        .reduce((a, b) => a.expandToInclude(b));
+  }
+
+  void expectCenteredOption(WidgetTester tester, Finder tile) {
+    final rect = tester.getRect(tile);
+    final content = contentBounds(tester, tile);
+    expect(
+      content.center.dx,
+      closeTo(rect.center.dx, 0.5),
+      reason: 'option content horizontal center',
+    );
+    expect(
+      content.center.dy,
+      closeTo(rect.center.dy, 0.5),
+      reason: 'option content vertical center',
+    );
+  }
+
+  for (final language in ['zh', 'en']) {
+    for (final room in [true, false]) {
+      testWidgets('430 $language ${room ? "收合" : "展開"} 五種運動框內置中且操作欄位置穩定', (
+        tester,
+      ) async {
+        await load(tester, const Size(430, 932), language, room);
+        await switchMode(tester, 'exercise');
+        Rect? initialPrimary;
+        double? initialHeroCenter;
+        for (final kind in ['tabata', 'hiit', 'emom', 'gym', 'jog']) {
+          final tile = find.byKey(ValueKey('exercise-kind-$kind'));
+          if (!room) await tester.ensureVisible(tile);
+          await tester.tap(tile);
+          await tester.pump(const Duration(milliseconds: 300));
+          for (final option in ['tabata', 'hiit', 'emom', 'gym', 'jog']) {
+            expectCenteredOption(
+              tester,
+              find.byKey(ValueKey('exercise-kind-$option')),
+            );
+          }
+          final primary = tester.getRect(
+            find.byKey(const ValueKey('timer-primary-action')),
+          );
+          final hero = tester.getRect(find.byKey(const ValueKey('timer-hero')));
+          initialPrimary ??= primary;
+          initialHeroCenter ??= hero.center.dx;
+          expect(primary.left, closeTo(initialPrimary.left, 0.5));
+          expect(primary.width, closeTo(initialPrimary.width, 0.5));
+          expect(hero.center.dx, closeTo(initialHeroCenter, 0.5));
+          if (room) {
+            expect(
+              hero.width,
+              greaterThanOrEqualTo(148),
+              reason: 'jog must retain a readable hero',
+            );
+            final frame = tester.getRect(find.byType(TimerModeFrame));
+            expect(
+              tester.getRect(tile).bottom,
+              lessThanOrEqualTo(frame.bottom),
+            );
+            expectOperable(tester, reason: '$language/$kind');
+          }
+          if (kind == 'jog') {
+            final speed = tester.getRect(
+              find.byKey(const ValueKey('jog-bpm-control')),
+            );
+            if (room) {
+              expect(speed.left, closeTo(primary.left, 0.5));
+              expect(speed.right, closeTo(primary.right, 0.5));
+            }
+            for (final id in ['slower', 'faster']) {
+              expect(
+                tester.getSize(find.byKey(ValueKey('jog-bpm-$id'))).height,
+                greaterThanOrEqualTo(44),
+              );
+            }
+          }
+          expect(tester.takeException(), isNull);
+        }
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+    testWidgets('430 $language 四種快捷列左右留白對稱、圖文在框內置中', (tester) async {
+      await load(tester, const Size(430, 932), language, true);
+      for (final mode in ['focus', 'exercise', 'game', 'metronome']) {
+        await switchMode(tester, mode);
+        final frame = tester.getRect(find.byType(TimerModeFrame));
+        final keys = switch (mode) {
+          'focus' => [for (var i = 0; i < 4; i++) 'focus-profile-$i'],
+          'exercise' => [
+            for (final id in ['tabata', 'hiit', 'emom', 'gym', 'jog'])
+              'exercise-kind-$id',
+          ],
+          'game' => [
+            for (final id in ['party', 'chess', 'free']) 'game-quick-$id',
+          ],
+          _ => <String>[],
+        };
+        final tiles = mode == 'metronome'
+            ? find
+                  .descendant(
+                    of: find.byKey(const ValueKey('metronome-quick-settings')),
+                    matching: find.byType(InkWell),
+                  )
+                  .evaluate()
+                  .map((e) => find.byWidget(e.widget))
+                  .toList()
+            : keys.map((key) => find.byKey(ValueKey(key))).toList();
+        final first = tester.getRect(tiles.first);
+        final last = tester.getRect(tiles.last);
+        expect(first.left - frame.left, closeTo(frame.right - last.right, 0.5));
+        for (final tile in tiles) {
+          expect(tester.getRect(tile).height, closeTo(first.height, 0.5));
+          if (mode != 'metronome') expectCenteredOption(tester, tile);
+        }
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
   testWidgets('430 收合超慢跑即時 BPM 與五種運動快選均在可見區', (tester) async {
     SharedPreferences.setMockInitialValues({PrefsKeys.exerciseSubMode: 'jog'});
     await load(tester, const Size(430, 932), 'zh', true);

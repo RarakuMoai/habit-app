@@ -1129,6 +1129,8 @@ class _TimerPageState extends State<TimerPage>
             : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         width: width,
+        height: width == null ? null : 64,
+        alignment: Alignment.center,
         constraints: width == null
             ? const BoxConstraints(minWidth: 60, maxWidth: 84, minHeight: 48)
             : const BoxConstraints(minHeight: 48),

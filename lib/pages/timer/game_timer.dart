@@ -444,13 +444,16 @@ class _GameTimerState extends State<GameTimer> {
   Widget _configBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Row(
-        children: [
-          for (final mode in TableGameMode.values) ...[
-            if (mode != TableGameMode.values.first) const SizedBox(width: 8),
-            Expanded(child: _modeChip(mode)),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final mode in TableGameMode.values) ...[
+              if (mode != TableGameMode.values.first) const SizedBox(width: 8),
+              Expanded(child: _modeChip(mode)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -461,9 +464,12 @@ class _GameTimerState extends State<GameTimer> {
       key: ValueKey('game-quick-${mode.name}'),
       onTap: _prefs == null ? null : () => _selectMode(mode),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        constraints: const BoxConstraints(minHeight: 56),
+        constraints: const BoxConstraints(minHeight: 64),
+        alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
         decoration: BoxDecoration(
           color: selected ? kGameAccent : Colors.white.withValues(alpha: 0.86),
