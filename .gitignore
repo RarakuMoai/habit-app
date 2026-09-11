@@ -63,3 +63,6 @@ lib/l10n/untranslated.json
 
 # Personal Claude Code permissions and temporary worktrees are not project rules.
 .claude/
+
+# V4 原生 PNG 留本機，版本保存使用逐像素相同的 lossless WebP。
+/design_trials/experience_redesign/review_v4/*.png

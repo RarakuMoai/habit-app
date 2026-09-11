@@ -40,6 +40,8 @@
 
 ## 驗證與待本人確認
 
+此處保存V1當時結果；使用者後續指出站位問題，已由 [V4](experience_redesign_v4.md) 修正房間取景與角色接地，請以V4畫面作本輪驗收。
+
 - `flutter analyze`：無問題。
 - `flutter test --reporter expanded`：1,038項全部通過，包含新前導16項、初始化19項、衣櫃重播及可選稱呼的公制儲存契約。
 - `scripts/check_units.sh`：英文介系詞與Dart迴圈的誤判加註豁免；未改單位數值或儲存規則。

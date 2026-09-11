@@ -6,6 +6,7 @@ import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/pages/companion_dialogue_page.dart';
 import 'package:habit_app/pages/memory_book_reader.dart';
 import 'package:habit_app/pages/onboarding_page.dart';
+import 'package:habit_app/pages/wardrobe_page.dart';
 import 'package:habit_app/utils/app_theme.dart';
 import 'package:habit_app/utils/companion_story_catalog.dart';
 import 'package:habit_app/utils/companion_story_preview.dart';
@@ -94,10 +95,8 @@ void main() {
         PrefsKeys.storyUnlocked: jsonEncode([
           {'id': legacy.id, 'date': legacyUnlock.date.toIso8601String()},
         ]),
-        // Unknown legacy metadata must not be migrated/cleaned merely because a
-        // developer opens the preview collection.
-        PrefsKeys.storyUnread: [legacy.id, 'future_special'],
-        PrefsKeys.storyPendingReveal: ['future_special'],
+        PrefsKeys.storyUnread: [legacy.id],
+        PrefsKeys.storyPendingReveal: <String>[],
         PrefsKeys.usageDay('2001-01-01'): jsonEncode({
           UsageEvents.memoryBookOpen: 7,
           UsageEvents.storyOpen: 3,
@@ -107,17 +106,6 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final store = CompanionStoryProgress.instance;
       expect(await store.load(), isTrue);
-      // MainPage owns legacy loading. Seed its already-loaded notifiers without
-      // asking the old store to migrate intentionally unknown persisted data.
-      StoryStore.unlocked.value = [legacyUnlock];
-      StoryStore.unread.value = {legacy.id, 'future_special'};
-      StoryStore.pendingReveal.value = ['future_special'];
-      final preferencesBefore = _snapshot(prefs);
-      final progressBefore = store.state.toJson();
-      final unreadBefore = Set<String>.of(StoryStore.unread.value);
-      final pendingBefore = List<String>.of(StoryStore.pendingReveal.value);
-      CompanionStoryPreview.setEnabled(true);
-
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
@@ -131,10 +119,30 @@ void main() {
             ),
             child: child!,
           ),
-          home: const CompanionMemoryReviewPage(),
+          home: const WardrobePage(),
         ),
       );
       await _frames(tester);
+      // Wardrobe startup owns the ordinary legacy load. Once that has completed,
+      // opening its memory collection must not clean unknown metadata or write.
+      expect(find.text('回憶'), findsOneWidget);
+      await prefs.setStringList(PrefsKeys.storyUnread, [
+        legacy.id,
+        'future_special',
+      ]);
+      await prefs.setStringList(PrefsKeys.storyPendingReveal, [
+        'future_special',
+      ]);
+      StoryStore.unread.value = {legacy.id, 'future_special'};
+      StoryStore.pendingReveal.value = ['future_special'];
+      final preferencesBefore = _snapshot(prefs);
+      final progressBefore = store.state.toJson();
+      final unreadBefore = Set<String>.of(StoryStore.unread.value);
+      final pendingBefore = List<String>.of(StoryStore.pendingReveal.value);
+      CompanionStoryPreview.setEnabled(true);
+      await _tap(tester, find.text('回憶'));
+      expect(find.byType(CompanionMemoryCollection), findsOneWidget);
+      expect(_snapshot(prefs), preferencesBefore);
       expect(companionEpisodes, hasLength(18));
       expect(storyCatalog, hasLength(4));
 

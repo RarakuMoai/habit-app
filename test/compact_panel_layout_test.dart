@@ -215,9 +215,7 @@ void main() {
                 if (size.width == 430 && openValue == 0) {
                   expect(bottleRect.height, greaterThanOrEqualTo(200));
                 }
-                final controls = panelRect.height < 400 || size.width < 360
-                    ? find.byKey(const ValueKey('water-compact-actions'))
-                    : find.text(l10n.waterCupDrank);
+                final controls = find.byKey(const ValueKey('water-add-cup'));
                 expect(controls.hitTestable(), findsOneWidget);
                 expect(
                   cardRect.bottom,

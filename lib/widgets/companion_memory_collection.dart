@@ -13,24 +13,6 @@ import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 import 'app_waiting.dart';
 
-/// The developer shortcut uses the same collection as the wardrobe.
-class CompanionMemoryReviewPage extends StatelessWidget {
-  const CompanionMemoryReviewPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: AppSurfaces.canvas,
-    appBar: AppBar(title: Text(AppLocalizations.of(context).wdMemoryBook)),
-    body: const SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: CompanionMemoryCollection(),
-      ),
-    ),
-  );
-}
-
 /// No internal scroll view: the real wardrobe panel owns the available height.
 class CompanionMemoryCollection extends StatefulWidget {
   const CompanionMemoryCollection({super.key});

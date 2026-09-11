@@ -14,10 +14,8 @@ import '../utils/prefs_keys.dart';
 import '../utils/scene_time.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
-import '../widgets/companion_memory_collection.dart';
 import 'login_streak_page.dart';
 import 'onboarding_page.dart';
-import 'story_reveal_page.dart';
 
 /// 開發者測試頁。
 ///
@@ -202,11 +200,6 @@ class _DevTestPageState extends State<DevTestPage> {
     if (!mounted) return;
     final title = storyEventById(id).title;
     _toast(ok ? _l10n.dvUnlocked(title) : _l10n.dvAlreadyUnlocked(title));
-  }
-
-  /// 免解鎖直接看揭曉動畫與繪本排版（不動任何狀態，怎麼看都不會誤解鎖）。
-  void _previewReveal(StoryEventSpec event) {
-    Navigator.of(context).push(StoryRevealPage.route(event: event));
   }
 
   /// 走「真實觸發判定」：跟正式接線呼叫同一個 API，驗證門檻、冪等、
@@ -394,16 +387,6 @@ class _DevTestPageState extends State<DevTestPage> {
                               onChanged: CompanionStoryPreview.setEnabled,
                             ),
                       ),
-                      FilledButton.tonalIcon(
-                        key: const ValueKey('companion-open-review'),
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const CompanionMemoryReviewPage(),
-                          ),
-                        ),
-                        icon: const Icon(Icons.menu_book_rounded),
-                        label: Text(_l10n.csOpenReview),
-                      ),
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         key: const ValueKey('onboarding-open-preview'),
@@ -416,114 +399,109 @@ class _DevTestPageState extends State<DevTestPage> {
                         label: Text(_l10n.obStoryPreviewOpen),
                       ),
                       const SizedBox(height: 20),
-                      AnimatedBuilder(
-                        animation: Listenable.merge([
-                          StoryStore.unlocked,
-                          StoryStore.unread,
-                          StoryStore.pendingReveal,
-                        ]),
-                        builder: (_, _) => Text(
-                          _l10n.dvMemoryCounts(
-                            StoryStore.unlocked.value.length,
-                            StoryStore.unread.value.length,
-                            StoryStore.pendingReveal.value.length,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      _memorySection(_l10n.dvMemoryPreviewSection),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                      ExpansionTile(
+                        key: const ValueKey('memory-data-tools'),
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: const EdgeInsets.only(bottom: 8),
+                        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                        title: Text(_l10n.dvMemoryDataTools),
                         children: [
-                          for (final event in storyCatalog)
-                            OutlinedButton.icon(
-                              icon: const Icon(
-                                Icons.play_arrow_rounded,
-                                size: 18,
+                          AnimatedBuilder(
+                            animation: Listenable.merge([
+                              StoryStore.unlocked,
+                              StoryStore.unread,
+                              StoryStore.pendingReveal,
+                            ]),
+                            builder: (_, _) => Text(
+                              _l10n.dvMemoryCounts(
+                                StoryStore.unlocked.value.length,
+                                StoryStore.unread.value.length,
+                                StoryStore.pendingReveal.value.length,
                               ),
-                              onPressed: () => _previewReveal(event),
-                              label: Text(event.title),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                        ],
-                      ),
-                      _memorySection(_l10n.dvMemorySimulateSection),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          FilledButton.tonal(
-                            onPressed: () => _simulateTrigger(
-                              _l10n.dvSimFirstHabit,
-                              StoryEvents.onFirstHabitCreated,
-                            ),
-                            child: Text(_l10n.dvSimFirstHabit),
                           ),
-                          FilledButton.tonal(
-                            onPressed: () => _simulateTrigger(
-                              _l10n.dvSimFirstAllDone,
-                              StoryEvents.onFirstAllDone,
-                            ),
-                            child: Text(_l10n.dvSimFirstAllDone),
-                          ),
-                          FilledButton.tonal(
-                            onPressed: () => _simulateTrigger(
-                              _l10n.dvSimStreak7,
-                              () => StoryEvents.onHabitStreak(7),
-                            ),
-                            child: Text(_l10n.dvSimStreak7),
-                          ),
-                          FilledButton.tonal(
-                            onPressed: () => _simulateTrigger(
-                              _l10n.dvSimReturn7,
-                              () => StoryEvents.onComeback(7),
-                            ),
-                            child: Text(_l10n.dvSimReturn7),
-                          ),
-                          FilledButton.tonal(
-                            onPressed: () => _simulateSeason(
-                              _l10n.dvSimSeasonToday,
-                              DateTime.now(),
-                            ),
-                            child: Text(_l10n.dvSimSeasonToday),
-                          ),
-                          // 目錄裡每個節日事件都給一顆「假裝今天是那天」的按鈕
-                          for (final event in storyCatalog)
-                            if (event.trigger == StoryTrigger.season &&
-                                event.season != null)
+                          _memorySection(_l10n.dvMemorySimulateSection),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              FilledButton.tonal(
+                                onPressed: () => _simulateTrigger(
+                                  _l10n.dvSimFirstHabit,
+                                  StoryEvents.onFirstHabitCreated,
+                                ),
+                                child: Text(_l10n.dvSimFirstHabit),
+                              ),
+                              FilledButton.tonal(
+                                onPressed: () => _simulateTrigger(
+                                  _l10n.dvSimFirstAllDone,
+                                  StoryEvents.onFirstAllDone,
+                                ),
+                                child: Text(_l10n.dvSimFirstAllDone),
+                              ),
+                              FilledButton.tonal(
+                                onPressed: () => _simulateTrigger(
+                                  _l10n.dvSimStreak7,
+                                  () => StoryEvents.onHabitStreak(7),
+                                ),
+                                child: Text(_l10n.dvSimStreak7),
+                              ),
+                              FilledButton.tonal(
+                                onPressed: () => _simulateTrigger(
+                                  _l10n.dvSimReturn7,
+                                  () => StoryEvents.onComeback(7),
+                                ),
+                                child: Text(_l10n.dvSimReturn7),
+                              ),
                               FilledButton.tonal(
                                 onPressed: () => _simulateSeason(
-                                  _l10n.dvSimEventDay(event.title),
-                                  DateTime(
-                                    DateTime.now().year,
-                                    event.season!.month,
-                                    event.season!.day,
-                                  ),
+                                  _l10n.dvSimSeasonToday,
+                                  DateTime.now(),
                                 ),
-                                child: Text(_l10n.dvSimEventDay(event.title)),
+                                child: Text(_l10n.dvSimSeasonToday),
                               ),
-                        ],
-                      ),
-                      _memorySection(_l10n.dvMemoryUnlockSection),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final event in storyCatalog)
-                            FilledButton.tonal(
-                              onPressed: () => _unlockMemory(event.id),
-                              child: Text(_l10n.dvUnlockEvent(event.title)),
-                            ),
-                          OutlinedButton(
-                            onPressed: () async {
-                              await StoryStore.clear();
-                              if (!mounted) return;
-                              _toast(_l10n.dvMemoriesCleared);
-                            },
-                            child: Text(_l10n.dvClearMemories),
+                              // 目錄裡每個節日事件都給一顆「假裝今天是那天」的按鈕
+                              for (final event in storyCatalog)
+                                if (event.trigger == StoryTrigger.season &&
+                                    event.season != null)
+                                  FilledButton.tonal(
+                                    onPressed: () => _simulateSeason(
+                                      _l10n.dvSimEventDay(event.title),
+                                      DateTime(
+                                        DateTime.now().year,
+                                        event.season!.month,
+                                        event.season!.day,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      _l10n.dvSimEventDay(event.title),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                          _memorySection(_l10n.dvMemoryUnlockSection),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final event in storyCatalog)
+                                FilledButton.tonal(
+                                  onPressed: () => _unlockMemory(event.id),
+                                  child: Text(_l10n.dvUnlockEvent(event.title)),
+                                ),
+                              OutlinedButton(
+                                onPressed: () async {
+                                  await StoryStore.clear();
+                                  if (!mounted) return;
+                                  _toast(_l10n.dvMemoriesCleared);
+                                },
+                                child: Text(_l10n.dvClearMemories),
+                              ),
+                            ],
                           ),
                         ],
                       ),

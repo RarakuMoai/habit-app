@@ -7,6 +7,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/main.dart' as app;
 import 'package:habit_app/pages/dev_test_page.dart';
+import 'package:habit_app/pages/onboarding_page.dart';
+import 'package:habit_app/pages/wardrobe_page.dart';
 import 'package:habit_app/utils/companion_story_catalog.dart';
 import 'package:habit_app/utils/companion_story_preview.dart';
 import 'package:habit_app/utils/companion_story_progress.dart';
@@ -61,6 +63,45 @@ void main() {
         await settle(6);
       }
 
+      Future<void> openDeveloper() async {
+        await tester.tap(find.byTooltip('設定').hitTestable().first);
+        await settle();
+        final developer = find.widgetWithText(SettingsTileCard, '開發者測試');
+        await tester.scrollUntilVisible(
+          developer,
+          350,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await settle(3);
+        expect(developer.hitTestable(), findsOneWidget);
+        await tester.tap(developer);
+        await settle();
+        expect(find.byType(DevTestPage), findsOneWidget);
+        await tester.scrollUntilVisible(
+          keyed('companion-preview-all'),
+          300,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await settle(3);
+      }
+
+      Future<void> returnToWardrobeMemories() async {
+        await tester.tap(find.byType(BackButton).hitTestable());
+        await settle();
+        await tester.tap(find.byType(BackButton).hitTestable());
+        await settle();
+        final wardrobeTab = find.descendant(
+          of: keyed('main_navigation'),
+          matching: find.text('衣櫃'),
+        );
+        expect(wardrobeTab.hitTestable(), findsOneWidget);
+        await tester.tap(wardrobeTab);
+        await settle();
+        expect(find.byType(WardrobePage).hitTestable(), findsOneWidget);
+        await tester.tap(find.text('回憶').hitTestable());
+        await settle();
+      }
+
       await settle(70);
       expect(keyed('main_navigation'), findsOneWidget);
       // Expanded scene is the production state where the quiet invitation appears.
@@ -85,42 +126,24 @@ void main() {
         false,
       );
       expect(keyed('roommate_entry'), findsNothing);
-      await tester.tap(find.byTooltip('設定').first);
-      await capture('02b-settings');
-      await tester.scrollUntilVisible(
-        find.widgetWithText(SettingsTileCard, '開發者測試'),
-        350,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await capture('02c-settings-developer-entry');
-      expect(
-        find.widgetWithText(SettingsTileCard, '開發者測試').hitTestable(),
-        findsOneWidget,
-      );
-      await tester.tap(find.widgetWithText(SettingsTileCard, '開發者測試'));
-      await settle();
-      expect(find.byType(DevTestPage), findsOneWidget);
-      await settle();
-      await tester.scrollUntilVisible(
-        keyed('companion-preview-all'),
-        300,
-        scrollable: find.byType(Scrollable).last,
-      );
+      await openDeveloper();
       await tapKey('companion-preview-all');
       expect(CompanionStoryPreview.active, true);
       await capture('03-developer-preview-option');
-      await tapKey('companion-open-review');
-      await capture('04-preview-collection');
+      expect(keyed('companion-open-review'), findsNothing);
+      await returnToWardrobeMemories();
+      await capture('04-wardrobe-preview-collection');
       final progressBefore = prefs.getString(PrefsKeys.companionStoryProgress);
       await tapKey('memory-story_01');
-      final episode = companionEpisodeById('story_01')!;
-      var reader = CompanionSession(episode);
-      for (var i = 0; i < 30 && reader.choices.isEmpty; i++) {
-        await tapKey('companion_next');
-        reader = CompanionSession(episode, reader.advance());
-      }
-      await capture('05-first-meeting-choices');
-      await tapKey('companion_close');
+      final opening = tester.widget<OnboardingPage>(
+        find.byType(OnboardingPage),
+      );
+      expect(opening.preview, isTrue);
+      expect(opening.onReplayFinished, isNull);
+      await tapKey('onboarding-primary');
+      await capture('05-first-meeting-greeting');
+      await tapKey('onboarding-skip');
+      expect(find.byType(OnboardingPage), findsNothing);
       await tapKey('memory-story_08');
       await capture('06-trust-story');
       var grief = CompanionSession(companionEpisodeById('story_08')!);
@@ -144,12 +167,17 @@ void main() {
 
       await tapKey('companion_close');
       expect(prefs.getString(PrefsKeys.companionStoryProgress), progressBefore);
-      await tester.tap(find.byType(BackButton).hitTestable());
-      await settle();
+      await openDeveloper();
       await tapKey('companion-preview-all');
-      await tapKey('companion-open-review');
-      await capture('08-real-unlocks-restored');
+      await returnToWardrobeMemories();
+      await capture('08-wardrobe-real-unlocks-restored');
       expect(CompanionStoryPreview.active, false);
+      final lockedEnding = find.descendant(
+        of: keyed('memory-story_14'),
+        matching: find.byType(InkWell),
+      );
+      expect(tester.widget<InkWell>(lockedEnding).onTap, isNull);
+      expect(prefs.getString(PrefsKeys.companionStoryProgress), progressBefore);
       expect(CompanionStoryProgress.instance.state.days, 1);
     },
   );

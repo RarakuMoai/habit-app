@@ -15,8 +15,8 @@ abstract final class TimerModeMetrics {
   static const double horizontalInset = 18;
 }
 
-/// 計時以操作優先分三種資訊層級：極矮面板顯示時間摘要；房間旁有寬度時
-/// 使用大面盤；功能展開後採單欄。收合優先顯示快捷設定，說明與統計接在後面；不縮小整組觸控區。
+/// 收合時仍保留各模式的面盤；左右欄共同容納主操作與快捷設定。
+/// 高度極小時只捲動後續設定，不把鐘面替換成文字或縮小觸控區。
 class TimerModeFrame extends StatelessWidget {
   final TimerHeroBuilder heroBuilder;
   final Widget? compactReadout;
@@ -47,7 +47,7 @@ class TimerModeFrame extends StatelessWidget {
     this.quickPicker,
     this.headerControl,
     this.roomAdjustment,
-    this.bottomClearance = 0,
+    this.bottomClearance = 16,
     this.statusLine,
     this.footer,
     this.topAction,
@@ -55,8 +55,7 @@ class TimerModeFrame extends StatelessWidget {
     this.fullHeroSize = 232,
   });
 
-  static const double summaryBreakpoint = 350;
-  static const double roomMinHeight = 276;
+  static const double compactBreakpoint = 350;
   static const double roomBreakpoint = 420;
 
   Widget _slot(String name, Widget child) =>
@@ -109,7 +108,11 @@ class TimerModeFrame extends StatelessWidget {
     ],
   );
 
-  Widget _summary(BuildContext context, TimerControlCluster actions) {
+  Widget _compact(
+    BuildContext context,
+    double height,
+    TimerControlCluster actions,
+  ) {
     final state = status;
     final compactStatus = state is TimerStatusPill
         ? TimerStatusPill(
@@ -117,10 +120,36 @@ class TimerModeFrame extends StatelessWidget {
             color: state.color,
             icon: state.icon,
             label: state.label,
-            dense: compactReadout != null,
+            dense: true,
           )
         : state;
     final settings = topAction;
+    final compactSettings = settings is TimerSettingsAction
+        ? TimerSettingsAction(
+            color: settings.color,
+            onTap: settings.onTap,
+            compact: true,
+          )
+        : settings;
+    // 402×874 with six tabs provides 248.4pt, not the former 276pt minimum.
+    // Reserve 80pt for the natural-height quick row and its spacing. On 430pt
+    // phones this keeps a ~156pt dial, matching the preferred V3.1 composition.
+    // A genuinely short viewport keeps a 104pt dial + 52/48pt immediate actions;
+    // secondary content then scrolls instead of silently removing the dial.
+    // A 104pt dial + 20pt status + 4pt spacing needs a 128pt stage.
+    // Jogging instead needs 148pt for its 52/44/48pt controls. Quick rows are
+    // 64pt (60pt for exercise), with at least 4pt separation.
+    final quickHeight = roomAdjustment != null ? 60.0 : 64.0;
+    final minimumStage = roomAdjustment != null ? 148.0 : 128.0;
+    final tight = height < minimumStage + quickHeight + 4;
+    final stageHeight = tight
+        ? 104.0
+        : math.max(
+            roomAdjustment != null ? 148.0 : 128.0,
+            math.min(180.0, height - 80),
+          );
+    final adjustment = roomAdjustment;
+    final quickGap = height - stageHeight - quickHeight >= 8 ? 8.0 : 4.0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -129,151 +158,88 @@ class TimerModeFrame extends StatelessWidget {
             horizontal: TimerModeMetrics.horizontalInset,
           ),
           child: SizedBox(
-            key: const ValueKey('timer-summary-stage'),
-            height: 68,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ?compactReadout,
-                      if (compactReadout != null) const SizedBox(height: 4),
-                      _slot('status', compactStatus),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 124,
-                  height: 60,
-                  child: actions.primaryButton(context, showDetail: false),
-                ),
-              ],
+            key: const ValueKey('timer-compact-stage'),
+            height: stageHeight,
+            child: LayoutBuilder(
+              builder: (context, stage) {
+                final heroColumnWidth = (stage.maxWidth - 16) * 0.44;
+                final heroSize = math.min(
+                  heroColumnWidth,
+                  stageHeight - (tight ? 0 : 24),
+                );
+                return Row(
+                  children: [
+                    SizedBox(
+                      key: const ValueKey('timer-hero-column'),
+                      width: heroColumnWidth,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox.square(
+                            key: const ValueKey('timer-hero'),
+                            dimension: heroSize,
+                            child: heroBuilder(context, heroSize),
+                          ),
+                          if (!tight) ...[
+                            const SizedBox(height: 4),
+                            _slot('status', compactStatus),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: adjustment != null && !tight
+                          ? actions.joinedAdjustmentControls(
+                              context,
+                              adjustment,
+                              trailingAction: compactSettings,
+                            )
+                          : Column(
+                              key: const ValueKey('timer-action-column'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  height: 52,
+                                  width: double.infinity,
+                                  child: actions.primaryButton(context),
+                                ),
+                                const SizedBox(height: 4),
+                                _slot(
+                                  'controls',
+                                  actions.secondaryActions(
+                                    trailingAction: compactSettings,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: TimerModeMetrics.horizontalInset,
-          ),
-          child: _slot(
-            'controls',
-            actions.secondaryActions(
-              trailingAction: settings is TimerSettingsAction
-                  ? TimerSettingsAction(
-                      color: settings.color,
-                      onTap: settings.onTap,
-                      compact: true,
-                    )
-                  : settings,
-            ),
-          ),
-        ),
-        if (headerControl != null)
+        if (tight) ...[
+          const SizedBox(height: 8),
+          _slot('status', compactStatus),
+        ],
+        if (tight && adjustment != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _slot('header-control', headerControl!),
-            ),
+            child: _slot('header-control', adjustment),
+          ),
+        if (adjustment == null && headerControl != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+            child: _slot('header-control', headerControl!),
           ),
         if (quickPicker != null)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: EdgeInsets.only(top: quickGap),
             child: _slot('quick-picker', quickPicker!),
           ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: _slot('progress', progress),
-        ),
-        _details(includeQuickPicker: false),
-      ],
-    );
-  }
-
-  Widget _room(
-    BuildContext context,
-    double height,
-    TimerControlCluster actions,
-  ) {
-    // Presets keep their natural height. The stage has two stable columns:
-    // the hero is centered within its column, so a smaller hero never stretches
-    // the start button. Joined controls preserve the compact dial/control grouping.
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: height,
-          child: Column(
-            children: [
-              _header(room: true),
-              const SizedBox(height: 4),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: TimerModeMetrics.horizontalInset,
-                  ),
-                  child: LayoutBuilder(
-                    builder: (context, stage) {
-                      final heroColumnWidth = (stage.maxWidth - 16) * 0.44;
-                      final heroSize = math.min(
-                        stage.maxHeight,
-                        heroColumnWidth,
-                      );
-                      return Row(
-                        children: [
-                          SizedBox(
-                            key: const ValueKey('timer-hero-column'),
-                            width: heroColumnWidth,
-                            child: Center(
-                              child: SizedBox.square(
-                                key: const ValueKey('timer-hero'),
-                                dimension: heroSize,
-                                child: heroBuilder(context, heroSize),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: roomAdjustment != null
-                                ? actions.joinedAdjustmentControls(
-                                    context,
-                                    roomAdjustment!,
-                                  )
-                                : Column(
-                                    key: const ValueKey('timer-action-column'),
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        height: 52,
-                                        width: double.infinity,
-                                        child: actions.primaryButton(context),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      _slot(
-                                        'controls',
-                                        actions.secondaryActions(),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-              if (quickPicker != null) ...[
-                const SizedBox(height: 4),
-                _slot('quick-picker', quickPicker!),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         _slot('progress', progress),
         _details(includeQuickPicker: false),
       ],
@@ -317,26 +283,18 @@ class TimerModeFrame extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final actions = controls;
-        final room =
-            constraints.maxHeight >= roomMinHeight &&
-            constraints.maxHeight < roomBreakpoint &&
-            constraints.maxWidth >= 380 &&
-            actions is TimerControlCluster;
-        // 單欄的大面盤加操作需要約 350pt；中等寬度的矮面板也使用摘要，
-        // 不能只照顧最窄 320pt，而讓 360pt 把開始按鈕擠到捲動區外。
-        final summary =
-            !room &&
-            constraints.maxHeight < summaryBreakpoint &&
-            actions is TimerControlCluster;
+        final compact =
+            actions is TimerControlCluster &&
+            (constraints.maxHeight < compactBreakpoint ||
+                (constraints.maxWidth >= 380 &&
+                    constraints.maxHeight < roomBreakpoint));
         return Padding(
           padding: EdgeInsets.only(bottom: bottomClearance),
           child: SingleChildScrollView(
             key: const ValueKey('timer-mode-scroll'),
-            padding: EdgeInsets.only(top: summary || room ? 0 : 8, bottom: 4),
-            child: summary
-                ? _summary(context, actions)
-                : room
-                ? _room(
+            padding: EdgeInsets.only(top: compact ? 0 : 8, bottom: 4),
+            child: compact
+                ? _compact(
                     context,
                     constraints.maxHeight - bottomClearance,
                     actions,
@@ -353,7 +311,7 @@ class TimerModeFrame extends StatelessWidget {
   );
 }
 
-/// 極矮面板使用文字讀值，資訊與面盤相同，字級與觸控區不再跟剩餘高度縮小。
+/// Independent text readout for timer callers; compact layout always uses its dial.
 class TimerCompactReadout extends StatelessWidget {
   final String value;
   final Color color;
@@ -574,36 +532,39 @@ class TimerControlCluster extends StatelessWidget {
 
   /// One continuous start/speed surface, followed by the normal reset/skip row.
   /// 52 + 44 + 4 + 48 = 148pt; no small text or reduced touch targets.
-  Widget joinedAdjustmentControls(BuildContext context, Widget adjustment) =>
-      Column(
-        key: const ValueKey('timer-action-column'),
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            key: const ValueKey('timer-joined-adjustment'),
-            borderRadius: BorderRadius.circular(22),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ColoredBox(
-                  color: accent,
-                  child: SizedBox(
-                    height: 52,
-                    width: double.infinity,
-                    child: primaryButton(context),
-                  ),
-                ),
-                adjustment,
-              ],
+  Widget joinedAdjustmentControls(
+    BuildContext context,
+    Widget adjustment, {
+    Widget? trailingAction,
+  }) => Column(
+    key: const ValueKey('timer-action-column'),
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      ClipRRect(
+        key: const ValueKey('timer-joined-adjustment'),
+        borderRadius: BorderRadius.circular(22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ColoredBox(
+              color: accent,
+              child: SizedBox(
+                height: 52,
+                width: double.infinity,
+                child: primaryButton(context),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          KeyedSubtree(
-            key: const ValueKey('timer-mode-controls-slot'),
-            child: secondaryActions(),
-          ),
-        ],
-      );
+            adjustment,
+          ],
+        ),
+      ),
+      const SizedBox(height: 4),
+      KeyedSubtree(
+        key: const ValueKey('timer-mode-controls-slot'),
+        child: secondaryActions(trailingAction: trailingAction),
+      ),
+    ],
+  );
 
   Widget secondaryActions({Widget? trailingAction}) => Row(
     children: [
@@ -747,22 +708,29 @@ class _SecondaryButton extends StatelessWidget {
       child: SizedBox(
         width: compact ? null : 64,
         height: compact ? 48 : 64,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(action.icon, color: AppInk.soft, size: compact ? 19 : 22),
-            const SizedBox(height: 2),
-            Text(
-              action.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: compact ? 11 : 12,
-                fontWeight: FontWeight.w700,
-                color: AppInk.soft,
-              ),
+        child: LayoutBuilder(
+          builder: (context, box) => Tooltip(
+            message: action.label,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(action.icon, color: AppInk.soft, size: compact ? 19 : 22),
+                if (!compact || box.maxWidth >= 56) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    action.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: compact ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppInk.soft,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

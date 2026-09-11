@@ -1,0 +1,29 @@
+{
+  "native_capture_count": 31,
+  "viewport_pt": [
+    402,
+    874
+  ],
+  "image_px": [
+    1206,
+    2622
+  ],
+  "format": "lossless WebP",
+  "capture_exit_code": 0,
+  "flutter_analyze": "passed",
+  "full_flutter_test_count": 1077,
+  "final_developer_tests": 4,
+  "final_water_tests": 13,
+  "unit_guard": "passed",
+  "pixel_identical_conversion": true,
+  "release": {
+    "CFBundleIdentifier": "com.yayoi991331.habitapp.redesign",
+    "CFBundleDisplayName": "兔咪新體驗",
+    "CFBundleShortVersionString": "1.0.1",
+    "CFBundleVersion": "2026091103",
+    "executable_sha256": "9b99d59b0213ff3dbe8927fa1645cf4be6f44f5623201f0f0c33207a29a1df63",
+    "bytes": 142478876
+  },
+  "signature": "codesign --verify --deep --strict passed",
+  "physical_device": "not installed or launched"
+}

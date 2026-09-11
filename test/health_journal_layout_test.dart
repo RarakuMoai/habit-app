@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/pages/water_page.dart';
@@ -34,6 +35,32 @@ Widget journalApp(Widget page, {Locale locale = const Locale('zh', 'TW')}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Match production glyph metrics; Ahem substitutes one square per letter and
+  // changes the amount/goal rows into unrelated multi-line layouts.
+  setUpAll(() async {
+    final nunito = FontLoader('Nunito');
+    for (final weight in [
+      'Regular',
+      'Medium',
+      'SemiBold',
+      'Bold',
+      'ExtraBold',
+    ]) {
+      nunito.addFont(rootBundle.load('assets/fonts/Nunito-$weight.ttf'));
+    }
+    final digits = FontLoader('Baloo 2');
+    for (final weight in [
+      'Regular',
+      'Medium',
+      'SemiBold',
+      'Bold',
+      'ExtraBold',
+    ]) {
+      digits.addFont(rootBundle.load('assets/fonts/Baloo2-$weight.ttf'));
+    }
+    await Future.wait([nunito.load(), digits.load()]);
+  });
 
   setUp(() {
     SharedPreferences.setMockInitialValues({

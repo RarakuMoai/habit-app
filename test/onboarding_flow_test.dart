@@ -111,10 +111,10 @@ void main() {
   ) async {
     await _open(tester);
     expect(_key('onboarding-scene-arrival'), findsOneWidget);
-    expect(find.byType(MascotScene), findsNothing);
+    expect(find.byType(MascotStage), findsNothing);
     expect(find.byType(AudioControlButton), findsOneWidget);
     await _press(tester, 'onboarding-primary');
-    expect(find.byType(MascotScene), findsOneWidget);
+    expect(find.byType(MascotStage), findsOneWidget);
     await _press(tester, 'onboarding-primary');
     await _press(tester, 'onboarding-primary');
     await tester.enterText(_key('onboarding-mascot-name'), '  Sunshine  ');

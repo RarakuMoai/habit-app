@@ -72,6 +72,7 @@ void main() {
     (const Size(430, 581), false),
     (const Size(360, 250), true),
     (const Size(390, 240), true),
+    (const Size(402, 248.4), true),
   ]) {
     testWidgets('$size 主要操作維持尺寸，次要內容可捲至', (tester) async {
       await tester.pumpWidget(harness(size));
@@ -93,19 +94,25 @@ void main() {
           greaterThanOrEqualTo(44),
         );
       }
-      if (summary) {
-        expect(find.byKey(const ValueKey('hero')), findsNothing);
-        expect(find.text('120:00'), findsOneWidget);
-      } else {
-        final hero = tester.getRect(find.byKey(const ValueKey('hero')));
-        expect(hero.width, greaterThanOrEqualTo(size.height < 350 ? 104 : 176));
-        if (size.width == 430 && size.height == 278) {
-          final quick = tester.getRect(
-            find.byKey(const ValueKey('timer-mode-quick-picker-slot')),
-          );
-          expect(quick.bottom, lessThanOrEqualTo(frameRect.bottom));
-        }
-        expect(hero.left, greaterThanOrEqualTo(frameRect.left + 18));
+      final hero = tester.getRect(find.byKey(const ValueKey('hero')));
+      expect(
+        hero.width,
+        greaterThanOrEqualTo(
+          summary
+              ? 104
+              : size.height < 350
+              ? 148
+              : 176,
+        ),
+      );
+      expect(hero.left, greaterThanOrEqualTo(frameRect.left + 18));
+      expect(hero.right, lessThanOrEqualTo(frameRect.right));
+      expect(hero.bottom, lessThanOrEqualTo(frameRect.bottom));
+      if (size.width >= 390 && size.height < 350) {
+        final quick = tester.getRect(
+          find.byKey(const ValueKey('timer-mode-quick-picker-slot')),
+        );
+        expect(quick.bottom, lessThanOrEqualTo(frameRect.bottom - 16));
       }
       final footer = find.text('統計');
       await tester.ensureVisible(footer);

@@ -1010,7 +1010,6 @@ class ExerciseTimerState extends State<ExerciseTimer>
               embedded: true,
             )
           : null,
-      bottomClearance: 16,
       footer: _todaySessions > 0 ? _statsBar() : null,
       topAction: TimerSettingsAction(
         color: _exMeta[_kind]!.color,

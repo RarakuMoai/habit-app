@@ -92,7 +92,7 @@ void main() {
           );
           await _settle(tester);
           expect(_key('onboarding-scene-arrival'), findsOneWidget);
-          expect(find.byType(MascotScene), findsNothing);
+          expect(find.byType(MascotStage), findsNothing);
           for (var i = 0; i < 3; i++) {
             await _press(tester, 'onboarding-primary');
           }
@@ -130,8 +130,8 @@ void main() {
           await _press(tester, 'onboarding-primary');
           await _press(tester, 'onboarding-primary');
           expect(_key('onboarding-scene-together'), findsOneWidget);
-          for (final mascot in tester.widgetList<MascotScene>(
-            find.byType(MascotScene),
+          for (final mascot in tester.widgetList<MascotStage>(
+            find.byType(MascotStage),
           )) {
             expect(mascot.reduceMotion, isTrue);
           }

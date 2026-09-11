@@ -7,7 +7,7 @@
 
 ## 獨立改版分支（2026-09-10）
 
-`codex/experience-redesign` 目前採親子溫暖的 V3.3 方向，詳見
+`codex/experience-redesign` 目前採親子溫暖方向，收合面盤、水瓶與前導站位已依 [V4 回饋](experience_redesign_v4.md)修正；歷史 V3.3 詳見
 [V3.3：收合控制與底部留白](experience_redesign_v33.md)。[V3.2](experience_redesign_v32.md)、[V3.1](experience_redesign_v31.md)、[V3](experience_redesign_v3.md)、[V2](experience_redesign_v2.md)
 與[V1](experience_redesign.md) 保留為比較基準。
 `AppPalette`、`AppSurfaces`、`AppInk`、`AppCardStyle` 與 `buildAppTheme()` 是實作來源。

@@ -23,8 +23,8 @@ class _NoopNotificationsPlatform extends FlutterLocalNotificationsPlatform {}
 // and MascotPageShell themselves remain production widgets, including both safe
 // areas, AppBar, anchored room, toggle bar and mode selector.
 Widget _productionApp(Size size, String language) {
-  final top = size.width == 430 ? 59.0 : 20.0;
-  final bottom = size.width == 430 ? 34.0 : 0.0;
+  final top = size.width >= 390 ? 59.0 : 20.0;
+  final bottom = size.width >= 390 ? 34.0 : 0.0;
   final twoRows = bottomNavUsesTwoRows(width: size.width - 24, itemCount: 6);
   return MaterialApp(
     locale: Locale(language),
@@ -304,7 +304,12 @@ void main() {
   }
 
   for (final language in ['zh', 'en']) {
-    for (final size in [const Size(320, 667), const Size(430, 932)]) {
+    for (final size in [
+      const Size(320, 667),
+      const Size(390, 844),
+      const Size(402, 874),
+      const Size(430, 932),
+    ]) {
       testWidgets('${size.width.toInt()} $language BPM 精準輸入、範圍驗證與取消，鍵盤不遮確認', (
         tester,
       ) async {
@@ -400,6 +405,48 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  for (final size in [const Size(390, 844), const Size(402, 874)]) {
+    for (final language in ['zh', 'en']) {
+      testWidgets('${size.width.toInt()} $language 收合超慢跑面盤BPM與五項快選不需下捲', (
+        tester,
+      ) async {
+        SharedPreferences.setMockInitialValues({
+          PrefsKeys.exerciseSubMode: 'jog',
+        });
+        await load(tester, size, language, true);
+        await switchMode(tester, 'exercise');
+        expectOperable(tester, reason: '$size jog');
+        final frame = tester.getRect(find.byType(TimerModeFrame));
+        final dial = tester.getRect(find.byKey(const ValueKey('timer-hero')));
+        expect(dial.width, greaterThanOrEqualTo(120));
+        for (final key in [
+          'jog-bpm-slower',
+          'jog-bpm-faster',
+          'jog-bpm-edit',
+          'exercise-kind-tabata',
+          'exercise-kind-hiit',
+          'exercise-kind-emom',
+          'exercise-kind-gym',
+          'exercise-kind-jog',
+        ]) {
+          final control = find.byKey(ValueKey(key));
+          expect(control.hitTestable(), findsOneWidget, reason: key);
+          expect(
+            tester.getRect(control).bottom,
+            lessThanOrEqualTo(frame.bottom - 16),
+            reason: key,
+          );
+        }
+        final prefs = await SharedPreferences.getInstance();
+        final before = prefs.getInt(PrefsKeys.exerciseBpm('jog')) ?? 180;
+        await tester.tap(find.byKey(const ValueKey('jog-bpm-faster')));
+        await tester.pump();
+        expect(prefs.getInt(PrefsKeys.exerciseBpm('jog')), before + 1);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+  }
+
   testWidgets('430 收合超慢跑即時 BPM 與五種運動快選均在可見區', (tester) async {
     SharedPreferences.setMockInitialValues({PrefsKeys.exerciseSubMode: 'jog'});
     await load(tester, const Size(430, 932), 'zh', true);
@@ -431,7 +478,12 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  for (final size in [const Size(320, 667), const Size(430, 932)]) {
+  for (final size in [
+    const Size(320, 667),
+    const Size(390, 844),
+    const Size(402, 874),
+    const Size(430, 932),
+  ]) {
     for (final language in ['zh', 'en']) {
       for (final room in [true, false]) {
         testWidgets(
@@ -441,7 +493,23 @@ void main() {
             for (final mode in ['focus', 'exercise', 'metronome', 'game']) {
               await switchMode(tester, mode);
               expectOperable(tester, reason: '$size/$language/$room/$mode');
-              if (size.width == 430 && room) {
+              final dial = find.byKey(const ValueKey('timer-hero'));
+              expect(
+                dial,
+                findsOneWidget,
+                reason: '$mode never removes its clock in compact layout',
+              );
+              final dialRect = tester.getRect(dial);
+              final timerRect = tester.getRect(find.byType(TimerModeFrame));
+              expect(dialRect.width, greaterThanOrEqualTo(104));
+              expect(dialRect.bottom, lessThanOrEqualTo(timerRect.bottom));
+              expect(
+                find.descendant(of: dial, matching: find.byType(CustomPaint)),
+                findsWidgets,
+                reason:
+                    'a visible painted clock or timer must remain, not just an empty hero slot',
+              );
+              if (size.width >= 390 && room) {
                 final frameRect = tester.getRect(find.byType(TimerModeFrame));
                 final quick = find.byKey(
                   const ValueKey('timer-mode-quick-picker-slot'),
@@ -449,7 +517,7 @@ void main() {
                 final quickRect = tester.getRect(quick);
                 expect(
                   quickRect.bottom,
-                  lessThanOrEqualTo(frameRect.bottom),
+                  lessThanOrEqualTo(frameRect.bottom - 16),
                   reason:
                       '$mode quick actions must be visible without vertical scrolling',
                 );
@@ -616,7 +684,12 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  for (final size in [const Size(320, 667), const Size(430, 932)]) {
+  for (final size in [
+    const Size(320, 667),
+    const Size(390, 844),
+    const Size(402, 874),
+    const Size(430, 932),
+  ]) {
     for (final language in ['zh', 'en']) {
       testWidgets('${size.width.toInt()} $language 大字遊戲桌操作完整可讀、可換人及修正', (
         tester,

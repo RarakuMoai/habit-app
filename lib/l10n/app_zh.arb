@@ -5193,7 +5193,7 @@
   "@dvMemoryTitle": {
     "description": "開發者測試的區塊標題：回憶本。"
   },
-  "dvMemoryDesc": "預覽＝免解鎖直接看揭曉動畫與排版；模擬觸發＝走真實判定，驗證門檻/冪等/揭曉整條路。解鎖後到衣櫃 → 回憶 翻閱。",
+  "dvMemoryDesc": "開啟全部回憶後，到衣櫃 → 回憶看稿。下方模擬觸發與解鎖工具會改變測試資料，用來驗證門檻與揭曉流程。",
   "@dvMemoryDesc": {
     "description": "開發者測試的區塊說明：回憶本。"
   },
@@ -5935,7 +5935,7 @@
   "csResume": "繼續上次的對話",
   "csInvite": "有空陪我聊聊嗎？",
   "csPreviewAll": "暫時開啟全部回憶",
-  "csPreviewAllDetail": "重啟 App 後自動關閉。可以自由看稿，不會改變正式解鎖與相處紀錄。",
+  "csPreviewAllDetail": "開啟後到衣櫃 → 回憶閱讀主線、日常與特殊事件。不改變正式紀錄，重啟 App 後自動關閉。",
   "csOpenReview": "打開回憶選集",
   "csProgressError": "相處紀錄暫時無法讀取，已保留原始資料。請重啟 App 後再試。",
   "csPreviewState": "預覽中 · 未正式解鎖",
@@ -5947,5 +5947,6 @@
   "obStoryUserHint": "之後再說也可以",
   "obStoryFeaturesNote": "功能都先開好了，不用的可在設定關閉。",
   "obStoryMemoryNote": "故事可在衣櫃的回憶重看。",
-  "obStoryReadError": "暫時讀不到稱呼，請再試一次。"
+  "obStoryReadError": "暫時讀不到稱呼，請再試一次。",
+  "dvMemoryDataTools": "資料與觸發測試"
 }

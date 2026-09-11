@@ -1142,7 +1142,7 @@
   "dvLoginDay7": "Milestone day (day 7)",
   "dvLoginDay45": "Max level (day 45)",
   "dvMemoryTitle": "Memory book / events (test)",
-  "dvMemoryDesc": "Preview = see the reveal animation without unlocking. Simulate = run the real checks (threshold, idempotency, reveal queue). Unlocked ones show up under Wardrobe → Memories.",
+  "dvMemoryDesc": "Preview all memories in Wardrobe → Memories. The simulation and unlock tools below change test data to check thresholds and reveal flows.",
   "dvMemoryCounts": "Unlocked: {unlocked}　Unread: {unread}　Pending: {pending}",
   "dvMemoryPreviewSection": "Preview reveal (no state change)",
   "dvMemorySimulateSection": "Simulate trigger (real checks and reveal queue)",
@@ -1349,7 +1349,7 @@
   "csResume": "Continue our conversation",
   "csInvite": "Have a moment to talk?",
   "csPreviewAll": "Temporarily preview all memories",
-  "csPreviewAllDetail": "Resets when the app restarts. Review any story without changing your real unlocks or progress.",
+  "csPreviewAllDetail": "Read main stories, daily moments and special events in Wardrobe → Memories. Real records stay unchanged. Resets when the app restarts.",
   "csOpenReview": "Open memory collection",
   "csProgressError": "Your progress could not be read. The original data is preserved. Please restart the app and try again.",
   "csPreviewState": "Preview · not unlocked",
@@ -1361,5 +1361,6 @@
   "obStoryUserHint": "Another time is fine",
   "obStoryFeaturesNote": "All features start on. Turn off any you don’t need in Settings.",
   "obStoryMemoryNote": "Revisit the story in Wardrobe → Memories.",
-  "obStoryReadError": "Your saved names could not be loaded. Please try again."
+  "obStoryReadError": "Your saved names could not be loaded. Please try again.",
+  "dvMemoryDataTools": "Data and trigger tests"
 }

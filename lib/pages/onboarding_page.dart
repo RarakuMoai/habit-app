@@ -21,6 +21,7 @@ import '../utils/wardrobe_store.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/audio_control_button.dart';
 import '../widgets/mascot_scene.dart';
+import '../widgets/onboarding_room_scene.dart';
 import '../widgets/scene_rooms.dart';
 
 /// A quiet first meeting, also used by preview and the first memory.
@@ -528,58 +529,20 @@ class _OnboardingPageState extends State<OnboardingPage>
     OnboardingStoryScene scene, {
     required bool reduce,
     required bool active,
-  }) => ClipRect(
-    child: IgnorePointer(
-      child: ExcludeSemantics(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset(
-              FourPeriodRoom.home.assets.day,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-            ),
-            if (scene.showMascot)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
-                child: ListenableBuilder(
-                  listenable: WardrobeStore.selectedOutfit,
-                  builder: (_, _) => MascotScene(
-                    asset: skinnedMascotAsset(
-                      scene.emotion.assetPath,
-                      WardrobeStore.currentOutfit.skinKey,
-                    ),
-                    accent: AppPalette.habit,
-                    speech: null,
-                    reduceMotion: reduce,
-                    paused: !active,
-                    poseTransition: reduce
-                        ? MascotPoseTransition.cut
-                        : MascotPoseTransition.crossFade,
-                    lighting: mascotLightingForScene(
-                      SceneTimeState.fromHour(13),
-                      FourPeriodRoom.home.light,
-                    ),
-                  ),
-                ),
-              ),
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 40,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0x00FFF8ED), AppSurfaces.canvas],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+  }) => ListenableBuilder(
+    listenable: WardrobeStore.selectedOutfit,
+    builder: (_, _) => OnboardingRoomScene(
+      asset: scene.showMascot
+          ? skinnedMascotAsset(
+              scene.emotion.assetPath,
+              WardrobeStore.currentOutfit.skinKey,
+            )
+          : null,
+      reduceMotion: reduce,
+      paused: !active,
+      lighting: mascotLightingForScene(
+        SceneTimeState.fromHour(13),
+        FourPeriodRoom.home.light,
       ),
     ),
   );
