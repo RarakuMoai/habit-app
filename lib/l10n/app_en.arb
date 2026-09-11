@@ -1353,5 +1353,13 @@
   "csOpenReview": "Open memory collection",
   "csProgressError": "Your progress could not be read. The original data is preserved. Please restart the app and try again.",
   "csPreviewState": "Preview · not unlocked",
-  "csLockedHint": "Keep spending time together to discover this part of his story."
+  "csLockedHint": "Keep spending time together to discover this part of his story.",
+  "obStoryPreviewOpen": "Preview the first meeting",
+  "obStoryBegin": "Make yourself at home",
+  "obStoryNameLabel": "Tumi’s nickname (optional)",
+  "obStoryUserLabel": "Your name (optional)",
+  "obStoryUserHint": "Another time is fine",
+  "obStoryFeaturesNote": "All features start on. Turn off any you don’t need in Settings.",
+  "obStoryMemoryNote": "Revisit the story in Wardrobe → Memories.",
+  "obStoryReadError": "Your saved names could not be loaded. Please try again."
 }

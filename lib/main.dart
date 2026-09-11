@@ -118,9 +118,14 @@ Future<void> _startInitialAudio({required bool onboardingDone}) async {
     final asset = onboardingDone
         ? await WardrobeStore.loadCurrentTrackAsset()
         : 'sounds/bgm_onboarding.m4a';
-    // 冷啟動兩種情況（新用戶前導 / 既有用戶直接進主頁）都走 deferFade：
-    // 先靜音喚醒音訊路由，settle 後再柔和淡入，避免一開就突兀出現。
-    await BgmService.instance.play(asset, deferFade: true);
+    // Setup can finish before this delayed startup. Its explicit play(main)
+    // owns the newer intent; an old opening cue must never take it back.
+    // ensurePlaying also uses deferFade for a genuinely fresh audio source.
+    if (onboardingDone) {
+      await BgmService.instance.play(asset, deferFade: true);
+    } else {
+      await BgmService.instance.ensurePlaying(asset);
+    }
     await SfxService.instance.init();
   } catch (e, st) {
     debugPrint('BGM init/play failed: $e\n$st');
@@ -323,7 +328,11 @@ class _MyAppState extends State<MyApp> {
       home: _buildHome(),
       routes: {
         '/onboarding': (_) => const OnboardingPage(),
-        '/home': (_) => const MainPage(),
+        '/home': (context) => MainPage(
+          quietArrival:
+              ModalRoute.of(context)?.settings.arguments ==
+              'onboarding-arrival',
+        ),
       },
     );
   }
@@ -432,7 +441,11 @@ class _StartupSplashState extends State<_StartupSplash>
 }
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+  const MainPage({super.key, this.quietArrival = false});
+
+  /// A first meeting lands in the room without a second full-screen ceremony.
+  /// Login rewards still persist normally; later launches celebrate as usual.
+  final bool quietArrival;
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -440,6 +453,7 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   int _currentIndex = 0;
+  late bool _quietArrivalPending = widget.quietArrival;
   bool _roommateMode = false;
   int _roommateModeRevision = 0;
 
@@ -733,6 +747,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   Future<void> _claimDailyLoginReward() async {
     if (_claimingDailyReward) return;
     _claimingDailyReward = true;
+    final quietArrival = _quietArrivalPending;
+    _quietArrivalPending = false;
     final startBalance = CoinService.notifier.value;
     // 先凍結 AppBar 顯示；資料仍立即安全入帳，動畫只負責把舊值數到新值。
     CoinService.presentationBalance.value = startBalance;
@@ -745,7 +761,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     final loginStreak = prefs.getInt(PrefsKeys.coinLoginStreak) ?? 0;
     unawaited(StoryEvents.onLoginStreak(loginStreak));
-    if (reward == null || !mounted) {
+    if (reward == null || !mounted || quietArrival) {
       CoinService.presentationBalance.value = null;
       CoinService.dailyRewardShowing.value = false;
       _claimingDailyReward = false;

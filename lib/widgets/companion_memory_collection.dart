@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../pages/companion_dialogue_page.dart';
 import '../pages/memory_book_reader.dart';
+import '../pages/onboarding_page.dart';
 import '../utils/app_style.dart';
 import '../utils/companion_story_catalog.dart';
 import '../utils/companion_story_preview.dart';
@@ -60,12 +61,19 @@ class _CompanionMemoryCollectionState extends State<CompanionMemoryCollection> {
     if (!preview && !_store.state.completed.containsKey(episode.id)) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CompanionDialoguePage(
-          episode: episode,
-          preview: preview,
-          replay: !preview,
-          onFinish: preview ? null : (_) => _store.markRead(episode.id),
-        ),
+        builder: (_) => episode.id == 'story_01'
+            ? OnboardingPage(
+                preview: preview,
+                onReplayFinished: preview
+                    ? null
+                    : (_) => _store.markRead(episode.id),
+              )
+            : CompanionDialoguePage(
+                episode: episode,
+                preview: preview,
+                replay: !preview,
+                onFinish: preview ? null : (_) => _store.markRead(episode.id),
+              ),
       ),
     );
   }
@@ -97,10 +105,7 @@ class _CompanionMemoryCollectionState extends State<CompanionMemoryCollection> {
     final language = Localizations.localeOf(context).languageCode;
     if (!_ready) {
       return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: AppLoadingBar(),
-        ),
+        child: Padding(padding: EdgeInsets.all(24), child: AppLoadingBar()),
       );
     }
     return ListenableBuilder(

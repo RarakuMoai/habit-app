@@ -1,0 +1,155 @@
+{
+  "date": "2026-09-11",
+  "branch": "codex/experience-redesign",
+  "baseline": "693ecb7ecbca79578b7aa45a34ee2f297daa51d7",
+  "analyze": "passed",
+  "flutter_tests": {
+    "passed": 1038,
+    "failed": 0
+  },
+  "units_check": "passed; English preposition false positives explicitly annotated",
+  "native": {
+    "device": "iPhone 17 Pro",
+    "os": "iOS 26.5",
+    "logical_size": [
+      402,
+      874
+    ],
+    "locale": "zh",
+    "source": "real MyApp root with process-local mocked preferences",
+    "result": "passed",
+    "screenshots": [
+      {
+        "file": "01-arrival.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "32e0da98609d4e78a71f69f6fd367b9022af9767bd49cf8db842494ed8866dde"
+      },
+      {
+        "file": "02-hello.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "1ec8c7f6250fadc0080e6231d2c02860271e586f38dda15f71ac8f110c233f7c"
+      },
+      {
+        "file": "03-a-new-routine.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "eac188105e4e73ad68bfcea00b218225e1c453536a196963842ab0cc38ade97c"
+      },
+      {
+        "file": "04-a-name.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "ade82a23828162f5a7c4a583cc5e631e2b0011064eaa1e60ef72baf58a6bfc77"
+      },
+      {
+        "file": "04b-name-keyboard.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "5c3f75697db214f63721e2e451fb25279e4e3cc9b7189a6f7054537b805a4a7b"
+      },
+      {
+        "file": "05-your-name.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "e5b117c18a2284010f2b530c2a5794fdfa1613891d6070e317c9e08c057168f4"
+      },
+      {
+        "file": "06-a-beginning.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "100124cb9c462fa1e1c90efb09de77357b7b703767a08cd2a9c0e256cb052b9b"
+      },
+      {
+        "file": "07-home.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "dc76c9ea1ce151c5575503b5cb0d43f07dcb367987dda438e3425233e7da1f13"
+      },
+      {
+        "file": "08-timers.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "8b335824120e361dad1fc0a9eb21b8df62802b9909ad297e690d34eaf20d6341"
+      },
+      {
+        "file": "09-water.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "be091dfe75663b8f58b6aa412ff3a8775ef321513e77b8687135c103dcd70b77"
+      },
+      {
+        "file": "10-weight.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "d8e0de81fdb2abf8e6307d48ab46a8acb38c511972eb2a76cab2555ee5d06fc4"
+      },
+      {
+        "file": "11-family.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "4440d5fab2f12d73661b0912aa9eae0fcdf65709b09d565c3e2ca6f47480aca1"
+      },
+      {
+        "file": "12-wardrobe.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "2b54f9155fed724677804a90ea7d1a4ad8ea8d01b956d398f7e235fa633df64b"
+      },
+      {
+        "file": "13-developer-preview-entry.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "71f97c092e61fa6d4393cbc7c9e682fdd0d4756ad88e8ad7f1e61d96c5765d30"
+      },
+      {
+        "file": "14-preview-arrival.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "4fc2a410d0e3428f965c7b82dcd59c4bfc62354e16811b40b60397875db8c837"
+      },
+      {
+        "file": "15-preview-ending.png",
+        "width": 1206,
+        "height": 2622,
+        "sha256": "f7cfbafadc91f2797897999813f7540d44c361baad58b07ce40ab6b205fbd94d"
+      }
+    ],
+    "soft_keyboard_visible": false
+  },
+  "widget_layout": {
+    "sizes": [
+      [
+        320,
+        568
+      ],
+      [
+        430,
+        932
+      ]
+    ],
+    "locales": [
+      "zh",
+      "en"
+    ],
+    "text_scale": 2,
+    "keyboard_inset": 300,
+    "result": "passed"
+  },
+  "release": {
+    "version": "1.0.1",
+    "build": "2026091102",
+    "bundle": "com.yayoi991331.habitapp.redesign",
+    "display_name": "兔咪新體驗",
+    "size_mb": 142.5,
+    "signature": "codesign --verify --deep --strict passed outside restricted sandbox",
+    "path": "build/ios/iphoneos/Runner.app",
+    "physical_device_installed": false
+  },
+  "pending_user_review": [
+    "opening tone and pacing",
+    "physical-device keyboard and sound",
+    "release smoothness"
+  ]
+}

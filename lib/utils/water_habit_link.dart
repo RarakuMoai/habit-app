@@ -96,7 +96,14 @@ abstract final class WaterHabitLink {
     await PreferenceWriteGuard.ensureHealthy(prefs);
     final enabled = prefs.getBool(PrefsKeys.waterEnabled) ?? false;
     final hasWaterHabit = hasHabit(prefs);
-    if (enabled && !hasWaterHabit) return ensureHabit(prefs);
+    if (enabled && !hasWaterHabit) {
+      // Story onboarding opens tools without choosing the user's first habit.
+      // Keep the legacy repair and explicit feature-setting actions unchanged.
+      if ((prefs.getInt(PrefsKeys.onboardingStoryVersion) ?? 0) >= 1) {
+        return false;
+      }
+      return ensureHabit(prefs);
+    }
     if (!enabled && hasWaterHabit) {
       await _writePreference(
         prefs,

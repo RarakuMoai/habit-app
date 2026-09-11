@@ -123,14 +123,13 @@
 | 位置 | 是什麼 | 為什麼不能翻 |
 |---|---|---|
 | `home/home_presets.dart` 的 `kHomePresets` name | 首頁常用習慣名 | 選取後直接存成習慣名；去重（`existing.contains(p.name)`）與喝水／體重連動判定都比對它 |
-| `onboarding_page.dart` 的 `_kOnboardingHabits` name | 前導頁習慣清單 | 同上，選了會存成習慣名 |
 | `family/family_presets.dart` 的三組 `k*Presets` name | 育兒常用習慣／扣分／獎勵 | `existingNames.contains` 去重、`_deductionPresetPoints(name)` 用名字查分數。翻譯後換語言，已加過的項目會重新出現 → 重複 |
 | `family/family_store.dart` 的預設習慣 | 新增小孩時自動建的三個習慣 | 建立時就存進資料，名稱要跟 `kHabitPresets` 對得上才不會重複 |
 | `home_page.dart` 的 `_kWaterHabitPresetName` | `'喝足夠的水'` | 喝水連動的識別鍵 |
 | `utils/water_habit_link.dart`、`utils/weight_records.dart` | 習慣名常數與別名 | 跨頁比對用 |
 | `home/habit_sheets.dart` 的 `'體重紀錄'` 比對 | 決定連動色 | 識別鍵 |
 | `home/habit_sheets.dart` 的 `RegExp(...分鐘$)` | 解析已存的習慣名稱 | 時長被編進名稱裡存起來（`habitNameMinutes`），改 l10n 會讓舊名稱解析失敗 |
-| `profile_edit_page`／`onboarding_page`／`water_page`／`weight_page` 的性別與活動量 | `'男'`／`'久坐'` 等 | 儲存值；算每日水量與 TDEE 都比對它們。**只換顯示標籤**（`genderMale`、`activityAlmostNone`） |
+| `profile_edit_page`／`water_page`／`weight_page` 的性別與活動量 | `'男'`／`'久坐'` 等 | 儲存值；算每日水量與 TDEE 都比對它們。**只換顯示標籤**（`genderMale`、`activityAlmostNone`） |
 | `timer/game/table_timer_models.dart` 的 `_legacyZh*` | 舊版自動命名的比對字串 | 判斷「這名字是不是使用者改過的」，必須維持當年輸出 |
 | `utils/wardrobe_catalog.dart` 的 `tags` | `'慢'`／`'快'` 等 | 穩定識別字串，顯示走 `bgmTagLabel` 翻譯 |
 
@@ -141,8 +140,10 @@
 
 `utils/mascot.dart` 的 `_lines`／`_homeTapLines`、`utils/story_catalog.dart` 的
 `captions`、`home_page.dart` 的 `buildGreetingMessage`、`login_streak_page.dart`
-的 `_caption`、`onboarding_page.dart` 的 `_speechBubble()` 與各 feature 頁 `bubble`、
+的 `_caption`、各 feature 頁 `bubble`、
 `wardrobe_page.dart` 的穿上／購買 `speech`。
+
+故事前導與第一季對話已使用中英成對文本，來源為 `onboarding_story.dart` 與 `companion_story_catalog.dart`；不再適用上述待遷移名單。
 
 ### 3. 其他不算 UI 字串的
 

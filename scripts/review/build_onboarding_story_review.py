@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Build a local reading gallery from native onboarding captures."""
+import html
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / 'design_trials/experience_redesign/onboarding_story_v1'
+SCENES = [
+    ('01-arrival.png', '走進這個家', '先停在房間裡，讓一段新的日常慢慢開始。'),
+    ('02-hello.png', '初次見面', '兔咪練習過招呼，真正見面時還是有一點緊張。'),
+    ('03-a-new-routine.png', '他想改變的事', '學著照顧生活，也試著主動與人說話。'),
+    ('04-a-name.png', '你想怎麼叫他', '本名是兔咪，也可以留下自己的暱稱。'),
+    ('05-your-name.png', '留下你的稱呼', '可以現在說，也可以之後再說。'),
+    ('06-a-beginning.png', '從這次相遇開始', '相識之後，才一起走進日常。'),
+]
+DETAILS = [
+    ('04b-name-keyboard.png', '命名輸入中（模擬器未顯示軟體鍵盤）'),
+    ('07-home.png', '安靜回到首頁'),
+    ('08-timers.png', '計時入口'),
+    ('09-water.png', '喝水入口'),
+    ('10-weight.png', '體重空狀態'),
+    ('11-family.png', '家庭空狀態'),
+    ('12-wardrobe.png', '衣櫃與回憶'),
+    ('13-developer-preview-entry.png', '開發者預覽入口'),
+    ('14-preview-arrival.png', '重看開場'),
+    ('15-preview-ending.png', '只保留在預覽裡的稱呼草稿'),
+]
+
+def card(path, caption):
+    return (f'<figure><a href="{html.escape(path)}" target="_blank">'
+            f'<img loading="lazy" src="{html.escape(path)}" alt="{html.escape(caption)}"></a>'
+            f'<figcaption>{html.escape(caption)}</figcaption></figure>')
+
+def main():
+    for name, *_ in SCENES + DETAILS:
+        if not (OUT / name).is_file():
+            raise FileNotFoundError(name)
+    rows = ''.join(card(name, title) for name, title in DETAILS)
+    comparison = ''.join([
+        card('../review_v2/onboarding/onboarding-01-welcome.webp', 'V2 開場'),
+        card('01-arrival.png', '故事前導：先走進家'),
+        card('../review_v2/onboarding/onboarding-02-name.webp', 'V2 命名'),
+        card('04-a-name.png', '故事前導：自然留下稱呼'),
+    ])
+    page = '''<!doctype html><html lang="zh-Hant"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>從這次相遇開始 · 兔咪前導</title>
+<style>
+:root{color-scheme:light;--paper:#fff8ee;--ink:#604334;--muted:#806e61;--accent:#ab674c}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 system-ui,sans-serif}
+header,main{max-width:1120px;margin:auto;padding:28px 24px}header{padding-bottom:8px}
+.eyebrow{font-size:12px;letter-spacing:.15em;color:var(--muted)}h1{font-size:clamp(28px,5vw,46px);font-weight:600;margin:8px 0}
+p{color:var(--muted);margin:6px 0 18px}nav{display:flex;gap:12px;flex-wrap:wrap}a{color:inherit}nav a{text-underline-offset:5px}
+.reader{display:grid;grid-template-columns:minmax(240px,380px) 1fr;align-items:center;gap:52px;margin:20px auto 56px;max-width:930px}
+.reader img{display:block;width:100%;max-height:76vh;object-fit:contain;border-radius:24px;filter:drop-shadow(0 14px 26px #8b634416)}
+h2{font-size:28px;font-weight:550;margin:8px 0}.step{font-size:12px;letter-spacing:.15em;color:var(--accent)}
+.controls{display:flex;gap:12px;margin-top:24px}button{font:inherit;min-height:48px;min-width:72px;padding:10px 20px;border:1px solid #dcc4b2;border-radius:30px;background:transparent;color:var(--ink);cursor:pointer}
+.controls button:last-child{background:var(--accent);border-color:var(--accent);color:white}button:disabled{opacity:.35;cursor:default}
+.dots{display:flex;gap:8px;margin-top:22px}.dot{padding:0;width:10px;min-width:10px;height:10px;min-height:10px;border:0;background:#dfc9b6;border-radius:50%}.dot.active{background:var(--accent)}
+section{scroll-margin-top:24px;border-top:1px solid #eadacb;padding-top:28px;margin-top:42px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:24px}
+figure{margin:0}figure img{display:block;width:100%;border-radius:18px}figcaption{font-size:13px;padding:10px 2px;color:var(--muted)}
+.note{font-size:13px;max-width:650px}footer{padding:36px 0;color:var(--muted);font-size:12px}
+@media(max-width:700px){.reader{display:flex;flex-direction:column;gap:24px}.reader>a{width:min(100%,310px)}.reader img{max-height:65vh}.copy{width:100%;text-align:center}.controls,.dots{justify-content:center}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}
+@media(prefers-reduced-motion:no-preference){#scene{animation:arrive .4s ease both}@keyframes arrive{from{opacity:.3}to{opacity:1}}}
+</style>
+<header><div class="eyebrow">兔咪 · 故事前導 V1</div><h1>從這次相遇開始</h1>
+<p>先認識這個家，再認識想和你一起成長的兔咪。</p>
+<nav><a href="#reading">六幕試讀</a><a href="#details">進入日常與預覽</a><a href="#comparison">與舊版比較</a></nav></header>
+<main><div class="reader" id="reading"><a id="full" href="01-arrival.png" target="_blank"><img id="scene" src="01-arrival.png" alt="走進這個家"></a>
+<div class="copy"><div class="step" id="count"></div><h2 id="heading"></h2><p id="description"></p>
+<div class="controls"><button id="previous">上一幕</button><button id="next">下一幕</button></div><div class="dots" id="dots"></div>
+<p class="note" style="margin-top:28px">這裡是 iPhone 17 Pro 的原生截圖。App 內可自行前進、返回與略過；動畫、音樂與命名互動請在「預覽故事前導」體驗。</p></div></div>
+<section id="details"><h2>相遇之後，走進日常</h2><p>所有功能入口先開放，習慣由自己加入。開發者預覽可試改名稱，離開後不改存檔。</p><div class="grid">DETAIL_CARDS</div></section>
+<section id="comparison"><h2>與 V2 的開場比較</h2><p>保留舊版原生畫面供比較：由功能問答改為初次相遇。</p><div class="grid">COMPARISON_CARDS</div></section>
+<footer>iPhone 17 Pro · iOS 26.5 · 402 × 874 pt · 繁體中文 · redesign 測試分支。實機感受待本人確認。</footer></main>
+<script>const scenes=SCENE_DATA;let index=0;const dots=document.querySelector('#dots');scenes.forEach((_,i)=>{const b=document.createElement('button');b.className='dot';b.setAttribute('aria-label',`第 ${i+1} 幕`);b.onclick=()=>show(i,true);dots.append(b)});
+function show(i,scroll=false){index=Math.max(0,Math.min(scenes.length-1,i));const [file,title,description]=scenes[index];const img=document.querySelector('#scene');img.src=file;img.alt=title;document.querySelector('#full').href=file;document.querySelector('#count').textContent=`${String(index+1).padStart(2,'0')} / 06`;document.querySelector('#heading').textContent=title;document.querySelector('#description').textContent=description;document.querySelector('#previous').disabled=index===0;document.querySelector('#next').disabled=index===scenes.length-1;[...dots.children].forEach((d,n)=>{d.classList.toggle('active',n===index);d.setAttribute('aria-current',n===index?'step':'false')});if(scroll)document.querySelector('#reading').scrollIntoView({block:'start',behavior:'instant'})}document.querySelector('#previous').onclick=()=>show(index-1,true);document.querySelector('#next').onclick=()=>show(index+1,true);document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')show(index+1);if(e.key==='ArrowLeft')show(index-1)});show(0);</script></html>'''
+    (OUT / 'index.html').write_text(page.replace('DETAIL_CARDS', rows)
+        .replace('COMPARISON_CARDS', comparison)
+        .replace('SCENE_DATA', json.dumps(SCENES, ensure_ascii=False)))
+
+if __name__ == '__main__':
+    main()

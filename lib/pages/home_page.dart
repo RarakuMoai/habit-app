@@ -446,8 +446,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final previousOpen = settledToday
         ? journal.previousOpenDate
         : prefs.getString(PrefsKeys.lastOpenDate);
-    final nickname =
-        prefs.getString(PrefsKeys.userNickname) ?? l10n.hpNicknameFallback;
+    final savedNickname = prefs.getString(PrefsKeys.userNickname)?.trim();
+    final nickname = savedNickname == null || savedNickname.isEmpty
+        ? l10n.hpNicknameFallback
+        : savedNickname;
     final mascotName =
         prefs.getString(PrefsKeys.mascotName) ?? MascotName.fallback;
     final birthday = DateTime.tryParse(
@@ -996,7 +998,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
       return;
     }
-    if (generation != _roommateInvitationGeneration || !_roommateSceneAvailable) {
+    if (generation != _roommateInvitationGeneration ||
+        !_roommateSceneAvailable) {
       return;
     }
     _dismissGreeting();

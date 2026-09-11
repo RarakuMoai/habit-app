@@ -417,7 +417,12 @@ class CompanionStoryProgress extends ChangeNotifier {
     }
     // Sparse main-story milestones must not stop the daily relationship clock.
     final daily = [
-      for (final id in const ['daily_02', 'daily_03', 'daily_05', 'daily_06'])
+      for (final id in const [
+        'daily_02',
+        'daily_03',
+        'daily_05',
+        'daily_06',
+      ]) // units-ok: Dart iteration.
         ?companionEpisodeById(id),
     ];
     return daily.isEmpty
@@ -477,6 +482,38 @@ class CompanionStoryProgress extends ChangeNotifier {
       CompanionProgressState(
         days: !credited && _state.days < 90 ? _state.days + 1 : _state.days,
         completed: {..._state.completed, episodeId: completion},
+        creditedDayKeys: {..._state.creditedDayKeys, dayKey},
+        extra: _state._extra,
+      ),
+    );
+  });
+
+  /// The story-led first meeting is its own presentation of story_01. Commit it
+  /// without manufacturing reader positions or answers. A setup retry on a
+  /// later day must not turn the same first meeting into a second companionship.
+  Future<bool> completeOnboarding({
+    required String dayKey,
+    required bool skipped,
+  }) => _serial(() async {
+    if (!await _load() || !_validDay(dayKey)) return false;
+    const episodeId = 'story_01';
+    if (companionEpisodeById(episodeId) == null) return false;
+    final active = _state.active;
+    if (active != null && active.episodeId != episodeId) return false;
+    if (_state.completed.containsKey(episodeId)) return true;
+    final credited = _state.creditedDayKeys.contains(dayKey);
+    return _persist(
+      CompanionProgressState(
+        days: !credited && _state.days < 90 ? _state.days + 1 : _state.days,
+        completed: {
+          ..._state.completed,
+          episodeId: CompanionCompletion(
+            firstCompletedAt: dayKey,
+            skipped: skipped,
+            read: !skipped,
+            choices: active?.choices ?? const {},
+          ),
+        },
         creditedDayKeys: {..._state.creditedDayKeys, dayKey},
         extra: _state._extra,
       ),

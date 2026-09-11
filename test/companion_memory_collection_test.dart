@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/pages/companion_dialogue_page.dart';
 import 'package:habit_app/pages/memory_book_reader.dart';
+import 'package:habit_app/pages/onboarding_page.dart';
 import 'package:habit_app/utils/app_theme.dart';
 import 'package:habit_app/utils/companion_story_catalog.dart';
 import 'package:habit_app/utils/companion_story_preview.dart';
@@ -37,31 +38,11 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await _frames(tester);
 }
 
-Future<void> _finishDialogue(
-  WidgetTester tester,
-  CompanionEpisode episode,
-) async {
-  var session = CompanionSession(episode);
-  for (var guard = 0; guard < 200; guard++) {
-    expect(
-      tester.widget<Text>(_key('companion_line')).data,
-      session.text.resolve('zh'),
-    );
-    if (session.atEnd) {
-      await _tap(tester, _key('companion_next'));
-      expect(find.byType(CompanionDialoguePage), findsNothing);
-      return;
-    }
-    if (session.choices.isEmpty) {
-      await _tap(tester, _key('companion_next'));
-      session = CompanionSession(episode, session.advance());
-    } else {
-      final choice = session.choices.last;
-      await _tap(tester, _key('companion_choice_${choice.id}'));
-      session = CompanionSession(episode, session.choose(choice.id));
-    }
+Future<void> _finishOpening(WidgetTester tester) async {
+  for (var scene = 0; scene < 6; scene++) {
+    await _tap(tester, _key('onboarding-primary'));
   }
-  fail('The collection reader did not finish ${episode.id}');
+  expect(find.byType(OnboardingPage), findsNothing);
 }
 
 void main() {
@@ -165,17 +146,21 @@ void main() {
         );
         expect(ink.onTap, isNotNull, reason: '${episode.id} is previewable');
         await _tap(tester, row);
-        final reader = tester.widget<CompanionDialoguePage>(
-          find.byType(CompanionDialoguePage),
-        );
-        expect(reader.episode.id, episode.id);
-        expect(reader.preview, isTrue);
-        expect(reader.replay, isFalse);
-        expect(reader.onSave, isNull);
-        expect(reader.onFinish, isNull);
-        if (episode.id == collected.id) {
-          await _finishDialogue(tester, episode);
+        if (episode.id == 'story_01') {
+          final opening = tester.widget<OnboardingPage>(
+            find.byType(OnboardingPage),
+          );
+          expect(opening.preview, isTrue);
+          expect(opening.onReplayFinished, isNull);
+          await _finishOpening(tester);
         } else {
+          final reader = tester.widget<CompanionDialoguePage>(
+            find.byType(CompanionDialoguePage),
+          );
+          expect(reader.episode.id, episode.id);
+          expect(reader.preview, isTrue);
+          expect(reader.onSave, isNull);
+          expect(reader.onFinish, isNull);
           await _tap(tester, _key('companion_close'));
         }
         expect(store.state.toJson(), progressBefore);
@@ -226,13 +211,11 @@ void main() {
       expect(_snapshot(prefs), preferencesBefore);
 
       await _tap(tester, _key('memory-${collected.id}'));
-      final replay = tester.widget<CompanionDialoguePage>(
-        find.byType(CompanionDialoguePage),
-      );
+      final replay = tester.widget<OnboardingPage>(find.byType(OnboardingPage));
       expect(replay.preview, isFalse);
-      expect(replay.replay, isTrue);
-      expect(_key('companion_skip'), findsNothing);
-      await _finishDialogue(tester, collected);
+      expect(replay.onReplayFinished, isNotNull);
+      expect(find.byType(TextField), findsNothing);
+      await _finishOpening(tester);
       final record = store.state.completed[collected.id]!;
       expect(record.read, isTrue);
       expect(record.skipped, isTrue);

@@ -7,6 +7,7 @@
 abstract final class PrefsKeys {
   // ── Onboarding / 個人資料 ─────────────────────────────────
   static const onboardingDone = 'onboarding_done';
+  static const onboardingStoryVersion = 'onboarding_story_version';
   static const onboardingDate = 'onboarding_date';
   static const userNickname = 'user_nickname';
   static const mascotName = 'mascot_name';

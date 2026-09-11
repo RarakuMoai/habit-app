@@ -5939,5 +5939,13 @@
   "csOpenReview": "打開回憶選集",
   "csProgressError": "相處紀錄暫時無法讀取，已保留原始資料。請重啟 App 後再試。",
   "csPreviewState": "預覽中 · 未正式解鎖",
-  "csLockedHint": "繼續相處，就會慢慢認識這一面的他。"
+  "csLockedHint": "繼續相處，就會慢慢認識這一面的他。",
+  "obStoryPreviewOpen": "預覽故事前導",
+  "obStoryBegin": "走進日常",
+  "obStoryNameLabel": "兔咪的暱稱（選填）",
+  "obStoryUserLabel": "你的稱呼（選填）",
+  "obStoryUserHint": "之後再說也可以",
+  "obStoryFeaturesNote": "功能都先開好了，不用的可在設定關閉。",
+  "obStoryMemoryNote": "故事可在衣櫃的回憶重看。",
+  "obStoryReadError": "暫時讀不到稱呼，請再試一次。"
 }

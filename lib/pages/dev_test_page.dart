@@ -16,6 +16,7 @@ import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 import '../widgets/companion_memory_collection.dart';
 import 'login_streak_page.dart';
+import 'onboarding_page.dart';
 import 'story_reveal_page.dart';
 
 /// 開發者測試頁。
@@ -402,6 +403,17 @@ class _DevTestPageState extends State<DevTestPage> {
                         ),
                         icon: const Icon(Icons.menu_book_rounded),
                         label: Text(_l10n.csOpenReview),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        key: const ValueKey('onboarding-open-preview'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const OnboardingPage(preview: true),
+                          ),
+                        ),
+                        icon: const Icon(Icons.door_front_door_outlined),
+                        label: Text(_l10n.obStoryPreviewOpen),
                       ),
                       const SizedBox(height: 20),
                       AnimatedBuilder(

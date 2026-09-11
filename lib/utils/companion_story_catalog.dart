@@ -67,7 +67,7 @@ const List<CompanionEpisode> companionEpisodes = [
     id: 'story_01',
     day: 1,
     kind: CompanionStoryKind.main,
-    title: CompanionText('說出一半的開場白', 'Half a Hello'),
+    title: CompanionText('從這次相遇開始', 'Our first meeting'),
     beats: [
       CompanionBeat(
         id: 'story_01_arrival',
@@ -105,7 +105,10 @@ const List<CompanionEpisode> companionEpisodes = [
       CompanionBeat(
         id: 'story_01_wish',
         lines: [
-          CompanionText('最近才住進來。', 'I only moved in recently.'),
+          CompanionText(
+            '最近才住進來。',
+            'I only moved in recently.', // units-ok: English preposition.
+          ),
           CompanionText(
             '還在學著自己安排生活。',
             "I'm learning to manage things on my own.",
@@ -234,7 +237,7 @@ const List<CompanionEpisode> companionEpisodes = [
               CompanionText('那我可以先聽。', 'Then I can listen.'),
               CompanionText(
                 '想到什麼，再慢慢接。',
-                "I'll join in when I have something to say.",
+                "I'll join in when I have something to say.", // units-ok: English preposition.
               ),
             ],
           ),
@@ -1124,7 +1127,7 @@ const List<CompanionEpisode> companionEpisodes = [
             id: 'story_09_together_early',
             label: CompanionText(
               '有提早說出需要什麼。',
-              'You told them what you needed in time.',
+              'You told them what you needed in time.', // units-ok: English preposition.
             ),
             emotion: MascotEmotion.smile,
             replies: [
@@ -1415,7 +1418,7 @@ const List<CompanionEpisode> companionEpisodes = [
               CompanionText('原來，你也會。', 'Oh, you too.'),
               CompanionText(
                 '不是每次都能先想好全部。',
-                "We can't always work everything out in advance.",
+                "We can't always work everything out in advance.", // units-ok: English preposition.
               ),
             ],
           ),
@@ -1439,7 +1442,7 @@ const List<CompanionEpisode> companionEpisodes = [
           ),
           CompanionText(
             '走進去時，心跳很快。',
-            'My heart was beating fast when I went in.',
+            'My heart was beating fast when I went in.', // units-ok: English preposition.
           ),
         ],
       ),

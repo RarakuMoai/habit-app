@@ -158,7 +158,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Future<void> _save() async {
     playHaptic(HapticLevel.light);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(PrefsKeys.userNickname, _nicknameCtrl.text.trim());
+    final nickname = _nicknameCtrl.text.trim();
+    if (nickname.isEmpty) {
+      await prefs.remove(PrefsKeys.userNickname);
+    } else {
+      await prefs.setString(PrefsKeys.userNickname, nickname);
+    }
     await prefs.setString(
       PrefsKeys.mascotName,
       _mascotCtrl.text.trim().isEmpty
@@ -244,9 +249,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     return null;
   }
 
-  // 暱稱非空才可儲存，並且填寫的身體資訊必須在合理範圍內
+  // 稱呼選填；有填寫的身體資訊仍必須在合理範圍內
   bool get _canSave =>
-      _nicknameCtrl.text.trim().isNotEmpty &&
       _heightError == null &&
       _weightError == null &&
       _targetWeightError == null &&
@@ -861,12 +865,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         icon: Icons.person_rounded,
                         label: _l10n.peNicknameLabel,
                         controller: _nicknameCtrl,
-                        required: true,
                         maxLength: 12,
                         hint: _l10n.peNicknameHint,
-                        errorText: _nicknameCtrl.text.trim().isEmpty
-                            ? _l10n.peNicknameRequired
-                            : null,
                         accent: _identityAccent,
                       ),
                       _textCard(
