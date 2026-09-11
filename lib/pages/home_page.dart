@@ -15,6 +15,8 @@ import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
+import '../utils/companion_story_catalog.dart';
+import '../utils/companion_story_progress.dart';
 import '../utils/habit_history.dart';
 import '../utils/input_formatters.dart';
 import '../utils/logical_date.dart';
@@ -36,11 +38,11 @@ import '../widgets/habit_ui.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
-import '../widgets/roommate_dialogue.dart';
 import '../widgets/roommate_invitation.dart';
 import '../widgets/scene_air_layer.dart';
 import '../widgets/scene_clock.dart';
 import '../widgets/scene_rooms.dart';
+import 'companion_dialogue_page.dart';
 import 'home/completion_presentation_controller.dart';
 import 'home/greeting_banner.dart';
 import 'home/habit_card.dart';
@@ -103,8 +105,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String mascotName0 = MascotName.fallback;
   bool yesterdayAllDone = false;
   bool _roommateOpen = false;
-  RoommateEventHistory _roommateHistory = const RoommateEventHistory();
-  RoommateEvent _activeRoommateEvent = RoommateEvent.firstMeet;
+  String? _dismissedCompanionDay;
   bool _roommateSceneReady = false;
   bool _handlingRoommateInvitation = false;
   int _roommateInvitationGeneration = 0;
@@ -196,6 +197,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     loadHabits();
     // Let the existing opening/greeting settle; the invitation has no entrance sound.
+    unawaited(CompanionStoryProgress.instance.load());
     _roommateReadyTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) setState(() => _roommateSceneReady = true);
     });
@@ -382,7 +384,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final snapshot = await _readSnapshot(prefs, generation);
         if (!mounted) return _HomeLoadResult.cancelled(trigger);
         final firstApply = _appliedDate == null;
-        _roommateHistory = RoommateEventHistory.read(prefs);
         _applySnapshot(snapshot);
         _afterApply(prefs, snapshot, firstApply);
         return _HomeLoadResult.success(trigger);
@@ -941,11 +942,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (CoinService.dailyRewardShowing.value) _closeRoommate();
   }
 
-  RoommateEvent? get _eligibleRoommateEvent => _roommateHistory.eligible(
-    day: todayString(),
-    completed: dailyDoneCount,
-    total: _dailyHabits.length,
-  );
+  CompanionEpisode? get _eligibleRoommateEvent =>
+      _dismissedCompanionDay == todayString()
+      ? null
+      : CompanionStoryProgress.instance.nextEpisode(todayString());
 
   bool get _roommateSceneAvailable {
     final speech = MascotPersona.current.value.speech;
@@ -972,51 +972,53 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _handleRoommateInvitation(
-    RoommateEvent event, {
+    CompanionEpisode episode, {
     required bool open,
   }) async {
     if (_handlingRoommateInvitation ||
         !_roommateSceneAvailable ||
-        _eligibleRoommateEvent != event) {
+        _eligibleRoommateEvent?.id != episode.id) {
       return;
     }
-    final day = todayString();
+    if (!open) {
+      setState(() => _dismissedCompanionDay = todayString());
+      return;
+    }
     final generation = ++_roommateInvitationGeneration;
-    final history = _roommateHistory;
-    final next = history.handling(event, day);
-    setState(() {
-      _handlingRoommateInvitation = true;
-      _roommateHistory = next;
-    });
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final saved = await next.save(prefs);
-      if (!saved) debugPrint('Roommate invitation history could not be saved.');
-    } catch (error) {
-      // Keep this session quiet even if the non-critical invitation preference fails.
-      debugPrint('Roommate invitation history failed: $error');
-    }
+    setState(() => _handlingRoommateInvitation = true);
+    final store = CompanionStoryProgress.instance;
+    final saved = await store.begin(episode.id);
     if (!mounted) return;
-    // A reload may have applied newer history while the native write was pending.
-    // Only the in-flight flag belongs to this callback; do not restore its snapshot.
     setState(() => _handlingRoommateInvitation = false);
-    if (!open ||
-        generation != _roommateInvitationGeneration ||
-        day != todayString()) {
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).csSaveError)),
+      );
       return;
     }
-    // Re-evaluate the exact candidate against current progress using the history
-    // from before this invitation consumed its daily cap.
-    if (history.eligible(
-          day: day,
-          completed: dailyDoneCount,
-          total: _dailyHabits.length,
-        ) !=
-        event) {
+    if (generation != _roommateInvitationGeneration || !_roommateSceneAvailable) {
       return;
     }
-    _activeRoommateEvent = event;
-    _startRoommate();
+    _dismissGreeting();
+    _markSceneActive();
+    playHaptic(HapticLevel.selection);
+    setState(() {
+      _mascotAwakened = true;
+      _roommateOpen = true;
+    });
+    widget.onRoommateModeChanged?.call(true);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CompanionDialoguePage(
+          episode: episode,
+          initialCursor: store.state.active,
+          onSave: store.saveCursor,
+          onFinish: (skipped) =>
+              store.finish(episode.id, dayKey: todayString(), skipped: skipped),
+        ),
+      ),
+    );
+    if (mounted) _closeRoommate();
   }
 
   Widget _buildInvitableScene(
@@ -1024,6 +1026,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ) => ListenableBuilder(
     listenable: Listenable.merge([
       MascotPersona.current,
+      CompanionStoryProgress.instance,
       CoinService.dailyRewardShowing,
       MascotPanelPrefs.openValue,
     ]),
@@ -1050,7 +1053,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 290),
                     child: RoommateInvitation(
-                      event: event,
+                      event: RoommateEvent.firstMeet,
+                      prompt:
+                          CompanionStoryProgress.instance.state.active != null
+                          ? AppLocalizations.of(context).csResume
+                          : AppLocalizations.of(context).csInvite,
                       onOpen: () => unawaited(
                         _handleRoommateInvitation(event, open: true),
                       ),
@@ -1066,18 +1073,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
     },
   );
-
-  void _startRoommate() {
-    if (!_roommateSceneAvailable) return;
-    _dismissGreeting();
-    _markSceneActive();
-    playHaptic(HapticLevel.selection);
-    setState(() {
-      _mascotAwakened = true;
-      _roommateOpen = true;
-    });
-    widget.onRoommateModeChanged?.call(true);
-  }
 
   void _closeRoommate() {
     // Toolbar actions and reloads cancel pending entry even before it has opened.
@@ -2977,21 +2972,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         MediaQuery.of(context).size.width,
         MediaQuery.of(context).padding.top,
       ),
-      interactionBuilder: _roommateOpen
-          ? (sceneHeight) => RoommateDialogue(
-              sceneHeight: sceneHeight,
-              initialNode: _activeRoommateEvent.firstNode,
-              roomFadeHeight: math.max(
-                0,
-                roomSceneHeight(MediaQuery.of(context).size.width) -
-                    MediaQuery.of(context).padding.top -
-                    kSceneAppBarHeight -
-                    sceneHeight,
-              ),
-              accent: colors.accent,
-              onClose: _closeRoommate,
-            )
-          : null,
       scene: _buildInvitableScene(
         (suppressSpeech) => ScaleTransition(
           scale: _celebScale,

@@ -217,6 +217,8 @@ abstract final class PrefsKeys {
   static const bgmOwnedTracks = 'bgm_owned_tracks';
 
   // ── 回憶本（特殊事件 / 劇情）──────────────────────────────
+  static const companionStoryProgress = 'companion_story_progress_v1';
+
   static const storyUnlocked = 'story_unlocked'; // JSON：[{id, date}]，依解鎖時間
   static const storyUnread = 'story_unread'; // 未讀事件 id（未來「書發亮」用）
   // 已解鎖但還沒播過全螢幕揭曉的事件 id（看完才消化；中途關 app 下次補播）

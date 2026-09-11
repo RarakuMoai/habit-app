@@ -11,15 +11,16 @@ import '../utils/app_style.dart';
 import '../utils/audio_settings_service.dart';
 import '../utils/bgm_service.dart';
 import '../utils/coin_service.dart';
+import '../utils/companion_story_progress.dart';
 import '../utils/mascot.dart';
 import '../utils/sfx_service.dart';
-import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import '../widgets/app_dialogs.dart';
 import '../widgets/app_pressable.dart';
 import '../widgets/app_waiting.dart';
+import '../widgets/companion_memory_collection.dart';
 import '../widgets/mascot_app_bar.dart';
 import '../widgets/mascot_page_shell.dart';
 import '../widgets/mascot_scene.dart';
@@ -27,7 +28,6 @@ import '../widgets/reorder_jiggle.dart';
 import '../widgets/sheet_drag_handle.dart';
 import '../widgets/unlock_morph_button.dart';
 import 'home/room_metrics.dart';
-import 'memory_book_reader.dart';
 
 enum _WardrobeSection { outfits, music, memories }
 
@@ -126,20 +126,6 @@ class _WardrobePageState extends State<WardrobePage>
     setState(() {
       _loaded = true;
     });
-  }
-
-  // ── 回憶 ───────────────────────────────────────────────
-  Future<void> _openMemory(int index) async {
-    playFeedback(SfxCue.tap, haptic: HapticLevel.selection);
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MemoryBookReader(
-          entries: StoryStore.unlocked.value,
-          initialIndex: index,
-        ),
-      ),
-    );
-    if (mounted) setState(() {}); // 回來刷新（已讀狀態）
   }
 
   // ── 造型 ───────────────────────────────────────────────
@@ -444,6 +430,7 @@ class _WardrobePageState extends State<WardrobePage>
                       CoinService.notifier,
                       StoryStore.unlocked,
                       StoryStore.unread,
+                      CompanionStoryProgress.instance,
                     ]),
                     builder: (context, _) => Column(
                       children: [
@@ -452,7 +439,14 @@ class _WardrobePageState extends State<WardrobePage>
                           child: _SectionSwitch(
                             value: _section,
                             compact: compact,
-                            hasUnreadMemories: StoryStore.hasUnread,
+                            hasUnreadMemories:
+                                StoryStore.hasUnread ||
+                                CompanionStoryProgress
+                                    .instance
+                                    .state
+                                    .completed
+                                    .values
+                                    .any((record) => !record.read),
                             onChanged: (value) {
                               playHaptic(HapticLevel.selection);
                               if (value != _WardrobeSection.music &&
@@ -634,302 +628,9 @@ class _WardrobePageState extends State<WardrobePage>
     );
   }
 
-  Widget _buildMemorySection() {
-    final entries = StoryStore.unlocked.value;
-    final unlockById = {for (final entry in entries) entry.id: entry};
-    return Column(
-      key: const ValueKey('memories'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _WardrobeHeader(
-          icon: Icons.auto_stories_rounded,
-          title: _l10n.wdMemoryBook,
-          subtitle: _l10n.wdMemoryBookSub,
-          trailing: '${entries.length}/${storyCatalog.length}',
-          color: AppPalette.habit,
-        ),
-        const SizedBox(height: 12),
-        if (entries.isEmpty) ...[
-          const _MemoryEmpty(),
-          const SizedBox(height: 18),
-        ],
-        const _MemoryShelfLabel(),
-        const SizedBox(height: 10),
-        for (var i = 0; i < storyCatalog.length; i++)
-          Padding(
-            padding: EdgeInsets.only(
-              bottom: i == storyCatalog.length - 1 ? 0 : 12,
-            ),
-            child: _MemoryCard(
-              event: storyCatalog[i],
-              unlock: unlockById[storyCatalog[i].id],
-              unread: StoryStore.unread.value.contains(storyCatalog[i].id),
-              onTap: unlockById[storyCatalog[i].id] == null
-                  ? null
-                  : () => _openMemory(
-                      entries.indexWhere((e) => e.id == storyCatalog[i].id),
-                    ),
-            ),
-          ),
-      ],
-    );
-  }
+  Widget _buildMemorySection() =>
+      const CompanionMemoryCollection(key: ValueKey('memories'));
 }
-
-class _MemoryShelfLabel extends StatelessWidget {
-  const _MemoryShelfLabel();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          AppLocalizations.of(context).wdMemoryCollection,
-          style: TextStyle(
-            color: AppInk.strong.withValues(alpha: 0.9),
-            fontSize: 13.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.4,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            height: 1,
-            color: AppPalette.habit.withValues(alpha: 0.14),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// 回憶本的一則：未解鎖也保留書脊位置，讓收藏進度與下一段故事都看得見。
-class _MemoryCard extends StatelessWidget {
-  final StoryEventSpec event;
-  final StoryUnlock? unlock;
-  final bool unread;
-  final VoidCallback? onTap;
-
-  const _MemoryCard({
-    required this.event,
-    required this.unlock,
-    required this.unread,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppCardStyle.radius),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppCardStyle.radius),
-        child: Container(
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: unlock == null ? AppSurfaces.fill : AppSurfaces.card,
-            borderRadius: BorderRadius.circular(AppCardStyle.radius),
-            border: Border.all(color: const Color(0x0A46342B)),
-            boxShadow: AppShadows.flat,
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 76,
-                  height: 76,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.asset(
-                        event.cover,
-                        fit: BoxFit.cover,
-                        color: unlock == null ? const Color(0xFFD8CDC2) : null,
-                        colorBlendMode: unlock == null
-                            ? BlendMode.saturation
-                            : null,
-                        errorBuilder: (_, _, _) => ColoredBox(
-                          color: AppPalette.habit.withValues(alpha: 0.10),
-                          child: Icon(
-                            Icons.auto_stories_rounded,
-                            color: AppPalette.habit.withValues(alpha: 0.6),
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                      if (unlock == null)
-                        ColoredBox(
-                          color: const Color(0xB8F7EEE4),
-                          child: Center(
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.82),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.lock_outline_rounded,
-                                size: 16,
-                                color: AppPalette.habit.withValues(alpha: 0.72),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            MascotName.fill(event.label),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppPalette.habit.withValues(alpha: 0.92),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.7,
-                            ),
-                          ),
-                        ),
-                        if (unread)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFE8C7),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Text(
-                              AppLocalizations.of(context).wdNewMemory,
-                              style: const TextStyle(
-                                color: Color(0xFF9B653A),
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      unlock == null
-                          ? AppLocalizations.of(context).wdUnwrittenPage
-                          : event.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppInk.strong,
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      unlock == null
-                          ? MascotName.fill(event.unlockHint)
-                          : _memoryDate(unlock!.date),
-                      maxLines: unlock == null ? 2 : 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: unlock == null
-                            ? AppInk.soft.withValues(alpha: 0.76)
-                            : AppPalette.habit.withValues(alpha: 0.9),
-                        fontSize: 11.5,
-                        height: 1.3,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (unlock != null) ...[
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppInk.iconFaint,
-                  size: 22,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MemoryEmpty extends StatelessWidget {
-  const _MemoryEmpty();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card,
-        borderRadius: BorderRadius.circular(AppCardStyle.radius),
-        border: AppCardStyle.hairline,
-        boxShadow: AppShadows.flat,
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: AppPalette.habit.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(
-              Icons.auto_stories_rounded,
-              color: AppPalette.habit.withValues(alpha: 0.7),
-              size: 28,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            AppLocalizations.of(context).wdFirstPageWaiting,
-            style: const TextStyle(
-              color: AppInk.strong,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            AppLocalizations.of(context).wdFirstPageSub(MascotName.value),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppInk.soft,
-              fontSize: 13,
-              height: 1.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _memoryDate(DateTime d) =>
-    '${d.year} / ${d.month.toString().padLeft(2, '0')} / '
-    '${d.day.toString().padLeft(2, '0')}';
 
 class _SectionSwitch extends StatelessWidget {
   final _WardrobeSection value;

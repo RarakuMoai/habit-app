@@ -1,0 +1,23 @@
+{
+  "device": "313696A1-3B71-4740-B907-77869F9698BA",
+  "test": "integration_test/companion_story_review_test.dart",
+  "flavor": "redesign",
+  "glass": true,
+  "files": [
+    "01-home-invitation.png",
+    "02-first-meeting.png",
+    "02b-settings.png",
+    "02c-settings-developer-entry.png",
+    "03-developer-preview-option.png",
+    "04-preview-collection.png",
+    "05-first-meeting-choices.png",
+    "06-trust-story.png",
+    "06b-grief-choices.png",
+    "07-season-ending.png",
+    "07b-ending-choices.png",
+    "08-real-unlocks-restored.png"
+  ],
+  "test_exit_code": 0,
+  "capture_error": null,
+  "exit_code": 0
+}

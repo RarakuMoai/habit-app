@@ -7,11 +7,13 @@ import '../utils/roommate_events.dart';
 /// A quiet, optional invitation attached to the room, with a separate dismiss target.
 class RoommateInvitation extends StatelessWidget {
   final RoommateEvent event;
+  final String? prompt;
   final VoidCallback onOpen;
   final VoidCallback onDismiss;
   const RoommateInvitation({
     super.key,
     required this.event,
+    this.prompt,
     required this.onOpen,
     required this.onDismiss,
   });
@@ -50,7 +52,7 @@ class RoommateInvitation extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            event.invitation(l),
+                            prompt ?? event.invitation(l),
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,

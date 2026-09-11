@@ -27,11 +27,13 @@ class MemoryBookReader extends StatefulWidget {
 
   /// 初始翻到第幾個「事件」（多頁事件會落在它的第一頁）。
   final int initialIndex;
+  final bool preview;
 
   const MemoryBookReader({
     super.key,
     required this.entries,
     this.initialIndex = 0,
+    this.preview = false,
   });
 
   @override
@@ -62,7 +64,9 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
     _index = start < 0 ? 0 : start;
     _controller = PageController(initialPage: _index);
     _markRead(_index);
-    unawaited(UsageStats.bump(UsageEvents.memoryBookOpen));
+    if (!widget.preview) {
+      unawaited(UsageStats.bump(UsageEvents.memoryBookOpen));
+    }
   }
 
   @override
@@ -72,7 +76,7 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
   }
 
   void _markRead(int i) {
-    if (i < 0 || i >= _spreads.length) return;
+    if (widget.preview || i < 0 || i >= _spreads.length) return;
     StoryStore.markRead(_spreads[i].event.id);
   }
 
@@ -137,6 +141,7 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
                 // 換頁重掛，台詞才會重新逐句浮現
                 key: ValueKey('${entries[i].event.id}_${entries[i].pageNo}'),
                 entry: entries[i],
+                preview: widget.preview,
               ),
             ),
             Positioned(
@@ -192,7 +197,8 @@ class _MemoryBookReaderState extends State<MemoryBookReader> {
 class _MemorySpread extends StatelessWidget {
   final _SpreadEntry entry;
 
-  const _MemorySpread({super.key, required this.entry});
+  final bool preview;
+  const _MemorySpread({super.key, required this.entry, required this.preview});
 
   @override
   Widget build(BuildContext context) {
@@ -261,7 +267,9 @@ class _MemorySpread extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             Text(
-              _formatDate(entry.date),
+              preview
+                  ? AppLocalizations.of(context).csPreview
+                  : _formatDate(entry.date),
               style: TextStyle(
                 color: kMemoryAccent.withValues(alpha: 0.9),
                 fontSize: 12,

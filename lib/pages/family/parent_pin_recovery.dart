@@ -17,6 +17,7 @@ import '../../l10n/app_localizations.dart';
 import '../../utils/app_feedback.dart';
 import '../../utils/app_restart.dart';
 import '../../utils/app_style.dart';
+import '../../utils/companion_story_progress.dart';
 import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
 
@@ -75,6 +76,7 @@ Future<void> _wipeAndRestart(
 ) async {
   FocusManager.instance.primaryFocus?.unfocus();
   await Future<void>.delayed(const Duration(milliseconds: 250));
+  await CompanionStoryProgress.instance.settleWrites();
   await prefs.clear();
   if (context.mounted) RootRestart.restart(context);
 }

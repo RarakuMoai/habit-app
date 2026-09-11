@@ -29,6 +29,8 @@ import 'utils/bgm_playlist.dart';
 import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
+import 'utils/companion_story_preview.dart';
+import 'utils/companion_story_progress.dart';
 import 'utils/feature_flags.dart';
 import 'utils/logical_date.dart';
 import 'utils/logical_day_coordinator.dart';
@@ -86,6 +88,8 @@ Future<_StartupState> _loadStartupState() async {
   await WardrobeStore.load();
   // 回憶本（特殊事件）已解鎖狀態載進全域 notifier
   await StoryStore.load();
+  CompanionStoryPreview.setEnabled(false);
+  await CompanionStoryProgress.instance.reload();
   // just_audio 會按 asset 路徑保留抽出後的檔案；音檔原地更新時，正式版的
   // App container 仍在，可能繼續播放舊快取。版本落後時在任何 player 建立前
   // 清一次；失敗不擋啟動，且不寫入版本，所以下次冷啟動會再試。

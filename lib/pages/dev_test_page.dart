@@ -7,11 +7,14 @@ import '../l10n/app_localizations.dart';
 import '../utils/app_restart.dart';
 import '../utils/coin_config.dart';
 import '../utils/coin_service.dart';
+import '../utils/companion_story_preview.dart';
+import '../utils/companion_story_progress.dart';
 import '../utils/feature_flags.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/scene_time.dart';
 import '../utils/story_catalog.dart';
 import '../utils/story_store.dart';
+import '../widgets/companion_memory_collection.dart';
 import 'login_streak_page.dart';
 import 'story_reveal_page.dart';
 
@@ -146,6 +149,7 @@ class _DevTestPageState extends State<DevTestPage> {
     if (raw == null) return;
     final map = (jsonDecode(raw) as Map<String, dynamic>)
         .cast<String, dynamic>();
+    await CompanionStoryProgress.instance.settleWrites();
     await prefs.clear(); // 快照/天數 key 都在快照後寫入，clear 後不會復活
     for (final e in map.entries) {
       final entry = (e.value as Map).cast<String, dynamic>();
@@ -377,6 +381,29 @@ class _DevTestPageState extends State<DevTestPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      ValueListenableBuilder<bool>(
+                        valueListenable: CompanionStoryPreview.enabled,
+                        builder: (context, enabled, _) =>
+                            SwitchListTile.adaptive(
+                              key: const ValueKey('companion-preview-all'),
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(_l10n.csPreviewAll),
+                              subtitle: Text(_l10n.csPreviewAllDetail),
+                              value: CompanionStoryPreview.active,
+                              onChanged: CompanionStoryPreview.setEnabled,
+                            ),
+                      ),
+                      FilledButton.tonalIcon(
+                        key: const ValueKey('companion-open-review'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const CompanionMemoryReviewPage(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.menu_book_rounded),
+                        label: Text(_l10n.csOpenReview),
+                      ),
+                      const SizedBox(height: 20),
                       AnimatedBuilder(
                         animation: Listenable.merge([
                           StoryStore.unlocked,

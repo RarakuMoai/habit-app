@@ -10,6 +10,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'l10n_test_app.dart';
 
+// A lazy ListView can build a card before the button inside it is on screen.
+// ensureVisible also needs a layout frame after jumpTo before the hit test.
+Future<void> _tapVisible(WidgetTester tester, Finder target) async {
+  await tester.scrollUntilVisible(
+    target,
+    400,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  expect(target.hitTestable(), findsOneWidget);
+  await tester.tap(target);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -50,8 +64,7 @@ void main() {
     expect(find.text('夜晚 23:00'), findsOneWidget);
     expect(find.text('晝→暮 16:30:00'), findsOneWidget);
 
-    await tester.tap(find.text('晝→暮 16:30:00'));
-    await tester.pumpAndSettle();
+    await _tapVisible(tester, find.text('晝→暮 16:30:00'));
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getDouble(PrefsKeys.debugSceneHour), 16.5);
@@ -73,13 +86,7 @@ void main() {
 
     await tester.pumpWidget(l10nTestApp(home: const DevTestPage()));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('快轉一天'),
-      500,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('快轉一天'));
-    await tester.pumpAndSettle();
+    await _tapVisible(tester, find.text('快轉一天'));
 
     final prefs = await SharedPreferences.getInstance();
     expect(

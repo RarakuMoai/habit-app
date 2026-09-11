@@ -4,15 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/main.dart';
+import 'package:habit_app/pages/companion_dialogue_page.dart';
 import 'package:habit_app/pages/home/home_speech_owner.dart';
-import 'package:habit_app/pages/home/room_metrics.dart';
 import 'package:habit_app/pages/home_page.dart';
 import 'package:habit_app/utils/audio_settings_service.dart';
+import 'package:habit_app/utils/companion_story_progress.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/mascot.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/roommate_dialogue.dart';
-import 'package:habit_app/utils/roommate_events.dart';
 import 'package:habit_app/utils/roommate_voice.dart';
 import 'package:habit_app/utils/sfx_service.dart';
 import 'package:habit_app/utils/story_store.dart';
@@ -96,6 +96,7 @@ Future<void> _choose(WidgetTester tester, String id) async {
 Future<void> _dispose(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox());
   await tester.pump(const Duration(seconds: 25));
+  await CompanionStoryProgress.instance.resetForTesting();
 }
 
 Future<void> _waitForFeedback(WidgetTester tester) async {
@@ -115,7 +116,6 @@ Future<String> _pumpCompletionInvitation(
     PrefsKeys.coinLastLoginDate: today,
     PrefsKeys.sfxMuted: true,
     PrefsKeys.mascotPanelHintSeen: true,
-    PrefsKeys.roommateEventHistory: jsonEncode({'firstMeetHandled': true}),
     PrefsKeys.habits: jsonEncode([
       for (var i = 0; i < habitCount; i++)
         {
@@ -140,13 +140,19 @@ Future<String> _pumpCompletionInvitation(
 
 Future<DelayFirstWriteStore> _holdInvitationWrite(WidgetTester tester) async {
   final store = installDelayFirstWriteStore(
-    'flutter.${PrefsKeys.roommateEventHistory}',
+    'flutter.${PrefsKeys.companionStoryProgress}',
   );
   addTearDown(store.restore);
+  final invitation = tester.widget<InkWell>(
+    find.byKey(const ValueKey('roommate_entry')),
+  );
   await tester.tap(find.byKey(const ValueKey('roommate_entry')));
   await tester.pump();
   expect(store.didDelay, isTrue);
-  expect(find.byType(RoommateDialogue), findsNothing);
+  // A second queued callback while the native write is pending cannot re-enter.
+  invitation.onTap!();
+  await tester.pump();
+  expect(find.byType(CompanionDialoguePage), findsNothing);
   return store;
 }
 
@@ -154,11 +160,21 @@ Future<void> _expectInvitationPersisted(String day) async {
   final prefs = await SharedPreferences.getInstance();
   // Reload checks the platform store, not only legacy setString's early cache.
   await prefs.reload();
-  expect(RoommateEventHistory.read(prefs).handledDay, day);
+  final progress = CompanionProgressState.fromJson(
+    jsonDecode(prefs.getString(PrefsKeys.companionStoryProgress)!)
+        as Map<String, dynamic>,
+  );
+  expect(progress.active?.episodeId, 'story_01');
+  expect(progress.days, 0);
+  expect(progress.creditedDayKeys, isNot(contains(day)));
+  expect(progress.completed, isEmpty);
 }
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() async {
+    await CompanionStoryProgress.instance.resetForTesting();
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets('室友對話即時套用睡衣，回覆換姿勢後仍保持造型', (tester) async {
     _surface(tester, const Size(430, 932));
@@ -383,36 +399,67 @@ void main() {
       final originalNav = nav.evaluate().single;
       await tester.tap(find.byKey(const ValueKey('roommate_entry')));
       await tester.pump();
-      expect(find.byType(RoommateDialogue), findsOneWidget);
-      final dialogue = tester.widget<RoommateDialogue>(
-        find.byType(RoommateDialogue),
-      );
-      final panelTop =
-          tester
-              .getTopLeft(find.byKey(const ValueKey('roommate_dialogue')))
-              .dy +
-          dialogue.sceneHeight;
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(find.byType(CompanionDialoguePage), findsOneWidget);
       expect(
-        panelTop + dialogue.roomFadeHeight,
-        closeTo(roomSceneHeight(size.width), 0.1),
-        reason: '漸層必須在背景圖的真實底緣成為不透明，不能留下水平接縫',
+        find.byType(CompanionDialoguePage, skipOffstage: false),
+        findsOneWidget,
+        reason: '首頁導覽只推入一個閱讀器',
       );
+      final roomRect = tester.getRect(
+        find.byKey(const ValueKey('companion_room')),
+      );
+      final textRect = tester.getRect(
+        find.byKey(const ValueKey('companion_reading_scroll')),
+      );
+      expect(
+        roomRect.bottom,
+        closeTo(textRect.top, 0.1),
+        reason: '房間漸層與可捲動紙面共用同一條邊，不能留下水平空隙',
+      );
+      expect(textRect.bottom, lessThanOrEqualTo(size.height));
       expect(nav, findsNothing);
       expect(
         find.byKey(const ValueKey('main_navigation'), skipOffstage: false),
         findsOneWidget,
       );
       expect(find.text('讀兩頁書'), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('roommate_exit')));
+      await tester.tap(find.byKey(const ValueKey('companion_next')));
+      await tester.pump();
+      final savedCursor = CompanionStoryProgress.instance.state.active!
+          .toJson();
+      await tester.tap(find.byKey(const ValueKey('companion_close')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
       expect(find.text('讀兩頁書').evaluate().single, same(original));
       expect(nav.evaluate().single, same(originalNav));
-      // An event invitation is consumed on entry; it must not return immediately
-      // or reappear after loading the same day's records.
+      expect(CompanionStoryProgress.instance.state.days, 0);
+      expect(find.byKey(const ValueKey('roommate_entry')), findsOneWidget);
+      await home.loadHabits();
+      await tester.pump();
+      expect(find.byType(CompanionDialoguePage), findsNothing);
+      expect(find.byKey(const ValueKey('roommate_entry')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('roommate_entry')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        tester
+            .widget<CompanionDialoguePage>(find.byType(CompanionDialoguePage))
+            .initialCursor!
+            .toJson(),
+        savedCursor,
+      );
+      await tester.tap(find.byKey(const ValueKey('companion_skip')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(CompanionStoryProgress.instance.state.days, 1);
       expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
       await home.loadHabits();
       await tester.pump();
-      expect(find.byType(RoommateDialogue), findsNothing);
+      expect(find.byType(CompanionDialoguePage), findsNothing);
       expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
       expect(nav, findsOneWidget);
       final prefs = await SharedPreferences.getInstance();
@@ -423,74 +470,85 @@ void main() {
     });
   }
 
-  testWidgets('completion invitation waits for feedback and never auto-opens', (
-    tester,
-  ) async {
-    _surface(tester, const Size(430, 932));
-    final today = LogicalDate.stringFor(
-      DateTime.now(),
-      LogicalDate.defaultHour,
-    );
-    SharedPreferences.setMockInitialValues({
-      PrefsKeys.lastOpenDate: today,
-      PrefsKeys.coinLastLoginDate: today,
-      PrefsKeys.sfxMuted: true,
-      PrefsKeys.mascotPanelHintSeen: true,
-      PrefsKeys.roommateEventHistory: jsonEncode({'firstMeetHandled': true}),
-      PrefsKeys.habits: jsonEncode([
-        for (var i = 0; i < 2; i++)
-          {
-            'id': 'h$i',
-            'name': '小日常$i',
-            'createdAt': today,
-            'frequency': 'daily',
-            'done': false,
-          },
-      ]),
-    });
-    StoryEvents.debugCatalog = [];
-    addTearDown(() => StoryEvents.debugCatalog = null);
-    AudioSettingsService.sfxMuted.value = true;
-    await tester.pumpWidget(const MyApp(startAtHome: true));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 6));
-    final home = tester.state(find.byType(HomePage)) as dynamic;
-    expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
-    home.toggleHabit(0);
-    await tester.pump();
-    expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
-    for (var i = 0; i < 140; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-    expect(find.byType(RoommateDialogue), findsNothing);
-    expect(find.byKey(const ValueKey('roommate_entry')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('roommate_entry')));
-    await tester.pump();
-    expect(
-      tester
-          .widget<RoommateDialogue>(find.byType(RoommateDialogue))
-          .initialNode,
-      RoommateNode.smallWin,
-    );
-    await tester.tap(find.byKey(const ValueKey('roommate_exit')));
-    await tester.pump();
-    home.toggleHabit(1);
-    for (var i = 0; i < 140; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-    expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
-    final prefs = await SharedPreferences.getInstance();
-    expect(RoommateEventHistory.read(prefs).handledDay, today);
-    expect(
-      (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List).every(
-        (h) => h['done'] == true,
-      ),
-      isTrue,
-    );
-    expect(tester.takeException(), isNull);
-    await _dispose(tester);
-    AudioSettingsService.sfxMuted.value = false;
-  });
+  testWidgets(
+    'daily story invitation yields to completion feedback and never auto-opens',
+    (tester) async {
+      _surface(tester, const Size(430, 932));
+      final today = LogicalDate.stringFor(
+        DateTime.now(),
+        LogicalDate.defaultHour,
+      );
+      SharedPreferences.setMockInitialValues({
+        PrefsKeys.lastOpenDate: today,
+        PrefsKeys.coinLastLoginDate: today,
+        PrefsKeys.sfxMuted: true,
+        PrefsKeys.mascotPanelHintSeen: true,
+        PrefsKeys.habits: jsonEncode([
+          for (var i = 0; i < 2; i++)
+            {
+              'id': 'h$i',
+              'name': '小日常$i',
+              'createdAt': today,
+              'frequency': 'daily',
+              'done': false,
+            },
+        ]),
+      });
+      StoryEvents.debugCatalog = [];
+      addTearDown(() => StoryEvents.debugCatalog = null);
+      AudioSettingsService.sfxMuted.value = true;
+      await tester.pumpWidget(const MyApp(startAtHome: true));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 6));
+      final home = tester.state(find.byType(HomePage)) as dynamic;
+      expect(find.byKey(const ValueKey('roommate_entry')), findsOneWidget);
+      home.toggleHabit(0);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
+      for (var i = 0; i < 140; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.byType(CompanionDialoguePage), findsNothing);
+      expect(find.byKey(const ValueKey('roommate_entry')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('roommate_entry')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        tester
+            .widget<CompanionDialoguePage>(find.byType(CompanionDialoguePage))
+            .episode
+            .id,
+        'story_01',
+      );
+      await tester.tap(find.byKey(const ValueKey('companion_skip')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      home.toggleHabit(1);
+      for (var i = 0; i < 140; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final progress = CompanionProgressState.fromJson(
+        jsonDecode(prefs.getString(PrefsKeys.companionStoryProgress)!)
+            as Map<String, dynamic>,
+      );
+      expect(progress.days, 1);
+      expect(progress.creditedDayKeys, {today});
+      expect(progress.completed['story_01']!.skipped, isTrue);
+      expect(
+        (jsonDecode(prefs.getString(PrefsKeys.habits)!) as List).every(
+          (h) => h['done'] == true,
+        ),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+      await _dispose(tester);
+      AudioSettingsService.sfxMuted.value = false;
+    },
+  );
 
   for (final waitForFeedback in [false, true]) {
     testWidgets(
@@ -508,7 +566,7 @@ void main() {
         store.release();
         await tester.pump();
 
-        expect(find.byType(RoommateDialogue), findsNothing);
+        expect(find.byType(CompanionDialoguePage), findsNothing);
         expect(home.debugCompletionEventId, eventId);
         expect(home.debugPresentationActive, !waitForFeedback);
         expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
@@ -516,14 +574,17 @@ void main() {
         final prefs = await SharedPreferences.getInstance();
         final saved = jsonDecode(prefs.getString(PrefsKeys.habits)!) as List;
         expect(saved.where((h) => h['done'] == true), hasLength(2));
-        expect(find.byKey(const ValueKey('roommate_entry')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('roommate_entry')),
+          waitForFeedback ? findsOneWidget : findsNothing,
+        );
         expect(tester.takeException(), isNull);
         await _dispose(tester);
       },
     );
   }
 
-  testWidgets('pending smallWin cannot replace a newer all-complete reaction', (
+  testWidgets('pending story cannot replace a newer all-complete reaction', (
     tester,
   ) async {
     final today = await _pumpCompletionInvitation(tester, habitCount: 2);
@@ -536,7 +597,7 @@ void main() {
     store.release();
     await tester.pump();
 
-    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(find.byType(CompanionDialoguePage), findsNothing);
     expect(home.debugSpeechOwnerSource, HomeSpeechSource.milestone);
     await _expectInvitationPersisted(today);
     final prefs = await SharedPreferences.getInstance();
@@ -557,7 +618,7 @@ void main() {
       store.release();
       await tester.pump();
 
-      expect(find.byType(RoommateDialogue), findsNothing);
+      expect(find.byType(CompanionDialoguePage), findsNothing);
       expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
       await _expectInvitationPersisted(today);
       expect(tester.takeException(), isNull);
@@ -580,7 +641,7 @@ void main() {
     store.release();
     await tester.pump();
 
-    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(find.byType(CompanionDialoguePage), findsNothing);
     expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
     await _expectInvitationPersisted(today);
     expect(tester.takeException(), isNull);
@@ -599,7 +660,7 @@ void main() {
     store.release();
     await tester.pump();
 
-    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(find.byType(CompanionDialoguePage), findsNothing);
     await _expectInvitationPersisted(today);
     expect(tester.takeException(), isNull);
     await _dispose(tester);
@@ -625,7 +686,7 @@ void main() {
     store.release();
     await tester.pump();
 
-    expect(find.byType(RoommateDialogue), findsNothing);
+    expect(find.byType(CompanionDialoguePage), findsNothing);
     expect(find.byKey(const ValueKey('main_navigation')), findsOneWidget);
     await _expectInvitationPersisted(today);
     expect(tester.takeException(), isNull);

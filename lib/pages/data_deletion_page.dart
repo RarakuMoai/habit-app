@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_restart.dart';
 import '../utils/app_style.dart';
+import '../utils/companion_story_progress.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../widgets/app_dialogs.dart';
@@ -296,6 +297,7 @@ class _DataDeletionPageState extends State<DataDeletionPage> {
     FocusManager.instance.primaryFocus?.unfocus();
     await Future<void>.delayed(const Duration(milliseconds: 250));
     if (!mounted) return;
+    await CompanionStoryProgress.instance.settleWrites();
     await prefs.clear();
     if (!mounted) return;
     RootRestart.restart(context);

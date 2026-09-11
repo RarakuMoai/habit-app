@@ -1,0 +1,187 @@
+{
+  "date": "2026-09-11",
+  "branch": "codex/experience-redesign",
+  "baseline": "b7b255d",
+  "content": {
+    "main": 14,
+    "daily": 4,
+    "beats": 48,
+    "languages": [
+      "zh",
+      "en"
+    ],
+    "new_cg": false
+  },
+  "analyze": {
+    "issues": 0
+  },
+  "tests": {
+    "passed": 1008,
+    "failed": 0,
+    "command": "flutter test --reporter expanded"
+  },
+  "native": {
+    "captures": 12,
+    "result": "passed",
+    "device": "iPhone 17 Pro",
+    "os": "iOS 26.5",
+    "logical_size": [
+      402,
+      874
+    ],
+    "locale": "zh",
+    "text_scale": 1,
+    "motion": "normal",
+    "data": "in-memory synthetic fixture; zero habits",
+    "notifications": "stubbed; no permission or scheduling validation",
+    "flows": [
+      "home invitation",
+      "begin without credit",
+      "close and resume cursor",
+      "skip credits once",
+      "developer preview on",
+      "main and late story choices",
+      "preview leaves stored progress unchanged",
+      "preview off restores locked memories"
+    ]
+  },
+  "widget_constraints": {
+    "view": [
+      320,
+      568
+    ],
+    "text_scale": 2,
+    "locales": [
+      "zh",
+      "en"
+    ],
+    "reduce_motion": true,
+    "long_choice": "scrolled to real hit target"
+  },
+  "release": {
+    "status": "built and verified",
+    "command": "flutter build ios --release --flavor redesign --build-number 20260911 -t lib/main.dart",
+    "path": "build/ios/iphoneos/Runner.app",
+    "reported_size_mb": 142.6,
+    "bundle_id": "com.yayoi991331.habitapp.redesign",
+    "display_name": "兔咪新體驗",
+    "build_number": "20260911",
+    "architecture": "arm64",
+    "signing": "existing Apple Development identity; local release testing",
+    "verification": "codesign --verify --deep --strict: exit 0",
+    "physical_device_installed": false,
+    "binary_sha256": {
+      "Runner": "8b0fcd89fbd08ee6cd834458d1520114657962719f681178eb3f9b7c3cc9a583",
+      "Frameworks/App.framework/App": "b85f69a0d3a4afe72a2351a3ee436b95954835e0f5f0237bb994756a310d28f7"
+    }
+  },
+  "source_sha256": {
+    "lib/utils/companion_story_catalog.dart": "e649305d8e8641c16a4bef46e31ba3ec5de48d5d65c2269c1c5289943484a87d",
+    "lib/utils/companion_story_progress.dart": "3c9dae0e3971d420a47c1f4939f02ad1bd3e779305a73dd59ebfe35f8bc1f607",
+    "lib/utils/companion_story_preview.dart": "258b9e570322c6cbe6b4b85eb7d378eed7238e325fde24ec0fc5435aae616e41",
+    "lib/pages/companion_dialogue_page.dart": "b2cf03e072925bfc5492404673052880c41d74fb3a1d8188f3160b6215edb0e1",
+    "lib/widgets/companion_memory_collection.dart": "9d78aee66e7a5f15e23e6b9aa1a73413d523e28f49b885a15b6ec4a783dd0817",
+    "lib/pages/home_page.dart": "4f02620fdc5b237ad96aa99295d013ee672b691219f76fded2b0bf50cf34561e",
+    "lib/pages/wardrobe_page.dart": "0168837ce2a88934addf62924dca87c0d3b7f75073819fb0cfdba34b23d18a3e",
+    "lib/pages/memory_book_reader.dart": "804f5ce6c1a89443e0e84df1a7bc1c4ec1948b6d38c8931813ee851cf2e971b3",
+    "lib/pages/dev_test_page.dart": "653dbcbc3745a75cc9a881a06922d6a977ccee443e5201fa6e7fc22d28ef34ca",
+    "lib/main.dart": "dad61766c5d7d7fe0118779fa55347bb45261e39ff0f9ff54b66509355b6d64c",
+    "lib/pages/data_deletion_page.dart": "ef953e7b821a1dcc63b8aee8c7ec4eaff8f04ad9e6b0315d792f2ab63f1ff604",
+    "lib/pages/family/parent_pin_recovery.dart": "6c4e5f117be001748dc799190e36f3f7e162fefb06784ac22b8a93f7f8abfc52",
+    "integration_test/companion_story_review_test.dart": "de5ebdb47b8258f14126bffd7be87e8bd3bbe40c425bf9a2e1f1226c4d309da8"
+  },
+  "screenshots": {
+    "01-home-invitation.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "9792a4f940688238a423662842d0457285b978df2766756200e7b823650c95fa"
+    },
+    "02-first-meeting.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "f2bd8f9f2059ed630ac0ed569219bcfb502aa6e25768dc850737ce69d0920643"
+    },
+    "02b-settings.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "0715effbf47ae18b8bb321a0d1f74a58473ddfea3e163ce1ee19867dc6e775c2"
+    },
+    "02c-settings-developer-entry.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "54b0e8253079e42cc691f8a739adcb134fc8e99ab556ce7047cba4a8e8895584"
+    },
+    "03-developer-preview-option.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "e7b1e84cfb5e7588351ad2074c39a9cd8f887736e4b5f3ebcbb39b965872ee95"
+    },
+    "04-preview-collection.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "1cfaeef45f55c2382915dfeeb33d346ceb5dc4271dfd641dafb9a93c9181cefa"
+    },
+    "05-first-meeting-choices.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "b1f27964f0f19254e53c4cc1f44de34c12ca3df7718c258417ed980d172a1ba4"
+    },
+    "06-trust-story.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "8b7549dfe8ca5914086e40d92b70b917b297254bfa2627cc74240ebb3b626cc8"
+    },
+    "06b-grief-choices.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "98f344722f5e442cefccacc53925fb507c66715503f9d31360aa2cf7bd820adf"
+    },
+    "07-season-ending.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "00abbfb424c9fd6f3220f0272c2b3a71cab3b5bb03682ce2433613ae99bb28b2"
+    },
+    "07b-ending-choices.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "f760a6b7bb2b6524c95a8c6b1b61641bd112737601f3985f282f91fa5a8ef371"
+    },
+    "08-real-unlocks-restored.png": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "sha256": "1a8231cf5a77c9d527365988935331d4574d3dbe22a3978a3d3e39194ee6cf6c"
+    }
+  },
+  "pending": [
+    "human story and translation review",
+    "physical device audio, haptics, release performance",
+    "more daily writing",
+    "dedicated CG",
+    "story onboarding and naming",
+    "account backup"
+  ]
+}
