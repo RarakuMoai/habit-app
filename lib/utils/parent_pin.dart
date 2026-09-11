@@ -9,6 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'preference_write_guard.dart';
 import 'prefs_keys.dart';
 
 /// 家長 Session（全域）：驗證密碼成功後設為 true。
@@ -31,8 +32,16 @@ class ParentPin {
 
   /// 設定新 PIN（覆蓋舊值），並確保舊明文 key 已清除
   static Future<void> save(SharedPreferences prefs, String pin) async {
-    await prefs.setString(_hashKey, _encodeHashed(pin));
-    await prefs.remove(_legacyKey);
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.setString(_hashKey, _encodeHashed(pin)),
+      _hashKey,
+    );
+    await PreferenceWriteGuard.write(
+      prefs,
+      () => prefs.remove(_legacyKey),
+      _legacyKey,
+    );
   }
 
   /// 驗證輸入的 PIN；未設定或格式損毀一律回傳 false
@@ -103,6 +112,7 @@ class ParentPin {
   }
 
   static Future<void> _migrateIfNeeded(SharedPreferences prefs) async {
+    await PreferenceWriteGuard.ensureHealthy(prefs);
     final legacy = prefs.getString(_legacyKey);
     if (legacy == null) return;
     if (legacy.isNotEmpty && (prefs.getString(_hashKey) ?? '').isEmpty) {

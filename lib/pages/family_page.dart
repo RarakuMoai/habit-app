@@ -14,6 +14,7 @@ import '../utils/mascot.dart';
 import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../utils/storage_snapshot_gate.dart';
 import '../widgets/app_pressable.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/mascot_app_bar.dart';
@@ -258,23 +259,25 @@ class _FamilyPageState extends State<FamilyPage> {
     if (!ok || !mounted) return;
     final inputs = await showAddChildrenSheet(context);
     if (inputs == null || inputs.isEmpty || !mounted) return;
-    final prefs = await SharedPreferences.getInstance();
-    final habits = await loadHabits(prefs);
-    for (final inp in inputs) {
-      final child = ChildData(
-        id: genId(),
-        name: inp.name.trim(),
-        avatar: inp.avatar,
-        points: 0,
+    await StorageSnapshotGate.write(() async {
+      final prefs = await SharedPreferences.getInstance();
+      final habits = await loadHabits(prefs);
+      for (final inp in inputs) {
+        final child = ChildData(
+          id: genId(),
+          name: inp.name.trim(),
+          avatar: inp.avatar,
+          points: 0,
+        );
+        _children.add(child);
+        habits.addAll(defaultHabitsForChild(child.id));
+      }
+      await prefs.setString(
+        PrefsKeys.children,
+        jsonEncode(_children.map((c) => c.toJson()).toList()),
       );
-      _children.add(child);
-      habits.addAll(defaultHabitsForChild(child.id));
-    }
-    await prefs.setString(
-      PrefsKeys.children,
-      jsonEncode(_children.map((c) => c.toJson()).toList()),
-    );
-    await saveHabits(prefs, habits);
+      await saveHabits(prefs, habits);
+    });
     setState(() {});
     playFeedback(SfxCue.success);
     MascotPersona.interact(MascotContext.completedOne);

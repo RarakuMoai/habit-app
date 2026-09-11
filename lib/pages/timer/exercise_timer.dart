@@ -15,6 +15,7 @@ import '../../utils/metronome_service.dart';
 import '../../utils/notification_service.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
+import '../../utils/storage_snapshot_gate.dart';
 import '../../utils/timer_mutex.dart';
 import '../../utils/wake_guard.dart';
 import '../../widgets/hold_repeat_button.dart';
@@ -344,7 +345,7 @@ class ExerciseTimerState extends State<ExerciseTimer>
     });
   }
 
-  Future<void> _persistConfig() async {
+  Future<void> _persistConfig() => StorageSnapshotGate.write(() async {
     final prefs = await SharedPreferences.getInstance();
     final id = _kind.name;
     final c = _cfg;
@@ -370,47 +371,50 @@ class ExerciseTimerState extends State<ExerciseTimer>
       PrefsKeys.exerciseMetronomeTone(id),
       c.metronomeTone.id,
     );
-  }
+  });
 
-  Future<void> _recordSession(int workSeconds) async {
-    if (workSeconds < 30) return;
-    final today = _dateStr(DateTime.now());
-    if (_statsDate != today) {
-      _statsDate = today;
-      _todaySessions = 0;
-      _todayMinutes = 0;
-    }
-    final addedMinutes = math.max(1, (workSeconds / 60).round()).toInt();
-    final nextSessions = _todaySessions + 1;
-    final nextMinutes = _todayMinutes + addedMinutes;
-    if (mounted) {
-      setState(() {
-        _todaySessions = nextSessions;
-        _todayMinutes = nextMinutes;
+  Future<void> _recordSession(int workSeconds) =>
+      StorageSnapshotGate.write(() async {
+        if (workSeconds < 30) return;
+        final today = _dateStr(DateTime.now());
+        if (_statsDate != today) {
+          _statsDate = today;
+          _todaySessions = 0;
+          _todayMinutes = 0;
+        }
+        final addedMinutes = math.max(1, (workSeconds / 60).round()).toInt();
+        final nextSessions = _todaySessions + 1;
+        final nextMinutes = _todayMinutes + addedMinutes;
+        if (mounted) {
+          setState(() {
+            _todaySessions = nextSessions;
+            _todayMinutes = nextMinutes;
+          });
+        } else {
+          _todaySessions = nextSessions;
+          _todayMinutes = nextMinutes;
+        }
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(PrefsKeys.exerciseSessions(today), _todaySessions);
+        await prefs.setInt(PrefsKeys.exerciseMinutesDay(today), _todayMinutes);
       });
-    } else {
-      _todaySessions = nextSessions;
-      _todayMinutes = nextMinutes;
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(PrefsKeys.exerciseSessions(today), _todaySessions);
-    await prefs.setInt(PrefsKeys.exerciseMinutesDay(today), _todayMinutes);
-  }
 
   Future<void> _clearTodayStats() async {
     final ok = await _confirmClearTodayStats();
     if (!ok) return;
-    final today = _dateStr(DateTime.now());
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(PrefsKeys.exerciseSessions(today));
-    await prefs.remove(PrefsKeys.exerciseMinutesDay(today));
-    if (!mounted) return;
-    setState(() {
-      _statsDate = today;
-      _todaySessions = 0;
-      _todayMinutes = 0;
+    await StorageSnapshotGate.write(() async {
+      final today = _dateStr(DateTime.now());
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(PrefsKeys.exerciseSessions(today));
+      await prefs.remove(PrefsKeys.exerciseMinutesDay(today));
+      if (!mounted) return;
+      setState(() {
+        _statsDate = today;
+        _todaySessions = 0;
+        _todayMinutes = 0;
+      });
+      playFeedback(SfxCue.cancel, haptic: HapticLevel.selection);
     });
-    playFeedback(SfxCue.cancel, haptic: HapticLevel.selection);
   }
 
   Future<bool> _confirmClearTodayStats() async {

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/logical_date.dart';
 import '../../utils/prefs_keys.dart';
+import '../../utils/storage_snapshot_gate.dart';
 import 'family_models.dart';
 
 class PointRecordContext {
@@ -202,7 +203,7 @@ Future<int> applyPointsBatch({
   required ChildData child,
   required List<({int delta, String reason})> entries,
   List<PointRecordContext?>? recordContexts,
-}) async {
+}) => StorageSnapshotGate.write(() async {
   if (recordContexts != null && recordContexts.length != entries.length) {
     throw ArgumentError.value(
       recordContexts.length,
@@ -255,7 +256,7 @@ Future<int> applyPointsBatch({
   await saveRecords(prefs, records);
 
   return points;
-}
+});
 
 List<PointRecord> habitCompletionRecordsForDay({
   required Iterable<PointRecord> records,

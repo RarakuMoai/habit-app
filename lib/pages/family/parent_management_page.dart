@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../utils/parent_pin.dart';
 import '../../utils/prefs_keys.dart';
+import '../../utils/storage_snapshot_gate.dart';
 import '../../widgets/app_waiting.dart';
 import '../settings_page.dart';
 import 'add_children_sheet.dart';
@@ -88,20 +89,22 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
   Future<void> _addChild() async {
     final inputs = await showAddChildrenSheet(context);
     if (inputs == null || inputs.isEmpty || !mounted) return;
-    final prefs = _prefs!;
-    final habits = await loadHabits(prefs);
-    for (final inp in inputs) {
-      final child = ChildData(
-        id: genId(),
-        name: inp.name.trim(),
-        avatar: inp.avatar,
-        points: 0,
-      );
-      _children.add(child);
-      habits.addAll(defaultHabitsForChild(child.id));
-    }
-    await _saveChildren();
-    await saveHabits(prefs, habits);
+    await StorageSnapshotGate.write(() async {
+      final prefs = _prefs!;
+      final habits = await loadHabits(prefs);
+      for (final inp in inputs) {
+        final child = ChildData(
+          id: genId(),
+          name: inp.name.trim(),
+          avatar: inp.avatar,
+          points: 0,
+        );
+        _children.add(child);
+        habits.addAll(defaultHabitsForChild(child.id));
+      }
+      await _saveChildren();
+      await saveHabits(prefs, habits);
+    });
     await _loadAll();
   }
 
@@ -134,39 +137,43 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
     if (confirm != true) return;
 
-    _children.removeAt(index);
-    await _saveChildren();
+    await StorageSnapshotGate.write(() async {
+      _children.removeAt(index);
+      await _saveChildren();
 
-    // 同步刪除相關習慣、扣分項目、積分紀錄、兌換紀錄
-    final prefs = _prefs!;
-    final habits = await loadHabits(prefs);
-    await saveHabits(prefs, habits.where((h) => h.childId != childId).toList());
-    final deductions = await loadDeductions(prefs);
-    await saveDeductions(
-      prefs,
-      deductions.where((d) => d.childId != childId).toList(),
-    );
-    final records = await loadRecords(prefs);
-    await saveRecords(
-      prefs,
-      records.where((r) => r.childId != childId).toList(),
-    );
-    // 獎勵：移除該小孩；若某獎勵所有小孩都被移除則刪除整個獎勵
-    final rewards = await loadRewards(prefs);
-    for (final r in rewards) {
-      r.childIds.remove(childId);
-    }
-    await saveRewards(
-      prefs,
-      rewards.where((r) => r.childIds.isNotEmpty).toList(),
-    );
-    // 票券紀錄
-    final vouchers = await loadVouchers(prefs);
-    await saveVouchers(
-      prefs,
-      vouchers.where((l) => l.childId != childId).toList(),
-    );
-
+      // 同步刪除相關習慣、扣分項目、積分紀錄、兌換紀錄
+      final prefs = _prefs!;
+      final habits = await loadHabits(prefs);
+      await saveHabits(
+        prefs,
+        habits.where((h) => h.childId != childId).toList(),
+      );
+      final deductions = await loadDeductions(prefs);
+      await saveDeductions(
+        prefs,
+        deductions.where((d) => d.childId != childId).toList(),
+      );
+      final records = await loadRecords(prefs);
+      await saveRecords(
+        prefs,
+        records.where((r) => r.childId != childId).toList(),
+      );
+      // 獎勵：移除該小孩；若某獎勵所有小孩都被移除則刪除整個獎勵
+      final rewards = await loadRewards(prefs);
+      for (final r in rewards) {
+        r.childIds.remove(childId);
+      }
+      await saveRewards(
+        prefs,
+        rewards.where((r) => r.childIds.isNotEmpty).toList(),
+      );
+      // 票券紀錄
+      final vouchers = await loadVouchers(prefs);
+      await saveVouchers(
+        prefs,
+        vouchers.where((l) => l.childId != childId).toList(),
+      );
+    });
     await _loadAll();
   }
 
@@ -198,33 +205,34 @@ class _ParentManagementPageState extends State<ParentManagementPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    final prefs = _prefs!;
-    final childId = child.id;
+    await StorageSnapshotGate.write(() async {
+      final prefs = _prefs!;
+      final childId = child.id;
 
-    _children[index].points = 0;
-    await _saveChildren();
+      _children[index].points = 0;
+      await _saveChildren();
 
-    final records = await loadRecords(prefs);
-    await saveRecords(
-      prefs,
-      records.where((r) => r.childId != childId).toList(),
-    );
+      final records = await loadRecords(prefs);
+      await saveRecords(
+        prefs,
+        records.where((r) => r.childId != childId).toList(),
+      );
 
-    final vouchers = await loadVouchers(prefs);
-    await saveVouchers(
-      prefs,
-      vouchers.where((v) => v.childId != childId).toList(),
-    );
+      final vouchers = await loadVouchers(prefs);
+      await saveVouchers(
+        prefs,
+        vouchers.where((v) => v.childId != childId).toList(),
+      );
 
-    final habits = await loadHabits(prefs);
-    for (final h in habits) {
-      if (h.childId == childId) {
-        h.completedDate = '';
-        h.weeklyDates.clear();
+      final habits = await loadHabits(prefs);
+      for (final h in habits) {
+        if (h.childId == childId) {
+          h.completedDate = '';
+          h.weeklyDates.clear();
+        }
       }
-    }
-    await saveHabits(prefs, habits);
-
+      await saveHabits(prefs, habits);
+    });
     await _loadAll();
   }
 

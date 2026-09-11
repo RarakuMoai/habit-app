@@ -1,0 +1,30 @@
+{
+  "date": "2026-09-11",
+  "locale": "zh",
+  "logicalSize": [
+    402,
+    874
+  ],
+  "pixelSize": [
+    1206,
+    2622
+  ],
+  "environment": "iPhone 17 Pro / iOS 26.5 / redesign debug integration",
+  "flutterTests": 1192,
+  "rulesEmulatorTests": 18,
+  "nativeFlow": "passed",
+  "nativeScreenshots": 18,
+  "losslessWebP": "RGBA byte identity checked against each original PNG",
+  "keyboard": "native hardware-keyboard mode; software 300 pt covered by widget tests",
+  "liveOAuthAndCloud": "not configured or deployed",
+  "release": {
+    "version": "1.0.1",
+    "build": "2026091105",
+    "architecture": "arm64",
+    "sizeMB": 179.4,
+    "bundleId": "com.yayoi991331.habitapp.redesign",
+    "minimumIOS": "15.0",
+    "codesign": "deep strict verification passed"
+  },
+  "physicalDevice": "not installed or launched"
+}

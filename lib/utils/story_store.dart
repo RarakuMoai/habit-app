@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'prefs_keys.dart';
+import 'storage_snapshot_gate.dart';
 import 'story_catalog.dart';
 
 /// 一筆已解鎖紀錄：哪個事件、何時解鎖（繪本上印日期用）。
@@ -82,7 +83,8 @@ class StoryStore {
     }
   }
 
-  static Future<void> _persist() async {
+  // A backup sees all three related keys after this complete mutation.
+  static Future<void> _persist() => StorageSnapshotGate.write(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       PrefsKeys.storyUnlocked,
@@ -96,7 +98,7 @@ class StoryStore {
       PrefsKeys.storyPendingReveal,
       pendingReveal.value,
     );
-  }
+  });
 
   static bool isUnlocked(String id) => unlocked.value.any((u) => u.id == id);
 
@@ -135,7 +137,7 @@ class StoryStore {
   }
 
   /// 清空全部回憶（dev 測試用：同時清記憶體與 prefs）。
-  static Future<void> clear() async {
+  static Future<void> clear() => StorageSnapshotGate.write(() async {
     unlocked.value = [];
     unread.value = {};
     pendingReveal.value = [];
@@ -143,7 +145,7 @@ class StoryStore {
     await prefs.remove(PrefsKeys.storyUnlocked);
     await prefs.remove(PrefsKeys.storyUnread);
     await prefs.remove(PrefsKeys.storyPendingReveal);
-  }
+  });
 }
 
 /// 事件「自己來」的觸發判定：由 app 既有時刻呼叫，命中門檻就解鎖（冪等）。

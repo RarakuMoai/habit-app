@@ -1,0 +1,13 @@
+{
+  "name": "tumi-firestore-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node prepare_rules.mjs && firebase emulators:exec --only firestore --project demo-tumi-account-rules --config firebase.json --non-interactive \"node --test --test-force-exit backup_rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0",
+    "firebase-tools": "15.30.0"
+  }
+}

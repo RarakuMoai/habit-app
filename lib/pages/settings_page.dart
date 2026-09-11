@@ -17,6 +17,7 @@ import '../utils/units.dart';
 import '../widgets/app_dialogs.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/settings_ui.dart';
+import 'account_backup_page.dart';
 import 'advanced_settings_page.dart';
 import 'dev_test_page.dart';
 import 'family/parent_pin_recovery.dart';
@@ -202,6 +203,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
 
+                const SizedBox(height: 28),
+
+                SettingsTileCard(
+                  icon: Icons.cloud_outlined,
+                  iconColor: AppPalette.habit,
+                  title: l10n.accountTitle,
+                  subtitle: l10n.entryAccountNote,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AccountBackupPage(),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 28),
 
                 // ── 區塊1：基本資料（進入子頁面編輯）──
@@ -564,6 +578,22 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
     );
   }
 
+  Future<bool> _savePin(String pin, int digits) async {
+    try {
+      await widget.onSaved(pin, digits);
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context).csSaveError)),
+          );
+      }
+      return false;
+    }
+  }
+
   // 第一次設定 PIN（輸入兩次確認）
   Future<void> _setupPin() async {
     final l10n = AppLocalizations.of(context);
@@ -579,7 +609,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
       ).showSnackBar(SnackBar(content: Text(l10n.pinMismatch)));
       return;
     }
-    await widget.onSaved(newPin, _digits);
+    if (!await _savePin(newPin, _digits)) return;
     if (!mounted) return;
     setState(() => _hasPin = true);
     ScaffoldMessenger.of(
@@ -644,7 +674,7 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
       ).showSnackBar(SnackBar(content: Text(l10n.pinMismatch)));
       return;
     }
-    await widget.onSaved(newPin, _digits);
+    if (!await _savePin(newPin, _digits)) return;
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(
@@ -700,7 +730,10 @@ class _PinSettingsSheetState extends State<_PinSettingsSheet> {
       return;
     }
 
-    await widget.onSaved(newPin, newDigits);
+    if (!await _savePin(newPin, newDigits)) {
+      if (mounted) setState(() => _digits = widget.currentDigits);
+      return;
+    }
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(

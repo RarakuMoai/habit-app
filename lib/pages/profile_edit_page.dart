@@ -10,6 +10,7 @@ import '../utils/app_style.dart';
 import '../utils/input_formatters.dart';
 import '../utils/mascot.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/storage_snapshot_gate.dart';
 import '../utils/units.dart';
 import '../utils/user_validators.dart';
 import '../widgets/app_waiting.dart';
@@ -155,7 +156,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   }
 
   // 按下「儲存」時一次寫入所有欄位，然後返回
-  Future<void> _save() async {
+  Future<void> _save() => StorageSnapshotGate.write(() async {
     playHaptic(HapticLevel.light);
     final prefs = await SharedPreferences.getInstance();
     final nickname = _nicknameCtrl.text.trim();
@@ -208,7 +209,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       );
     }
     if (mounted) Navigator.pop(context);
-  }
+  });
 
   AppLocalizations get _l10n => AppLocalizations.of(context);
 

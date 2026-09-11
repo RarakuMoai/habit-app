@@ -5,6 +5,13 @@
 // 加上 `PrefsKeys.xxxDay(date)` helper 組出來。
 
 abstract final class PrefsKeys {
+  // ── 帳號與備份（裝置狀態，不隨存檔匯出） ─────────────────
+  static const backupRestoreJournal = 'backup_restore_journal_v1';
+  // Local recovery gate only; never carried into exported archives.
+  static const familyRestoreNeedsPin = 'family_restore_needs_pin_v1';
+  static const accountDeviceState = 'account_device_state_v1';
+  static const accountGuestChosen = 'account_guest_chosen_v1';
+
   // ── Onboarding / 個人資料 ─────────────────────────────────
   static const onboardingDone = 'onboarding_done';
   static const onboardingStoryVersion = 'onboarding_story_version';

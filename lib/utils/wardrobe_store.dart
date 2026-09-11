@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'coin_service.dart';
 import 'prefs_keys.dart';
+import 'storage_snapshot_gate.dart';
 import 'usage_stats.dart';
 import 'wardrobe_catalog.dart';
 
@@ -190,31 +191,33 @@ class WardrobeStore {
 
   /// 從清單移除；回傳目前曲是否改變。最後一首不可移除。
   /// 若移除的正是目前曲，指標接續到「原位置的下一首」（wrap 回第一首）。
-  static Future<bool> removeTrack(String id) async {
-    final list = playlist.value;
-    if (!list.contains(id) || list.length == 1) return false;
-    final removingCurrent = currentTrackId.value == id;
-    final idx = list.indexOf(id);
-    final remaining = list.where((t) => t != id).toList();
-    await _persistPlaylist(remaining);
-    if (removingCurrent) {
-      await _persistCurrent(remaining[idx % remaining.length]);
-      return true;
-    }
-    return false;
-  }
+  static Future<bool> removeTrack(String id) =>
+      StorageSnapshotGate.write(() async {
+        final list = playlist.value;
+        if (!list.contains(id) || list.length == 1) return false;
+        final removingCurrent = currentTrackId.value == id;
+        final idx = list.indexOf(id);
+        final remaining = list.where((t) => t != id).toList();
+        await _persistPlaylist(remaining);
+        if (removingCurrent) {
+          await _persistCurrent(remaining[idx % remaining.length]);
+          return true;
+        }
+        return false;
+      });
 
   /// 設為目前播放（只移動指標，不重排清單）；回傳目前曲是否改變。
   /// 若是已擁有但還不在清單裡的曲目（從曲庫詳情設目前），先加入清單尾端。
-  static Future<bool> setCurrentTrack(String id) async {
-    if (!ownedTracks.value.contains(id)) return false;
-    if (!playlist.value.contains(id)) {
-      await _persistPlaylist([...playlist.value, id]);
-    }
-    if (currentTrackId.value == id) return false;
-    await _persistCurrent(id);
-    return true;
-  }
+  static Future<bool> setCurrentTrack(String id) =>
+      StorageSnapshotGate.write(() async {
+        if (!ownedTracks.value.contains(id)) return false;
+        if (!playlist.value.contains(id)) {
+          await _persistPlaylist([...playlist.value, id]);
+        }
+        if (currentTrackId.value == id) return false;
+        await _persistCurrent(id);
+        return true;
+      });
 
   /// 切換播放模式並持久化。
   static Future<void> setPlayMode(PlayMode mode) async {
@@ -257,7 +260,7 @@ class WardrobeStore {
   static Future<PurchaseResult> purchaseOutfit(
     String id,
     String spendReason,
-  ) async {
+  ) => StorageSnapshotGate.write(() async {
     if (ownedOutfits.value.contains(id)) return PurchaseResult.alreadyOwned;
     final spec = outfitById(id);
     final paid = await _charge(spec.unlockType, spec.coinPrice, spendReason);
@@ -268,23 +271,25 @@ class WardrobeStore {
     ownedOutfits.value = next;
     unawaited(UsageStats.bump(UsageEvents.wardrobeBuy));
     return PurchaseResult.success;
-  }
+  });
 
-  static Future<PurchaseResult> purchaseTrack(
-    String id,
-    String spendReason,
-  ) async {
-    if (ownedTracks.value.contains(id)) return PurchaseResult.alreadyOwned;
-    final spec = trackById(id);
-    final paid = await _charge(spec.unlockType, spec.coinPrice, spendReason);
-    if (paid != PurchaseResult.success) return paid;
-    final prefs = await SharedPreferences.getInstance();
-    final next = {...ownedTracks.value, id};
-    await prefs.setStringList(PrefsKeys.bgmOwnedTracks, next.toList());
-    ownedTracks.value = next;
-    unawaited(UsageStats.bump(UsageEvents.wardrobeBuy));
-    return PurchaseResult.success;
-  }
+  static Future<PurchaseResult> purchaseTrack(String id, String spendReason) =>
+      StorageSnapshotGate.write(() async {
+        if (ownedTracks.value.contains(id)) return PurchaseResult.alreadyOwned;
+        final spec = trackById(id);
+        final paid = await _charge(
+          spec.unlockType,
+          spec.coinPrice,
+          spendReason,
+        );
+        if (paid != PurchaseResult.success) return paid;
+        final prefs = await SharedPreferences.getInstance();
+        final next = {...ownedTracks.value, id};
+        await prefs.setStringList(PrefsKeys.bgmOwnedTracks, next.toList());
+        ownedTracks.value = next;
+        unawaited(UsageStats.bump(UsageEvents.wardrobeBuy));
+        return PurchaseResult.success;
+      });
 
   static Future<PurchaseResult> _charge(
     UnlockType type,

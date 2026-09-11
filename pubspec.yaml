@@ -49,6 +49,12 @@ dependencies:
   url_launcher: ^6.3.1
   flutter_slidable: ^4.0.3
   wakelock_plus: ^1.2.0 # 計時時防螢幕自動鎖定（節拍器/運動）
+  firebase_core: ^4.14.0
+  firebase_auth: ^6.6.1
+  cloud_firestore: ^6.9.0
+  google_sign_in: ^7.2.0
+  file_selector: ^1.1.0
+  share_plus: ^13.3.0
 
 # path_provider_foundation 2.6.0 改用 FFI（package:objective_c），其
 # objective_c.framework 走 native assets 簽名管線，實機安裝常出現
@@ -73,6 +79,10 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  # Native persistence / file-picker / share-sheet failure-path tests.
+  shared_preferences_platform_interface: any
+  file_selector_platform_interface: any
+  share_plus_platform_interface: any
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

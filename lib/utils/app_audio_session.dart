@@ -19,7 +19,15 @@ class AppAudioSession {
   AppAudioSession._();
 
   static bool _configured = false;
+  static Future<void>? _configuring;
   static AudioSession? _session;
+
+  @visibleForTesting
+  static void resetForTesting({AudioSession? session}) {
+    assert(_configuring == null);
+    _configured = false;
+    _session = session;
+  }
 
   /// 第一次呼叫會 configure + setActive；之後只會 setActive。
   /// BgmService / SfxService 的 init 都呼叫這個，誰先到誰負責 configure。
@@ -28,8 +36,17 @@ class AppAudioSession {
       await activate();
       return;
     }
+    final operation = _configuring ??= _configure();
     try {
-      final session = await AudioSession.instance;
+      await operation;
+    } finally {
+      if (identical(_configuring, operation)) _configuring = null;
+    }
+  }
+
+  static Future<void> _configure() async {
+    try {
+      final session = _session ?? await AudioSession.instance;
       await session.configure(
         const AudioSessionConfiguration(
           avAudioSessionCategory: AVAudioSessionCategory.ambient,
@@ -46,6 +63,12 @@ class AppAudioSession {
   /// 只確保 session active，不重新 configure。
   /// 播放前 / 救援前用這個，避免重設輸出路由把聲音弄沒。
   static Future<void> activate() async {
+    if (!_configured) {
+      // setActive on an unconfigured audio_session applies its own fallback
+      // category. Wait for our shared ambient setup instead of racing it.
+      await ensureConfigured();
+      return;
+    }
     try {
       final session = _session ?? await AudioSession.instance;
       _session = session;

@@ -22,7 +22,16 @@ import 'app_audio_session.dart';
 import 'audio_settings_service.dart';
 
 class BgmService with WidgetsBindingObserver {
-  BgmService._();
+  BgmService._()
+    : _player = AudioPlayer(),
+      _configureSession = AppAudioSession.ensureConfigured;
+
+  @visibleForTesting
+  BgmService.forTesting({
+    required AudioPlayer player,
+    Future<void> Function()? configureSession,
+  }) : _player = player,
+       _configureSession = configureSession ?? AppAudioSession.ensureConfigured;
   static final BgmService instance = BgmService._();
 
   static const double _targetVolume = 0.25;
@@ -50,7 +59,8 @@ class BgmService with WidgetsBindingObserver {
   // 跳過 AAC encoder 在開頭塞的暖機靜音（~48ms），讓 LoopMode.one 接得更緊
   static const Duration _aacPrimingTrim = Duration(milliseconds: 50);
 
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player;
+  final Future<void> Function() _configureSession;
   // "app 想要現在播這首" 的同步旗標，play()/ensurePlaying() 進來第一件事就設。
   // 跟 _currentAsset 不同：_currentAsset 是「目前 native player 實際載入的」，
   // 會在 fadeTo + stop 後才更新；_intendedAsset 立刻反映呼叫端的意圖，
@@ -71,6 +81,7 @@ class BgmService with WidgetsBindingObserver {
   // 避免「舊的 await _fadeTo」永遠 hang 在那裡。
   Completer<void>? _activeFadeCompleter;
   bool _initialized = false;
+  Future<void>? _initializing;
   bool _wasPlayingBeforeBackground = false;
 
   // 多軌輪播：true = 這首播完不循環、改通知 [onTrackCompleted] 換下一首；
@@ -98,13 +109,23 @@ class BgmService with WidgetsBindingObserver {
 
   Future<void> init() async {
     if (_initialized) return;
+    // Entry, replay and the home route can overlap while the native player is
+    // still preparing. Only one initializer may set the starting volume/loop.
+    final operation = _initializing ??= _initialize();
+    try {
+      await operation;
+    } finally {
+      if (identical(_initializing, operation)) _initializing = null;
+    }
+  }
 
+  Future<void> _initialize() async {
     await AudioSettingsService.instance.init();
 
     // 全 app 只在這裡 configure 一次 audio session（ambient = 跟其他 app 共存、
     // 響應實體靜音鈕）。重複 configure 會讓 iOS 重設輸出路由 → 冷啟動沒聲音，
     // 所以之後所有「確保 active」的場合都只呼叫 AppAudioSession.activate()。
-    await AppAudioSession.ensureConfigured();
+    await _configureSession();
 
     await _player.setLoopMode(LoopMode.one); // gapless 單曲循環
     await _player.setVolume(0);

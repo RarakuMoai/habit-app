@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
 import '../utils/app_style.dart';
-import '../utils/bgm_service.dart';
+import '../utils/entry_audio.dart';
 import '../utils/input_formatters.dart';
 import '../utils/logical_date.dart';
 import '../utils/logical_day_coordinator.dart';
@@ -15,14 +15,11 @@ import '../utils/mascot.dart';
 import '../utils/onboarding_setup.dart';
 import '../utils/onboarding_story.dart';
 import '../utils/prefs_keys.dart';
-import '../utils/scene_time.dart';
 import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/audio_control_button.dart';
 import '../widgets/mascot_scene.dart';
-import '../widgets/onboarding_room_scene.dart';
-import '../widgets/scene_rooms.dart';
 
 /// A quiet first meeting, also used by preview and the first memory.
 /// Only normal setup may save names or initialize a new household.
@@ -43,6 +40,7 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage>
     with WidgetsBindingObserver {
   final _setup = OnboardingSetup();
+  late final EntryAudioScope _entryAudio;
   final _mascot = TextEditingController();
   final _nickname = TextEditingController();
   final _scroll = ScrollController();
@@ -67,7 +65,17 @@ class _OnboardingPageState extends State<OnboardingPage>
         WidgetsBinding.instance.lifecycleState == null ||
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     WidgetsBinding.instance.addObserver(this);
+    _entryAudio = EntryAudio.instance.open();
+    unawaited(_runAudio(_entryAudio.playIntro()));
     _loadNames();
+  }
+
+  Future<void> _runAudio(Future<void> operation) async {
+    try {
+      await operation;
+    } catch (error, stack) {
+      debugPrint('Entry audio failed: $error\n$stack');
+    }
   }
 
   Future<void> _loadNames() async {
@@ -95,6 +103,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(_runAudio(_entryAudio.close()));
     _mascot.dispose();
     _nickname.dispose();
     _scroll.dispose();
@@ -166,7 +175,7 @@ class _OnboardingPageState extends State<OnboardingPage>
       Navigator.of(context).pop(true);
     } else {
       // Music belongs to the destination; no per-line or completion jingle.
-      unawaited(BgmService.instance.play('sounds/bgm_main.m4a'));
+      unawaited(_runAudio(_entryAudio.enterHome()));
       unawaited(
         Navigator.of(
           context,
@@ -195,228 +204,181 @@ class _OnboardingPageState extends State<OnboardingPage>
       child: Scaffold(
         key: const ValueKey('onboarding-story'),
         backgroundColor: AppSurfaces.canvas,
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 680),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 56,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            key: const ValueKey('onboarding-back'),
-                            tooltip: _index == 0 && !_normal
-                                ? l.csClose
-                                : l.csBack,
-                            constraints: const BoxConstraints.tightFor(
-                              width: 48,
-                              height: 48,
-                            ),
-                            onPressed:
-                                _busy ||
-                                    (_index == 0 &&
-                                        !Navigator.of(context).canPop())
-                                ? null
-                                : _back,
-                            icon: Icon(
-                              _index == 0 && !_normal
-                                  ? Icons.close_rounded
-                                  : Icons.arrow_back_rounded,
-                            ),
-                          ),
-                          if (_normal)
-                            IgnorePointer(
-                              ignoring: _busy,
-                              child: AudioControlButton(
-                                style: AudioControlStyle.onboarding,
-                                accent: AppPalette.habitInk,
-                                onBeforeOpen: () => FocusManager
-                                    .instance
-                                    .primaryFocus
-                                    ?.unfocus(),
-                                onMusicEnabled: () => BgmService.instance
-                                    .ensurePlaying('sounds/bgm_onboarding.m4a'),
-                              ),
-                            )
-                          else
-                            Expanded(
-                              child: Text(
-                                widget.preview ? l.csPreview : l.csReplay,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(color: AppInk.soft),
-                              ),
-                            ),
-                          if (_normal) const Spacer(),
-                          IconButton(
-                            key: const ValueKey('onboarding-skip'),
-                            tooltip: l.csSkip,
-                            constraints: const BoxConstraints.tightFor(
-                              width: 48,
-                              height: 48,
-                            ),
-                            onPressed: !_ready || _busy
-                                ? null
-                                : () => _finish(skipped: true),
-                            icon: const Icon(
-                              Icons.skip_next_rounded,
-                              color: AppInk.soft,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: !_ready
-                        ? _readFailed
-                              ? Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(24),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(l.obStoryReadError),
-                                        TextButton(
-                                          onPressed: _loadNames,
-                                          child: Text(l.csRetry),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              : const AppPageWaiting()
-                        : LayoutBuilder(
-                            builder: (context, box) {
-                              // Scaffold has already removed the keyboard. Reserve usable
-                              // reading space from these real constraints, never from screen height.
-                              final readingReserve = keyboard
-                                  ? box.maxHeight
-                                  : mq.textScaler
-                                        .scale(180)
-                                        .clamp(180.0, 330.0);
-                              final sceneHeight = math.min(
-                                390.0,
-                                math.min(
-                                  box.maxHeight * 0.60,
-                                  math.max(0.0, box.maxHeight - readingReserve),
-                                ),
-                              );
-                              return Column(
-                                children: [
-                                  if (sceneHeight > 0)
-                                    SizedBox(
-                                      key: const ValueKey('onboarding-room'),
-                                      width: double.infinity,
-                                      height: sceneHeight,
-                                      child: _room(
-                                        scene,
-                                        reduce: reduce,
-                                        active: active,
-                                      ),
-                                    ),
-                                  Expanded(
-                                    child: Scrollbar(
-                                      controller: _scroll,
-                                      child: SingleChildScrollView(
-                                        key: const ValueKey(
-                                          'onboarding-reading',
-                                        ),
-                                        controller: _scroll,
-                                        keyboardDismissBehavior:
-                                            ScrollViewKeyboardDismissBehavior
-                                                .onDrag,
-                                        padding: EdgeInsets.fromLTRB(
-                                          28,
-                                          keyboard ? 12 : 20,
-                                          28,
-                                          16,
-                                        ),
-                                        child: AnimatedSwitcher(
-                                          duration: reduce
-                                              ? Duration.zero
-                                              : AppMotion.settle,
-                                          layoutBuilder: (current, previous) =>
-                                              Stack(
-                                                alignment: Alignment.topCenter,
-                                                children: [
-                                                  ...previous,
-                                                  ?current,
-                                                ],
+        // The sky keeps its full-screen camera while the foreground makes room
+        // for the keyboard. Neither the picture nor Tumi is stretched smaller.
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: ExcludeSemantics(
+                child: Image.asset(
+                  'assets/scenes/onboarding/onboarding_bg_v3.png',
+                  key: const ValueKey('onboarding-sky'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Column(
+                      children: [
+                        _header(l),
+                        Expanded(
+                          child: !_ready
+                              ? _readFailed
+                                    ? Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(24),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(l.obStoryReadError),
+                                              TextButton(
+                                                onPressed: _loadNames,
+                                                child: Text(l.csRetry),
                                               ),
-                                          child: _words(
-                                            scene,
-                                            l,
-                                            language,
-                                            keyboard,
+                                            ],
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_saveFailed)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              l.csSaveError,
-                              key: const ValueKey('onboarding-error'),
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppInk.danger),
-                            ),
-                          ),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            key: const ValueKey('onboarding-primary'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppPalette.habitInk,
-                              foregroundColor: AppSurfaces.card,
-                              minimumSize: const Size(48, 56),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 14,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(22),
-                              ),
-                            ),
-                            onPressed: !_ready || _busy
-                                ? null
-                                : _saveFailed
-                                ? () => _finish(skipped: _retrySkipped)
-                                : _last
-                                ? _finish
-                                : () => _move(_index + 1),
-                            child: _busy
-                                ? const AppLoadingBar()
-                                : Text(
-                                    _saveFailed
-                                        ? l.csRetry
-                                        : _last
-                                        ? _normal
-                                              ? l.obStoryBegin
-                                              : l.csFinish
-                                        : l.csContinue,
-                                    textAlign: TextAlign.center,
-                                  ),
-                          ),
+                                      )
+                                    : const AppPageWaiting()
+                              : _storyBody(
+                                  scene,
+                                  l,
+                                  language,
+                                  keyboard: keyboard,
+                                  reduce: reduce,
+                                  active: active,
+                                ),
                         ),
+                        _footer(l, keyboard: keyboard),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header(AppLocalizations l) => SizedBox(
+    height: 56,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          IconButton(
+            key: const ValueKey('onboarding-back'),
+            tooltip: _index == 0 && !_normal ? l.csClose : l.csBack,
+            constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+            onPressed: _busy || (_index == 0 && !Navigator.of(context).canPop())
+                ? null
+                : _back,
+            icon: Icon(
+              _index == 0 && !_normal
+                  ? Icons.close_rounded
+                  : Icons.arrow_back_rounded,
+              color: AppInk.soft,
+            ),
+          ),
+          if (_normal)
+            IgnorePointer(
+              ignoring: _busy,
+              child: AudioControlButton(
+                style: AudioControlStyle.onboarding,
+                accent: AppPalette.habitInk,
+                onBeforeOpen: () =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
+                onMusicEnabled: () => _runAudio(_entryAudio.playIntro()),
+              ),
+            )
+          else
+            Expanded(
+              child: Text(
+                widget.preview ? l.csPreview : l.csReplay,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: AppInk.soft),
+              ),
+            ),
+          if (_normal) const Spacer(),
+          IconButton(
+            key: const ValueKey('onboarding-skip'),
+            tooltip: l.csSkip,
+            constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+            onPressed: !_ready || _busy ? null : () => _finish(skipped: true),
+            icon: const Icon(Icons.skip_next_rounded, color: AppInk.soft),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _storyBody(
+    OnboardingStoryScene scene,
+    AppLocalizations l,
+    String language, {
+    required bool keyboard,
+    required bool reduce,
+    required bool active,
+  }) => LayoutBuilder(
+    builder: (context, box) {
+      // Only the width chooses Tumi's square stage. Long text scrolls; it never
+      // squeezes the character. At 430pt the stage is 249pt; at 320pt, 186pt.
+      // This viewport already excludes safe areas, 56pt header and the actual
+      // footer (including large text/errors), so the keyboard has one owner.
+      final portraitSide = (box.maxWidth * 0.58).clamp(156.0, 252.0);
+      final topSpace = keyboard ? 12.0 : math.min(48.0, box.maxHeight * 0.06);
+      return Scrollbar(
+        controller: _scroll,
+        child: SingleChildScrollView(
+          key: const ValueKey('onboarding-reading'),
+          controller: _scroll,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const ClampingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(24, topSpace, 24, 24),
+              child: Column(
+                mainAxisAlignment: scene.showMascot || keyboard
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
+                children: [
+                  if (scene.showMascot && !keyboard) ...[
+                    SizedBox.square(
+                      key: const ValueKey('onboarding-portrait'),
+                      dimension: portraitSide,
+                      child: _portrait(scene, reduce: reduce, active: active),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: AnimatedSwitcher(
+                      duration: reduce ? Duration.zero : AppMotion.enter,
+                      switchInCurve: Curves.easeIn,
+                      switchOutCurve: Curves.easeOut,
+                      layoutBuilder: (current, previous) => Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          for (final child in previous)
+                            ExcludeSemantics(child: child),
+                          ?current,
+                        ],
+                      ),
+                      child: _words(scene, l, language, keyboard),
                     ),
                   ),
                 ],
@@ -424,9 +386,68 @@ class _OnboardingPageState extends State<OnboardingPage>
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
+
+  Widget _footer(AppLocalizations l, {required bool keyboard}) => Padding(
+    padding: EdgeInsets.fromLTRB(24, 8, 24, keyboard ? 12 : 24),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_saveFailed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              l.csSaveError,
+              key: const ValueKey('onboarding-error'),
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppInk.danger),
+            ),
+          ),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              key: const ValueKey('onboarding-primary'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppPalette.habitInk,
+                foregroundColor: AppSurfaces.card,
+                minimumSize: const Size(48, 56),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                shape: const StadiumBorder(),
+              ),
+              onPressed: !_ready || _busy
+                  ? null
+                  : _saveFailed
+                  ? () => _finish(skipped: _retrySkipped)
+                  : _last
+                  ? _finish
+                  : () => _move(_index + 1),
+              child: _busy
+                  ? const AppLoadingBar()
+                  : Text(
+                      _saveFailed
+                          ? l.csRetry
+                          : _last
+                          ? _normal
+                                ? l.obStoryBegin
+                                : l.csFinish
+                          : l.csContinue,
+                      textAlign: TextAlign.center,
+                    ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _words(
     OnboardingStoryScene scene,
@@ -443,62 +464,93 @@ class _OnboardingPageState extends State<OnboardingPage>
       key: ValueKey('onboarding-scene-${scene.id}'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (scene.showMascot && !keyboard) ...[
+        if (!scene.showMascot) ...[
           Text(
-            _mascot.text.trim().isEmpty
-                ? l.mascotDefaultName
-                : _mascot.text.trim(),
+            onboardingStoryTitle.resolve(language),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppInk.strong,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 28),
+        ],
+        // The optional question remains in the field label while typing. This
+        // frees the short keyboard viewport for the actual answer and action.
+        if (!keyboard || !isName)
+          Text(
+            text,
+            key: const ValueKey('onboarding-dialogue'),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontSize: 19,
+              height: 1.65,
+              color: AppInk.strong,
+            ),
+          ),
+        if (isName && !_readOnly) ...[
+          if (!keyboard) const SizedBox(height: 26),
+          Text(
+            isMascotName ? l.obStoryNameLabel : l.obStoryUserLabel,
+            textAlign: TextAlign.center,
             style: Theme.of(
               context,
-            ).textTheme.labelLarge?.copyWith(color: AppPalette.habitInk),
+            ).textTheme.labelLarge?.copyWith(color: AppInk.soft),
           ),
           const SizedBox(height: 10),
-        ],
-        Text(
-          text,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontSize: 19,
-            height: 1.65,
-            color: AppInk.strong,
-          ),
-        ),
-        if (isName && !_readOnly) ...[
-          const SizedBox(height: 22),
-          TextField(
-            key: ValueKey(
-              isMascotName ? 'onboarding-mascot-name' : 'onboarding-nickname',
-            ),
-            controller: controller,
-            enabled: !_busy,
-            textInputAction: TextInputAction.done,
-            maxLength: isMascotName ? null : 12,
-            inputFormatters: isMascotName
-                ? const [DisplayWidthLimitingFormatter(kMascotNameMaxUnits)]
-                : [LengthLimitingTextInputFormatter(12)],
-            onSubmitted: (_) => _move(_index + 1),
-            scrollPadding: const EdgeInsets.only(top: 16, bottom: 24),
-            decoration: InputDecoration(
-              label: Text(
-                isMascotName ? l.obStoryNameLabel : l.obStoryUserLabel,
-                maxLines: 2,
-              ),
-              hintText: isMascotName ? l.mascotDefaultName : l.obStoryUserHint,
-              floatingLabelBehavior: FloatingLabelBehavior.always,
-              filled: true,
-              fillColor: AppSurfaces.card,
-              counterText: '',
-              contentPadding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: AppSurfaces.divider),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: TextField(
+                key: ValueKey(
+                  isMascotName
+                      ? 'onboarding-mascot-name'
+                      : 'onboarding-nickname',
+                ),
+                controller: controller,
+                enabled: !_busy,
+                textAlign: TextAlign.center,
+                textInputAction: TextInputAction.done,
+                maxLength: isMascotName ? null : 12,
+                inputFormatters: isMascotName
+                    ? const [DisplayWidthLimitingFormatter(kMascotNameMaxUnits)]
+                    : [LengthLimitingTextInputFormatter(12)],
+                onSubmitted: (_) => _move(_index + 1),
+                scrollPadding: const EdgeInsets.only(top: 12, bottom: 16),
+                decoration: InputDecoration(
+                  hintText: isMascotName
+                      ? l.mascotDefaultName
+                      : l.obStoryUserHint,
+                  filled: true,
+                  fillColor: AppSurfaces.card.withValues(alpha: 0.78),
+                  counterText: '',
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 18,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppCardStyle.radius),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppCardStyle.radius),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppCardStyle.radius),
+                    borderSide: const BorderSide(color: AppPalette.habitInk),
+                  ),
+                ),
               ),
             ),
           ),
         ],
         if (isName && _readOnly && controller.text.trim().isNotEmpty) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           Text(
             isMascotName ? l.obStoryNameLabel : l.obStoryUserLabel,
+            textAlign: TextAlign.center,
             style: Theme.of(
               context,
             ).textTheme.labelMedium?.copyWith(color: AppInk.soft),
@@ -507,6 +559,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           Text(
             controller.text.trim(),
             key: const ValueKey('onboarding-saved-name'),
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ],
@@ -516,6 +569,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             _normal
                 ? '${l.obStoryFeaturesNote}\n${l.obStoryMemoryNote}'
                 : l.obStoryMemoryNote,
+            textAlign: TextAlign.center,
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: AppInk.soft, height: 1.6),
@@ -525,24 +579,30 @@ class _OnboardingPageState extends State<OnboardingPage>
     );
   }
 
-  Widget _room(
+  Widget _portrait(
     OnboardingStoryScene scene, {
     required bool reduce,
     required bool active,
-  }) => ListenableBuilder(
-    listenable: WardrobeStore.selectedOutfit,
-    builder: (_, _) => OnboardingRoomScene(
-      asset: scene.showMascot
-          ? skinnedMascotAsset(
+  }) => ExcludeSemantics(
+    child: IgnorePointer(
+      child: ListenableBuilder(
+        listenable: WardrobeStore.selectedOutfit,
+        builder: (_, _) => FittedBox(
+          child: MascotStage(
+            asset: skinnedMascotAsset(
               scene.emotion.assetPath,
               WardrobeStore.currentOutfit.skinKey,
-            )
-          : null,
-      reduceMotion: reduce,
-      paused: !active,
-      lighting: mascotLightingForScene(
-        SceneTimeState.fromHour(13),
-        FourPeriodRoom.home.light,
+            ),
+            accent: AppPalette.habit,
+            reactionTick: 0,
+            onTap: () {},
+            reduceMotion: reduce,
+            paused: !active,
+            poseTransition: reduce
+                ? MascotPoseTransition.cut
+                : MascotPoseTransition.crossFade,
+          ),
+        ),
       ),
     ),
   );

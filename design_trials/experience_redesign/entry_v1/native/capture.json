@@ -1,0 +1,29 @@
+{
+  "device": "313696A1-3B71-4740-B907-77869F9698BA",
+  "test": "integration_test/onboarding_review_test.dart",
+  "flavor": "redesign",
+  "glass": true,
+  "files": [
+    "00-entry.png",
+    "00b-account.png",
+    "01-arrival.png",
+    "02-hello.png",
+    "03-a-new-routine.png",
+    "04-a-name.png",
+    "04b-name-keyboard.png",
+    "05-your-name.png",
+    "06-a-beginning.png",
+    "07-home.png",
+    "08-timers.png",
+    "09-water.png",
+    "10-weight.png",
+    "11-family.png",
+    "12-wardrobe.png",
+    "13-developer-preview-entry.png",
+    "14-preview-arrival.png",
+    "15-preview-ending.png"
+  ],
+  "test_exit_code": 0,
+  "capture_error": null,
+  "exit_code": 0
+}

@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dev/motion_preview_page.dart';
 import 'l10n/app_localizations.dart';
+import 'pages/app_entry_page.dart';
 import 'pages/family_page.dart';
 import 'pages/home_page.dart';
 import 'pages/login_streak_page.dart';
@@ -19,19 +20,21 @@ import 'pages/timer_page.dart';
 import 'pages/wardrobe_page.dart';
 import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
+import 'utils/account_service.dart';
 import 'utils/app_feedback.dart';
 import 'utils/app_restart.dart';
 import 'utils/app_style.dart';
 import 'utils/app_theme.dart';
 import 'utils/audio_asset_cache.dart';
 import 'utils/audio_settings_service.dart';
-import 'utils/bgm_playlist.dart';
+import 'utils/backup_restore.dart';
 import 'utils/bgm_service.dart';
 import 'utils/coin_config.dart';
 import 'utils/coin_service.dart';
 import 'utils/companion_story_preview.dart';
 import 'utils/companion_story_progress.dart';
 import 'utils/feature_flags.dart';
+import 'utils/firebase_account_backend.dart';
 import 'utils/logical_date.dart';
 import 'utils/logical_day_coordinator.dart';
 import 'utils/mascot.dart';
@@ -40,6 +43,7 @@ import 'utils/parent_pin.dart';
 import 'utils/preference_write_guard.dart';
 import 'utils/prefs_keys.dart';
 import 'utils/sfx_service.dart';
+import 'utils/storage_snapshot_gate.dart';
 import 'utils/story_catalog.dart';
 import 'utils/story_store.dart';
 import 'utils/tab_catalog.dart';
@@ -54,6 +58,7 @@ import 'widgets/navigation_surface.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  AccountService.instance = AccountService(backend: FirebaseAccountBackend());
   // 打包字型（Nunito / Baloo 2）為 OFL 授權，依授權條款把全文註冊進
   // Flutter licenses 頁（showLicensePage / AboutDialog 可見）。
   LicenseRegistry.addLicense(() async* {
@@ -69,6 +74,17 @@ Future<_StartupState> _loadStartupState() async {
   // 鎖定只支援直向（防止橫向自動翻轉）
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await SharedPreferences.getInstance();
+  // A failed journal removal can leave the legacy cache ahead of native storage.
+  // Retry must refresh before deciding whether recovery is still required.
+  await prefs.reload();
+  // Restore is completed before any reader, migration or daily writer can run.
+  if (prefs.containsKey(PrefsKeys.backupRestoreJournal)) {
+    await WidgetsBinding.instance.endOfFrame;
+    await LogicalDayCoordinator.resetForRestore();
+    await StorageSnapshotGate.snapshot(
+      () => BackupRestore(prefs: prefs).recoverPending(),
+    );
+  }
   // 舊版明文 PIN 啟動時就地雜湊遷移（hasPin 內含遷移邏輯）
   await ParentPin.hasPin(prefs);
   final onboardingDone = prefs.getBool(PrefsKeys.onboardingDone) ?? false;
@@ -109,26 +125,11 @@ Future<_StartupState> _loadStartupState() async {
 Future<void> _startInitialAudio({required bool onboardingDone}) async {
   try {
     await Future<void>.delayed(const Duration(milliseconds: 900));
-    await BgmService.instance.init();
-    // 接上播放清單協調器（換歌鉤子 + loop 行為同步），必須在首播之前，
-    // 讓多軌列表循環使用者的冷啟動首曲就帶正確 loop 行為、播完會輪替。
-    BgmPlaylist.init();
-    // 進主頁播使用者在音樂盒選的目前曲（預設仍是 bgm_main，既有用戶無感）；
-    // 前導流程固定播 onboarding 曲。
-    final asset = onboardingDone
-        ? await WardrobeStore.loadCurrentTrackAsset()
-        : 'sounds/bgm_onboarding.m4a';
-    // Setup can finish before this delayed startup. Its explicit play(main)
-    // owns the newer intent; an old opening cue must never take it back.
-    // ensurePlaying also uses deferFade for a genuinely fresh audio source.
-    if (onboardingDone) {
-      await BgmService.instance.play(asset, deferFade: true);
-    } else {
-      await BgmService.instance.ensurePlaying(asset);
-    }
+    // EntryAudio owns BGM preparation and the visible route's cue. The delayed
+    // warm-up only prepares sound effects, never a second BGM initializer.
     await SfxService.instance.init();
   } catch (e, st) {
-    debugPrint('BGM init/play failed: $e\n$st');
+    debugPrint('SFX warm-up failed: $e\n$st');
   }
 }
 
@@ -244,9 +245,8 @@ class _MyAppState extends State<MyApp> {
   void _scheduleInitialAudio(bool startAtHome) {
     if (_initialAudioScheduled || widget.startAtHome != null) return;
     _initialAudioScheduled = true;
-    // BGM 初始化 + 播放放到第一個 frame 之後再稍微延遲。
-    // flutter run --release 安裝後自動拉起 app 時，iOS 音訊路由偶爾還沒穩；
-    // 等畫面 settled 再啟動音樂，比 main() 裡立刻 play 更可靠。
+    // 音效素材延後到入口第一個 frame 之後準備。
+    // BGM 初始化與首播由可見路由的 EntryAudio 負責。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_startInitialAudio(onboardingDone: startAtHome));
     });
@@ -275,9 +275,12 @@ class _MyAppState extends State<MyApp> {
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           child: ready
-              ? data.startAtHome
-                    ? const MainPage(key: ValueKey('main'))
-                    : const OnboardingPage(key: ValueKey('onboarding'))
+              ? AppEntryPage(
+                  key: const ValueKey('entry'),
+                  onboardingDone: data.startAtHome,
+                )
+              : snapshot.hasError
+              ? const _StartupFailure(key: ValueKey('startup-error'))
               : const _StartupSplash(key: ValueKey('startup')),
         );
       },
@@ -334,6 +337,40 @@ class _MyAppState extends State<MyApp> {
               'onboarding-arrival',
         ),
       },
+    );
+  }
+}
+
+class _StartupFailure extends StatelessWidget {
+  const _StartupFailure({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.home_outlined,
+                  size: 48,
+                  color: AppPalette.habitInk,
+                ),
+                const SizedBox(height: 20),
+                Text(l.backupStartupError, textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () => RootRestart.restart(context),
+                  child: Text(l.csRetry),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

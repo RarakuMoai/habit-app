@@ -98,7 +98,8 @@ void main() {
           }
           keyboard.value = 300;
           await _settle(tester);
-          expect(_key('onboarding-room'), findsNothing);
+          expect(_key('onboarding-portrait'), findsNothing);
+          expect(tester.getSize(_key('onboarding-sky')), size);
           await _field(tester, 'onboarding-mascot-name', 'CloudSunbeam');
           expect(
             tester.getSize(_key('onboarding-primary')).height,

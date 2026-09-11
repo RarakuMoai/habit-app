@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
+import '../../utils/storage_snapshot_gate.dart';
 import '../../widgets/app_waiting.dart';
 import 'family_auth.dart';
 import 'family_models.dart';
@@ -134,28 +135,30 @@ class _RewardTabState extends State<RewardTab> {
     );
     if (confirmed != true || !mounted) return;
 
-    final prefs = _prefs!;
-    final newPoints = await applyPoints(
-      prefs: prefs,
-      child: widget.child,
-      delta: -(r.pointsCost * qty),
-      reason: _l10n.rtReasonRedeem(r.name, qty),
-    );
-    final allVouchers = await loadVouchers(prefs);
-    final now = nowStr();
-    for (var i = 0; i < qty; i++) {
-      final v = VoucherLog(
-        id: genId(),
-        rewardId: r.id,
-        childId: widget.child.id,
-        redeemedAt: now,
+    await StorageSnapshotGate.write(() async {
+      final prefs = _prefs!;
+      final newPoints = await applyPoints(
+        prefs: prefs,
+        child: widget.child,
+        delta: -(r.pointsCost * qty),
+        reason: _l10n.rtReasonRedeem(r.name, qty),
       );
-      allVouchers.add(v);
-      _vouchers.add(v);
-    }
-    await saveVouchers(prefs, allVouchers);
-    setState(() => widget.child.points = newPoints);
-    widget.onPointsChanged();
+      final allVouchers = await loadVouchers(prefs);
+      final now = nowStr();
+      for (var i = 0; i < qty; i++) {
+        final v = VoucherLog(
+          id: genId(),
+          rewardId: r.id,
+          childId: widget.child.id,
+          redeemedAt: now,
+        );
+        allVouchers.add(v);
+        _vouchers.add(v);
+      }
+      await saveVouchers(prefs, allVouchers);
+      setState(() => widget.child.points = newPoints);
+      widget.onPointsChanged();
+    });
   }
 
   Future<void> _useVoucher(VoucherLog v) async {

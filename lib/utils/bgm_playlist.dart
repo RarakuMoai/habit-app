@@ -18,6 +18,17 @@ class BgmPlaylist {
   BgmPlaylist._();
 
   static bool _wired = false;
+  static bool _entryActive = false;
+  static int _entryRevision = 0;
+
+  /// Title/onboarding cues loop independently of the user's saved playlist.
+  static Future<void> setEntryActive(bool active) async {
+    if (active != _entryActive) _entryRevision++;
+    _entryActive = active;
+    await BgmService.instance.setAdvanceMode(
+      !active && WardrobeStore.shouldAdvanceOnComplete,
+    );
+  }
 
   /// 接線（冪等）。需在 WardrobeStore.load() 與 BgmService.init() 之後、
   /// 啟動首播之前呼叫，讓多軌使用者的冷啟動首曲就帶正確 loop 行為。
@@ -33,17 +44,23 @@ class BgmPlaylist {
   // 只調 BgmService 的 loop 行為，不觸發重播（重播交給頁面/啟動流程）。
   static void _syncAdvanceMode() {
     unawaited(
-      BgmService.instance.setAdvanceMode(WardrobeStore.shouldAdvanceOnComplete),
+      BgmService.instance.setAdvanceMode(
+        !_entryActive && WardrobeStore.shouldAdvanceOnComplete,
+      ),
     );
   }
 
   static void _onTrackCompleted() => unawaited(_advance());
 
   static Future<void> _advance() async {
+    if (_entryActive) return;
+    final revision = _entryRevision;
     final asset = await WardrobeStore.advanceToNext();
+    if (_entryActive || revision != _entryRevision) return;
     await BgmService.instance.setAdvanceMode(
       WardrobeStore.shouldAdvanceOnComplete,
     );
+    if (_entryActive || revision != _entryRevision) return;
     await BgmService.instance.play(asset);
   }
 }

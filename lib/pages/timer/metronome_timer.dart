@@ -12,6 +12,7 @@ import '../../utils/mascot.dart';
 import '../../utils/metronome_service.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
+import '../../utils/storage_snapshot_gate.dart';
 import '../../utils/timer_mutex.dart';
 import '../../utils/wake_guard.dart';
 import '../../widgets/scroll_continuation_area.dart';
@@ -274,7 +275,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     unawaited(MetronomeService.instance.init(tone: _tone));
   }
 
-  Future<void> _persist() async {
+  Future<void> _persist() => StorageSnapshotGate.write(() async {
     final p = await SharedPreferences.getInstance();
     await p.setInt(PrefsKeys.metronomeBpm, _bpm);
     await p.setInt(PrefsKeys.metronomeBeats, _beats);
@@ -285,7 +286,7 @@ class _MetronomeTimerState extends State<MetronomeTimer>
     await p.setBool(PrefsKeys.metronomeHaptic, _haptic);
     await p.setDouble(PrefsKeys.metronomeVolume, _volume);
     await p.setString(PrefsKeys.metronomeTone, _tone.id);
-  }
+  });
 
   // ── 啟停 ──
 

@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import 'coin_config.dart';
 import 'prefs_keys.dart';
+import 'storage_snapshot_gate.dart';
 
 /// 每日一次型來源（award 內建 per-day 防重複）
 const Set<CoinSource> _dailyOnceSources = {
@@ -136,7 +137,7 @@ class CoinService {
     int? amount,
     String? note,
     DateTime? now,
-  }) async {
+  }) => StorageSnapshotGate.write(() async {
     // 暫停中的來源不發放（呼叫端保留，集中由 enabledSources 控制）
     if (!CoinConfig.enabledSources.contains(source)) return 0;
 
@@ -152,27 +153,29 @@ class CoinService {
     final amt = amount ?? CoinConfig.amountOf(source);
     await _apply(prefs, ts, source.name, amt, note);
     return amt;
-  }
+  });
 
   /// 花費金幣（購買造型 / 音樂等）。餘額足夠才扣款並回傳 true；
   /// 不足回傳 false 不動帳。[note] 會寫進帳本明細。
-  static Future<bool> spend(int amount, {required String note}) async {
-    if (amount <= 0) return true;
-    final prefs = await SharedPreferences.getInstance();
-    final cur = prefs.getInt(PrefsKeys.coinBalance) ?? 0;
-    if (cur < amount) return false;
-    await _apply(prefs, DateTime.now(), 'purchase', -amount, note);
-    return true;
-  }
+  static Future<bool> spend(int amount, {required String note}) =>
+      StorageSnapshotGate.write(() async {
+        if (amount <= 0) return true;
+        final prefs = await SharedPreferences.getInstance();
+        final cur = prefs.getInt(PrefsKeys.coinBalance) ?? 0;
+        if (cur < amount) return false;
+        await _apply(prefs, DateTime.now(), 'purchase', -amount, note);
+        return true;
+      });
 
   /// 開發測試用：直接加減金幣（不走來源 gating）；負數會扣到地板 0。
   /// 僅供 debug 測試頁呼叫，release 進不到入口。
   /// [note] 由呼叫端用 l10n 組好傳進來（會寫進帳目）。
-  static Future<void> debugAdd(int amount, String note) async {
-    if (amount == 0) return;
-    final prefs = await SharedPreferences.getInstance();
-    await _apply(prefs, DateTime.now(), 'debug', amount, note);
-  }
+  static Future<void> debugAdd(int amount, String note) =>
+      StorageSnapshotGate.write(() async {
+        if (amount == 0) return;
+        final prefs = await SharedPreferences.getInstance();
+        await _apply(prefs, DateTime.now(), 'debug', amount, note);
+      });
 
   /// 撤銷（打卡取消用）：對稱扣回，餘額地板 0。
   static Future<void> revoke(
@@ -180,7 +183,7 @@ class CoinService {
     int? amount,
     String? note,
     DateTime? now,
-  }) async {
+  }) => StorageSnapshotGate.write(() async {
     // 與 award 對稱：暫停中的來源沒發過，也就不撤銷
     if (!CoinConfig.enabledSources.contains(source)) return;
 
@@ -189,7 +192,7 @@ class CoinService {
     // 餘額不足就只扣到 0（理論上只在使用者已花掉金幣時發生）
     final amt = -(amount ?? CoinConfig.amountOf(source)).clamp(0, cur);
     await _apply(prefs, now ?? DateTime.now(), source.name, amt, note);
-  }
+  });
 
   /// 領取每日登入獎勵。今天已領回 null。
   ///
@@ -202,7 +205,7 @@ class CoinService {
   static Future<LoginReward?> claimDailyLogin({
     DateTime? now,
     required AppLocalizations l10n,
-  }) async {
+  }) => StorageSnapshotGate.write(() async {
     final prefs = await SharedPreferences.getInstance();
     final ts = now ?? DateTime.now();
     final today = _dateStr(ts);
@@ -271,7 +274,7 @@ class CoinService {
       graceUsed: graceUsed,
       milestoneAmount: milestoneAmount,
     );
-  }
+  });
 
   // 入帳 + 記帳 + 廣播
   static Future<void> _apply(

@@ -9,6 +9,7 @@ import '../../utils/app_feedback.dart';
 import '../../utils/app_style.dart';
 import '../../utils/prefs_keys.dart';
 import '../../utils/sfx_service.dart';
+import '../../utils/storage_snapshot_gate.dart';
 import '../../widgets/app_waiting.dart';
 import '../../widgets/habit_ui.dart';
 import '../../widgets/sheet_drag_handle.dart';
@@ -113,46 +114,47 @@ class _HabitTabState extends State<HabitTab> {
 
   // 打卡：增加積分、標記日期
   // 每日：今日已打卡則跳過；每週：允許一日多次（上限 20 次/週）
-  Future<void> _checkIn(ChildHabit habit) async {
-    if (habit.frequency == HabitFrequency.repeatable) {
-      await _recordRepeatableCompletion(habit);
-      return;
-    }
-    final today = todayStr();
-    if (habit.frequency == HabitFrequency.weekly) {
-      if (weeklyCount(habit) >= 20) return; // 上限
-    } else {
-      if (habit.completedDate == today) return;
-    }
-    final prefs = _prefs!;
+  Future<void> _checkIn(ChildHabit habit) =>
+      StorageSnapshotGate.write(() async {
+        if (habit.frequency == HabitFrequency.repeatable) {
+          await _recordRepeatableCompletion(habit);
+          return;
+        }
+        final today = todayStr();
+        if (habit.frequency == HabitFrequency.weekly) {
+          if (weeklyCount(habit) >= 20) return; // 上限
+        } else {
+          if (habit.completedDate == today) return;
+        }
+        final prefs = _prefs!;
 
-    final newPoints = await applyPoints(
-      prefs: prefs,
-      child: widget.child,
-      delta: habit.points,
-      reason: _l10n.htReasonComplete(habit.name),
-    );
+        final newPoints = await applyPoints(
+          prefs: prefs,
+          child: widget.child,
+          delta: habit.points,
+          reason: _l10n.htReasonComplete(habit.name),
+        );
 
-    final allHabits = await loadHabits(prefs);
-    final idx = allHabits.indexWhere((h) => h.id == habit.id);
-    if (idx != -1) {
-      if (habit.frequency == HabitFrequency.weekly) {
-        allHabits[idx].weeklyDates.add(today);
-        habit.weeklyDates.add(today);
-      } else {
-        allHabits[idx].completedDate = today;
-        habit.completedDate = today;
-      }
-      await saveHabits(prefs, allHabits);
-    }
+        final allHabits = await loadHabits(prefs);
+        final idx = allHabits.indexWhere((h) => h.id == habit.id);
+        if (idx != -1) {
+          if (habit.frequency == HabitFrequency.weekly) {
+            allHabits[idx].weeklyDates.add(today);
+            habit.weeklyDates.add(today);
+          } else {
+            allHabits[idx].completedDate = today;
+            habit.completedDate = today;
+          }
+          await saveHabits(prefs, allHabits);
+        }
 
-    // 音效＋震動回饋（對齊習慣頁慣例）：
-    // 達標（每日打卡 / 每週湊滿次數）→ success；每週累加未達標 → tap
-    playFeedback(_isDoneToday(habit) ? SfxCue.success : SfxCue.tap);
+        // 音效＋震動回饋（對齊習慣頁慣例）：
+        // 達標（每日打卡 / 每週湊滿次數）→ success；每週累加未達標 → tap
+        playFeedback(_isDoneToday(habit) ? SfxCue.success : SfxCue.tap);
 
-    setState(() => widget.child.points = newPoints);
-    widget.onPointsChanged();
-  }
+        setState(() => widget.child.points = newPoints);
+        widget.onPointsChanged();
+      });
 
   Future<void> _recordRepeatableCompletion(ChildHabit habit) async {
     if (!mounted || _pendingHabitIds.contains(habit.id)) return;
@@ -662,48 +664,49 @@ class _HabitTabState extends State<HabitTab> {
   }
 
   // 撤銷打卡：扣回積分並清除日期（每週習慣移除最後一筆今日紀錄）
-  Future<void> _undoCheckIn(ChildHabit habit) async {
-    if (!mounted) return;
-    final today = todayStr();
-    if (habit.frequency == HabitFrequency.weekly) {
-      if (!habit.weeklyDates.contains(today)) return;
-    } else {
-      if (habit.completedDate != today) return;
-    }
-
-    final prefs = _prefs!;
-    final newPoints = await applyPoints(
-      prefs: prefs,
-      child: widget.child,
-      delta: -habit.points,
-      reason: _l10n.htReasonUndo(habit.name),
-    );
-
-    final allHabits = await loadHabits(prefs);
-    final idx = allHabits.indexWhere((h) => h.id == habit.id);
-    if (idx != -1) {
-      if (habit.frequency == HabitFrequency.weekly) {
-        // 移除最後一筆今日紀錄（多次打卡只撤銷一次）
-        final lastIdx = allHabits[idx].weeklyDates.lastIndexOf(today);
-        if (lastIdx != -1) {
-          allHabits[idx].weeklyDates.removeAt(lastIdx);
+  Future<void> _undoCheckIn(ChildHabit habit) =>
+      StorageSnapshotGate.write(() async {
+        if (!mounted) return;
+        final today = todayStr();
+        if (habit.frequency == HabitFrequency.weekly) {
+          if (!habit.weeklyDates.contains(today)) return;
+        } else {
+          if (habit.completedDate != today) return;
         }
-        final localIdx = habit.weeklyDates.lastIndexOf(today);
-        if (localIdx != -1) {
-          habit.weeklyDates.removeAt(localIdx);
+
+        final prefs = _prefs!;
+        final newPoints = await applyPoints(
+          prefs: prefs,
+          child: widget.child,
+          delta: -habit.points,
+          reason: _l10n.htReasonUndo(habit.name),
+        );
+
+        final allHabits = await loadHabits(prefs);
+        final idx = allHabits.indexWhere((h) => h.id == habit.id);
+        if (idx != -1) {
+          if (habit.frequency == HabitFrequency.weekly) {
+            // 移除最後一筆今日紀錄（多次打卡只撤銷一次）
+            final lastIdx = allHabits[idx].weeklyDates.lastIndexOf(today);
+            if (lastIdx != -1) {
+              allHabits[idx].weeklyDates.removeAt(lastIdx);
+            }
+            final localIdx = habit.weeklyDates.lastIndexOf(today);
+            if (localIdx != -1) {
+              habit.weeklyDates.removeAt(localIdx);
+            }
+          } else {
+            allHabits[idx].completedDate = '';
+            habit.completedDate = '';
+          }
+          await saveHabits(prefs, allHabits);
         }
-      } else {
-        allHabits[idx].completedDate = '';
-        habit.completedDate = '';
-      }
-      await saveHabits(prefs, allHabits);
-    }
 
-    playFeedback(SfxCue.cancel);
+        playFeedback(SfxCue.cancel);
 
-    setState(() => widget.child.points = newPoints);
-    widget.onPointsChanged();
-  }
+        setState(() => widget.child.points = newPoints);
+        widget.onPointsChanged();
+      });
 
   // ── 特殊積分（需家長密碼）──
   // 這裡的名稱只當「快速理由」的挑選標籤，選了之後會寫進積分紀錄的

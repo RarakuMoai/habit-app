@@ -13,6 +13,7 @@ import '../utils/mascot.dart';
 import '../utils/notification_service.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/sfx_service.dart';
+import '../utils/storage_snapshot_gate.dart';
 import '../utils/timer_mutex.dart';
 import '../widgets/app_dialogs.dart';
 import '../widgets/hold_repeat_button.dart';
@@ -298,7 +299,7 @@ class _TimerPageState extends State<TimerPage>
   }
 
   // 持久化四個方案；同時回寫舊 key，保留舊版本或其他既有程式碼的相容性。
-  Future<void> _persistSettings() async {
+  Future<void> _persistSettings() => StorageSnapshotGate.write(() async {
     final prefs = await SharedPreferences.getInstance();
     for (var i = 0; i < _profileCount; i++) {
       final profile = _profiles[i];
@@ -342,22 +343,24 @@ class _TimerPageState extends State<TimerPage>
       selected.longBreakEnabled,
     );
     await prefs.setInt(PrefsKeys.timerSelectedPreset, _selected);
-  }
+  });
 
   // 完成一個專注回合：寫進今日統計（跨日自動歸零換 key）。
-  Future<void> _recordFocusRound(int minutes) async {
-    final today = _dateStr(DateTime.now());
-    if (_statsDate != today) {
-      _statsDate = today;
-      _todayFocusRounds = 0;
-      _todayFocusMin = 0;
-    }
-    _todayFocusRounds++;
-    _todayFocusMin += minutes;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(PrefsKeys.timerTomatoes(today), _todayFocusRounds);
-    await prefs.setInt(PrefsKeys.timerFocusMinutesDay(today), _todayFocusMin);
-  }
+  Future<void> _recordFocusRound(int minutes) => StorageSnapshotGate.write(
+    () async {
+      final today = _dateStr(DateTime.now());
+      if (_statsDate != today) {
+        _statsDate = today;
+        _todayFocusRounds = 0;
+        _todayFocusMin = 0;
+      }
+      _todayFocusRounds++;
+      _todayFocusMin += minutes;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(PrefsKeys.timerTomatoes(today), _todayFocusRounds);
+      await prefs.setInt(PrefsKeys.timerFocusMinutesDay(today), _todayFocusMin);
+    },
+  );
 
   // ── 階段序列（有限循環）──
 

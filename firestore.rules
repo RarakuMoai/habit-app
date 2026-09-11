@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // This file is a candidate for the isolated redesign project only.
+    // Deploying it is a separate, explicitly approved operation.
+    match /tumi_backups_redesign/{uid} {
+      function owner() {
+        return request.auth != null && request.auth.uid == uid &&
+          request.auth.token.firebase.sign_in_provider != 'anonymous';
+      }
+      function ownerPath() {
+        return /databases/$(database)/documents/tumi_backups_redesign/$(uid);
+      }
+      function headPath() {
+        return /databases/$(database)/documents/tumi_backups_redesign/$(uid)/state/head;
+      }
+      function live() {
+        return owner() && (!exists(ownerPath()) ||
+          !('deleting' in get(ownerPath()).data) ||
+          get(ownerPath()).data.deleting != true);
+      }
+      function deleting() {
+        return owner() && exists(ownerPath()) &&
+          get(ownerPath()).data.deleting == true;
+      }
+      function unreferenced(snapshotId) {
+        return !exists(headPath()) ||
+          (get(headPath()).data.snapshotId != snapshotId &&
+           get(headPath()).data.previousSnapshotId != snapshotId);
+      }
+      function validManifest(data) {
+        return data.schemaVersion == 1 && data.createdAt is timestamp &&
+          data.chunkCount is int && data.chunkCount >= 1 && data.chunkCount <= 107 &&
+          data.byteLength is int && data.byteLength >= 1 &&
+          data.byteLength <= 20971520 &&
+          data.byteLength > (data.chunkCount - 1) * 196608 &&
+          data.byteLength <= data.chunkCount * 196608 &&
+          data.checksum is string && data.checksum.matches('^[a-f0-9]{64}$');
+      }
+      function validHead(data) {
+        let source = /databases/$(database)/documents/tumi_backups_redesign/$(uid)/snapshots/$(data.snapshotId);
+        return data.keys().hasOnly(['snapshotId', 'previousSnapshotId', 'revision',
+          'createdAt', 'chunkCount', 'byteLength', 'checksum', 'schemaVersion']) &&
+          data.snapshotId is string && data.snapshotId.matches('^[a-zA-Z0-9]{20}$') &&
+          data.revision is int && data.revision >= 1 &&
+          (data.previousSnapshotId == null || data.previousSnapshotId is string) &&
+          validManifest(data) && data.createdAt == request.time && exists(source) &&
+          get(source).data.chunkCount == data.chunkCount &&
+          get(source).data.byteLength == data.byteLength &&
+          get(source).data.checksum == data.checksum;
+      }
+
+      allow read: if owner();
+      allow create, update: if owner() &&
+        request.resource.data.keys().hasOnly(['deleting']) &&
+        request.resource.data.deleting == true;
+      allow delete: if false;
+
+      match /state/head {
+        allow read: if owner();
+        allow create: if live() && validHead(request.resource.data) &&
+          request.resource.data.revision == 1 &&
+          request.resource.data.previousSnapshotId == null;
+        allow update: if live() && validHead(request.resource.data) &&
+          request.resource.data.revision == resource.data.revision + 1 &&
+          request.resource.data.snapshotId != resource.data.snapshotId &&
+          request.resource.data.previousSnapshotId == resource.data.snapshotId;
+        allow delete: if deleting();
+      }
+      match /snapshots/{snapshotId} {
+        allow read: if owner();
+        allow create: if live() && snapshotId.matches('^[a-zA-Z0-9]{20}$') &&
+          request.resource.data.keys().hasOnly(['createdAt', 'chunkCount',
+            'byteLength', 'checksum', 'schemaVersion']) &&
+          validManifest(request.resource.data) &&
+          request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if owner() && unreferenced(snapshotId);
+
+        match /chunks/{chunkId} {
+          function manifestPath() {
+            return /databases/$(database)/documents/tumi_backups_redesign/$(uid)/snapshots/$(snapshotId);
+          }
+          allow read: if owner();
+          allow create: if live() && exists(manifestPath()) &&
+            chunkId.matches('^[0-9]{1,3}$') &&
+            request.resource.data.keys().hasOnly(['index', 'payload']) &&
+            request.resource.data.index is int &&
+            chunkId == string(request.resource.data.index) &&
+            request.resource.data.index >= 0 &&
+            request.resource.data.index < get(manifestPath()).data.chunkCount &&
+            request.resource.data.payload is string &&
+            request.resource.data.payload.size() > 0 &&
+            request.resource.data.payload.size() <= 262144;
+          allow update: if false;
+          allow delete: if owner() && unreferenced(snapshotId);
+        }
+      }
+    }
+    // Everything outside this narrowly scoped collection remains inaccessible.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/main.dart' as app;
+import 'package:habit_app/pages/account_backup_page.dart';
+import 'package:habit_app/pages/app_entry_page.dart';
 import 'package:habit_app/pages/login_streak_page.dart';
 import 'package:habit_app/pages/onboarding_page.dart';
 import 'package:habit_app/pages/story_reveal_page.dart';
@@ -65,6 +67,12 @@ void main() {
       Future<void> next() => tap(keyed('onboarding-primary'));
 
       await frames(70);
+      expect(find.byType(AppEntryPage), findsOneWidget);
+      await capture('00-entry');
+      await tap(keyed('entry-primary'));
+      expect(find.byType(AccountBackupPage), findsOneWidget);
+      await capture('00b-account');
+      await tap(keyed('account-continue'));
       expect(find.byType(OnboardingPage), findsOneWidget);
       await capture('01-arrival');
       await next();

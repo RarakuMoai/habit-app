@@ -66,3 +66,6 @@ lib/l10n/untranslated.json
 
 # V4 原生 PNG 留本機，版本保存使用逐像素相同的 lossless WebP。
 /design_trials/experience_redesign/review_v4/*.png
+
+# 入口原生 PNG 留本機；版本保存使用相同像素的 WebP。
+/design_trials/experience_redesign/entry_v1/native/*.png

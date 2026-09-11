@@ -26,6 +26,7 @@ import 'habit_history.dart';
 import 'logical_date.dart';
 import 'preference_write_guard.dart';
 import 'prefs_keys.dart';
+import 'storage_snapshot_gate.dart';
 
 /// 邊界計時器的看門狗上限。
 ///
@@ -224,6 +225,27 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
     _singleton = next;
   }
 
+  /// Called only after the old app tree has left the screen. Drain the daily
+  /// writer before replacing its cached stamp with a restored save.
+  static Future<void> resetForRestore() async {
+    final old = _singleton;
+    if (old == null) return;
+    // Detach producers before waiting, so resume/boundary callbacks cannot
+    // enqueue a new writer while startup is replacing the save.
+    old._timer?.cancel();
+    old._timer = null;
+    old._foreground = false;
+    if (old._started) {
+      WidgetsBinding.instance.removeObserver(old);
+      LogicalDate.notifier.removeListener(old._onDayStartHourChanged);
+      old._started = false;
+    }
+    await old._inFlight;
+    await old._storageTail;
+    old.dispose();
+    if (identical(_singleton, old)) _singleton = null;
+  }
+
   final DateTime Function() _clock;
 
   late final _StampNotifier _stamp = _StampNotifier(null)
@@ -350,23 +372,24 @@ class LogicalDayCoordinator with WidgetsBindingObserver {
   /// SharedPreferences 沒有 transaction；若首頁恰在 journal/reset 與 stamp publish
   /// 之間讀取，就可能把新日資料寫回舊日歷史。所有會讀後再寫 logical-day 相關
   /// key 的流程都必須走這個 gate，讓一次 snapshot 看見完整的前或後狀態。
-  Future<T> synchronizeStorage<T>(Future<T> Function() operation) {
-    final previous = _storageTail;
-    final result = previous == null
-        ? Future<T>.sync(operation)
-        : previous.then((_) => operation());
-    final release = result.then<void>(
-      (_) {},
-      onError: (Object error, StackTrace stackTrace) {},
-    );
-    _storageTail = release;
-    unawaited(
-      release.whenComplete(() {
-        if (identical(_storageTail, release)) _storageTail = null;
-      }),
-    );
-    return result;
-  }
+  Future<T> synchronizeStorage<T>(Future<T> Function() operation) =>
+      StorageSnapshotGate.write(() {
+        final previous = _storageTail;
+        final result = previous == null
+            ? Future<T>.sync(operation)
+            : previous.then((_) => operation());
+        final release = result.then<void>(
+          (_) {},
+          onError: (Object error, StackTrace stackTrace) {},
+        );
+        _storageTail = release;
+        unawaited(
+          release.whenComplete(() {
+            if (identical(_storageTail, release)) _storageTail = null;
+          }),
+        );
+        return result;
+      });
 
   Future<void> _run(LogicalDayTrigger trigger) =>
       synchronizeStorage(() => _runLocked(trigger));

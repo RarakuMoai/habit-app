@@ -1,9 +1,41 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/utils/parent_pin.dart';
+import 'package:habit_app/utils/preference_write_guard.dart';
+import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'shared_preferences_failure_test_helper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(PreferenceWriteGuard.debugReset);
+  tearDown(PreferenceWriteGuard.debugReset);
+
+  for (final throws in [false, true]) {
+    test(
+      'failed native PIN write is reported and does not leave a fake cached PIN (throws=$throws)',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final store = installFailFirstWriteStore(
+          'flutter.${PrefsKeys.parentPinHash}',
+          throwSynchronously: throws,
+        );
+
+        await expectLater(ParentPin.save(prefs, '1234'), throwsStateError);
+        expect(store.didFail, isTrue);
+        expect(await ParentPin.hasPin(prefs), isFalse);
+        await prefs.reload();
+        expect(await ParentPin.hasPin(prefs), isFalse);
+        expect(await ParentPin.verify(prefs, '1234'), isFalse);
+
+        await ParentPin.save(prefs, '1234');
+        await prefs.reload();
+        expect(await ParentPin.hasPin(prefs), isTrue);
+        expect(await ParentPin.verify(prefs, '1234'), isTrue);
+      },
+    );
+  }
 
   test('未設定 PIN：hasPin false、verify false', () async {
     SharedPreferences.setMockInitialValues({});
