@@ -69,6 +69,9 @@ void main() {
       expect(find.byKey(const ValueKey('app-entry')), findsOneWidget);
       expect(find.text('destination-onboarding'), findsNothing);
       expect(audio.loadedAsset, EntryAudio.introAsset);
+      await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
+      await tester.tap(find.byKey(const ValueKey('entry-primary')));
+      await settleAccountUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
       await tester.tap(find.byKey(const ValueKey('entry-guest')));
       await settleAccountUi(tester);
@@ -102,7 +105,7 @@ void main() {
   );
 
   testWidgets(
-    'start opens account choice and unconfigured guest continuation reaches onboarding',
+    'start exposes provider choices and unconfigured Guest reaches onboarding',
     (tester) async {
       AccountService.instance.dispose();
       AccountService.instance = AccountService(
@@ -116,19 +119,17 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
       await settleAccountUi(tester);
-      expect(find.byType(AccountBackupPage), findsOneWidget);
+      expect(find.byType(AccountBackupPage), findsNothing);
       for (final provider in ['google', 'apple']) {
         expect(
           tester
-              .widget<OutlinedButton>(find.byKey(ValueKey('account-$provider')))
+              .widget<OutlinedButton>(find.byKey(ValueKey('entry-$provider')))
               .onPressed,
           isNull,
         );
       }
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('account-continue')),
-      );
-      await tester.tap(find.byKey(const ValueKey('account-continue')));
+      await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
+      await tester.tap(find.byKey(const ValueKey('entry-guest')));
       await settleAccountUi(tester);
       expect(find.text('destination-onboarding'), findsOneWidget);
       expect(prefs.getBool(PrefsKeys.accountGuestChosen), isTrue);
@@ -144,11 +145,17 @@ void main() {
       );
       await settleAccountUi(tester);
       installFailFirstWriteStore('flutter.${PrefsKeys.accountGuestChosen}');
+      await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
+      await tester.tap(find.byKey(const ValueKey('entry-primary')));
+      await settleAccountUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
       await tester.tap(find.byKey(const ValueKey('entry-guest')));
       await settleAccountUi(tester);
       expect(find.byKey(const ValueKey('app-entry')), findsOneWidget);
       expect(find.text('destination-onboarding'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('entry-primary')));
+      await settleAccountUi(tester);
+      await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
       await tester.tap(find.byKey(const ValueKey('entry-guest')));
       await settleAccountUi(tester);
       expect(find.text('destination-onboarding'), findsOneWidget);
@@ -322,12 +329,16 @@ void main() {
             find.byKey(const ValueKey('entry-primary')).hitTestable(),
             findsOneWidget,
           );
-          await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
-          await tester.pumpAndSettle();
-          expect(
-            find.byKey(const ValueKey('entry-guest')).hitTestable(),
-            findsOneWidget,
+          if (!completed) {
+            await tester.tap(find.byKey(const ValueKey('entry-primary')));
+            await settleAccountUi(tester);
+          }
+          final secondary = find.byKey(
+            ValueKey(completed ? 'entry-account' : 'entry-guest'),
           );
+          await tester.ensureVisible(secondary);
+          await tester.pumpAndSettle();
+          expect(secondary.hitTestable(), findsOneWidget);
           expect(tester.takeException(), isNull);
           expect(backend.writes, 0);
           await tester.pumpWidget(const SizedBox());

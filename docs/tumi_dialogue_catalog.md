@@ -12,6 +12,7 @@
 
 | 事件 ID | 觸發 | 演出與資料邊界 |
 | --- | --- | --- |
+| `onboarding.entry_short` | 最新測試版封面明確選擇新旅程後 | 同一 `OnboardingPage` 的短入口：沿用既有 hello／together 文本與核准 V3 封面，不重繪角色；兩次點擊或略過後，由真正 MainPage 的就緒訊號交接。名稱延後設定；原六幕保留在回憶閱讀。保存仍走 OnboardingSetup，回訪／還原不播放 |
 | `onboarding.arrival` | 首次使用，尚未完成前導 | 先留房間與旁白，再讓兔咪說話；點擊前進、不強迫等待 |
 | `onboarding.names` | 初見中的稱呼段落 | 真名介紹後可給暱稱；使用者稱呼可略過，僅完成時儲存。房間取景與兔咪腳底共用地毯落點，不沿用功能面板的角色底部對齊 |
 | `onboarding.finish` / `onboarding.skip` | 看完／主動略過 | 成功完成 `story_01`，每天一次相處；完成旗標最後寫入，失敗留頁可重試 |

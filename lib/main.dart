@@ -22,6 +22,7 @@ import 'pages/water_page.dart';
 import 'pages/weight_page.dart';
 import 'utils/account_service.dart';
 import 'utils/app_feedback.dart';
+import 'utils/app_locale_settings.dart';
 import 'utils/app_restart.dart';
 import 'utils/app_style.dart';
 import 'utils/app_theme.dart';
@@ -35,6 +36,7 @@ import 'utils/companion_story_preview.dart';
 import 'utils/companion_story_progress.dart';
 import 'utils/feature_flags.dart';
 import 'utils/firebase_account_backend.dart';
+import 'utils/local_journey.dart';
 import 'utils/logical_date.dart';
 import 'utils/logical_day_coordinator.dart';
 import 'utils/mascot.dart';
@@ -42,19 +44,24 @@ import 'utils/notification_service.dart';
 import 'utils/parent_pin.dart';
 import 'utils/preference_write_guard.dart';
 import 'utils/prefs_keys.dart';
+import 'utils/scene_time.dart';
 import 'utils/sfx_service.dart';
 import 'utils/storage_snapshot_gate.dart';
 import 'utils/story_catalog.dart';
 import 'utils/story_store.dart';
 import 'utils/tab_catalog.dart';
 import 'utils/usage_stats.dart';
+import 'utils/wardrobe_catalog.dart';
 import 'utils/wardrobe_store.dart';
 import 'utils/water_habit_link.dart';
 import 'utils/weight_records.dart';
 import 'widgets/app_pressable.dart';
 import 'widgets/app_waiting.dart';
+import 'widgets/entry_controls.dart';
+import 'widgets/entry_scenery.dart';
 import 'widgets/footprint_coin_reward_overlay.dart';
 import 'widgets/navigation_surface.dart';
+import 'widgets/scene_rooms.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,7 +74,20 @@ void main() {
     final baloo2 = await rootBundle.loadString('assets/fonts/Baloo2-OFL.txt');
     yield LicenseEntryWithLineBreaks(const ['Baloo 2'], baloo2);
   });
-  runApp(const RootRestart(child: MyApp()));
+  final binding = WidgetsBinding.instance;
+  binding.deferFirstFrame();
+  var released = false;
+  runApp(
+    RootRestart(
+      child: MyApp(
+        onLaunchReady: () {
+          if (released) return;
+          released = true;
+          binding.allowFirstFrame();
+        },
+      ),
+    ),
+  );
 }
 
 Future<_StartupState> _loadStartupState() async {
@@ -87,7 +107,8 @@ Future<_StartupState> _loadStartupState() async {
   }
   // 舊版明文 PIN 啟動時就地雜湊遷移（hasPin 內含遷移邏輯）
   await ParentPin.hasPin(prefs);
-  final onboardingDone = prefs.getBool(PrefsKeys.onboardingDone) ?? false;
+  final localJourney = LocalJourneyInspection.inspect(prefs);
+  await AppLocaleSettings.instance.load();
   // 邏輯日必須在任何頁面開始初始化之前就確定：跨日結算（連勝、當日勾選重置、
   // lastOpenDate 推進）全部由 coordinator 負責，首頁只讀結果。這裡 await 它，
   // 首頁第一次載入拿到的就已經是新一天的狀態，不會出現「新一天的報到 + 昨天
@@ -119,7 +140,10 @@ Future<_StartupState> _loadStartupState() async {
   await NotificationService.init();
   // App 冷啟動：兔咪從 openApp 池隨機抽一句問候，每次打開都有變化
   MascotPersona.resetToOpening();
-  return _StartupState(startAtHome: onboardingDone);
+  return _StartupState(
+    startAtHome: localJourney.hasJourney,
+    needsReview: localJourney.needsReview,
+  );
 }
 
 Future<void> _startInitialAudio({required bool onboardingDone}) async {
@@ -135,7 +159,8 @@ Future<void> _startInitialAudio({required bool onboardingDone}) async {
 
 class _StartupState {
   final bool startAtHome;
-  const _StartupState({required this.startAtHome});
+  final bool needsReview;
+  const _StartupState({required this.startAtHome, this.needsReview = false});
 }
 
 /// 一個常駐頁面的 reload completion barrier。
@@ -230,7 +255,8 @@ Locale? get _devLocaleOverride {
 
 class MyApp extends StatefulWidget {
   final bool? startAtHome;
-  const MyApp({super.key, this.startAtHome});
+  const MyApp({super.key, this.startAtHome, this.onLaunchReady});
+  final VoidCallback? onLaunchReady;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -241,6 +267,51 @@ class _MyAppState extends State<MyApp> {
       ? _loadStartupState()
       : Future.value(_StartupState(startAtHome: widget.startAtHome!));
   bool _initialAudioScheduled = false;
+  bool _artStarted = false;
+  bool _artReady = false;
+  bool _artFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AppLocaleSettings.instance.addListener(_localeChanged);
+  }
+
+  void _localeChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    AppLocaleSettings.instance.removeListener(_localeChanged);
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_artStarted && widget.onLaunchReady != null) {
+      _artStarted = true;
+      unawaited(_prepareEntryArt());
+    }
+  }
+
+  Future<void> _prepareEntryArt() async {
+    try {
+      try {
+        await _precacheEntryAsset(context, kEntryLaunchAsset);
+      } finally {
+        // Native launch is static. Release its matching first Flutter frame as
+        // soon as decoded, even if startup later needs a visible error/retry.
+        widget.onLaunchReady?.call();
+      }
+      if (!mounted) return;
+      await _precacheEntryAsset(context, kEntryCoverAsset);
+      if (mounted) setState(() => _artReady = true);
+    } catch (_) {
+      if (mounted) setState(() => _artFailed = true);
+    }
+  }
 
   void _scheduleInitialAudio(bool startAtHome) {
     if (_initialAudioScheduled || widget.startAtHome != null) return;
@@ -252,7 +323,7 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  Widget _buildHome() {
+  Widget _buildHome(BuildContext context) {
     // 動效預覽台：--dart-define=MOTION_PREVIEW=1 直接開在這一頁，省掉進衣櫃、
     // 捲清單、過確認框那一串——錄影抽格時才抓得穩同一段。
     // kDevToolsEnabled 閘門，正式版這個常數恆為 false。
@@ -268,18 +339,27 @@ class _MyAppState extends State<MyApp> {
         final ready =
             snapshot.connectionState == ConnectionState.done &&
             data != null &&
-            !snapshot.hasError;
+            !snapshot.hasError &&
+            !_artFailed &&
+            (widget.onLaunchReady == null || _artReady);
         if (ready) _scheduleInitialAudio(data.startAtHome);
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 360),
+          duration:
+              MediaQuery.disableAnimationsOf(context) ||
+                  MediaQuery.accessibleNavigationOf(context)
+              ? Duration.zero
+              : AppMotion.enter,
+          layoutBuilder: (current, previous) =>
+              Stack(fit: StackFit.expand, children: [...previous, ?current]),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           child: ready
               ? AppEntryPage(
                   key: const ValueKey('entry'),
                   onboardingDone: data.startAtHome,
+                  requiresLocalReview: data.needsReview,
                 )
-              : snapshot.hasError
+              : snapshot.hasError || _artFailed
               ? const _StartupFailure(key: ValueKey('startup-error'))
               : const _StartupSplash(key: ValueKey('startup')),
         );
@@ -304,12 +384,11 @@ class _MyAppState extends State<MyApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       // 目前 zh（繁中，主要語言）與 en。加語言只要在 lib/l10n/ 放新的 arb。
-      supportedLocales: AppLocalizations.supportedLocales,
-      // ⚠️ 暫時鎖定繁中。英文文案只有骨架，現在放開會變成半中半英。
-      // 英文文本完成後移除這行，改為跟隨系統語言。
-      // 截圖工作流：--dart-define=APP_LOCALE=en 可暫時切語言驗版面
-      // （同 SCENE_HOUR，走編譯期常數；kDevToolsEnabled 閘門，正式版 no-op）。
-      locale: _devLocaleOverride ?? const Locale('zh', 'TW'),
+      supportedLocales: _devLocaleOverride != null
+          ? AppLocalizations.supportedLocales
+          : AppLocaleSettings.supportedLocales,
+      // Only completed languages are user-selectable; dev override is review-only.
+      locale: _devLocaleOverride ?? AppLocaleSettings.instance.locale,
       theme: buildAppTheme(),
       // 動態字體護欄：版面大量使用固定高度膠囊／導覽列，放大不設限一定破版。
       // clamp 到 1.0–1.3：仍尊重系統放大（可讀性 +30%），但不會炸版；
@@ -328,14 +407,23 @@ class _MyAppState extends State<MyApp> {
           child: child!,
         );
       },
-      home: _buildHome(),
-      routes: {
-        '/onboarding': (_) => const OnboardingPage(),
-        '/home': (context) => MainPage(
-          quietArrival:
-              ModalRoute.of(context)?.settings.arguments ==
-              'onboarding-arrival',
-        ),
+      home: Builder(builder: _buildHome),
+      onGenerateRoute: (settings) {
+        if (settings.name == '/onboarding') {
+          return EntryPageRoute<void>(
+            settings: settings,
+            builder: (_) => const OnboardingPage(compactEntry: true),
+          );
+        }
+        if (settings.name == '/home') {
+          return EntryPageRoute<void>(
+            settings: settings,
+            builder: (_) => _HomeEntryArrival(
+              quietArrival: settings.arguments == 'onboarding-arrival',
+            ),
+          );
+        }
+        return null;
       },
     );
   }
@@ -375,110 +463,205 @@ class _StartupFailure extends StatelessWidget {
   }
 }
 
-class _StartupSplash extends StatefulWidget {
-  const _StartupSplash({super.key});
-
-  @override
-  State<_StartupSplash> createState() => _StartupSplashState();
+Future<void> _precacheEntryAsset(BuildContext context, String asset) async {
+  Object? failure;
+  await precacheImage(
+    AssetImage(asset),
+    context,
+    onError: (error, stack) {
+      failure = error;
+    },
+  );
+  if (failure != null) throw StateError('Entry asset could not decode: $asset');
 }
 
-class _StartupSplashState extends State<_StartupSplash>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1400),
-  )..repeat(reverse: true);
+class _StartupSplash extends StatelessWidget {
+  const _StartupSplash({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: AppSurfaces.canvas,
+    body: Image.asset(
+      kEntryLaunchAsset,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+    ),
+  );
+}
+
+/// The destination is the real MainPage, mounted once. The cover leaves only
+/// after its data barrier and room assets are ready; no fake room or timer.
+class _HomeEntryArrival extends StatefulWidget {
+  const _HomeEntryArrival({this.quietArrival = false});
+  final bool quietArrival;
+  @override
+  State<_HomeEntryArrival> createState() => _HomeEntryArrivalState();
+}
+
+class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
+  bool _dataReady = false;
+  bool _assetsReady = false;
+  bool _failed = false;
+  bool _revealed = false;
+  bool _coverRemoved = false;
+  final _arrivalFinished = Completer<bool>();
+
+  Future<void> _prepareRoom() async {
+    try {
+      final assets = FourPeriodRoom.home.assets;
+      final outfit = WardrobeStore.currentOutfit.skinKey;
+      final blend = SceneTimeController.instance.state.layerBlend;
+      final next =
+          blend.overlay ??
+          ScenePeriod.values[(blend.base.index + 1) %
+              ScenePeriod.values.length];
+      await Future.wait([
+        for (final asset in [
+          assets.of(blend.base),
+          assets.of(next),
+          skinnedMascotAsset(MascotPersona.current.value.assetPath, outfit),
+          skinnedMascotAsset(MascotEmotion.neutralFront.assetPath, outfit),
+          skinnedMascotAsset(MascotEmotion.happy.assetPath, outfit),
+        ])
+          _precacheEntryAsset(context, asset),
+      ]);
+      if (!mounted) return;
+      _assetsReady = true;
+      _revealWhenReady();
+    } catch (_) {
+      _onFailure();
+    }
+  }
+
+  Future<bool> _onReady() async {
+    // Home has now applied its actual time, outfit and logical-day snapshot.
+    // Decode that scene, not the controller defaults from before its load.
+    _dataReady = true;
+    await _prepareRoom();
+    return _arrivalFinished.future;
+  }
+
+  void _finishArrival() {
+    if (!mounted || !_revealed || _failed || _coverRemoved) return;
+    setState(() => _coverRemoved = true);
+    if (!_arrivalFinished.isCompleted) _arrivalFinished.complete(true);
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (!_arrivalFinished.isCompleted) _arrivalFinished.complete(false);
     super.dispose();
+  }
+
+  void _onFailure() {
+    if (mounted) setState(() => _failed = true);
+    if (!_arrivalFinished.isCompleted) _arrivalFinished.complete(false);
+  }
+
+  void _revealWhenReady() {
+    if (!mounted || !_dataReady || !_assetsReady || _failed || _revealed) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _failed) return;
+      setState(() => _revealed = true);
+      if (MediaQuery.disableAnimationsOf(context) ||
+          MediaQuery.accessibleNavigationOf(context)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _finishArrival());
+      }
+    });
+  }
+
+  Widget _fadeCover({required bool reduce, required Widget child}) {
+    // A zero-duration AnimatedOpacity fires onEnd synchronously from its
+    // didUpdateWidget. It must not re-dirty this parent while it is rebuilding.
+    // Reduced motion uses the post-frame completion in _revealWhenReady only.
+    if (reduce) return Opacity(opacity: _revealed ? 0 : 1, child: child);
+    return AnimatedOpacity(
+      opacity: _revealed ? 0 : 1,
+      duration: AppMotion.enter,
+      onEnd: _finishArrival,
+      child: child,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFF6EE),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFFFFF7EE),
-                  Color(0xFFFFE5D3),
-                  Color(0xFFEAF5EF),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
+    final l = AppLocalizations.of(context);
+    final reduce =
+        MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ExcludeSemantics(
+          excluding: !_revealed,
+          child: IgnorePointer(
+            ignoring: !_revealed,
+            child: MainPage(
+              quietArrival: widget.quietArrival,
+              onEntryReady: _onReady,
+              onEntryFailure: _onFailure,
             ),
           ),
-          SafeArea(
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  final lift =
-                      -6 * Curves.easeInOut.transform(_controller.value);
-                  return Transform.translate(
-                    offset: Offset(0, lift),
-                    child: child,
-                  );
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+        ),
+        if (!_coverRemoved)
+          IgnorePointer(
+            ignoring: _revealed,
+            child: _fadeCover(
+              reduce: reduce,
+              child: Scaffold(
+                body: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Container(
-                      width: 138,
-                      height: 138,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.82),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFB97856,
-                            ).withValues(alpha: 0.18),
-                            blurRadius: 28,
-                            offset: const Offset(0, 16),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Image.asset(
-                          MascotEmotion.happy.assetPath,
-                          fit: BoxFit.contain,
+                    const EntryScenery(bottomScrim: true),
+                    SafeArea(
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: _failed
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      l.entryRoomError,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          RootRestart.restart(context),
+                                      child: Text(l.csRetry),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  l.entryPrepareRoom,
+                                  textAlign: TextAlign.center,
+                                ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 22),
-                    Text(
-                      '兔咪好習慣',
-                      style: const TextStyle(
-                        fontFamily: 'Nunito',
-                        color: Color(0xFF6D4C41),
-                        fontSize: 25,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    const AppLoadingBar(),
                   ],
                 ),
               ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key, this.quietArrival = false});
+  const MainPage({
+    super.key,
+    this.quietArrival = false,
+    this.onEntryReady,
+    this.onEntryFailure,
+  });
+  final Future<bool> Function()? onEntryReady;
+  final VoidCallback? onEntryFailure;
 
   /// A first meeting lands in the room without a second full-screen ceremony.
   /// Login rewards still persist normally; later launches celebrate as usual.
@@ -598,9 +781,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       await _mainReady;
     } catch (e, st) {
       debugPrint('Main readiness barrier failed: $e\n$st');
+      widget.onEntryFailure?.call();
       return;
     }
     if (!mounted) return;
+    if (!(await widget.onEntryReady?.call() ?? true) || !mounted) return;
     _presentationBarrierPassed = true;
     await _claimDailyLoginReward();
     if (!mounted) return;
@@ -654,6 +839,9 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
+    // A resume during entry preparation cannot dismiss its pending/error gate.
+    // Initial presentation owns that gate and resumes after the room is visible.
+    if (widget.onEntryReady != null && !_presentationBarrierPassed) return;
     _presentationBarrierPassed = true;
     // 跨日後從背景回來也能領當天的登入獎勵（已領過會直接 no-op）
     await _claimDailyLoginReward();

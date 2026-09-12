@@ -19,6 +19,7 @@ import '../utils/wardrobe_catalog.dart';
 import '../utils/wardrobe_store.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/audio_control_button.dart';
+import '../widgets/entry_meeting.dart';
 import '../widgets/mascot_scene.dart';
 
 /// A quiet first meeting, also used by preview and the first memory.
@@ -27,10 +28,12 @@ class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
     super.key,
     this.preview = false,
+    this.compactEntry = false,
     this.onReplayFinished,
   });
 
   final bool preview;
+  final bool compactEntry;
   final Future<bool> Function(bool skipped)? onReplayFinished;
 
   @override
@@ -56,7 +59,11 @@ class _OnboardingPageState extends State<OnboardingPage>
   bool get _replay => !widget.preview && widget.onReplayFinished != null;
   bool get _readOnly => _replay;
   bool get _normal => !widget.preview && !_replay;
-  bool get _last => _index == onboardingStoryScenes.length - 1;
+  bool get _compact => widget.compactEntry && _normal;
+  List<OnboardingStoryScene> get _scenes => _compact
+      ? [onboardingStoryScenes[1], onboardingStoryScenes.last]
+      : onboardingStoryScenes;
+  bool get _last => _index == _scenes.length - 1;
 
   @override
   void initState() {
@@ -194,7 +201,24 @@ class _OnboardingPageState extends State<OnboardingPage>
         _foreground &&
         TickerMode.valuesOf(context).enabled &&
         (ModalRoute.isCurrentOf(context) ?? true);
-    final scene = onboardingStoryScenes[_index];
+    final scene = _scenes[_index];
+    if (_compact) {
+      return PopScope(
+        canPop: false,
+        child: EntryMeeting(
+          text: scene.text.resolve(language),
+          last: _last,
+          ready: _ready,
+          failed: _saveFailed || _readFailed,
+          busy: _busy,
+          onNext: _last ? _finish : () => _move(_index + 1),
+          onSkip: () => _finish(skipped: true),
+          onRetry: _readFailed
+              ? _loadNames
+              : () => _finish(skipped: _retrySkipped),
+        ),
+      );
+    }
     final keyboard = mq.viewInsets.bottom > 0;
     return PopScope(
       canPop: !_busy && _index == 0,

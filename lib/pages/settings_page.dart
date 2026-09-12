@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
 import '../utils/app_feedback.dart';
+import '../utils/app_locale_settings.dart';
 import '../utils/app_style.dart';
 import '../utils/coin_service.dart';
 import '../utils/feature_flags.dart';
@@ -15,6 +16,7 @@ import '../utils/parent_pin.dart';
 import '../utils/prefs_keys.dart';
 import '../utils/units.dart';
 import '../widgets/app_dialogs.dart';
+import '../widgets/app_language_sheet.dart';
 import '../widgets/app_waiting.dart';
 import '../widgets/settings_ui.dart';
 import 'account_backup_page.dart';
@@ -214,6 +216,22 @@ class _SettingsPageState extends State<SettingsPage> {
                     MaterialPageRoute<void>(
                       builder: (_) => const AccountBackupPage(),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+
+                ListenableBuilder(
+                  listenable: AppLocaleSettings.instance,
+                  builder: (context, _) => SettingsTileCard(
+                    icon: Icons.language_rounded,
+                    iconColor: AppPalette.habit,
+                    title: l10n.appLanguageTitle,
+                    subtitle:
+                        AppLocaleSettings.instance.preference ==
+                            AppLanguagePreference.automatic
+                        ? l10n.appLanguageAutomatic
+                        : l10n.appLanguageTraditionalChinese,
+                    onTap: () => showAppLanguageSheet(context),
                   ),
                 ),
                 const SizedBox(height: 28),

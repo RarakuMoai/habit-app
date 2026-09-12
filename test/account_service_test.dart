@@ -15,12 +15,13 @@ class FakeBackend implements AccountBackend {
   AccountIdentity? currentUser;
   AccountIdentity nextUser = const AccountIdentity(uid: 'one');
   CloudBackup? cloud;
-  AccountFailure? signInFailure, readFailure, writeFailure;
+  AccountFailure? initializeFailure, signInFailure, readFailure, writeFailure;
   int writes = 0, initializations = 0;
   Completer<void>? initializeGate;
   @override
   Future<void> initialize() async {
     initializations++;
+    if (initializeFailure != null) throw initializeFailure!;
     await initializeGate?.future;
   }
 
@@ -80,6 +81,43 @@ void main() {
     service = AccountService(backend: backend, prefs: prefs);
   });
   tearDown(() => service.dispose());
+
+  test(
+    'failed force initialization invalidates earlier empty-cloud proof',
+    () async {
+      backend.currentUser = const AccountIdentity(uid: 'same-person');
+      expect(await service.initialize(), isTrue);
+      expect(service.cloudReadConfirmed, isTrue);
+      expect(service.latestBackup, isNull);
+      backend.initializeFailure = const AccountFailure('offline');
+      expect(await service.initialize(force: true), isFalse);
+      expect(service.user?.uid, 'same-person');
+      expect(service.latestBackup, isNull);
+      expect(service.cloudReadConfirmed, isFalse);
+      expect(service.errorCode, 'offline');
+      expect(backend.writes, 0);
+    },
+  );
+
+  test(
+    'only a successful cloud read proves whether a remote save exists',
+    () async {
+      await service.initialize();
+      expect(service.cloudReadConfirmed, isFalse);
+      backend.readFailure = const AccountFailure('offline');
+      expect(await service.signIn(AccountProvider.apple), isFalse);
+      expect(service.user, isNotNull);
+      expect(service.latestBackup, isNull);
+      expect(service.cloudReadConfirmed, isFalse);
+      backend.readFailure = null;
+      expect(await service.refreshBackup(), isTrue);
+      expect(service.latestBackup, isNull);
+      expect(service.cloudReadConfirmed, isTrue);
+      backend.readFailure = const AccountFailure('offline');
+      expect(await service.refreshBackup(), isFalse);
+      expect(service.cloudReadConfirmed, isFalse);
+    },
+  );
 
   test(
     'uncertain publication releases busy but invalidates cloud authority until refresh',

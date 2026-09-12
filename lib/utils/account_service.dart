@@ -48,6 +48,10 @@ class AccountService extends ChangeNotifier {
   bool get busy => _busy;
   bool get configured => _backend.configured;
   Set<AccountProvider> get availableProviders => _backend.availableProviders;
+
+  /// A null latestBackup only means "no cloud save" after a confirmed read.
+  /// Authentication, a failed request, and a pending request prove no such thing.
+  bool get cloudReadConfirmed => _cloudChecked && !_busy;
   bool get needsReconciliation =>
       _ownerMismatch || (latestBackup != null && !_reconciled);
 
@@ -61,6 +65,10 @@ class AccountService extends ChangeNotifier {
 
   Future<bool> _initialize() async {
     final success = await _operate(AccountPhase.connecting, () async {
+      // A forced refresh can fail before _readCloud (for example while the
+      // identity provider initializes). Preserve the backup receipt, but never
+      // reuse an earlier "empty cloud" conclusion for this uncertain attempt.
+      _cloudChecked = false;
       await _loadDeviceState();
       await _backend.initialize();
       _syncAuthIdentity();

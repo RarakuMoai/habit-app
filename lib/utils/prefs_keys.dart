@@ -12,6 +12,9 @@ abstract final class PrefsKeys {
   static const accountDeviceState = 'account_device_state_v1';
   static const accountGuestChosen = 'account_guest_chosen_v1';
 
+  // Device language preference; incomplete translations are never selectable.
+  static const appLanguage = 'app_language_v1'; // 'auto' | 'zh-TW'
+
   // ── Onboarding / 個人資料 ─────────────────────────────────
   static const onboardingDone = 'onboarding_done';
   static const onboardingStoryVersion = 'onboarding_story_version';
