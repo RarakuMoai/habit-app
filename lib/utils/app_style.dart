@@ -3,6 +3,16 @@
 // 一律帶棕色調、不用純黑，跟兔咪暖色世界觀一致。
 import 'package:flutter/material.dart';
 
+/// 輕量按壓回饋。先用於室友選項；不改變版面或觸控區尺寸。
+abstract final class AppPressMotion {
+  // 2.5% 內縮讓長卡片看得出按下，又不碰到相鄰選項。
+  static const scale = 0.975;
+  static const down = Duration(milliseconds: 90);
+  static const release = Duration(milliseconds: 160);
+  static const curve = Curves.easeOutCubic;
+  static const tint = 0.06;
+}
+
 /// 字型階層：內文走 theme 預設（Nunito + 中文系統字），
 /// 數字/計數類元素用更圓滾的 display 字型做對比。
 abstract final class AppType {

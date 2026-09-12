@@ -41,6 +41,15 @@
    泡泡與台詞必須讓位，不能兩句同時存在。（`undone` 不配泡泡是刻意的——汗滴是
    尷尬，跟心疼打架。）
 
+## 隔離入口樣品（2026-09-12，非正式事件）
+
+僅由 `lib/dev/entry_preview_main.dart` 啟動；本機記憶體情境，不寫正式進度。
+
+| 事件 | 觸發 | 表情／素材 | 字幕 | 語音 | 結束／略過 |
+| --- | --- | --- | --- | --- | --- |
+| `previewFirstMeet` | 明確選擇新旅程後 | 核准 neutral_front 原 PNG | 「啊……你來了。我叫兔咪。最近才搬來這裡，還在學著安排生活。」（中英 ARB） | 現有 tumiConfirm，一次，可靜音 | 顯示可選暱稱；略過直接進樣品房間 |
+| `previewRoom` | 已有旅程繼續、模擬恢復、新旅程完成 | 同一核准 neutral_front | 系統房間落地文案；不新增正式角色反應 | 現有房間 BGM | 不變更六分頁，不寫正式角色狀態 |
+
 ## 總表 A：共用情境（`MascotContext`）
 
 程式來源：情緒 `_defaultEmotion`、泡泡 `EmotionBubble.forContext`、台詞 `_lines`、

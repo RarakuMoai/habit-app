@@ -1,0 +1,323 @@
+{
+  "created_at": "2026-09-12T12:52:17.777504+08:00",
+  "branch": "codex/entry-cover-preview",
+  "base_commit": "26899343a2f25a207bb0954606d8ccee243afef2",
+  "review": "v7",
+  "source_sha256": {
+    "integration_test/entry_cover_review_test.dart": "09c8dcb0945ef8ddd22ef2bc711d41a51e05d29b49bcf883877f3705883d2687",
+    "lib/dev/entry_preview/app.dart": "6ff34763fa0cb510eab822f8f3aebf7d941ab48495352af1963bf7fc483ab28b",
+    "lib/dev/entry_preview/model.dart": "01350d19f48829e6461f582580f14e28524576b8a06e13c38d91363cd6b5009a",
+    "lib/dev/entry_preview/page.dart": "b5906585559ee93abd4b8a0c05c7bac9ad5b847e33f1cbfe508027030778ad7c",
+    "lib/dev/entry_preview_main.dart": "b73fe86b015c4fa18f66d8f9e408a34ebf0cebb5720f63f47687da5c680337ae",
+    "lib/l10n/app_en.arb": "1dc4a3af9ae94d7adf36b510d8807b1fd4c9e129d44e8721c9a360e9cc652428",
+    "lib/l10n/app_zh.arb": "b31d1d9317ea289d9b64f1f8b80cbec48ef7e80eb8b51dc8cf122fffb4670e0b",
+    "lib/utils/app_style.dart": "429f77f1c4b32d816989dd2a9d4666b5e9752fbbde98fcfbaf90cf29f8a37a6b",
+    "test/entry_preview_test.dart": "39059fd9d81e61f27c8fe55f53f23e81b02c8e2f83b609efc0c436bc662c2aed"
+  },
+  "full_flutter_tests": 852,
+  "analyze": "No issues found",
+  "native_device_runs": {
+    "small": {
+      "device": "8D075391-CF5A-4554-A995-5A74F9ECD5CE",
+      "command": [
+        "/Users/raraku/development/flutter/bin/flutter",
+        "test",
+        "integration_test/entry_cover_review_test.dart",
+        "--no-pub",
+        "--flavor",
+        "dev",
+        "-d",
+        "8D075391-CF5A-4554-A995-5A74F9ECD5CE"
+      ],
+      "captures": [
+        {
+          "file": "01-first-cover.png",
+          "sha256": "693942b464214d102201fe23e2952d968eba438bddd3643ac5e08492241802a2"
+        },
+        {
+          "file": "02-auth-simulation.png",
+          "sha256": "b88f6b66f6935932da942ca2172a59e9c84d2187a0cc4b862853a3884f0b2d14"
+        },
+        {
+          "file": "03-canceled.png",
+          "sha256": "f6ea53572208c7dae5cdc09c49f05af09105a621e16310cb1904a411c51d219e"
+        },
+        {
+          "file": "04-login-failed.png",
+          "sha256": "83209504b62d1416b4fb15ca265e53884be8b3627f7b915c54f180d3db0fcb1f"
+        },
+        {
+          "file": "05-first-meeting.png",
+          "sha256": "59059256d4353ebb49bdf1ebbd1789bcdaedea3443e524ae75791ad06a2c6b14"
+        },
+        {
+          "file": "06-optional-name.png",
+          "sha256": "161a6410907dd51001211b6d9fde0622245c56dc8d8deb7d9289f7f09220e68a"
+        },
+        {
+          "file": "07-room.png",
+          "sha256": "462b11a033a7f94ad20192a11bdaef924f682e6c3bfed2484e8233bfbd2dff8e"
+        },
+        {
+          "file": "08-room-action.png",
+          "sha256": "bfa7e20e88eccd0053e1bd2e2d2111f68012502a6701181c775a9f7636e6c2fa"
+        },
+        {
+          "file": "09-returning-signed-in.png",
+          "sha256": "eb7c2e8e7900c907fca4122730117d4c5f3ba32e868749f64a289418b767045b"
+        },
+        {
+          "file": "10-returning-guest.png",
+          "sha256": "60e5ea588469300efe7f9f0c2927712ebf45624fc62ca78872b63e4d2e0cd143"
+        },
+        {
+          "file": "11-restore-unknown.png",
+          "sha256": "b46af712db3c0ff4ade5df8c814435ebbbaf1b4828744095f55907bad5d2d308"
+        },
+        {
+          "file": "12-restored-room.png",
+          "sha256": "b7f5c7baff7a59e5a8740b514b6251b25842391f474200aaec23b5aee6e3d54d"
+        },
+        {
+          "file": "13-offline.png",
+          "sha256": "86cb5673a55e693b0acb220d08c625ba306b50aa70ba838913c1961a9b7e2515"
+        },
+        {
+          "file": "14-skipped-meeting.png",
+          "sha256": "462b11a033a7f94ad20192a11bdaef924f682e6c3bfed2484e8233bfbd2dff8e"
+        },
+        {
+          "file": "15-init-failure.png",
+          "sha256": "9df7b83a90d338e516737efe31bd6a8adc401e4dc4477ef9a6eba60b5f4b8937"
+        },
+        {
+          "file": "16-init-retried.png",
+          "sha256": "693942b464214d102201fe23e2952d968eba438bddd3643ac5e08492241802a2"
+        },
+        {
+          "file": "17-large-text-reduce-cover.png",
+          "sha256": "8892817b4baa2827dfac7f5d7ed17b19bdae7fd4066bec4214655e9570f0cd46"
+        },
+        {
+          "file": "17b-large-text-actions.png",
+          "sha256": "2320b7f643d3c7b1cfba73597f6cda46b211f5a5f75d31509f496886c62deb20"
+        },
+        {
+          "file": "18-large-text-reduce-room.png",
+          "sha256": "f3c6738b6b55b80be8c028fec2323632e0ce154e9098e7d153a5a7ce8267cbc0"
+        },
+        {
+          "file": "19-english-large-room.png",
+          "sha256": "7a282bbb2a055621b9ea85ace8e596a12388f95e45ec52f23cef39122fe7118b"
+        },
+        {
+          "file": "20-apple-new-room.png",
+          "sha256": "3395d9f8c6f30899c588d6b0ee77332148f72f7e105ea8f95544a69b79c30cc1"
+        },
+        {
+          "file": "21-google-restored-room.png",
+          "sha256": "c496995b2d7c9c3502aeb38ba750a1c90c077e400c8f85e04a738a49b6b9f690"
+        }
+      ],
+      "repeated": [],
+      "test_exit_code": 0,
+      "exit_code": 0
+    },
+    "large": {
+      "device": "A1321A98-4FE6-4DD6-82E8-E5920F9F275F",
+      "command": [
+        "/Users/raraku/development/flutter/bin/flutter",
+        "test",
+        "integration_test/entry_cover_review_test.dart",
+        "--no-pub",
+        "--flavor",
+        "dev",
+        "-d",
+        "A1321A98-4FE6-4DD6-82E8-E5920F9F275F"
+      ],
+      "captures": [
+        {
+          "file": "01-first-cover.png",
+          "sha256": "203b6038a5d1e94baa060d45b843ef9c3b2e414f0d44ab4465fd52d1cbf2f4a5"
+        },
+        {
+          "file": "02-auth-simulation.png",
+          "sha256": "77bb1354397bde5fbaab65bf611a56795aeca6f10acd1ea852a038e78332e9f7"
+        },
+        {
+          "file": "03-canceled.png",
+          "sha256": "8d4247b52a1b1668a117094624b84e2ee259e8cbf102724fae018596799114fe"
+        },
+        {
+          "file": "04-login-failed.png",
+          "sha256": "ee8e7cc0663b5a4a6e2cbcc8f452486e030820f8a05361fbf8a50b0e45009094"
+        },
+        {
+          "file": "05-first-meeting.png",
+          "sha256": "07ff39500e874fdd0dc9f6b63922749246441ea599ab5f9b3fb835b3be75eea9"
+        },
+        {
+          "file": "06-optional-name.png",
+          "sha256": "ad147ae5c276c2f1e2ee4725c7815bbca4351fb4fae486dd0bee8bf35648d209"
+        },
+        {
+          "file": "07-room.png",
+          "sha256": "7a9030f26e800b4ab64758caaf56fecaf2e69f08b1fa8c1225cba8e8c60aeb6a"
+        },
+        {
+          "file": "08-room-action.png",
+          "sha256": "ed0768bacdbe72571496fb2d9025deb5116e6cea62eaabaef80039f54a303633"
+        },
+        {
+          "file": "09-returning-signed-in.png",
+          "sha256": "b2f19bc14dbd9220e638fde73da8ce95bbb56ad04f68b617f78975ee9a50cfba"
+        },
+        {
+          "file": "10-returning-guest.png",
+          "sha256": "da4fbc9c8439c136323dc5a44860590d07178a9966ff3751b5dff655665ad00e"
+        },
+        {
+          "file": "11-restore-unknown.png",
+          "sha256": "7775a795b2bbe64b1c1e41eaa239e5200ff146cc2fb10f9a5d771045832a519c"
+        },
+        {
+          "file": "12-restored-room.png",
+          "sha256": "3b85f09b7db6d3acd6a976d03014e013acd1aa27c2579e20a706de3e403f67e0"
+        },
+        {
+          "file": "13-offline.png",
+          "sha256": "36d57ca666fa31ad15d09a5d8d9ffde46d3e79e86aa07b9d2f8d6ba711a7a888"
+        },
+        {
+          "file": "14-skipped-meeting.png",
+          "sha256": "7a9030f26e800b4ab64758caaf56fecaf2e69f08b1fa8c1225cba8e8c60aeb6a"
+        },
+        {
+          "file": "15-init-failure.png",
+          "sha256": "099ddee0a59072d1f7cd3133917b51b272d8efc493d08f07c4ebd865a3747ef1"
+        },
+        {
+          "file": "16-init-retried.png",
+          "sha256": "203b6038a5d1e94baa060d45b843ef9c3b2e414f0d44ab4465fd52d1cbf2f4a5"
+        },
+        {
+          "file": "17-large-text-reduce-cover.png",
+          "sha256": "94d88b9ea03acbad204102b12776a337e2ab5cb8e01c9af16a3b6f2086e080e4"
+        },
+        {
+          "file": "17b-large-text-actions.png",
+          "sha256": "bd540ce85176d1f89caa849257707b089f43c61d5a610cf6d1ceefbcbd96d3a2"
+        },
+        {
+          "file": "18-large-text-reduce-room.png",
+          "sha256": "5ec0b93edf450cbca33268bc946d4348bb5ca3942495e43f84d4dd2524dbdc1b"
+        },
+        {
+          "file": "19-english-large-room.png",
+          "sha256": "061a7c3aad3ae6ddad501f6a3c49ba942760f7f3fcf79aaa7fb75720ad0ed4a8"
+        },
+        {
+          "file": "20-apple-new-room.png",
+          "sha256": "b151a92d88d2c5a523539bcb98a6f765723914318882fe1eb855db756725e0d5"
+        },
+        {
+          "file": "21-google-restored-room.png",
+          "sha256": "e4022b270a61aa546fb274c33fc89fe2af295d5f128c80cc4c0857273f369c39"
+        }
+      ],
+      "repeated": [],
+      "test_exit_code": 0,
+      "exit_code": 0
+    }
+  },
+  "cold_launch": {
+    "device": "8D075391-CF5A-4554-A995-5A74F9ECD5CE",
+    "scenario": "returningGuest",
+    "video": "lifecycle/cold-launch-final.mp4",
+    "screenshot": "lifecycle/cold-cover.png"
+  },
+  "simulated": [
+    "OAuth results",
+    "credentials",
+    "journey",
+    "restore",
+    "offline",
+    "initialization failure fixture",
+    "200% text and Reduce Motion overrides"
+  ],
+  "not_verified": [
+    "Native background/foreground transition: Mac locked; CUA requires manual unlock",
+    "Real OAuth and backup",
+    "Device audio, haptics, release performance",
+    "OS accessibility settings, VoiceOver, dark mode, landscape, native nickname keyboard"
+  ],
+  "asset_confirmation": "Pending which cover is approved; existing room and original Tumi only",
+  "native_launch_raster_sha256": "bc9cd38dc2eb07056fc4602cef8e6e0279cf54cc9cb24dbd41e679f398ff7933",
+  "video_validation": {
+    "small": {
+      "duration_seconds": 84.86333333333333,
+      "audio_tracks": 0,
+      "decoded_frames": 4
+    },
+    "large": {
+      "duration_seconds": 85.955,
+      "audio_tracks": 0,
+      "decoded_frames": 4
+    },
+    "cold": {
+      "duration_seconds": 16.645,
+      "audio_tracks": 0,
+      "decoded_frames": 8
+    }
+  },
+  "media_sha256": {
+    "small/18-large-text-reduce-room.png": "f3c6738b6b55b80be8c028fec2323632e0ce154e9098e7d153a5a7ce8267cbc0",
+    "small/13-offline.png": "86cb5673a55e693b0acb220d08c625ba306b50aa70ba838913c1961a9b7e2515",
+    "small/08-room-action.png": "bfa7e20e88eccd0053e1bd2e2d2111f68012502a6701181c775a9f7636e6c2fa",
+    "small/11-restore-unknown.png": "b46af712db3c0ff4ade5df8c814435ebbbaf1b4828744095f55907bad5d2d308",
+    "small/15-init-failure.png": "9df7b83a90d338e516737efe31bd6a8adc401e4dc4477ef9a6eba60b5f4b8937",
+    "small/05-first-meeting.png": "59059256d4353ebb49bdf1ebbd1789bcdaedea3443e524ae75791ad06a2c6b14",
+    "small/02-auth-simulation.png": "b88f6b66f6935932da942ca2172a59e9c84d2187a0cc4b862853a3884f0b2d14",
+    "small/07-room.png": "462b11a033a7f94ad20192a11bdaef924f682e6c3bfed2484e8233bfbd2dff8e",
+    "small/21-google-restored-room.png": "c496995b2d7c9c3502aeb38ba750a1c90c077e400c8f85e04a738a49b6b9f690",
+    "small/14-skipped-meeting.png": "462b11a033a7f94ad20192a11bdaef924f682e6c3bfed2484e8233bfbd2dff8e",
+    "small/06-optional-name.png": "161a6410907dd51001211b6d9fde0622245c56dc8d8deb7d9289f7f09220e68a",
+    "small/01-first-cover.png": "693942b464214d102201fe23e2952d968eba438bddd3643ac5e08492241802a2",
+    "small/17b-large-text-actions.png": "2320b7f643d3c7b1cfba73597f6cda46b211f5a5f75d31509f496886c62deb20",
+    "small/12-restored-room.png": "b7f5c7baff7a59e5a8740b514b6251b25842391f474200aaec23b5aee6e3d54d",
+    "small/16-init-retried.png": "693942b464214d102201fe23e2952d968eba438bddd3643ac5e08492241802a2",
+    "small/19-english-large-room.png": "7a282bbb2a055621b9ea85ace8e596a12388f95e45ec52f23cef39122fe7118b",
+    "small/20-apple-new-room.png": "3395d9f8c6f30899c588d6b0ee77332148f72f7e105ea8f95544a69b79c30cc1",
+    "small/09-returning-signed-in.png": "eb7c2e8e7900c907fca4122730117d4c5f3ba32e868749f64a289418b767045b",
+    "small/04-login-failed.png": "83209504b62d1416b4fb15ca265e53884be8b3627f7b915c54f180d3db0fcb1f",
+    "small/10-returning-guest.png": "60e5ea588469300efe7f9f0c2927712ebf45624fc62ca78872b63e4d2e0cd143",
+    "small/03-canceled.png": "f6ea53572208c7dae5cdc09c49f05af09105a621e16310cb1904a411c51d219e",
+    "small/17-large-text-reduce-cover.png": "8892817b4baa2827dfac7f5d7ed17b19bdae7fd4066bec4214655e9570f0cd46",
+    "large/18-large-text-reduce-room.png": "5ec0b93edf450cbca33268bc946d4348bb5ca3942495e43f84d4dd2524dbdc1b",
+    "large/13-offline.png": "36d57ca666fa31ad15d09a5d8d9ffde46d3e79e86aa07b9d2f8d6ba711a7a888",
+    "large/08-room-action.png": "ed0768bacdbe72571496fb2d9025deb5116e6cea62eaabaef80039f54a303633",
+    "large/11-restore-unknown.png": "7775a795b2bbe64b1c1e41eaa239e5200ff146cc2fb10f9a5d771045832a519c",
+    "large/15-init-failure.png": "099ddee0a59072d1f7cd3133917b51b272d8efc493d08f07c4ebd865a3747ef1",
+    "large/05-first-meeting.png": "07ff39500e874fdd0dc9f6b63922749246441ea599ab5f9b3fb835b3be75eea9",
+    "large/02-auth-simulation.png": "77bb1354397bde5fbaab65bf611a56795aeca6f10acd1ea852a038e78332e9f7",
+    "large/07-room.png": "7a9030f26e800b4ab64758caaf56fecaf2e69f08b1fa8c1225cba8e8c60aeb6a",
+    "large/21-google-restored-room.png": "e4022b270a61aa546fb274c33fc89fe2af295d5f128c80cc4c0857273f369c39",
+    "large/14-skipped-meeting.png": "7a9030f26e800b4ab64758caaf56fecaf2e69f08b1fa8c1225cba8e8c60aeb6a",
+    "large/06-optional-name.png": "ad147ae5c276c2f1e2ee4725c7815bbca4351fb4fae486dd0bee8bf35648d209",
+    "large/01-first-cover.png": "203b6038a5d1e94baa060d45b843ef9c3b2e414f0d44ab4465fd52d1cbf2f4a5",
+    "large/17b-large-text-actions.png": "bd540ce85176d1f89caa849257707b089f43c61d5a610cf6d1ceefbcbd96d3a2",
+    "large/12-restored-room.png": "3b85f09b7db6d3acd6a976d03014e013acd1aa27c2579e20a706de3e403f67e0",
+    "large/16-init-retried.png": "203b6038a5d1e94baa060d45b843ef9c3b2e414f0d44ab4465fd52d1cbf2f4a5",
+    "large/19-english-large-room.png": "061a7c3aad3ae6ddad501f6a3c49ba942760f7f3fcf79aaa7fb75720ad0ed4a8",
+    "large/20-apple-new-room.png": "b151a92d88d2c5a523539bcb98a6f765723914318882fe1eb855db756725e0d5",
+    "large/09-returning-signed-in.png": "b2f19bc14dbd9220e638fde73da8ce95bbb56ad04f68b617f78975ee9a50cfba",
+    "large/04-login-failed.png": "ee8e7cc0663b5a4a6e2cbcc8f452486e030820f8a05361fbf8a50b0e45009094",
+    "large/10-returning-guest.png": "da4fbc9c8439c136323dc5a44860590d07178a9966ff3751b5dff655665ad00e",
+    "large/03-canceled.png": "8d4247b52a1b1668a117094624b84e2ee259e8cbf102724fae018596799114fe",
+    "large/17-large-text-reduce-cover.png": "94d88b9ea03acbad204102b12776a337e2ab5cb8e01c9af16a3b6f2086e080e4",
+    "lifecycle/cold-cover.png": "db40585510ba571de35a663570ee97d2599e5ef93dab29132ec5ac91f6f7a354",
+    "large/walkthrough.mp4": "c7dee299f1e849fc8d7edc5e31f37be56524ab0293095f6d46b26a24ff6eeda6",
+    "lifecycle/cold-launch-final.mp4": "2de5dbba39f520a16187b2a2a3be1ae842a487e47a25d4d9a8065af52329439c",
+    "small/walkthrough.mp4": "ad3e3d5b0af9092d98556d9790e8cc4cef448860fd4340627ae4120e41d9d7d3"
+  }
+}
