@@ -16,6 +16,7 @@ class EntryAudio {
   static EntryAudio? debugInstance;
   static EntryAudio get instance => debugInstance ?? _native;
   static const introAsset = 'sounds/bgm_onboarding.m4a';
+  static const coverAsset = 'sounds/bgm_entry_porch_v4.mp3';
 
   final EntryAudioBackend _backend;
   final List<EntryAudioScope> _scopes = [];
@@ -24,11 +25,11 @@ class EntryAudio {
 
   bool get hasEntry => _scopes.isNotEmpty;
 
-  EntryAudioScope open() {
+  EntryAudioScope open({String asset = introAsset}) {
     if (_scopes.isEmpty) {
       _returnAsset ??= _backend.loadedAsset ?? _backend.selectedAsset;
     }
-    final scope = EntryAudioScope._(this);
+    final scope = EntryAudioScope._(this, asset);
     _scopes.add(scope);
     _revision++;
     return scope;
@@ -41,7 +42,7 @@ class EntryAudio {
     if (!_owns(scope)) return;
     final revision = ++_revision;
     await _apply(
-      introAsset,
+      scope._asset,
       entry: true,
       revision: revision,
       deferFade: deferFade,
@@ -56,7 +57,9 @@ class EntryAudio {
     if (!wasOwner) return;
     final revision = ++_revision;
     final entry = _scopes.isNotEmpty;
-    final asset = entry ? introAsset : _returnAsset ?? _backend.selectedAsset;
+    final asset = entry
+        ? _scopes.last._asset
+        : _returnAsset ?? _backend.selectedAsset;
     try {
       await _apply(asset, entry: entry, revision: revision);
     } finally {
@@ -98,8 +101,9 @@ class EntryAudio {
 }
 
 class EntryAudioScope {
-  EntryAudioScope._(this._owner);
+  EntryAudioScope._(this._owner, this._asset);
   final EntryAudio _owner;
+  final String _asset;
   bool _closed = false;
 
   /// Safe after an arbitrary delay: a closed or covered route cannot take over.

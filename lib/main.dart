@@ -58,6 +58,7 @@ import 'utils/weight_records.dart';
 import 'widgets/app_pressable.dart';
 import 'widgets/app_waiting.dart';
 import 'widgets/entry_controls.dart';
+import 'widgets/entry_cover.dart';
 import 'widgets/entry_scenery.dart';
 import 'widgets/footprint_coin_reward_overlay.dart';
 import 'widgets/navigation_surface.dart';
@@ -306,7 +307,12 @@ class _MyAppState extends State<MyApp> {
         widget.onLaunchReady?.call();
       }
       if (!mounted) return;
-      await _precacheEntryAsset(context, kEntryCoverAsset);
+      await Future.wait([
+        _precacheEntryAsset(context, kEntryCoverAsset),
+        _precacheEntryAsset(context, kEntryCleanPlateAsset),
+        _precacheEntryAsset(context, kEntryLeavesAsset),
+        _precacheEntryAsset(context, kEntryLogoAsset),
+      ]);
       if (mounted) setState(() => _artReady = true);
     } catch (_) {
       if (mounted) setState(() => _artFailed = true);
@@ -614,7 +620,7 @@ class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
                 body: Stack(
                   fit: StackFit.expand,
                   children: [
-                    const EntryScenery(bottomScrim: true),
+                    const EntryScenery(bottomScrim: true, titleArt: true),
                     SafeArea(
                       child: Align(
                         alignment: Alignment.bottomCenter,

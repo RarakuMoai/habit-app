@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
+import 'entry_cover.dart';
 
 /// The original V3 key art selected by the user, copied without modification.
 const kEntryCoverAsset = 'assets/scenes/onboarding/entry_living_room_v3.png';
@@ -19,10 +20,14 @@ class EntryScenery extends StatelessWidget {
     super.key,
     this.topScrim = false,
     this.bottomScrim = false,
+    this.titleArt = false,
   });
 
   final bool topScrim;
   final bool bottomScrim;
+
+  /// Keep the home-loading bridge on the current title art, not the old leaf layer.
+  final bool titleArt;
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
@@ -30,7 +35,11 @@ class EntryScenery extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(kEntryCoverAsset, fit: BoxFit.cover),
+          Image.asset(
+            titleArt ? kEntryCleanPlateAsset : kEntryCoverAsset,
+            fit: BoxFit.cover,
+          ),
+          if (titleArt) Image.asset(kEntryLeavesAsset, fit: BoxFit.cover),
           if (topScrim)
             DecoratedBox(
               decoration: BoxDecoration(

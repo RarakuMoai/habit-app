@@ -2,20 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
 import '../utils/account_service.dart';
 import '../utils/app_entry_intent.dart';
 import '../utils/app_feedback.dart';
 import '../utils/app_style.dart';
+import '../utils/audio_settings_service.dart';
+import '../utils/bgm_service.dart';
 import '../utils/entry_audio.dart';
 import '../utils/parent_pin.dart';
 import '../utils/preference_write_guard.dart';
 import '../utils/prefs_keys.dart';
 import '../widgets/app_language_sheet.dart';
-import '../widgets/audio_control_button.dart';
 import '../widgets/entry_controls.dart';
-import '../widgets/entry_scenery.dart';
+import '../widgets/entry_cover.dart';
 import 'account_backup_page.dart';
 import 'settings_page.dart';
 
@@ -33,7 +35,10 @@ class AppEntryPage extends StatefulWidget {
 }
 
 class _AppEntryPageState extends State<AppEntryPage> {
-  late final EntryAudioScope _audio = EntryAudio.instance.open();
+  late final EntryAudioScope _audio = EntryAudio.instance.open(
+    asset: EntryAudio.coverAsset,
+  );
+  bool _panelOpen = false;
   final _account = AccountService.instance;
   bool _busy = false;
   bool _failed = false;
@@ -366,143 +371,154 @@ class _AppEntryPageState extends State<AppEntryPage> {
     ),
   );
 
+  Future<void> _coverPanel(Future<void> Function() open) async {
+    if (_panelOpen || _busy) return;
+    setState(() => _panelOpen = true);
+    try {
+      await open();
+    } finally {
+      if (mounted) setState(() => _panelOpen = false);
+    }
+  }
+
+  Future<void> _settings() => _coverPanel(
+    () => showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final l = AppLocalizations.of(sheetContext);
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l.settingsTitle,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l.commonClose,
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: AudioSettingsService.musicMuted,
+                  builder: (_, muted, _) => SwitchListTile(
+                    key: const ValueKey('entry-music'),
+                    title: Text(l.acMusic),
+                    secondary: const Icon(Icons.music_note_rounded),
+                    value: !muted,
+                    onChanged: (enabled) async {
+                      await BgmService.instance.setMuted(!enabled);
+                      if (enabled && mounted) unawaited(_audio.playIntro());
+                    },
+                  ),
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: AudioSettingsService.sfxMuted,
+                  builder: (_, muted, _) => SwitchListTile(
+                    key: const ValueKey('entry-sfx'),
+                    title: Text(l.acSfx),
+                    secondary: const Icon(Icons.touch_app_rounded),
+                    value: !muted,
+                    onChanged: (enabled) =>
+                        AudioSettingsService.instance.setSfxMuted(!enabled),
+                  ),
+                ),
+                ListTile(
+                  key: const ValueKey('entry-account'),
+                  leading: const Icon(Icons.cloud_outlined),
+                  title: Text(l.entryAccountData),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    unawaited(_openAccount());
+                  },
+                ),
+                const Divider(),
+                // Attribution stays reachable in the shipped app, not just a repo note.
+                const Text(
+                  'Porch Swing Days – slower\nKevin MacLeod (incompetech.com)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: AppInk.soft),
+                ),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse(
+                          'https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100715',
+                        ),
+                      ),
+                      child: const Text('incompetech.com'),
+                    ),
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse(
+                          'https://creativecommons.org/licenses/by/4.0/',
+                        ),
+                      ),
+                      child: const Text('CC BY 4.0'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final reduce =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
     return Scaffold(
       key: const ValueKey('app-entry'),
       backgroundColor: AppSurfaces.canvas,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const EntryScenery(topScrim: true, bottomScrim: true),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, box) => Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 540),
-                  child: SingleChildScrollView(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: box.maxHeight),
-                      child: IntrinsicHeight(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const AppLanguageButton(),
-                                  AudioControlButton(
-                                    style: AudioControlStyle.onboarding,
-                                    accent: AppInk.strong,
-                                    onMusicEnabled: () => _audio.playIntro(),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: box.maxHeight < 650 ? 12 : 24),
-                              Text(
-                                l.appTitle,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(
-                                      fontSize: 30,
-                                      letterSpacing: 3,
-                                      fontWeight: FontWeight.w900,
-                                      shadows: [
-                                        Shadow(
-                                          color: AppSurfaces.canvas.withValues(
-                                            alpha: .8,
-                                          ),
-                                          blurRadius: 16,
-                                        ),
-                                      ],
-                                    ),
-                              ),
-                              const Spacer(),
-                              if (_familyLocked ||
-                                  widget.requiresLocalReview ||
-                                  _failed)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: Text(
-                                    widget.requiresLocalReview
-                                        ? l.entryReviewLocal
-                                        : _failed
-                                        ? l.csSaveError
-                                        : l.backupFamilyPinRequired,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: _failed
-                                          ? AppInk.danger
-                                          : AppInk.strong,
-                                    ),
-                                  ),
-                                ),
-                              TweenAnimationBuilder<double>(
-                                duration: reduce
-                                    ? Duration.zero
-                                    : AppMotion.enter,
-                                tween: Tween(begin: 0, end: 1),
-                                curve: AppMotion.curve,
-                                builder: (context, value, child) =>
-                                    Opacity(opacity: value, child: child),
-                                child: EntryPrimaryAction(
-                                  key: const ValueKey('entry-primary'),
-                                  label: widget.requiresLocalReview
-                                      ? l.entryAccountData
-                                      : _busy
-                                      ? l.entryPrepareRoom
-                                      : widget.onboardingDone
-                                      ? l.entryContinue
-                                      : l.entryTapStart,
-                                  onPressed: _busy
-                                      ? null
-                                      : widget.requiresLocalReview
-                                      ? _openAccount
-                                      : widget.onboardingDone
-                                      ? _enter
-                                      : !_accountReady
-                                      ? null
-                                      : _chooseStart,
-                                ),
-                              ),
-                              if (!_accountReady && !widget.onboardingDone)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(l.entryIdentityChecking),
-                                ),
-                              if (_identityFailed && !widget.onboardingDone)
-                                TextButton(
-                                  onPressed: _loadAccount,
-                                  child: Text(l.csRetry),
-                                ),
-                              TextButton(
-                                key: const ValueKey('entry-account'),
-                                onPressed: _busy ? null : _openAccount,
-                                child: Text(
-                                  l.entryAccountData,
-                                  style: const TextStyle(color: AppInk.strong),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+      body: EntryCover(
+        active: !_panelOpen && !_busy,
+        prompt: widget.requiresLocalReview
+            ? l.entryAccountData
+            : _busy
+            ? l.entryPrepareRoom
+            : widget.onboardingDone
+            ? l.entryContinue
+            : l.entryTapStart,
+        onStart: _busy
+            ? null
+            : widget.requiresLocalReview
+            ? _openAccount
+            : widget.onboardingDone
+            ? _enter
+            : !_accountReady
+            ? null
+            : () => _coverPanel(_chooseStart),
+        onLanguage: () => _coverPanel(() => showAppLanguageSheet(context)),
+        onSettings: _settings,
+        notice: widget.requiresLocalReview
+            ? l.entryReviewLocal
+            : _failed
+            ? l.csSaveError
+            : _familyLocked
+            ? l.backupFamilyPinRequired
+            : !_accountReady && !widget.onboardingDone
+            ? l.entryIdentityChecking
+            : null,
+        onRetry: _identityFailed && !widget.onboardingDone
+            ? _loadAccount
+            : null,
       ),
     );
   }

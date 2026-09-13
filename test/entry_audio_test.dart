@@ -48,6 +48,23 @@ void main() {
   );
 
   test(
+    'cover cue is separate from intro and nested close restores cover',
+    () async {
+      final title = audio.open(asset: EntryAudio.coverAsset);
+      await title.playIntro();
+      expect(backend.loadedAsset, EntryAudio.coverAsset);
+      final meeting = audio.open();
+      await meeting.playIntro();
+      expect(backend.loadedAsset, EntryAudio.introAsset);
+      await meeting.close();
+      expect(backend.loadedAsset, EntryAudio.coverAsset);
+      await title.enterHome();
+      expect(backend.loadedAsset, 'sounds/chosen.m4a');
+      expect(backend.selectedAsset, 'sounds/chosen.m4a');
+    },
+  );
+
+  test(
     'normal completion uses current wardrobe selection and later dispose is inert',
     () async {
       final scope = audio.open();

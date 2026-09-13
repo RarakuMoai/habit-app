@@ -48,7 +48,7 @@ def main():
     # and untracked working sources so each recording identifies its exact tree.
     source_paths = subprocess.check_output([
         'git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z',
-        '--', 'lib', 'assets', 'ios/Runner', 'pubspec.yaml', 'pubspec.lock',
+        '--', 'lib', 'assets', 'shaders', 'ios/Runner', 'pubspec.yaml', 'pubspec.lock',
         'integration_test/entry_integration_review_test.dart',
         'scripts/review/run_entry_integration.py',
     ], cwd=ROOT).split(b'\0')
@@ -163,6 +163,9 @@ def main():
         errors.append('No nonempty continuous recording was produced')
     repeated = [second['file'] for first, second in zip(captures, captures[1:]) if first['sha256'] == second['sha256']]
     expected_identical = {'02b-login-cancelled.png', '02d-offline-login.png'} if args.scenario == 'authErrors' else set()
+    if args.reduce_motion and 'ENTRY_REVIEW_COVER_V4=true' in args.dart_define:
+        # An unchanged wind sample is required when all cover motion is disabled.
+        expected_identical.add('01b-cover-wind.png')
     unexpected_repeated = [name for name in repeated if name not in expected_identical]
     if unexpected_repeated:
         errors.append('Adjacent identical frames require review: ' + ', '.join(unexpected_repeated))

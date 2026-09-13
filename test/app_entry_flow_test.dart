@@ -11,7 +11,7 @@ import 'package:habit_app/utils/preference_write_guard.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'account_backup_ui_test.dart' show accountTestApp, settleAccountUi;
+import 'account_backup_ui_test.dart' show accountTestApp;
 import 'account_service_test.dart' show FakeBackend;
 import 'shared_preferences_failure_test_helper.dart';
 
@@ -28,6 +28,15 @@ class _EntryAudio extends EntryAudioBackend {
   Future<void> play(String asset, {required bool deferFade}) async {
     loadedAsset = asset;
   }
+}
+
+// The live cover never settles. Advance complete route/sheet transitions in
+// bounded frames, then assert the actual destination and data in each test.
+Future<void> settleEntryUi(WidgetTester tester) async {
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  expect(tester.takeException(), isNull);
 }
 
 void main() {
@@ -65,16 +74,16 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: false)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.byKey(const ValueKey('app-entry')), findsOneWidget);
       expect(find.text('destination-onboarding'), findsNothing);
-      expect(audio.loadedAsset, EntryAudio.introAsset);
+      expect(audio.loadedAsset, EntryAudio.coverAsset);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
       await tester.tap(find.byKey(const ValueKey('entry-guest')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.text('destination-onboarding'), findsOneWidget);
       expect(prefs.getBool(PrefsKeys.accountGuestChosen), isTrue);
       expect(prefs.getBool(PrefsKeys.onboardingDone), isNull);
@@ -91,10 +100,10 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: true)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.text('destination-home'), findsOneWidget);
       expect(find.text('destination-onboarding'), findsNothing);
       expect(audio.loadedAsset, 'sounds/chosen.m4a');
@@ -115,10 +124,10 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: false)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.byType(AccountBackupPage), findsNothing);
       for (final provider in ['google', 'apple']) {
         expect(
@@ -130,7 +139,7 @@ void main() {
       }
       await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
       await tester.tap(find.byKey(const ValueKey('entry-guest')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.text('destination-onboarding'), findsOneWidget);
       expect(prefs.getBool(PrefsKeys.accountGuestChosen), isTrue);
       await tester.pumpWidget(const SizedBox());
@@ -143,21 +152,21 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: false)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       installFailFirstWriteStore('flutter.${PrefsKeys.accountGuestChosen}');
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
       await tester.tap(find.byKey(const ValueKey('entry-guest')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.byKey(const ValueKey('app-entry')), findsOneWidget);
       expect(find.text('destination-onboarding'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-guest')));
       await tester.tap(find.byKey(const ValueKey('entry-guest')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.text('destination-onboarding'), findsOneWidget);
       expect(backend.writes, 0);
       await tester.pumpWidget(const SizedBox());
@@ -172,10 +181,10 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: true)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.byType(SettingsPage), findsOneWidget);
       expect(find.text('destination-home'), findsNothing);
       expect(prefs.getBool(PrefsKeys.familyRestoreNeedsPin), isTrue);
@@ -183,10 +192,10 @@ void main() {
         find.byType(Navigator).first,
       );
       navigator.pop(); // close the automatically opened PIN settings sheet
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       if (find.byType(SettingsPage).evaluate().isNotEmpty) {
         navigator.pop();
-        await settleAccountUi(tester);
+        await settleEntryUi(tester);
       }
       expect(find.byKey(const ValueKey('app-entry')), findsOneWidget);
       expect(find.text('destination-home'), findsNothing);
@@ -203,23 +212,23 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: true)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       await tester.tap(find.text('設定密碼'));
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       await tester.enterText(find.byType(TextField), '1234');
       await tester.pump();
       await tester.tap(find.text('確認'));
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       await tester.enterText(find.byType(TextField), '1234');
       await tester.pump();
       final store = installFailFirstWriteStore(
         'flutter.${PrefsKeys.parentPinHash}',
       );
       await tester.tap(find.text('確認'));
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
 
       expect(store.didFail, isTrue);
       expect(find.text('密碼已設定'), findsNothing);
@@ -230,9 +239,9 @@ void main() {
         find.byType(Navigator).first,
       );
       navigator.pop();
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       navigator.pop();
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       expect(find.byKey(const ValueKey('app-entry')), findsOneWidget);
       expect(find.text('destination-home'), findsNothing);
       await prefs.reload();
@@ -240,20 +249,20 @@ void main() {
       expect(prefs.getBool(PrefsKeys.familyRestoreNeedsPin), isTrue);
 
       await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: true)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       expect(find.byType(SettingsPage), findsOneWidget);
       expect(find.text('設定密碼'), findsOneWidget);
       expect(find.text('destination-home'), findsNothing);
       expect(prefs.getBool(PrefsKeys.familyRestoreNeedsPin), isTrue);
       await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
     },
   );
 
@@ -270,17 +279,17 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: true)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
       expect(find.byType(SettingsPage), findsOneWidget);
       expect(find.text('destination-home'), findsNothing);
       expect(prefs.getBool(PrefsKeys.familyRestoreNeedsPin), isTrue);
       await prefs.reload();
       expect(await ParentPin.hasPin(prefs), isFalse);
       await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
+      await settleEntryUi(tester);
     },
   );
 
@@ -292,10 +301,10 @@ void main() {
       await tester.pumpWidget(
         accountTestApp(const AppEntryPage(onboardingDone: true)),
       );
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       await tester.ensureVisible(find.byKey(const ValueKey('entry-primary')));
       await tester.tap(find.byKey(const ValueKey('entry-primary')));
-      await settleAccountUi(tester);
+      await settleEntryUi(tester);
       expect(find.text('destination-home'), findsOneWidget);
       expect(prefs.containsKey(PrefsKeys.familyRestoreNeedsPin), isFalse);
       expect(await ParentPin.verify(prefs, '1234'), isTrue);
@@ -320,24 +329,28 @@ void main() {
               textScale: 1.3,
             ),
           );
-          await settleAccountUi(tester);
+          await settleEntryUi(tester);
           await tester.ensureVisible(
             find.byKey(const ValueKey('entry-primary')),
           );
-          await tester.pumpAndSettle();
+          await settleEntryUi(tester);
           expect(
             find.byKey(const ValueKey('entry-primary')).hitTestable(),
             findsOneWidget,
           );
           if (!completed) {
             await tester.tap(find.byKey(const ValueKey('entry-primary')));
-            await settleAccountUi(tester);
+            await settleEntryUi(tester);
+          }
+          if (completed) {
+            await tester.tap(find.byKey(const ValueKey('entry-settings')));
+            await settleEntryUi(tester);
           }
           final secondary = find.byKey(
             ValueKey(completed ? 'entry-account' : 'entry-guest'),
           );
           await tester.ensureVisible(secondary);
-          await tester.pumpAndSettle();
+          await settleEntryUi(tester);
           expect(secondary.hitTestable(), findsOneWidget);
           expect(tester.takeException(), isNull);
           expect(backend.writes, 0);

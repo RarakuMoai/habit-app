@@ -17,10 +17,13 @@ import 'package:habit_app/pages/onboarding_page.dart';
 import 'package:habit_app/pages/timer_page.dart';
 import 'package:habit_app/utils/account_service.dart';
 import 'package:habit_app/utils/backup_archive.dart';
+import 'package:habit_app/utils/bgm_service.dart';
 import 'package:habit_app/utils/companion_story_progress.dart';
+import 'package:habit_app/utils/entry_audio.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/story_store.dart';
+import 'package:habit_app/widgets/entry_cover.dart';
 import 'package:habit_app/widgets/timer_mode_frame.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -440,6 +443,74 @@ void main() {
     await waitFor(find.byType(AppEntryPage));
     labelFixture();
     await capture('01-cover');
+
+    if (const bool.fromEnvironment('ENTRY_REVIEW_COVER_V4')) {
+      final cover = tester.state<EntryCoverState>(find.byType(EntryCover));
+      for (var i = 0; i < 100 && !cover.hasAnimatedFoliage; i++) {
+        await frames(1);
+      }
+      expect(
+        cover.hasAnimatedFoliage,
+        isTrue,
+        reason: 'Real native leaf shader, not static fallback',
+      );
+      final time = cover.motionSeconds;
+      await frames(35);
+      if (!reduceMotion) expect(cover.motionSeconds, greaterThan(time));
+      final logo = tester.getRect(keyed('entry-cover-logo'));
+      final context = tester.element(find.byType(EntryCover));
+      final layout = EntryCoverLayout(
+        MediaQuery.sizeOf(context),
+        MediaQuery.paddingOf(context),
+      );
+      expect(logo.bottom, lessThan(layout.heroTop - 18));
+      for (final name in ['app-language', 'entry-settings']) {
+        expect(tester.getSize(keyed(name)), const Size(52, 52));
+      }
+      await capture('01b-cover-wind');
+      await tap(keyed('app-language'));
+      await capture('01c-cover-language');
+      Navigator.of(tester.element(find.byType(EntryCover))).pop();
+      await frames(10);
+      await tap(keyed('entry-settings'));
+      await capture('01d-cover-settings');
+      expect(keyed('entry-account'), findsOneWidget);
+      expect(cover.motionRunning, isFalse);
+      expect(BgmService.instance.loadedAsset, EntryAudio.coverAsset);
+      if (const bool.fromEnvironment('ENTRY_REVIEW_COVER_AUDIO')) {
+        // Opt-in real native decoding/playback. Preferences remain process-local.
+        await tap(keyed('entry-music'));
+        final deadline = DateTime.now().add(const Duration(seconds: 40));
+        final music = BgmService.instance;
+        while ((music.duration?.inSeconds ?? 0) < 200 ||
+            music.position.inMilliseconds < 800) {
+          if (DateTime.now().isAfter(deadline)) {
+            throw TimeoutException('Native cover music did not start');
+          }
+          await frames(2);
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 100)),
+          );
+        }
+        expect(music.loadedAsset, EntryAudio.coverAsset);
+        debugPrint(
+          'ENTRY_V4_AUDIO_NATIVE duration=${music.duration} position=${music.position}',
+        );
+        await tap(keyed('entry-music'));
+        await frames(10);
+        final paused = music.position;
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)),
+        );
+        expect((music.position - paused).inMilliseconds.abs(), lessThan(100));
+      }
+      debugPrint(
+        'ENTRY_V4_NATIVE shader=true logoBottom=${logo.bottom} heroTop=${layout.heroTop} audio=${BgmService.instance.loadedAsset} duration=${BgmService.instance.duration}',
+      );
+      Navigator.of(tester.element(find.byType(EntryCover))).pop();
+      await frames(10);
+      if (!reduceMotion) expect(cover.motionRunning, isTrue);
+    }
 
     if (returning) {
       await tap(keyed('entry-primary'));
