@@ -19,7 +19,7 @@
 | UI、動畫、特效、視覺微調 | `docs/ui_motion_protocol.md`；樣式查 `docs/visual_spec.md` |
 | 單位、儲存、換日、音訊、導覽、i18n、素材整合 | `docs/engineering_guardrails.md` 對應小節 |
 | 兔咪性格、台詞、表情、泡泡、語音、觸發與優先度 | `docs/tumi_character_guide.md`、`docs/tumi_dialogue_catalog.md` |
-| 既有兔咪 PNG／CG 差分 | `.agents/skills/tumi-image-variants/SKILL.md`；資產規格查 `docs/asset_convention.md` |
+| 兔咪封面、CG、Logo、生圖與圖片微調 | `.agents/skills/habit-imagegen-2-5/SKILL.md`；需保留既有兔咪時再讀 `.agents/skills/tumi-image-variants/SKILL.md`；資產規格查 `docs/asset_convention.md` |
 | 公開上架 | `docs/prelaunch_audit.md` |
 
 兔咪反應變更必須先更新對話目錄的事件總表，再寫程式，並跑
