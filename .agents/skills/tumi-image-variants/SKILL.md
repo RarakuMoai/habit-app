@@ -5,7 +5,7 @@ description: Preserve-and-edit workflow for Tumi / 兔咪 CG PNG variants and �
 
 # Tumi Image Variants
 
-Use this skill with the built-in `imagegen` skill. This skill adds Tumi-specific preservation rules; it does not replace the normal image generation/editing workflow.
+Use this skill with [habit-imagegen-2-5](../habit-imagegen-2-5/SKILL.md). The user selected the explicit GPT Image 2.5 API/model path for Tumi artwork; do not send production candidates through an image tool whose model cannot be verified.
 
 ## Core Rule
 
@@ -19,13 +19,13 @@ Do not redraw the whole image. Local edit only. 不重繪，只局部修改。
 
 ## Workflow
 
-1. Identify the exact edit target. If it is a local file, inspect it with `view_image` before using `image_gen`.
+1. Identify the exact edit target and inspect it before generating. Use `habit-imagegen-2-5/scripts/run_image_2_5.py edit`; Image 1 must be the approved local PNG.
 2. Label every input image by role. The base Tumi image must be `Image 1: edit target`, not a style reference.
 3. Make one targeted change per generation attempt. Do not rewrite the whole creative prompt during iteration.
 4. Lock invariants every time: Tumi identity, face shape, almost-no-mouth design, ears, body proportions, silhouette, CG rendering style, color palette, lighting, camera framing, canvas size, and alpha/transparent background when present.
 5. Change only the user-specified local area, such as eye state, small accessory, minor pose detail, hand/object contact, event prop, or emotion key frame.
 6. Avoid full repainting, style reinterpretation, new character design, new outfit, new props, background changes, fake mouth overlays, fake blink overlays, or extra facial features unless explicitly requested.
-7. Prefer a mask when the available image-editing path supports one. If no mask is available, specify the changed region precisely and ask the model to preserve all other areas as much as possible.
+7. Prefer a mask for local changes. The mask is guidance rather than a pixel-exact boundary, so inspect unmasked areas for drift after every edit.
 8. Save outputs non-destructively with a variant filename. Do not overwrite the approved base unless the user explicitly asks.
 9. For clothing generation or lower-body clothing edits, include the fixed clothing prompt in [asset_convention.md](../../../docs/asset_convention.md#服裝下半身固定-prompt). The user stopped the unclothed lower-abdomen trials on 2026-09-10: keep the approved unclothed base, and address sagging folds or heavy crotch shadows on the outfit only. Do not resume the rejected base edits or treat them as awaiting approval.
 
