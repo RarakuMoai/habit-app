@@ -5,7 +5,7 @@ import 'entry_cover.dart';
 
 /// The user-selected Image 2.5 clean-fur key art, copied without modification.
 const kEntryCoverAsset =
-    'assets/scenes/onboarding/entry_living_room_v5_clean_fur.png';
+    'assets/scenes/onboarding/entry_living_room_v6_clean_fur.png';
 
 /// Byte-identical to the native LaunchImage@3x raster. Render with BoxFit.cover
 /// in the full viewport to match LaunchScreen.storyboard's scaleAspectFill.

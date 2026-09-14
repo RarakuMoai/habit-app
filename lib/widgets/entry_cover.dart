@@ -9,21 +9,28 @@ import '../l10n/app_localizations.dart';
 import 'app_pressable.dart';
 
 const kEntryCleanPlateAsset =
-    'assets/scenes/onboarding/entry_living_room_v5_clean_fur.png';
+    'assets/scenes/onboarding/entry_living_room_v6_clean_fur.png';
 const kEntryLeavesAsset = 'assets/scenes/onboarding/entry_leaves_v4.png';
 const kEntryLogoAsset = 'assets/scenes/onboarding/entry_logo_zh_v4.png';
 
-/// The cutout touches the left and bottom image edges. A positive-only rotation
-/// around a root just outside the bottom-left corner keeps both cropped edges
-/// covered while preserving every leaf's shape (unlike the former UV warp).
+/// The cutout touches the left and bottom image edges. Both pose components are
+/// positive-only, so the layer moves into the viewport instead of exposing its
+/// cropped edges. Translation makes the low-right leaf visibly move while the
+/// rigid rotation preserves every leaf's shape (unlike the former UV warp).
 @visibleForTesting
-double entryFoliageAngle(double seconds) {
-  const primaryPeriod = 6.8;
-  const secondaryPeriod = 13.0;
-  return .004 +
-      .0028 * math.sin(seconds * math.pi * 2 / primaryPeriod) +
-      .0008 * math.sin(seconds * math.pi * 2 / secondaryPeriod + .9);
+double entryFoliagePhase(double seconds) {
+  const primaryPeriod = 4.8;
+  const secondaryPeriod = 7.6;
+  final primary = (1 - math.cos(seconds * math.pi * 2 / primaryPeriod)) / 2;
+  final secondary = (1 - math.cos(seconds * math.pi * 2 / secondaryPeriod)) / 2;
+  return .75 * primary + .25 * secondary;
 }
+
+@visibleForTesting
+double entryFoliageInset(double seconds) => 14 * entryFoliagePhase(seconds);
+
+@visibleForTesting
+double entryFoliageAngle(double seconds) => .011 * entryFoliagePhase(seconds);
 
 /// The approved HTML composition, in full-viewport logical pixels. Safe areas
 /// constrain controls, never the background's BoxFit.cover camera.
@@ -492,6 +499,7 @@ class _FoliagePainter extends CustomPainter {
     if (!reduced) {
       const root = Offset(-18, 1690);
       canvas
+        ..translate(entryFoliageInset(clock.value), 0)
         ..translate(root.dx, root.dy)
         ..rotate(entryFoliageAngle(clock.value))
         ..translate(-root.dx, -root.dy);

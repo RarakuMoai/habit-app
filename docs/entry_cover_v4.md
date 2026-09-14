@@ -8,6 +8,8 @@
 `ChatGPT Image 2026年9月14日 下午07_26_04.png` 作為新基底，原始 941×1672
 位元組不縮放地保存為 `entry_living_room_v5_clean_fur.png`。這項更新尚未另建
 Release 產物；下方 `2026091402` 的 build、錄影與音訊證據仍是更新前歷史。
+本人實看認為 V5 葉動等同靜止後，改選 `ChatGPT Image 2026年9月14日 下午07_40_31.png`；
+目前開發候選另存逐位元相同的 `entry_living_room_v6_clean_fur.png`，V5 保留作回退。
 
 ## 呈現與流程
 
@@ -16,9 +18,11 @@ Release 產物；下方 `2026091402` 的 build、錄影與音訊證據仍是更�
 - `EntryCoverLayout` 使用真實全螢幕與 safe area；先計算 BoxFit.cover 的裁切，
   再限制 LOGO 在原圖 y=520 的頭頂保護線上方至少 20pt。語言左下、設定右下，
   按鈕 52×52pt、圖示 30pt，底邊為 `max(24, safeBottom+12)`。
-- 原 UV shader 會讓位移量依座標增加，右下葉片因此被拉長／壓扁。開發候選已改為
-  完整透明葉層繞畫面外左下根部作 0.0004–0.0076rad 內向剛體擺動；像素形狀不變，
-  且不往畫面外旋轉，所以左側與底部裁切邊不會露空洞。Reduce Motion 顯示靜態葉層。
+- 原 UV shader 會讓位移量依座標增加，右下葉片因此被拉長／壓扁；第一版剛體旋轉
+  又因支點太靠近低處葉片，在手機上幾乎看不出位移。開發候選改為完整透明葉層的
+  4.8 秒主風週期：0–14 原圖像素內向平移，加上繞畫面外左下根部 0–0.011rad 的
+  剛體旋轉。低處右側葉片也會明顯移動，像素輪廓不變，且不往畫面外露出裁切邊。
+  Reduce Motion 顯示靜態葉層。
 - 一條共用時間軸驅動 6.4 秒 LOGO 微浮動、9 秒掃光、2 秒開始提示、光線、
   門前葉影及 28 顆塵埃。粒子直徑為 2.6–6.6 logical px；臉部淡化。
   葉層與環境效果使用 RepaintBoundary／CustomPainter，不逐幀重建業務頁面。
@@ -47,13 +51,14 @@ Release 產物；下方 `2026091402` 的 build、錄影與音訊證據仍是更�
 
 | 素材 | SHA-256 |
 | --- | --- |
+| `entry_living_room_v6_clean_fur.png` | `2f3d94d756864d6ce80b47f79f73308a8d5306ba67de1d22bd206cb50c379bd3` |
 | `entry_living_room_v5_clean_fur.png` | `02ed14da756ebacf3218de1fc13a34ae62492b9688c876b9cd43d9017ff78a7f` |
 | `entry_clean_plate_v4.png` | `c4ff83db10920eacdc5d8079e6085cfd7e4c05e13f711af335038c1339f5bf47` |
 | `entry_leaves_v4.png` | `0971911240475f6a029bc4222d4ab85d2ea2dbb162089c0acdc1f68211691a07` |
 | `entry_logo_zh_v4.png` | `0d4b3902825f22f627c67bac2ee0d7ea3964e4ef29e7f42c9e6f566beacc0f8e` |
 | `bgm_matsurinohi.m4a` | `f645d40c21fca479d851e41474d6654b2ec8040ba6dfe7868e557ec2ae2fa05a` |
 
-前四者在 `assets/scenes/onboarding/`；音訊在 `assets/sounds/`。`matsurinohi` 是既有
+前五者在 `assets/scenes/onboarding/`；音訊在 `assets/sounds/`。`matsurinohi` 是既有
 音樂盒素材，不增加第二份副本。原 V3、原 LOGO／CG 試作均保留；已被取代、只供封面
 使用的 Porch Swing Days 音檔與授權檔自 App 移除，仍可由 Git 歷史復原。
 
@@ -65,6 +70,11 @@ bottom 34）及 375×667pt（safe top 20）均使用繁中真文案；LOGO 未�
 抽取 0.5／4.5／8.5 秒檢查右下葉片輪廓不變。封面動態、短初見、入口交接與帳號
 分流六份相關測試共 55 項通過，`flutter analyze --no-pub` 無問題。
 這是 Debug 模擬器的構圖與動畫證據，不代表實機 Release 幀率或手感已驗收。
+
+V6 再於同一 430×932pt 真 App root 錄製 49.622 秒，AVFoundation 可解碼；抽取
+0.5／1.7／3.0／4.5 秒可辨識葉叢位置差異，低處右側葉片輪廓保持一致。新底圖的
+LOGO／兔咪間距與兩側控制仍完整。這次 V6 的封面測試 15 項及 analyze 通過；最終
+實機可感度仍由本人確認，不把抽幀差異直接當成手感核可。
 
 43 項封面／入口／音訊相關測試與 `flutter analyze --no-pub` 通過。
 完整回歸發現既有 `test/roommate_dialogue_test.dart` 缺少 `roommate_entry`：

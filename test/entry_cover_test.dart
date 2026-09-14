@@ -8,17 +8,21 @@ import 'l10n_test_app.dart';
 void main() {
   test('cover and first meeting share the selected clean-fur base', () {
     expect(kEntryCoverAsset, kEntryCleanPlateAsset);
-    expect(kEntryCoverAsset, contains('entry_living_room_v5_clean_fur.png'));
+    expect(kEntryCoverAsset, contains('entry_living_room_v6_clean_fur.png'));
   });
 
-  test('foliage uses a subtle inward-only rigid sway', () {
-    final samples = [
-      for (var milliseconds = 0; milliseconds <= 26000; milliseconds += 100)
-        entryFoliageAngle(milliseconds / 1000),
+  test('foliage uses a perceptible inward-only rigid sway', () {
+    final seconds = [
+      for (var milliseconds = 0; milliseconds <= 15200; milliseconds += 100)
+        milliseconds / 1000,
     ];
-    expect(samples.reduce((a, b) => a < b ? a : b), greaterThan(0));
-    expect(samples.reduce((a, b) => a > b ? a : b), lessThan(.008));
-    expect(samples.toSet().length, greaterThan(100));
+    final insets = seconds.map(entryFoliageInset).toList();
+    final angles = seconds.map(entryFoliageAngle).toList();
+    expect(insets.reduce((a, b) => a < b ? a : b), 0);
+    expect(insets.reduce((a, b) => a > b ? a : b), greaterThan(12));
+    expect(angles.every((angle) => angle >= 0), isTrue);
+    expect(angles.reduce((a, b) => a > b ? a : b), greaterThan(.009));
+    expect(insets.toSet().length, greaterThan(100));
   });
 
   for (final size in [
