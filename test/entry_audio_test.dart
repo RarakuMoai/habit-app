@@ -24,6 +24,10 @@ class _Audio extends EntryAudioBackend {
 }
 
 void main() {
+  test('title cover uses the selected matsurinohi asset', () {
+    expect(EntryAudio.coverAsset, 'sounds/bgm_matsurinohi.m4a');
+  });
+
   late _Audio backend;
   late EntryAudio audio;
   setUp(() {

@@ -16,7 +16,7 @@ class EntryAudio {
   static EntryAudio? debugInstance;
   static EntryAudio get instance => debugInstance ?? _native;
   static const introAsset = 'sounds/bgm_onboarding.m4a';
-  static const coverAsset = 'sounds/bgm_entry_porch_v4.mp3';
+  static const coverAsset = 'sounds/bgm_matsurinohi.m4a';
 
   final EntryAudioBackend _backend;
   final List<EntryAudioScope> _scopes = [];

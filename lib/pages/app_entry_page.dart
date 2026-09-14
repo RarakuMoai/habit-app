@@ -15,6 +15,7 @@ import '../utils/entry_audio.dart';
 import '../utils/parent_pin.dart';
 import '../utils/preference_write_guard.dart';
 import '../utils/prefs_keys.dart';
+import '../utils/wardrobe_catalog.dart';
 import '../widgets/app_language_sheet.dart';
 import '../widgets/entry_controls.dart';
 import '../widgets/entry_cover.dart';
@@ -389,6 +390,7 @@ class _AppEntryPageState extends State<AppEntryPage> {
       showDragHandle: true,
       builder: (sheetContext) {
         final l = AppLocalizations.of(sheetContext);
+        final coverTrack = trackById('bgm_matsurinohi');
         return SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -447,31 +449,21 @@ class _AppEntryPageState extends State<AppEntryPage> {
                 ),
                 const Divider(),
                 // Attribution stays reachable in the shipped app, not just a repo note.
-                const Text(
-                  'Porch Swing Days – slower\nKevin MacLeod (incompetech.com)',
+                Text(
+                  key: const ValueKey('entry-cover-track'),
+                  '${coverTrack.title}\n${coverTrack.artistName}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: AppInk.soft),
+                  style: const TextStyle(fontSize: 12, color: AppInk.soft),
                 ),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  children: [
-                    TextButton(
-                      onPressed: () => launchUrl(
-                        Uri.parse(
-                          'https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100715',
-                        ),
-                      ),
-                      child: const Text('incompetech.com'),
-                    ),
-                    TextButton(
-                      onPressed: () => launchUrl(
-                        Uri.parse(
-                          'https://creativecommons.org/licenses/by/4.0/',
-                        ),
-                      ),
-                      child: const Text('CC BY 4.0'),
-                    ),
-                  ],
+                TextButton(
+                  key: const ValueKey('entry-cover-track-source'),
+                  onPressed: () => launchUrl(Uri.parse(coverTrack.sourceUrl)),
+                  child: Text('YouTube・${coverTrack.channelName}'),
+                ),
+                Text(
+                  licenseText(l, coverTrack.licenseNote),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 11, color: AppInk.soft),
                 ),
               ],
             ),

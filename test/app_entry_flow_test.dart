@@ -345,6 +345,11 @@ void main() {
           if (completed) {
             await tester.tap(find.byKey(const ValueKey('entry-settings')));
             await settleEntryUi(tester);
+            expect(find.text('matsurinohi\n茶葉のぎか'), findsOneWidget);
+            expect(
+              find.byKey(const ValueKey('entry-cover-track-source')),
+              findsOneWidget,
+            );
           }
           final secondary = find.byKey(
             ValueKey(completed ? 'entry-account' : 'entry-guest'),

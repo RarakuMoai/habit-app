@@ -2,7 +2,7 @@
 
 2026-09-14 使用者明確回覆「可以實裝了」。本輪延續 `codex/entry-integration`，
 將已選定的 HTML 封面轉成 Flutter 呈現層；不是 WebView，也不是重新生成美術。
-版本 `1.0.1+2026091401`，僅交付 redesign 測試版；不合併 main、不發布、不安裝實機。
+版本 `1.0.1+2026091402`，僅交付 redesign 測試版；不合併 main、不發布、不安裝實機。
 
 ## 呈現與流程
 
@@ -27,9 +27,10 @@
 
 ## 音訊與授權
 
-封面使用 [Porch Swing Days – slower / Kevin MacLeod](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100715)，
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。原曲檔不重編碼，
-App 內設定面板保留作者、曲名與來源／授權連結，資產附 `.LICENSE.txt`。
+封面依後續指定改用既有音樂盒曲目
+[matsurinohi / 茶葉のぎか](https://www.youtube.com/watch?v=e6V01KwdAVQ)。
+直接共用 `assets/sounds/bgm_matsurinohi.m4a`，不另下載、不重編碼；App 內設定面板
+顯示曲名、作者、來源及既有「フリーBGM / FREE DOWNLOAD」授權說明。
 
 由 `EntryAudio.open(asset: EntryAudio.coverAsset)` 持有封面曲；短初見仍用原前導曲，
 真正進入首頁恢復使用者選曲。巢狀返回、延後初始化與舊路由 dispose 不得蓋掉新曲。
@@ -43,10 +44,11 @@ App 內設定面板保留作者、曲名與來源／授權連結，資產附 `.L
 | `entry_clean_plate_v4.png` | `c4ff83db10920eacdc5d8079e6085cfd7e4c05e13f711af335038c1339f5bf47` |
 | `entry_leaves_v4.png` | `0971911240475f6a029bc4222d4ab85d2ea2dbb162089c0acdc1f68211691a07` |
 | `entry_logo_zh_v4.png` | `0d4b3902825f22f627c67bac2ee0d7ea3964e4ef29e7f42c9e6f566beacc0f8e` |
-| `bgm_entry_porch_v4.mp3` | `f1d2c17ccbbee215561d5930343d8211f0bc34d2d8eee7125214cd2b028963ba` |
+| `bgm_matsurinohi.m4a` | `f645d40c21fca479d851e41474d6654b2ec8040ba6dfe7868e557ec2ae2fa05a` |
 
-前三者在 `assets/scenes/onboarding/`；音訊在 `assets/sounds/`。新增約 12.3 MiB，
-原 V3、原 LOGO／CG 試作均保留，未刪除其他素材。未核可試作不隨本輪提交。
+前三者在 `assets/scenes/onboarding/`；音訊在 `assets/sounds/`。`matsurinohi` 是既有
+音樂盒素材，不增加第二份副本。原 V3、原 LOGO／CG 試作均保留；已被取代、只供封面
+使用的 Porch Swing Days 音檔與授權檔自 App 移除，仍可由 Git 歷史復原。
 
 ## 驗證與下一步
 
@@ -71,13 +73,16 @@ App 內設定面板保留作者、曲名與來源／授權連結，資產附 `.L
   不放寬正常動態的檢查。字級及動態旗標注入 Flutter 測試平台，未修改 OS 設定。
 - 原生圖、連續錄影與來源雜湊保存在
   `design_trials/experience_redesign/cover_v5/native_v4_large/`、`native_v4_small/`、
-  `native_v4_small_audio/`。最後者在最終執行碼下通過完整原生流程與截圖檢查，
-  並以 `ENTRY_REVIEW_COVER_AUDIO=true` 點擊真正音樂開關，驗證原生解碼時長
-  216.238 秒、播放進度前進至 1.112 秒、關閉後進度停止；不是只檢查曲目名稱。
+  `native_v4_small_audio/`。該紀錄是被取代的 Porch Swing Days 驗證；`matsurinohi`
+  另以 `native_v4_matsurinohi/` 驗證最終執行碼、完整原生流程、設定標示與真正音樂
+  開關：原生播放器載入 `sounds/bgm_matsurinohi.m4a`，解碼時長 141.752 秒、
+  播放進度前進至 0.943 秒，關閉後進度停止；不是只檢查曲目名稱。
   這仍不是實機聆聽、音量或 Release 冷啟動音訊驗收。
   試作與測試產物不加入本輪 Git 提交。
-- 兩份通過的連續錄影均由 AVFoundation 成功解碼抽樣：大尺寸 55.657 秒、小尺寸
-  含音樂複驗 47.785 秒；錄影本身不是音訊或 FPS 證據。
+- 先前兩份連續錄影均由 AVFoundation 成功解碼抽樣：大尺寸 55.657 秒、小尺寸
+  47.785 秒；新曲錄影 52.345 秒也成功解碼四個抽樣畫面。錄影本身不是音訊或
+  FPS 證據。
+- 更換新曲後，封面／入口／音訊精準測試 36 項與 `flutter analyze --no-pub` 通過。
 
 ### Release 產物
 
@@ -88,11 +93,12 @@ App 內設定面板保留作者、曲名與來源／授權連結，資產附 `.L
 codesign --verify --deep --strict --verbose=2 build/ios/iphoneos/Runner.app
 ```
 
-兩項成功；Xcode build 444.6 秒，產物 `build/ios/iphoneos/Runner.app` 194.4 MB。
-Plist 為 `1.0.1`／`2026091401`、`com.yayoi991331.habitapp.redesign`、iPhoneOS／arm64，
-最低 iOS 15.0。正常 `lib/main.dart` entrypoint，沒有測試情境旗標。
-產物內三張 PNG 與 MP3 雜湊全部符合上表，葉片 shader 也已編譯打包。
-這是已簽章的本機測試產物，不是 TestFlight／App Store 發布，也未安裝或啟動實體手機。
+更換曲目的 `2026091402` 兩項均成功；Xcode build 620.6 秒，產物
+`build/ios/iphoneos/Runner.app` 185.7 MB，比上一版 194.4 MB 少約 8.7 MB。
+Plist 為 `1.0.1`／`2026091402`、`com.yayoi991331.habitapp.redesign`、iPhoneOS／arm64，
+最低 iOS 15.0。正常 `lib/main.dart` entrypoint，不帶測試情境旗標；產物內
+`matsurinohi` SHA-256 符合上表，已不存在被取代的封面 MP3，葉片 shader 仍有打包。
+這仍是本機測試產物，不是 TestFlight／App Store 發布，也未由本輪安裝或啟動實體手機。
 
 最後由本人在實機確認：冷啟動的 LOGO／瀏海距離、左下葉梢是否自然、音樂開關與
 背景返回、首次／回訪進入是否順暢。模擬器不代表 release 音訊、幀率、耗電或手感已驗收。

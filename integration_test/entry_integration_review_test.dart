@@ -475,6 +475,7 @@ void main() {
       await tap(keyed('entry-settings'));
       await capture('01d-cover-settings');
       expect(keyed('entry-account'), findsOneWidget);
+      expect(find.text('matsurinohi\n茶葉のぎか'), findsOneWidget);
       expect(cover.motionRunning, isFalse);
       expect(BgmService.instance.loadedAsset, EntryAudio.coverAsset);
       if (const bool.fromEnvironment('ENTRY_REVIEW_COVER_AUDIO')) {
@@ -482,7 +483,7 @@ void main() {
         await tap(keyed('entry-music'));
         final deadline = DateTime.now().add(const Duration(seconds: 40));
         final music = BgmService.instance;
-        while ((music.duration?.inSeconds ?? 0) < 200 ||
+        while ((music.duration?.inSeconds ?? 0) < 120 ||
             music.position.inMilliseconds < 800) {
           if (DateTime.now().isAfter(deadline)) {
             throw TimeoutException('Native cover music did not start');
