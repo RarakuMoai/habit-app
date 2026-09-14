@@ -21,8 +21,7 @@ abstract final class EntrySceneMotion {
   static const paper = Color(0xFFFFF1E5);
   static const motifOpacity = .48;
   static const strongMotifOpacity = .56;
-  static const motifFloat = 2.2;
-  static const leafSwayRadians = .055;
+  static const motifDriftPerSecond = 13.5;
 }
 
 /// Shared original line art for loading wallpaper and touch confetti.
@@ -322,7 +321,9 @@ class _WallpaperPainter extends CustomPainter {
     final t = reduced ? 0.0 : clock.value;
     // The source reference uses regular diagonal drift, not random confetti.
     const pitch = 86.0;
-    final drift = reduced ? 0.0 : t * 9 % (pitch * 4);
+    final drift = reduced
+        ? 0.0
+        : t * EntrySceneMotion.motifDriftPerSecond % (pitch * 4);
     final appear = reduced ? 1.0 : ((t - .12) / .42).clamp(0.0, 1.0);
     final paint = Paint()
       ..style = PaintingStyle.stroke
@@ -338,19 +339,10 @@ class _WallpaperPainter extends CustomPainter {
         if (x < -30 || y < -30 || x > size.width + 30 || y > size.height + 30) {
           continue;
         }
-        final phase = t * 1.7 + row * .83 + col * 1.11;
-        final pulse = reduced ? 0.0 : math.sin(phase);
-        final sway = switch (motif) {
-          EntryMotif.leaf => EntrySceneMotion.leafSwayRadians,
-          EntryMotif.flower => .025,
-          _ => .035,
-        };
         canvas.save();
-        canvas.translate(x, y + pulse * EntrySceneMotion.motifFloat);
-        canvas.rotate(((row + col) % 2 == 0 ? -.16 : .18) + pulse * sway);
-        canvas.scale(
-          1.04 * (1 + pulse * (motif == EntryMotif.flower ? .018 : .01)),
-        );
+        canvas.translate(x, y);
+        canvas.rotate((row + col) % 2 == 0 ? -.16 : .18);
+        canvas.scale(1.04);
         paint.color =
             (motif == EntryMotif.leaf
                     ? const Color(0xff5b8753)

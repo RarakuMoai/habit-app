@@ -9,10 +9,21 @@ import '../l10n/app_localizations.dart';
 import 'app_pressable.dart';
 
 const kEntryCleanPlateAsset =
-    'assets/scenes/onboarding/entry_clean_plate_v4.png';
+    'assets/scenes/onboarding/entry_living_room_v5_clean_fur.png';
 const kEntryLeavesAsset = 'assets/scenes/onboarding/entry_leaves_v4.png';
 const kEntryLogoAsset = 'assets/scenes/onboarding/entry_logo_zh_v4.png';
-const kEntryLeafShader = 'shaders/entry_foliage.frag';
+
+/// The cutout touches the left and bottom image edges. A positive-only rotation
+/// around a root just outside the bottom-left corner keeps both cropped edges
+/// covered while preserving every leaf's shape (unlike the former UV warp).
+@visibleForTesting
+double entryFoliageAngle(double seconds) {
+  const primaryPeriod = 6.8;
+  const secondaryPeriod = 13.0;
+  return .004 +
+      .0028 * math.sin(seconds * math.pi * 2 / primaryPeriod) +
+      .0008 * math.sin(seconds * math.pi * 2 / secondaryPeriod + .9);
+}
 
 /// The approved HTML composition, in full-viewport logical pixels. Safe areas
 /// constrain controls, never the background's BoxFit.cover camera.
@@ -71,13 +82,12 @@ class EntryCoverState extends State<EntryCover>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final _clock = AnimationController.unbounded(vsync: this);
   ui.Image? _leaves;
-  ui.FragmentShader? _shader;
   bool _reduce = false;
   bool _foreground = true;
   bool _tickerEnabled = true;
 
   @visibleForTesting
-  bool get hasAnimatedFoliage => _shader != null;
+  bool get hasAnimatedFoliage => _leaves != null;
   @visibleForTesting
   double get motionSeconds => _clock.value;
   @visibleForTesting
@@ -92,7 +102,6 @@ class EntryCoverState extends State<EntryCover>
 
   Future<void> _loadLeaves() async {
     ui.Image? image;
-    ui.FragmentShader? shader;
     try {
       final data = await rootBundle.load(kEntryLeavesAsset);
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
@@ -101,26 +110,12 @@ class EntryCoverState extends State<EntryCover>
       } finally {
         codec.dispose();
       }
-      try {
-        shader = (await ui.FragmentProgram.fromAsset(
-          kEntryLeafShader,
-        )).fragmentShader();
-        shader.setImageSampler(0, image);
-      } catch (error) {
-        // A renderer without runtime effects retains the complete static layer.
-        debugPrint('Entry foliage uses static fallback: $error');
-      }
       if (!mounted) {
-        shader?.dispose();
         image.dispose();
         return;
       }
-      setState(() {
-        _leaves = image;
-        _shader = shader;
-      });
+      setState(() => _leaves = image);
     } catch (error) {
-      shader?.dispose();
       image?.dispose();
       debugPrint('Entry foliage could not load: $error');
     }
@@ -161,7 +156,6 @@ class EntryCoverState extends State<EntryCover>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _clock.dispose();
-    _shader?.dispose();
     _leaves?.dispose();
     super.dispose();
   }
@@ -201,7 +195,6 @@ class EntryCoverState extends State<EntryCover>
                             _clock,
                             layout,
                             _leaves!,
-                            _shader,
                             _reduce,
                           ),
                         ),
@@ -485,49 +478,35 @@ class _CoverPrompt extends StatelessWidget {
 }
 
 class _FoliagePainter extends CustomPainter {
-  _FoliagePainter(
-    this.clock,
-    this.layout,
-    this.image,
-    this.shader,
-    this.reduced,
-  ) : super(repaint: clock);
+  _FoliagePainter(this.clock, this.layout, this.image, this.reduced)
+    : super(repaint: clock);
   final Animation<double> clock;
   final EntryCoverLayout layout;
   final ui.Image image;
-  final ui.FragmentShader? shader;
   final bool reduced;
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.translate(layout.art.left, layout.art.top);
     canvas.scale(layout.scale);
-    if (shader case final shader?) {
-      shader
-        ..setFloat(0, 941)
-        ..setFloat(1, 1672)
-        ..setFloat(2, clock.value)
-        ..setFloat(3, reduced ? 0 : 1);
-      canvas.drawRect(
-        const Rect.fromLTWH(0, 0, 941, 1672),
-        Paint()..shader = shader,
-      );
-    } else {
-      canvas.drawImage(
-        image,
-        Offset.zero,
-        Paint()..filterQuality = FilterQuality.medium,
-      );
+    if (!reduced) {
+      const root = Offset(-18, 1690);
+      canvas
+        ..translate(root.dx, root.dy)
+        ..rotate(entryFoliageAngle(clock.value))
+        ..translate(-root.dx, -root.dy);
     }
+    canvas.drawImage(
+      image,
+      Offset.zero,
+      Paint()..filterQuality = FilterQuality.medium,
+    );
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _FoliagePainter old) =>
-      old.image != image ||
-      old.shader != shader ||
-      old.layout != layout ||
-      old.reduced != reduced;
+      old.image != image || old.layout != layout || old.reduced != reduced;
 }
 
 /// Matches the approved preview's deterministic particles, authored in logical

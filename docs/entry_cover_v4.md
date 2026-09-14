@@ -4,6 +4,11 @@
 將已選定的 HTML 封面轉成 Flutter 呈現層；不是 WebView，也不是重新生成美術。
 版本 `1.0.1+2026091402`，僅交付 redesign 測試版；不合併 main、不發布、不安裝實機。
 
+2026-09-14 後續依本人選擇更新目前開發候選：以下載的 Image 2.5 成品
+`ChatGPT Image 2026年9月14日 下午07_26_04.png` 作為新基底，原始 941×1672
+位元組不縮放地保存為 `entry_living_room_v5_clean_fur.png`。這項更新尚未另建
+Release 產物；下方 `2026091402` 的 build、錄影與音訊證據仍是更新前歷史。
+
 ## 呈現與流程
 
 - 新背景、左下真透明葉層、繁中 LOGO 均複製已核可 PNG 原始位元組。
@@ -11,8 +16,9 @@
 - `EntryCoverLayout` 使用真實全螢幕與 safe area；先計算 BoxFit.cover 的裁切，
   再限制 LOGO 在原圖 y=520 的頭頂保護線上方至少 20pt。語言左下、設定右下，
   按鈕 52×52pt、圖示 30pt，底邊為 `max(24, safeBottom+12)`。
-- `entry_foliage.frag` 沿用核可 UV 公式，左側和底部邊界固定，內側葉梢隨風彎動。
-  不旋轉整張裁切圖。Runtime shader 不支援時顯示原葉層，不露空洞。
+- 原 UV shader 會讓位移量依座標增加，右下葉片因此被拉長／壓扁。開發候選已改為
+  完整透明葉層繞畫面外左下根部作 0.0004–0.0076rad 內向剛體擺動；像素形狀不變，
+  且不往畫面外旋轉，所以左側與底部裁切邊不會露空洞。Reduce Motion 顯示靜態葉層。
 - 一條共用時間軸驅動 6.4 秒 LOGO 微浮動、9 秒掃光、2 秒開始提示、光線、
   門前葉影及 28 顆塵埃。粒子直徑為 2.6–6.6 logical px；臉部淡化。
   葉層與環境效果使用 RepaintBoundary／CustomPainter，不逐幀重建業務頁面。
@@ -41,16 +47,24 @@
 
 | 素材 | SHA-256 |
 | --- | --- |
+| `entry_living_room_v5_clean_fur.png` | `02ed14da756ebacf3218de1fc13a34ae62492b9688c876b9cd43d9017ff78a7f` |
 | `entry_clean_plate_v4.png` | `c4ff83db10920eacdc5d8079e6085cfd7e4c05e13f711af335038c1339f5bf47` |
 | `entry_leaves_v4.png` | `0971911240475f6a029bc4222d4ab85d2ea2dbb162089c0acdc1f68211691a07` |
 | `entry_logo_zh_v4.png` | `0d4b3902825f22f627c67bac2ee0d7ea3964e4ef29e7f42c9e6f566beacc0f8e` |
 | `bgm_matsurinohi.m4a` | `f645d40c21fca479d851e41474d6654b2ec8040ba6dfe7868e557ec2ae2fa05a` |
 
-前三者在 `assets/scenes/onboarding/`；音訊在 `assets/sounds/`。`matsurinohi` 是既有
+前四者在 `assets/scenes/onboarding/`；音訊在 `assets/sounds/`。`matsurinohi` 是既有
 音樂盒素材，不增加第二份副本。原 V3、原 LOGO／CG 試作均保留；已被取代、只供封面
 使用的 Porch Swing Days 音檔與授權檔自 App 移除，仍可由 Git 歷史復原。
 
 ## 驗證與下一步
+
+新基底與剛體葉動在 iOS 26.5 模擬器以真 App root 複驗：430×932pt（safe top 59／
+bottom 34）及 375×667pt（safe top 20）均使用繁中真文案；LOGO 未碰兔咪，門把、
+提示及 52×52pt 左右控制完整。430×932 連續錄影 21.442 秒可由 AVFoundation 解碼，
+抽取 0.5／4.5／8.5 秒檢查右下葉片輪廓不變。封面動態、短初見、入口交接與帳號
+分流六份相關測試共 55 項通過，`flutter analyze --no-pub` 無問題。
+這是 Debug 模擬器的構圖與動畫證據，不代表實機 Release 幀率或手感已驗收。
 
 43 項封面／入口／音訊相關測試與 `flutter analyze --no-pub` 通過。
 完整回歸發現既有 `test/roommate_dialogue_test.dart` 缺少 `roommate_entry`：

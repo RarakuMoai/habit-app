@@ -1,10 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/widgets/entry_cover.dart';
+import 'package:habit_app/widgets/entry_scenery.dart';
 
 import 'l10n_test_app.dart';
 
 void main() {
+  test('cover and first meeting share the selected clean-fur base', () {
+    expect(kEntryCoverAsset, kEntryCleanPlateAsset);
+    expect(kEntryCoverAsset, contains('entry_living_room_v5_clean_fur.png'));
+  });
+
+  test('foliage uses a subtle inward-only rigid sway', () {
+    final samples = [
+      for (var milliseconds = 0; milliseconds <= 26000; milliseconds += 100)
+        entryFoliageAngle(milliseconds / 1000),
+    ];
+    expect(samples.reduce((a, b) => a < b ? a : b), greaterThan(0));
+    expect(samples.reduce((a, b) => a > b ? a : b), lessThan(.008));
+    expect(samples.toSet().length, greaterThan(100));
+  });
+
   for (final size in [
     const Size(320, 568),
     const Size(375, 667),

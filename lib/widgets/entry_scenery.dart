@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 import '../utils/app_style.dart';
 import 'entry_cover.dart';
 
-/// The original V3 key art selected by the user, copied without modification.
-const kEntryCoverAsset = 'assets/scenes/onboarding/entry_living_room_v3.png';
+/// The user-selected Image 2.5 clean-fur key art, copied without modification.
+const kEntryCoverAsset =
+    'assets/scenes/onboarding/entry_living_room_v5_clean_fur.png';
 
 /// Byte-identical to the native LaunchImage@3x raster. Render with BoxFit.cover
 /// in the full viewport to match LaunchScreen.storyboard's scaleAspectFill.
 const kEntryLaunchAsset = 'assets/scenes/onboarding/launch_bridge.png';
 
-/// Shared cover/first-meeting camera into the unmodified key art.
+/// Shared cover/first-meeting camera into the selected key art.
 ///
 /// The caller supplies bounded, full-viewport constraints and owns controls,
 /// safe areas, loading failures and transitions. The baked-in character is never

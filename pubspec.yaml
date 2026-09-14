@@ -112,9 +112,6 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  shaders:
-    - shaders/entry_foliage.frag
-
   assets:
     - assets/sounds/
     - assets/music/covers/
