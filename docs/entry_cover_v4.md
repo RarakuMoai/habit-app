@@ -2,14 +2,15 @@
 
 2026-09-14 使用者明確回覆「可以實裝了」。本輪延續 `codex/entry-integration`，
 將已選定的 HTML 封面轉成 Flutter 呈現層；不是 WebView，也不是重新生成美術。
-版本 `1.0.1+2026091402`，僅交付 redesign 測試版；不合併 main、不發布、不安裝實機。
+目前版本 `1.0.1+2026091403`，僅交付 redesign 測試版；不合併 main、不發布、不安裝實機。
 
 2026-09-14 後續依本人選擇更新目前開發候選：以下載的 Image 2.5 成品
 `ChatGPT Image 2026年9月14日 下午07_26_04.png` 作為新基底，原始 941×1672
-位元組不縮放地保存為 `entry_living_room_v5_clean_fur.png`。這項更新尚未另建
-Release 產物；下方 `2026091402` 的 build、錄影與音訊證據仍是更新前歷史。
+位元組不縮放地保存為 `entry_living_room_v5_clean_fur.png`。V5 當時未另建 Release，
+其後已由下列核可 V6 與 `2026091403` 取代；下方 `2026091402` 證據保留為歷史。
 本人實看認為 V5 葉動等同靜止後，改選 `ChatGPT Image 2026年9月14日 下午07_40_31.png`；
-目前開發候選另存逐位元相同的 `entry_living_room_v6_clean_fur.png`，V5 保留作回退。
+逐位元相同的 `entry_living_room_v6_clean_fur.png` 與加強後葉動已獲回覆「可實裝」，
+納入 `2026091403` redesign 測試版，V5 保留作回退。
 
 ## 呈現與流程
 
@@ -123,6 +124,19 @@ Plist 為 `1.0.1`／`2026091402`、`com.yayoi991331.habitapp.redesign`、iPhoneO
 最低 iOS 15.0。正常 `lib/main.dart` entrypoint，不帶測試情境旗標；產物內
 `matsurinohi` SHA-256 符合上表，已不存在被取代的封面 MP3，葉片 shader 仍有打包。
 這仍是本機測試產物，不是 TestFlight／App Store 發布，也未由本輪安裝或啟動實體手機。
+
+### V6 核可版 Release（2026091403）
+
+本人回覆「可實裝」後，在 `/private/tmp/tumi-entry-integration` 執行同一套 Release
+指令。55 項封面／入口／初見／帳號分流測試全數通過，`flutter analyze --no-pub`
+無問題；Xcode clean build 成功，耗時 1692.9 秒，Flutter 報告產物 189.6 MB。
+
+`build/ios/iphoneos/Runner.app` 經 `codesign --verify --deep --strict --verbose=2`
+驗證為 valid 且滿足 Designated Requirement。Info.plist 為 `1.0.1`／`2026091403`、
+`com.yayoi991331.habitapp.redesign`，可執行檔為 iPhoneOS arm64。產物內
+`entry_living_room_v6_clean_fur.png` SHA-256 為
+`2f3d94d756864d6ce80b47f79f73308a8d5306ba67de1d22bd206cb50c379bd3`，與 repo 原檔
+逐位元相同。沒有安裝實體手機、合併 main、TestFlight 或公開發布。
 
 最後由本人在實機確認：冷啟動的 LOGO／瀏海距離、左下葉梢是否自然、音樂開關與
 背景返回、首次／回訪進入是否順暢。模擬器不代表 release 音訊、幀率、耗電或手感已驗收。
