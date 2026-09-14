@@ -15,7 +15,12 @@ abstract final class EntrySceneMotion {
   static const loadingStatusDelay = Duration(milliseconds: 700);
   static const reveal = Duration(milliseconds: 560);
   static const route = Duration(milliseconds: 620);
-  static const paper = AppSurfaces.card;
+
+  /// A pale apricot paper, darker than the app's cards but still quiet enough
+  /// to hand off to the bright cover without a color flash.
+  static const paper = Color(0xFFFFF1E5);
+  static const motifOpacity = .32;
+  static const strongMotifOpacity = .40;
 }
 
 /// Shared original line art for loading wallpaper and touch confetti.
@@ -311,7 +316,7 @@ class _WallpaperPainter extends CustomPainter {
     final appear = reduced ? 1.0 : ((t - .12) / .42).clamp(0.0, 1.0);
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.35
+      ..strokeWidth = 1.65
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     for (var row = -5; row < size.height / pitch + 6; row++) {
@@ -325,14 +330,20 @@ class _WallpaperPainter extends CustomPainter {
         canvas.save();
         canvas.translate(x, y);
         canvas.rotate((row + col) % 2 == 0 ? -.16 : .18);
-        canvas.scale(.9);
+        canvas.scale(1.04);
         paint.color =
             (motif == EntryMotif.leaf
                     ? AppPalette.habitDone
                     : motif == EntryMotif.flower
                     ? AppPalette.habit
                     : const Color(0xffcbb075))
-                .withValues(alpha: (strong ? .25 : .19) * appear);
+                .withValues(
+                  alpha:
+                      (strong
+                          ? EntrySceneMotion.strongMotifOpacity
+                          : EntrySceneMotion.motifOpacity) *
+                      appear,
+                );
         paintEntryMotif(canvas, motif, paint);
         canvas.restore();
       }
