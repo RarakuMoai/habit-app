@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,7 +8,11 @@ import '../utils/app_style.dart';
 
 /// Deliberate presentation timings, independent of actual asset progress.
 abstract final class EntrySceneMotion {
-  static const entrance = Duration(milliseconds: 760);
+  /// One complete opening beat: wallpaper arrival, one bunny hop, then rest.
+  static const entrance = Duration(milliseconds: 1320);
+
+  /// Avoid flashing a loading label when startup work finishes quickly.
+  static const loadingStatusDelay = Duration(milliseconds: 700);
   static const reveal = Duration(milliseconds: 560);
   static const route = Duration(milliseconds: 620);
   static const paper = AppSurfaces.card;
@@ -79,6 +84,7 @@ class EntryLoadingScene extends StatefulWidget {
     this.progress,
     this.preparingRoom = false,
     this.showStatus = true,
+    this.statusDelay = Duration.zero,
     this.active = true,
   });
 
@@ -86,6 +92,7 @@ class EntryLoadingScene extends StatefulWidget {
   final String? detail;
   final double? progress;
   final bool preparingRoom, showStatus, active;
+  final Duration statusDelay;
 
   @override
   State<EntryLoadingScene> createState() => EntryLoadingSceneState();
@@ -95,6 +102,8 @@ class EntryLoadingSceneState extends State<EntryLoadingScene>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final _clock = AnimationController.unbounded(vsync: this);
   bool _reduce = false, _foreground = true;
+  Timer? _statusTimer;
+  bool _statusDelayElapsed = false;
 
   @visibleForTesting
   double get motionSeconds => _clock.value;
@@ -105,6 +114,12 @@ class EntryLoadingSceneState extends State<EntryLoadingScene>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _statusDelayElapsed = widget.statusDelay == Duration.zero;
+    if (!_statusDelayElapsed) {
+      _statusTimer = Timer(widget.statusDelay, () {
+        if (mounted) setState(() => _statusDelayElapsed = true);
+      });
+    }
   }
 
   void _sync() {
@@ -144,6 +159,7 @@ class EntryLoadingSceneState extends State<EntryLoadingScene>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _statusTimer?.cancel();
     _clock.dispose();
     super.dispose();
   }
@@ -231,7 +247,7 @@ class EntryLoadingSceneState extends State<EntryLoadingScene>
                 ),
               ),
             ),
-          if (widget.showStatus)
+          if (widget.showStatus && _statusDelayElapsed)
             Positioned.fill(
               child: SafeArea(
                 child: Align(

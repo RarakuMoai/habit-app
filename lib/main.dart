@@ -298,12 +298,16 @@ class _MyAppState extends State<MyApp> {
     super.didChangeDependencies();
     if (!_artStarted && widget.onLaunchReady != null) {
       _artStarted = true;
-      // A short brand entrance, independent of real asset readiness. The
-      // progress display never advances on this timer.
-      _entranceTimer = Timer(EntrySceneMotion.entrance, () {
-        if (mounted) setState(() => _entranceReady = true);
-      });
       unawaited(_prepareEntryArt());
+      // Start only after Flutter has painted its first visible frame. Starting
+      // here synchronously lets the native launch screen consume part of the
+      // duration, which is why a nominal 760 ms entrance looked like a flash.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _entranceTimer != null || _entranceReady) return;
+        _entranceTimer = Timer(EntrySceneMotion.entrance, () {
+          if (mounted) setState(() => _entranceReady = true);
+        });
+      });
     }
   }
 
@@ -347,16 +351,19 @@ class _MyAppState extends State<MyApp> {
       future: _startupFuture,
       builder: (context, snapshot) {
         final data = snapshot.data;
-        final ready =
+        final startupReady =
             snapshot.connectionState == ConnectionState.done &&
             data != null &&
             !snapshot.hasError &&
-            !_artFailed &&
-            (widget.onLaunchReady == null ||
-                (_artReady &&
-                    (_entranceReady ||
-                        MediaQuery.disableAnimationsOf(context) ||
-                        MediaQuery.accessibleNavigationOf(context))));
+            !_artFailed;
+        final artReady = widget.onLaunchReady == null || _artReady;
+        final reduceMotion =
+            MediaQuery.disableAnimationsOf(context) ||
+            MediaQuery.accessibleNavigationOf(context);
+        final brandBeatReady =
+            widget.onLaunchReady == null || _entranceReady || reduceMotion;
+        final actualWorkReady = startupReady && artReady;
+        final ready = actualWorkReady && brandBeatReady;
         if (ready) _scheduleInitialAudio(data.startAtHome);
         return AnimatedSwitcher(
           duration:
@@ -376,7 +383,10 @@ class _MyAppState extends State<MyApp> {
                 )
               : snapshot.hasError || _artFailed
               ? const _StartupFailure(key: ValueKey('startup-error'))
-              : const _StartupSplash(key: ValueKey('startup')),
+              : _StartupSplash(
+                  key: const ValueKey('startup'),
+                  showStatus: !actualWorkReady,
+                ),
         );
       },
     );
@@ -491,12 +501,16 @@ Future<void> _precacheEntryAsset(BuildContext context, String asset) async {
 }
 
 class _StartupSplash extends StatelessWidget {
-  const _StartupSplash({super.key});
+  const _StartupSplash({super.key, required this.showStatus});
+  final bool showStatus;
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: EntrySceneMotion.paper,
     body: EntryLoadingScene(
       label: AppLocalizations.of(context).entryPreparingAssets,
+      showStatus: showStatus,
+      statusDelay: EntrySceneMotion.loadingStatusDelay,
     ),
   );
 }

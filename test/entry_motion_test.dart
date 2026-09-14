@@ -245,6 +245,36 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('startup status appears only after the real-wait threshold', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        const Scaffold(
+          body: EntryLoadingScene(
+            label: '正在準備入口',
+            statusDelay: EntrySceneMotion.loadingStatusDelay,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('載入中'), findsNothing);
+    await tester.pump(
+      EntrySceneMotion.loadingStatusDelay - const Duration(milliseconds: 1),
+    );
+    expect(find.text('載入中'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.text('載入中'), findsOneWidget);
+  });
+
+  test('brand entrance completes one visible motion beat', () {
+    expect(EntrySceneMotion.entrance, const Duration(milliseconds: 1320));
+    expect(
+      EntrySceneMotion.entrance,
+      greaterThan(EntrySceneMotion.loadingStatusDelay),
+    );
+  });
+
   test(
     'paper reveal fully covers at start and leaves no clipped corner at end',
     () {
