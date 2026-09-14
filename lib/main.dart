@@ -56,9 +56,11 @@ import 'utils/wardrobe_store.dart';
 import 'utils/water_habit_link.dart';
 import 'utils/weight_records.dart';
 import 'widgets/app_pressable.dart';
+import 'widgets/app_touch_sparkles.dart';
 import 'widgets/app_waiting.dart';
 import 'widgets/entry_controls.dart';
 import 'widgets/entry_cover.dart';
+import 'widgets/entry_loading_scene.dart';
 import 'widgets/entry_scenery.dart';
 import 'widgets/footprint_coin_reward_overlay.dart';
 import 'widgets/navigation_surface.dart';
@@ -271,6 +273,8 @@ class _MyAppState extends State<MyApp> {
   bool _artStarted = false;
   bool _artReady = false;
   bool _artFailed = false;
+  bool _entranceReady = false;
+  Timer? _entranceTimer;
 
   @override
   void initState() {
@@ -284,6 +288,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    _entranceTimer?.cancel();
     AppLocaleSettings.instance.removeListener(_localeChanged);
     super.dispose();
   }
@@ -293,20 +298,20 @@ class _MyAppState extends State<MyApp> {
     super.didChangeDependencies();
     if (!_artStarted && widget.onLaunchReady != null) {
       _artStarted = true;
+      // A short brand entrance, independent of real asset readiness. The
+      // progress display never advances on this timer.
+      _entranceTimer = Timer(EntrySceneMotion.entrance, () {
+        if (mounted) setState(() => _entranceReady = true);
+      });
       unawaited(_prepareEntryArt());
     }
   }
 
   Future<void> _prepareEntryArt() async {
     try {
-      try {
-        await _precacheEntryAsset(context, kEntryLaunchAsset);
-      } finally {
-        // Native launch is static. Release its matching first Flutter frame as
-        // soon as decoded, even if startup later needs a visible error/retry.
-        widget.onLaunchReady?.call();
-      }
-      if (!mounted) return;
+      // Native launch and the first Flutter frame share the same warm white.
+      // Release immediately so loading motion can run while images decode.
+      widget.onLaunchReady?.call();
       await Future.wait([
         _precacheEntryAsset(context, kEntryCoverAsset),
         _precacheEntryAsset(context, kEntryCleanPlateAsset),
@@ -347,7 +352,11 @@ class _MyAppState extends State<MyApp> {
             data != null &&
             !snapshot.hasError &&
             !_artFailed &&
-            (widget.onLaunchReady == null || _artReady);
+            (widget.onLaunchReady == null ||
+                (_artReady &&
+                    (_entranceReady ||
+                        MediaQuery.disableAnimationsOf(context) ||
+                        MediaQuery.accessibleNavigationOf(context))));
         if (ready) _scheduleInitialAudio(data.startAtHome);
         return AnimatedSwitcher(
           duration:
@@ -410,7 +419,7 @@ class _MyAppState extends State<MyApp> {
         final scale = mq.textScaler.scale(1.0).clamp(1.0, 1.3);
         return MediaQuery(
           data: mq.copyWith(textScaler: TextScaler.linear(scale)),
-          child: child!,
+          child: AppTouchSparkles(child: child!),
         );
       },
       home: Builder(builder: _buildHome),
@@ -485,12 +494,9 @@ class _StartupSplash extends StatelessWidget {
   const _StartupSplash({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: AppSurfaces.canvas,
-    body: Image.asset(
-      kEntryLaunchAsset,
-      width: double.infinity,
-      height: double.infinity,
-      fit: BoxFit.cover,
+    backgroundColor: EntrySceneMotion.paper,
+    body: EntryLoadingScene(
+      label: AppLocalizations.of(context).entryPreparingAssets,
     ),
   );
 }
@@ -510,6 +516,9 @@ class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
   bool _failed = false;
   bool _revealed = false;
   bool _coverRemoved = false;
+  int _preparedAssets = 0;
+  int _totalAssets = 0;
+  Animation<double>? _entryAnimation;
   final _arrivalFinished = Completer<bool>();
 
   Future<void> _prepareRoom() async {
@@ -521,15 +530,19 @@ class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
           blend.overlay ??
           ScenePeriod.values[(blend.base.index + 1) %
               ScenePeriod.values.length];
+      final roomAssets = {
+        assets.of(blend.base),
+        assets.of(next),
+        skinnedMascotAsset(MascotPersona.current.value.assetPath, outfit),
+        skinnedMascotAsset(MascotEmotion.neutralFront.assetPath, outfit),
+        skinnedMascotAsset(MascotEmotion.happy.assetPath, outfit),
+      };
+      setState(() => _totalAssets = roomAssets.length);
       await Future.wait([
-        for (final asset in [
-          assets.of(blend.base),
-          assets.of(next),
-          skinnedMascotAsset(MascotPersona.current.value.assetPath, outfit),
-          skinnedMascotAsset(MascotEmotion.neutralFront.assetPath, outfit),
-          skinnedMascotAsset(MascotEmotion.happy.assetPath, outfit),
-        ])
-          _precacheEntryAsset(context, asset),
+        for (final asset in roomAssets)
+          _precacheEntryAsset(context, asset).then((_) {
+            if (mounted) setState(() => _preparedAssets++);
+          }),
       ]);
       if (!mounted) return;
       _assetsReady = true;
@@ -555,6 +568,7 @@ class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
 
   @override
   void dispose() {
+    _entryAnimation?.removeStatusListener(_onEntryAnimation);
     if (!_arrivalFinished.isCompleted) _arrivalFinished.complete(false);
     super.dispose();
   }
@@ -568,26 +582,44 @@ class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
     if (!mounted || !_dataReady || !_assetsReady || _failed || _revealed) {
       return;
     }
+    // Let the route cover the previous scene before revealing the ready room.
+    // The room data/reward barrier stays closed during both transitions.
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation != null && !animation.isCompleted) {
+      if (_entryAnimation != animation) {
+        _entryAnimation?.removeStatusListener(_onEntryAnimation);
+        _entryAnimation = animation..addStatusListener(_onEntryAnimation);
+      }
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _failed) return;
       setState(() => _revealed = true);
-      if (MediaQuery.disableAnimationsOf(context) ||
-          MediaQuery.accessibleNavigationOf(context)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _finishArrival());
-      }
     });
   }
 
-  Widget _fadeCover({required bool reduce, required Widget child}) {
-    // A zero-duration AnimatedOpacity fires onEnd synchronously from its
+  void _onEntryAnimation(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _revealWhenReady();
+  }
+
+  Widget _revealCover({required bool reduce, required Widget child}) {
+    // A zero-duration implicit animation fires onEnd synchronously from its
     // didUpdateWidget. It must not re-dirty this parent while it is rebuilding.
-    // Reduced motion uses the post-frame completion in _revealWhenReady only.
-    if (reduce) return Opacity(opacity: _revealed ? 0 : 1, child: child);
-    return AnimatedOpacity(
-      opacity: _revealed ? 0 : 1,
-      duration: AppMotion.enter,
+    // Also complete if Reduce Motion is enabled midway through the reveal.
+    if (reduce) {
+      if (_revealed) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _finishArrival());
+      }
+      return Opacity(opacity: _revealed ? 0 : 1, child: child);
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: _revealed ? 1 : 0),
+      duration: EntrySceneMotion.reveal,
+      curve: Curves.easeInOutCubic,
       onEnd: _finishArrival,
       child: child,
+      builder: (_, progress, child) =>
+          ClipPath(clipper: EntryPaperRevealClipper(progress), child: child),
     );
   }
 
@@ -601,9 +633,9 @@ class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
       fit: StackFit.expand,
       children: [
         ExcludeSemantics(
-          excluding: !_revealed,
+          excluding: !_coverRemoved,
           child: IgnorePointer(
-            ignoring: !_revealed,
+            ignoring: !_coverRemoved,
             child: MainPage(
               quietArrival: widget.quietArrival,
               onEntryReady: _onReady,
@@ -613,42 +645,46 @@ class _HomeEntryArrivalState extends State<_HomeEntryArrival> {
         ),
         if (!_coverRemoved)
           IgnorePointer(
-            ignoring: _revealed,
-            child: _fadeCover(
+            ignoring: _coverRemoved,
+            child: _revealCover(
               reduce: reduce,
               child: Scaffold(
                 body: Stack(
                   fit: StackFit.expand,
                   children: [
-                    const EntryScenery(bottomScrim: true, titleArt: true),
-                    SafeArea(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: _failed
-                              ? Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      l.entryRoomError,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    FilledButton(
-                                      onPressed: () =>
-                                          RootRestart.restart(context),
-                                      child: Text(l.csRetry),
-                                    ),
-                                  ],
-                                )
-                              : Text(
-                                  l.entryPrepareRoom,
+                    EntryLoadingScene(
+                      label: l.entryPrepareRoom,
+                      detail: l.entryAssetsLocal,
+                      preparingRoom: true,
+                      showStatus: !_failed,
+                      active: !_failed,
+                      progress: _totalAssets == 0
+                          ? null
+                          : _preparedAssets / _totalAssets,
+                    ),
+                    if (_failed)
+                      SafeArea(
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  l.entryRoomError,
                                   textAlign: TextAlign.center,
                                 ),
+                                const SizedBox(height: 16),
+                                FilledButton(
+                                  onPressed: () => RootRestart.restart(context),
+                                  child: Text(l.csRetry),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -792,7 +828,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     if (!(await widget.onEntryReady?.call() ?? true) || !mounted) return;
-    _presentationBarrierPassed = true;
+    setState(() => _presentationBarrierPassed = true);
     await _claimDailyLoginReward();
     if (!mounted) return;
     _checkSeasonStories();
@@ -1493,6 +1529,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       TabIds.habit: _TabItem(
         id: TabIds.habit,
         page: HomePage(
+          entryVisible:
+              widget.onEntryReady == null || _presentationBarrierPassed,
           onSettingsChanged: _loadSettings,
           onRoommateModeChanged: _onRoommateModeChanged,
           waterHabitAutoComplete: _waterGoalReached,

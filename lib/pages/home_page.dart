@@ -69,6 +69,10 @@ class HomePage extends StatefulWidget {
   final void Function(int, Object, StackTrace)? onDayReloadFailed;
   final int reloadTrigger;
 
+  /// Entry loads the real room below a paper curtain; global greetings wait
+  /// until that curtain has finished, without changing the daily greeting token.
+  final bool entryVisible;
+
   /// 目前邏輯日（由 [LogicalDayCoordinator] 擁有，經 MainPage 傳下來）。
   /// revision 一變就重新載入；首頁不再自己判斷跨日或推進 lastOpenDate。
   /// null 只出現在「單獨掛載首頁」的測試路徑，此時退回自行計算今天。
@@ -84,6 +88,7 @@ class HomePage extends StatefulWidget {
     this.onDayReloaded,
     this.onDayReloadFailed,
     this.reloadTrigger = 0,
+    this.entryVisible = true,
     this.dayStamp,
   });
 
@@ -111,6 +116,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   int _roommateInvitationGeneration = 0;
   Timer? _roommateReadyTimer;
   OverlayEntry? _greetingEntry;
+  VoidCallback? _pendingEntryGreeting;
   // 換日線（一天從幾點開始）；loadHabits 每次顯示首頁時從 prefs 重讀。
   int _dayStartHour = LogicalDate.defaultHour;
   DateTime? onboardingDate;
@@ -833,9 +839,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (id == null || _greetedTransitionId == id) return;
     if (!LogicalDayCoordinator.instance.consumeGreeting(id)) return;
     _greetedTransitionId = id;
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) showGreeting(prefs, s.previousOpenDate);
-    });
+    void present() {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted && widget.entryVisible && _greetedTransitionId == id) {
+          showGreeting(prefs, s.previousOpenDate);
+        }
+      });
+    }
+
+    if (widget.entryVisible) {
+      present();
+    } else {
+      _pendingEntryGreeting = present;
+    }
   }
 
   void showGreeting(SharedPreferences prefs, String? lastOpen) {
@@ -1266,6 +1282,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.entryVisible && !oldWidget.entryVisible) {
+      final pending = _pendingEntryGreeting;
+      _pendingEntryGreeting = null;
+      pending?.call();
+    }
     // 邏輯日換了就整份重載。MainPage 保證這一幀裡的 auto-complete 旗標已經
     // 是新一天的值，所以重載讀到的連動狀態不會是昨天的殘留；也因此這時不必
     // 再單獨跑下面兩個 sync（重載的快照已經把它們算進去了）。

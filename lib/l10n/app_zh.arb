@@ -6022,6 +6022,8 @@
   "entryAccountData": "帳號與資料",
   "entryProviderUnavailable": "此測試版本尚未啟用 Apple／Google 登入；可先以訪客開始。",
   "entryPrepareRoom": "正在準備房間…",
+  "entryPreparingAssets": "正在準備素材…",
+  "entryAssetsLocal": "房間與兔咪素材已隨 App 安裝，正在準備。",
   "entryRoomError": "房間暫時無法開啟，請重試。你的紀錄仍保留在裝置。",
   "entryLaterNames": "稱呼可以之後在設定裡慢慢決定。",
   "entryEnterRoom": "走進我們的日常",

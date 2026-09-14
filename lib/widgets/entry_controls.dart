@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
 import 'app_pressable.dart';
+import 'entry_loading_scene.dart';
 
 /// Entry actions use the same press feedback and palette as the daily app.
 class EntryPrimaryAction extends StatelessWidget {
@@ -48,13 +49,13 @@ class EntryPrimaryAction extends StatelessWidget {
   );
 }
 
-/// Branded entry routes fade without moving the two different scene cameras.
+/// A paper-pattern curtain joins the two different scene cameras.
 /// Other app navigation keeps the existing platform page transitions.
 class EntryPageRoute<T> extends MaterialPageRoute<T> {
   EntryPageRoute({required super.builder, super.settings});
 
   @override
-  Duration get transitionDuration => AppMotion.enter;
+  Duration get transitionDuration => EntrySceneMotion.route;
 
   @override
   Duration get reverseTransitionDuration => AppMotion.quick;
@@ -68,9 +69,36 @@ class EntryPageRoute<T> extends MaterialPageRoute<T> {
   ) {
     final mq = MediaQuery.of(context);
     if (mq.disableAnimations || mq.accessibleNavigation) return child;
-    return FadeTransition(
-      opacity: animation.drive(CurveTween(curve: Curves.easeInOut)),
+    return AnimatedBuilder(
+      animation: animation,
       child: child,
+      builder: (context, child) {
+        final t = animation.value;
+        final cover = Curves.easeOut.transform((t / .35).clamp(0, 1));
+        final reveal = Curves.easeInOutCubic.transform(
+          ((t - .35) / .65).clamp(0, 1),
+        );
+        return IgnorePointer(
+          ignoring: t < 1,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Opacity(opacity: t >= .35 ? 1 : 0, child: child),
+              if (t < 1)
+                Opacity(
+                  opacity: cover,
+                  child: ClipPath(
+                    clipper: EntryPaperRevealClipper(reveal),
+                    child: const EntryLoadingScene(
+                      label: '',
+                      showStatus: false,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

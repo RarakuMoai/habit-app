@@ -1436,6 +1436,8 @@
   "entryAccountData": "Account & data",
   "entryProviderUnavailable": "Apple and Google sign-in are not enabled in this build. You can begin as a guest.",
   "entryPrepareRoom": "Preparing your room…",
+  "entryPreparingAssets": "Preparing artwork…",
+  "entryAssetsLocal": "Your room and Tumi’s artwork are installed with the app and are getting ready.",
   "entryRoomError": "The room could not open. Retry; your records remain on this device.",
   "entryLaterNames": "You can choose names later in Settings.",
   "entryEnterRoom": "Step into our days together",

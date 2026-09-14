@@ -8,6 +8,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_app/main.dart';
+import 'package:habit_app/pages/home/greeting_banner.dart';
+import 'package:habit_app/pages/home_page.dart';
 import 'package:habit_app/utils/coin_service.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/logical_day_coordinator.dart';
@@ -153,4 +155,40 @@ void main() {
       await _unmount(tester);
     },
   );
+
+  for (final admitted in [true, false]) {
+    testWidgets('daily greeting waits for visible room; arrival=$admitted', (
+      tester,
+    ) async {
+      await prefs.remove(PrefsKeys.lastOpenDate);
+      LogicalDayCoordinator.debugInstance = LogicalDayCoordinator();
+      await LogicalDayCoordinator.instance.start();
+      final entry = await mount(tester);
+      expect(
+        tester.widget<HomePage>(find.byType(HomePage)).entryVisible,
+        isFalse,
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(
+        find.byType(GreetingBanner),
+        findsNothing,
+        reason: 'Global Overlay must not escape above the loading curtain.',
+      );
+      entry.gate.complete(admitted);
+      if (admitted) {
+        await _pumpUntil(
+          tester,
+          () => tester.widget<HomePage>(find.byType(HomePage)).entryVisible,
+        );
+      } else {
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        find.byType(GreetingBanner),
+        admitted ? findsOneWidget : findsNothing,
+      );
+      await _unmount(tester);
+    });
+  }
 }

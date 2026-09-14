@@ -13,6 +13,7 @@ import 'package:habit_app/l10n/app_localizations.dart';
 import 'package:habit_app/main.dart' as app;
 import 'package:habit_app/pages/account_backup_page.dart';
 import 'package:habit_app/pages/app_entry_page.dart';
+import 'package:habit_app/pages/home/greeting_banner.dart';
 import 'package:habit_app/pages/onboarding_page.dart';
 import 'package:habit_app/pages/timer_page.dart';
 import 'package:habit_app/utils/account_service.dart';
@@ -23,7 +24,9 @@ import 'package:habit_app/utils/entry_audio.dart';
 import 'package:habit_app/utils/logical_date.dart';
 import 'package:habit_app/utils/prefs_keys.dart';
 import 'package:habit_app/utils/story_store.dart';
+import 'package:habit_app/widgets/app_touch_sparkles.dart';
 import 'package:habit_app/widgets/entry_cover.dart';
+import 'package:habit_app/widgets/entry_loading_scene.dart';
 import 'package:habit_app/widgets/timer_mode_frame.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -136,6 +139,10 @@ void main() {
   const skipMeeting = bool.fromEnvironment('ENTRY_REVIEW_SKIP_MEETING');
   const largeText = bool.fromEnvironment('ENTRY_REVIEW_LARGE_TEXT');
   const reduceMotion = bool.fromEnvironment('ENTRY_REVIEW_REDUCE_MOTION');
+  const entryMotion = bool.fromEnvironment('ENTRY_REVIEW_MOTION');
+  if (entryMotion) {
+    binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+  }
   testWidgets('real app entry integration ($scenario, before=$before)', (
     tester,
   ) async {
@@ -383,8 +390,8 @@ void main() {
       });
     }
 
-    Future<void> capture(String name) async {
-      await frames(12);
+    Future<void> capture(String name, {int settleFrames = 12}) async {
+      await frames(settleFrames);
       expect(binding.lifecycleState, AppLifecycleState.resumed, reason: name);
       expect(binding.sendFramesToEngine, isTrue, reason: name);
       final context = tester.element(find.byType(Scaffold).first);
@@ -404,6 +411,7 @@ void main() {
           'requestedReduceMotion': reduceMotion ? true : 'system',
           'accessibilityInjection': largeText || reduceMotion ? 'Flutter test platformDispatcher values, not OS settings' : 'none',
           'notifications': 'fake; permissions and scheduling not tested',
+          'framePolicy': binding.framePolicy.name,
         })}',
       );
       await acknowledge('ENTRY_CAPTURE', name);
@@ -430,6 +438,13 @@ void main() {
       AccountService.instance.dispose();
       AccountService.instance = AccountService(backend: backend, prefs: prefs);
     }
+    if (entryMotion && scenario != 'initFailure') {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 240));
+      if (find.byType(EntryLoadingScene).evaluate().isNotEmpty) {
+        await capture('00-warm-loading', settleFrames: 0);
+      }
+    }
     if (scenario == 'initFailure') {
       await waitFor(keyed('startup-error'));
       labelFixture();
@@ -443,6 +458,30 @@ void main() {
     await waitFor(find.byType(AppEntryPage));
     labelFixture();
     await capture('01-cover');
+
+    if (entryMotion) {
+      // Dragging blank cover must not become a tap or open the choice sheet.
+      final coverBox = tester.getRect(find.byType(EntryCover));
+      await tester.dragFrom(coverBox.center, const Offset(0, -80));
+      await frames();
+      expect(keyed('entry-guest'), findsNothing);
+      final sparkles = tester.state<AppTouchSparklesState>(
+        find.byType(AppTouchSparkles),
+      );
+      expect(sparkles.activeBurstCount, 0);
+      if (scenario == 'first') {
+        await tester.tapAt(Offset(coverBox.center.dx, coverBox.height * .34));
+      } else {
+        await tester.tap(keyed('app-language'));
+      }
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(sparkles.activeBurstCount, 1);
+      await capture('01a-touch-bloom', settleFrames: 0);
+      await frames(10);
+      expect(sparkles.activeBurstCount, 0);
+      Navigator.of(tester.element(find.byType(EntryCover))).pop();
+      await frames(10);
+    }
 
     if (const bool.fromEnvironment('ENTRY_REVIEW_COVER_V4')) {
       final cover = tester.state<EntryCoverState>(find.byType(EntryCover));
@@ -576,14 +615,33 @@ void main() {
             await tap(keyed('entry-primary'));
           }
         } else {
-          await tap(keyed('entry-guest'));
+          if (entryMotion) {
+            await tester.tap(keyed('entry-guest'));
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 240));
+            await capture('02e-pattern-transition', settleFrames: 0);
+            await frames(10);
+          } else {
+            await tap(keyed('entry-guest'));
+          }
         }
       }
       if (scenario != 'googleRestore') {
         await waitFor(find.byType(OnboardingPage));
         await capture('03-first-meeting');
         if (skipMeeting) {
-          await tap(keyed('onboarding-skip'));
+          if (entryMotion) {
+            await tester.tap(keyed('onboarding-skip'));
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 640));
+            if (find.byType(EntryLoadingScene).evaluate().isNotEmpty) {
+              expect(find.byType(GreetingBanner), findsNothing);
+            }
+            await capture('03b-room-preparation', settleFrames: 0);
+            await frames(10);
+          } else {
+            await tap(keyed('onboarding-skip'));
+          }
         } else {
           // The baseline has six existing scenes. The bounded loop also supports
           // an integrated, shorter first meeting using the same production key.
