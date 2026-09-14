@@ -21,6 +21,8 @@ abstract final class EntrySceneMotion {
   static const paper = Color(0xFFFFF1E5);
   static const motifOpacity = .48;
   static const strongMotifOpacity = .56;
+  static const motifFloat = 2.2;
+  static const leafSwayRadians = .055;
 }
 
 /// Shared original line art for loading wallpaper and touch confetti.
@@ -336,10 +338,19 @@ class _WallpaperPainter extends CustomPainter {
         if (x < -30 || y < -30 || x > size.width + 30 || y > size.height + 30) {
           continue;
         }
+        final phase = t * 1.7 + row * .83 + col * 1.11;
+        final pulse = reduced ? 0.0 : math.sin(phase);
+        final sway = switch (motif) {
+          EntryMotif.leaf => EntrySceneMotion.leafSwayRadians,
+          EntryMotif.flower => .025,
+          _ => .035,
+        };
         canvas.save();
-        canvas.translate(x, y);
-        canvas.rotate((row + col) % 2 == 0 ? -.16 : .18);
-        canvas.scale(1.04);
+        canvas.translate(x, y + pulse * EntrySceneMotion.motifFloat);
+        canvas.rotate(((row + col) % 2 == 0 ? -.16 : .18) + pulse * sway);
+        canvas.scale(
+          1.04 * (1 + pulse * (motif == EntryMotif.flower ? .018 : .01)),
+        );
         paint.color =
             (motif == EntryMotif.leaf
                     ? const Color(0xff5b8753)

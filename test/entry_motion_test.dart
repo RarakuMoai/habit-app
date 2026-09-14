@@ -277,6 +277,8 @@ void main() {
       EntryMotif.leaf,
     ]);
     expect(entryWallpaperMotifs, isNot(contains(EntryMotif.sparkle)));
+    expect(EntrySceneMotion.motifFloat, greaterThan(2));
+    expect(EntrySceneMotion.leafSwayRadians, greaterThan(.05));
     expect(
       EntrySceneMotion.entrance,
       greaterThan(EntrySceneMotion.loadingStatusDelay),
