@@ -19,12 +19,20 @@ abstract final class EntrySceneMotion {
   /// A pale apricot paper, darker than the app's cards but still quiet enough
   /// to hand off to the bright cover without a color flash.
   static const paper = Color(0xFFFFF1E5);
-  static const motifOpacity = .32;
-  static const strongMotifOpacity = .40;
+  static const motifOpacity = .48;
+  static const strongMotifOpacity = .56;
 }
 
 /// Shared original line art for loading wallpaper and touch confetti.
 enum EntryMotif { bunny, leaf, flower, sparkle }
+
+/// Keep the loading wallpaper focused on three Tumi-world symbols. Sparkles
+/// remain available to tap feedback, but do not appear in the startup pattern.
+const entryWallpaperMotifs = [
+  EntryMotif.bunny,
+  EntryMotif.flower,
+  EntryMotif.leaf,
+];
 
 void paintEntryMotif(Canvas canvas, EntryMotif motif, Paint paint) {
   switch (motif) {
@@ -321,7 +329,8 @@ class _WallpaperPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
     for (var row = -5; row < size.height / pitch + 6; row++) {
       for (var col = -5; col < size.width / pitch + 6; col++) {
-        final motif = EntryMotif.values[(row + col * 3) % 4];
+        final motif =
+            entryWallpaperMotifs[(row + col * 2) % entryWallpaperMotifs.length];
         final x = col * pitch + (row.isOdd ? pitch / 2 : 0) + drift;
         final y = row * pitch - drift;
         if (x < -30 || y < -30 || x > size.width + 30 || y > size.height + 30) {
@@ -333,10 +342,10 @@ class _WallpaperPainter extends CustomPainter {
         canvas.scale(1.04);
         paint.color =
             (motif == EntryMotif.leaf
-                    ? AppPalette.habitDone
+                    ? const Color(0xff5b8753)
                     : motif == EntryMotif.flower
-                    ? AppPalette.habit
-                    : const Color(0xffcbb075))
+                    ? const Color(0xffd96d64)
+                    : const Color(0xffb27a3b))
                 .withValues(
                   alpha:
                       (strong

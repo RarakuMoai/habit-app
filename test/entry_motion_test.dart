@@ -270,7 +270,13 @@ void main() {
   test('brand entrance completes one visible motion beat', () {
     expect(EntrySceneMotion.entrance, const Duration(milliseconds: 1320));
     expect(EntrySceneMotion.paper, const Color(0xFFFFF1E5));
-    expect(EntrySceneMotion.motifOpacity, greaterThanOrEqualTo(.30));
+    expect(EntrySceneMotion.motifOpacity, greaterThanOrEqualTo(.45));
+    expect(entryWallpaperMotifs, const [
+      EntryMotif.bunny,
+      EntryMotif.flower,
+      EntryMotif.leaf,
+    ]);
+    expect(entryWallpaperMotifs, isNot(contains(EntryMotif.sparkle)));
     expect(
       EntrySceneMotion.entrance,
       greaterThan(EntrySceneMotion.loadingStatusDelay),
