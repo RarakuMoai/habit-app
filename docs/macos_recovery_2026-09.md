@@ -97,3 +97,13 @@
 
 在專案資料夾執行 `bash scripts/setup-mac-shell.sh`，再重開終端機。
 腳本保留其他設定，修改既有檔案前會備份；重複執行不會重複加入設定。
+
+## 2026-09-15：Xcode 27 編譯相容性
+
+- Xcode 27.0（27A266a）不接受原先 iOS 13 deployment target。
+- Runner 所有組態與 Podfile 最低版本統一為 iOS 15；post_install 將低於 15 的
+  Pod target 提升至 15，保留套件原有更高的最低版本，避免 pod install 後復發。
+- 僅 Podfile checksum 更新，Pod 套件版本未變；正式／測試 bundle ID 與簽署 team 未改。
+- 本人下一步：執行 prod，確認編譯、簽署與手機啟動成功，並確認原存檔仍在。
+  最低支援版本改為 iOS 15，不再支援 iOS 13／14。
+- 驗證：目前開發內容在 Xcode 27.0 下執行 `flutter build ios --release --flavor prod --no-codesign --no-pub` 成功（81.1 秒，141.9 MB）；未簽署、未安裝或啟動實機。Podfile Ruby 語法及 diff 檢查通過。
