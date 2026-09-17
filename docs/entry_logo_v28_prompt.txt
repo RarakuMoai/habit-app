@@ -1,0 +1,6 @@
+Use case: precise-object-edit.
+Edit target: logo_27.png, approved Traditional Chinese two-line logo.
+Change ONLY the two leaves at the far left: make their green a little fresher and more vivid, modestly more saturated, slightly less muddy olive, still warm natural leaf green. Preserve their exact shape, size, veins, fabric texture, lighting, shadows and location.
+Keep EVERY other element unchanged: exact lettering 兔咪 on top and 好習慣 below, all glyph shapes and five-character size balance, warm ivory and butter yellow colors, cocoa matte backing, white circular badge with orange check, two golden rays, shadows and composition. No new decorations or stitches.
+Do not redraw the whole image. Local edit only. 不重繪，只局部修改。No neon or lime green. Output same 1536x1024 framing, genuinely transparent background and preserved alpha; no opaque backdrop, checkerboard or added glow.
+The previous attempt was still too dull. This pass: give both leaves clearly fresher spring green, shift their olive hue about 8 degrees toward green and increase green chroma approximately 15-20%. Keep the lightness soft and moderate. Leaf midtone approximately #7C9B3B, highlight #B4C96A, shadow #536B2B. Only leaves change. No typography, texture or geometry changes.

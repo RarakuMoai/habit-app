@@ -11,7 +11,12 @@ import 'app_pressable.dart';
 const kEntryCleanPlateAsset =
     'assets/scenes/onboarding/entry_living_room_v6_clean_fur.png';
 const kEntryLeavesAsset = 'assets/scenes/onboarding/entry_leaves_v4.png';
-const kEntryLogoAsset = 'assets/scenes/onboarding/entry_logo_zh_v4.png';
+const kEntryLogoAsset = 'assets/scenes/onboarding/entry_logo_zh_v28.png';
+
+// Measured alpha >= 128 bounds of the approved 1536×1024 PNG. Size the
+// lettering, not its transparent margins; retain the V4 layout/hero-safe slot.
+const kEntryLogoInkBounds = Rect.fromLTRB(200, 122, 1412, 916);
+const kEntryLogoImageSize = Size(1536, 1024);
 
 /// The cutout touches the left and bottom image edges. Both pose components are
 /// positive-only, so the layer moves into the viewport instead of exposing its
@@ -405,29 +410,28 @@ class _CoverUtility extends StatelessWidget {
   );
 }
 
-// The approved preview crops only transparent margins (13 px each side).
-// Preserve the original PNG bytes and perform that same crop at render time.
+// Center the new, wider wordmark in the unchanged V4 logo slot. The measured
+// ink bounds determine scale; soft alpha shadows may paint outside those bounds.
+// No raster crop, stretching, extra shadow, or background/character changes.
 class _LogoImage extends StatelessWidget {
   const _LogoImage();
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-    child: ClipRect(
-      child: FittedBox(
-        fit: BoxFit.fill,
-        child: SizedBox(
-          width: 1233,
-          height: 963,
-          child: Stack(
-            children: [
-              Positioned(
-                left: -13,
-                top: -13,
-                width: 1259,
-                height: 989,
-                child: Image.asset(kEntryLogoAsset),
-              ),
-            ],
-          ),
+    child: FittedBox(
+      child: SizedBox(
+        width: kEntryLogoInkBounds.width,
+        height: kEntryLogoInkBounds.height,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: -kEntryLogoInkBounds.left,
+              top: -kEntryLogoInkBounds.top,
+              width: kEntryLogoImageSize.width,
+              height: kEntryLogoImageSize.height,
+              child: Image.asset(kEntryLogoAsset),
+            ),
+          ],
         ),
       ),
     ),
