@@ -48,5 +48,12 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # Plugin podspecs can specify older targets even with the platform above.
+    target.build_configurations.each do |config|
+      minimum = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+      if minimum && Gem::Version.new(minimum) < Gem::Version.new('15.0')
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
   end
 end
