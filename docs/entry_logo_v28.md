@@ -60,6 +60,30 @@ height=249.4×963/1233。新字形可見寬度 249.4pt、高度約 163.4pt，置
 其後以正常 `lib/main.dart`／Debug-redesign 在同一模擬器啟動（非 integration test），
 增量編譯 41.3 秒成功；已擷取無測試標籤的
 `design_trials/logo28_native_main.png`（1290×2796 像素／430×932pt），並解除 debugger
-連線、保留 App 運行，可在模擬器直接操作。沒有建立或安裝實機 Release 產物。
+連線、保留 App 運行，可在模擬器直接操作。當時尚未建立實機 Release 產物。
 
 模擬器只驗證構圖、互動與流程；實機冷啟動、字的第一眼份量、葉子色彩及手感仍由本人確認。
+
+## 2026-09-17 Release 編譯排查與交付
+
+本人回報 `Running Xcode build...` 長時間沒有進度。Xcode 結果檔顯示前兩次
+Release-redesign build 分別約 872.4 秒、93.5 秒後以 `cancelled` 結束，均為 0 errors；
+不能把取消紀錄當作編譯成功，也沒有證據顯示是簽章失敗。
+此次保留既有編譯快取，在本工作區執行
+`flutter build ios --release --flavor redesign --no-pub -v`，觀察到 Dart frontend／AOT
+實際運算，最後 Xcode build 118.9 秒成功，Flutter exit 0。
+
+產物 `build/ios/iphoneos/Runner.app` 為 191.6 MB，`codesign --verify --deep --strict`
+通過；Info.plist 確認「兔咪新體驗」、`com.yayoi991331.habitapp.redesign`、
+`1.0.1 (2026091701)`、最低 iOS 15。包內 V28 LOGO 與來源 SHA-256 相同。
+本輪沒有修改 App 程式或簽章設定，沒有安裝或啟動實體手機。
+
+本人可直接安裝並啟動已簽署產物，跳過 Xcode build：
+
+```zsh
+cd /Users/raraku/habit-app-entry-logo
+flutter run --release --flavor redesign --no-pub -d 00008120-000279CE1A9B401E --use-application-binary=/Users/raraku/habit-app-entry-logo/build/ios/iphoneos/Runner.app
+```
+
+這是目前產物的安裝指令；日後改過程式或素材、清除 build、簽章過期時須重新編譯。
+實機安裝、啟動、既有測試存檔與聲音／操作手感仍待本人驗證。
