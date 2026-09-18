@@ -174,8 +174,7 @@ const List<StoryEventSpec> storyCatalog = [
     trigger: StoryTrigger.habitStreak,
     threshold: 7,
     pages: [
-      // TODO(story-art): 正式回憶圖補回前，暫借現有場景圖避免缺檔。
-      StoryPage('assets/scenes/timer/timer_day.webp', [
+      StoryPage('assets/story/streak_7_crayon_v1.png', [
         '第一顆星亮起時，我還有點想睡。',
         '後來，你一天一天地回來。',
         '數到第七顆時，我就完全醒了。',
