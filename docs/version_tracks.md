@@ -49,6 +49,12 @@ AI 不安裝或啟動實體 iPhone／iPad。網頁檢查也不替代本人實機
 - 來源：`codex/beta`；在 GitHub Actions 手動執行 `Deploy Flutter Web to GitHub Pages`，指定此分支。
 - 網站的 `version.json` 保存來源分支、完整 commit 與版本號，方便核對是否仍在看快取舊版。
 - 瀏覽器資料存於該瀏覽器的網站儲存空間，不會直接同步三個 iOS App。
+- 寬螢幕把 Flutter 實際渲染區限制在置中 480px；手機寬度保持滿版，以免手機封面在桌面上過度裁切。
+  使用 [Flutter 官方 hostElement 初始化](https://docs.flutter.dev/platform-integration/web/initialization)，不縮放整張 canvas。
+- `firebase_core_web` 鎖定 3.12.0，修復 3.11.0 在此專案 Dart 3.11.5 的網頁編譯錯誤；其餘相依版本未升級。
+  上游說明：[套件 changelog](https://pub.dev/packages/firebase_core_web/changelog)。
+- 本輪部署前的舊網站另保存在 `archive/2026-09-18/web-before-beta`。
+- Google／Apple 登入目前未啟用，使用訪客入口；網頁不作原生登入、音訊、觸覺與效能的驗收替代。
 
 ## 舊分支與本機資料
 
