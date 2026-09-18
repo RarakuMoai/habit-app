@@ -17,30 +17,31 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="兔咪測試版：一起練習日常的小習慣。">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="habit_app">
+  <meta name="apple-mobile-web-app-title" content="兔咪測試版">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>habit_app</title>
+  <title>兔咪測試版</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; }
+    body { display: flex; justify-content: center; background: #FFF1E5; }
+    /* Keep the mobile composition readable on desktop; Flutter receives these
+       actual constraints instead of a scaled or clipped full-width canvas. */
+    #flutter_host { position: relative; width: 100%; max-width: 480px; height: 100%; height: 100dvh; }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="flutter_host"></div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

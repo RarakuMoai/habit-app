@@ -5,12 +5,12 @@
 
 ## 核對基準
 
-- 最新可核對的測試版來源：`codex/entry-logo-fresh-leaves`，`35c9977`，記錄版本 `1.0.1 (2026091701)`。原工作區為 `/Users/raraku/habit-app-entry-logo`。
+- 最新測試版固定來源：`codex/beta`，工作區 `/Users/raraku/habit-app-redesign`；延續 `aa0c5b4`。三版本對照見 [版本入口](version_tracks.md)。
 - 使用 `redesign`／`com.yayoi991331.habitapp.redesign`。本輪沒有查驗本人手機上的安裝版本。
 - 主畫面封面是 [V6 扶門圖](../assets/scenes/onboarding/entry_living_room_v6_clean_fur.png)，搭配 V28 LOGO；實裝來源見 [封面元件](../lib/widgets/entry_cover.dart) 與 [版本紀錄](entry_logo_v28.md)。
 - 普通首次旅程已是短初見；六幕前導保留於回憶。不能把 9/11 redesign 的舊六幕入口當作最新版。
 - 14 段主線、4 段可輪替日常、4 則特殊回憶仍存在。後兩者與主線是不同內容類型，見 [主線目錄](../lib/utils/companion_story_catalog.dart) 與 [特殊回憶目錄](../lib/utils/story_catalog.dart)。
-- 規劃分支由最新 main 建立後，快轉到上述測試基準；未合併 main，未改原工作區。
+- 原規劃與 LOGO 等分支已封存，改由固定 beta 延續；未合併 main。
 
 ## 第一版交付目標
 

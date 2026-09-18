@@ -1,6 +1,7 @@
 {
   "@@locale": "zh",
 
+  "appBetaTitle": "兔咪測試版",
   "appTitle": "兔咪好習慣",
   "@appTitle": {
     "description": "App 名稱。這是產品名，不隨兔咪改名而變。"

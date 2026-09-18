@@ -1,11 +1,11 @@
 {
-    "name": "habit_app",
-    "short_name": "habit_app",
+    "name": "兔咪測試版",
+    "short_name": "兔咪測試版",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#FFFFFF",
-    "description": "A new Flutter project.",
+    "description": "兔咪測試版：一起練習日常的小習慣。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

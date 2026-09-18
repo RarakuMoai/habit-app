@@ -1,6 +1,7 @@
 {
   "@@locale": "en",
 
+  "appBetaTitle": "Tumi Beta",
   "appTitle": "Tumi Habits",
 
   "tabHabits": "Habits",
