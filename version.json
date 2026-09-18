@@ -1,1 +1,6 @@
-{"app_name":"habit_app","version":"1.0.1","build_number":"20260724","package_name":"habit_app"}
+{
+  "name": "兔咪測試版",
+  "version": "1.0.1+2026091801",
+  "commit": "1e79d325de5d9cf46fd93f1d942127bc190d1da9",
+  "branch": "codex/beta"
+}
