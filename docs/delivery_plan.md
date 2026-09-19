@@ -1,10 +1,26 @@
 # 工作推進、裝置分工與驗收
 
-更新：2026-09-18。依使用者要求維護全局與下一步，涵蓋體驗、工程、測試版與正式上架。
+更新：2026-09-19。依使用者要求維護全局與下一步，涵蓋體驗、工程、測試版與正式上架。
 本頁是可調整的推進建議；已授權的工作持續執行，尚未定案的產品範圍不自行擴張。
 發布授權仍依 [AGENTS.md](../AGENTS.md)，公開上架檢查以 [prelaunch_audit.md](prelaunch_audit.md) 為單一來源。
 
 ## 2026-09-18 版本收斂
+
+2026-09-19 實機測試交付：由 `codex/beta`／`f0f76df`（含最新語言／生日首次設定）
+完成 signed iOS Release `1.0.1 (2026091801)`，顯示名稱「兔咪測試版」，bundle ID
+`com.yayoi991331.habitapp.redesign`。在 `/Users/raraku/habit-app-redesign` 執行
+`flutter build ios --release --flavor redesign --no-pub -v`，Xcode 221.7 秒成功，
+`build/ios/iphoneos/Runner.app` 為 194.1 MB；嚴格簽章驗證、指定裝置描述檔與 V28 LOGO
+包內雜湊均通過。當天此前有清除快取及兩次取消編譯（0 errors）；本輪觀察到 gRPC、
+Firestore、App 編譯持續前進，沒有重現死鎖。未改動 App 程式或安裝／啟動手機。
+本人可於 beta 目錄執行下列指令，直接使用本輪已完成的產物，跳過 Xcode build：
+
+```zsh
+flutter run --release --flavor redesign --no-pub -d 00008120-000279CE1A9B401E --use-application-binary=/Users/raraku/habit-app-redesign/build/ios/iphoneos/Runner.app
+```
+
+這只適用於上述已驗證產物；程式再更新、build 清除或簽章過期後須重新建置。
+下一步由本人確認安裝啟動、既有測試存檔，以及首次設定的語言／生日頁。
 
 目前版本與來源以 [三個 App 與固定程式來源](version_tracks.md) 為準：
 正式／debug 保留舊介面；新版 release 改名「兔咪測試版」，集中於 `codex/beta`。
