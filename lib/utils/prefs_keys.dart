@@ -17,6 +17,10 @@ abstract final class PrefsKeys {
 
   // ── Onboarding / 個人資料 ─────────────────────────────────
   static const onboardingDone = 'onboarding_done';
+  // Device-local preparation checkpoints; these are not data-collection consent.
+  static const onboardingPreparationStep = 'onboarding_preparation_step_v1';
+  static const onboardingPreparationReceipt =
+      'onboarding_preparation_receipt_v1';
   static const onboardingStoryVersion = 'onboarding_story_version';
   static const onboardingDate = 'onboarding_date';
   static const userNickname = 'user_nickname';

@@ -15,6 +15,7 @@ import 'pages/family_page.dart';
 import 'pages/home_page.dart';
 import 'pages/login_streak_page.dart';
 import 'pages/onboarding_page.dart';
+import 'pages/onboarding_preparation_page.dart';
 import 'pages/story_reveal_page.dart';
 import 'pages/timer_page.dart';
 import 'pages/wardrobe_page.dart';
@@ -439,7 +440,7 @@ class _MyAppState extends State<MyApp> {
         if (settings.name == '/onboarding') {
           return EntryPageRoute<void>(
             settings: settings,
-            builder: (_) => const OnboardingPage(compactEntry: true),
+            builder: (_) => const OnboardingPreparationPage(),
           );
         }
         if (settings.name == '/home') {

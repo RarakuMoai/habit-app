@@ -15,6 +15,7 @@ import 'package:habit_app/pages/account_backup_page.dart';
 import 'package:habit_app/pages/app_entry_page.dart';
 import 'package:habit_app/pages/home/greeting_banner.dart';
 import 'package:habit_app/pages/onboarding_page.dart';
+import 'package:habit_app/pages/onboarding_preparation_page.dart';
 import 'package:habit_app/pages/timer_page.dart';
 import 'package:habit_app/utils/account_service.dart';
 import 'package:habit_app/utils/backup_archive.dart';
@@ -627,6 +628,31 @@ void main() {
         }
       }
       if (scenario != 'googleRestore') {
+        await waitFor(find.byType(OnboardingPreparationPage));
+        await capture('02f-preparation-language');
+        await tap(keyed('preparation-language-traditionalChinese'));
+        await tap(keyed('preparation-next'));
+        await capture('02g-preparation-birthday');
+        await tap(keyed('preparation-birthday'));
+        await capture('02h-birthday-picker');
+        await tester.enterText(find.byType(TextField), '20000229');
+        await frames(6);
+        await capture('02i-birthday-input');
+        await tap(
+          find.text(
+            AppLocalizations.of(tester.element(find.byType(TextField))).bpDone,
+          ),
+        );
+        await capture('02j-birthday-selected');
+        await tap(keyed('preparation-next'));
+        await capture('02k-preparation-documents');
+        await tap(keyed('preparation-document-data'));
+        await capture('02l-data-document');
+        Navigator.of(tester.element(find.text('資料與隱私說明').last)).pop();
+        await frames(12);
+        await capture('02m-ready-for-story');
+        await tap(keyed('preparation-next'));
+        expect(prefs.getString(PrefsKeys.userBirthday), '2000-02-29');
         await waitFor(find.byType(OnboardingPage));
         await capture('03-first-meeting');
         if (skipMeeting) {

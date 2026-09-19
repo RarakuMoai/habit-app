@@ -18,6 +18,7 @@ import '../utils/units.dart';
 import '../widgets/app_dialogs.dart';
 import '../widgets/app_language_sheet.dart';
 import '../widgets/app_waiting.dart';
+import '../widgets/beta_information_sheet.dart';
 import '../widgets/settings_ui.dart';
 import 'account_backup_page.dart';
 import 'advanced_settings_page.dart';
@@ -416,6 +417,28 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: _showPinSettings,
                 ),
 
+                const SizedBox(height: 28),
+
+                SettingsTileCard(
+                  icon: Icons.menu_book_outlined,
+                  iconColor: AppPalette.habitInk,
+                  title: l10n.prepUseTitle,
+                  onTap: () => showPreparationDocument(
+                    context,
+                    title: l10n.prepUseTitle,
+                    body: l10n.prepUseBody,
+                  ),
+                ),
+                SettingsTileCard(
+                  icon: Icons.privacy_tip_outlined,
+                  iconColor: AppPalette.habitInk,
+                  title: l10n.prepDataTitle,
+                  onTap: () => showPreparationDocument(
+                    context,
+                    title: l10n.prepDataTitle,
+                    body: l10n.prepDataBody,
+                  ),
+                ),
                 const SizedBox(height: 28),
 
                 // ── 區塊3：進階 ──
